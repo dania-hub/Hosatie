@@ -4,12 +4,28 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PrescriptionController;
-
+use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\AdminHospital\StaffController;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+// Public Routes (No Middleware)
 
+// Public Route (For the employee to set password)
+Route::post('activate-account', [AuthController::class, 'activateAccount']);
+
+// Protected Admin Route (To create the user)
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::post('admin/staff', [StaffController::class, 'store']);
+});
+// Mobile
+Route::post('forgot-password/mobile', [ForgotPasswordController::class, 'sendOtpMobile']);
+Route::post('reset-password/mobile', [ForgotPasswordController::class, 'resetPasswordMobile']);
+
+// Dashboard
+Route::post('forgot-password/dashboard', [ForgotPasswordController::class, 'sendOtpDashboard']);
+Route::post('reset-password/dashboard', [ForgotPasswordController::class, 'resetPasswordDashboard']);
 Route::post('login/mobile', [AuthController::class, 'loginMobile']);       // For Patient App
 Route::post('login/dashboard', [AuthController::class, 'loginDashboard']); // For Web Dashboard
 

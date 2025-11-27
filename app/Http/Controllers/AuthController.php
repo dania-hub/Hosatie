@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Duplicate\Controllers;
 
 use App\Http\Controllers\BaseApiController;
 use App\Http\Requests\DashboardLoginRequest;   // NEW

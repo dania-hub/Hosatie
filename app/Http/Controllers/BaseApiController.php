@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
+use Illuminate\Support\Facades\Log;
+
 class BaseApiController 
 {
     /**
@@ -55,5 +57,20 @@ class BaseApiController
         }
 
         return response()->json($response, $code);
+    }
+    /**
+     * Handle exceptions and log them
+     *
+     * @param \Exception $e
+     * @param string $logMessage
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function handleException(\Exception $e, string $logMessage)
+    {
+        Log::error($logMessage . ': ' . $e->getMessage());
+        if (config('app.debug')) {
+            return $this->sendError('Server Error: ' . $e->getMessage(), [], 500);
+        }
+        return $this->sendError('An unexpected error occurred. Please try again.', [], 500);
     }
 }

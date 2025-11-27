@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\PrescriptionController;
+use App\Http\Controllers\Mobile\PrescriptionController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\AdminHospital\StaffController;
 Route::get('/user', function (Request $request) {

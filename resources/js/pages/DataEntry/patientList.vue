@@ -11,9 +11,9 @@ import btnform from "@/components/btnform.vue";
 import Btncancel from "@/components/btncancel.vue";
 
 // استيراد المكونات المنفصلة
-import PatientAddModal from "@/components/patientsDataEntry/PatientAddModal.vue";
-import PatientEditModal from "@/components/patientsDataEntry/PatientEditModal.vue";
-import PatientViewModal from "@/components/patientsDataEntry/PatientViewModal.vue";
+import PatientAddModal from "@/components/patientsDataEntry/PatientAddModel.vue";
+import PatientEditModal from "@/components/patientsDataEntry/PatientEditModel.vue";
+import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vue";
 
 // ----------------------------------------------------
 // 1. بيانات المرضى والـ Endpoint

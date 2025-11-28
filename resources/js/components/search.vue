@@ -7,7 +7,7 @@
     /* 1. التجاوب في العرض: تعيين العرض ليناسب الجهاز الأب */
     position: relative; 
     width: 100%; 
-    max-width: 400px; 
+    max-width: 300px; 
 }
 
 .input {

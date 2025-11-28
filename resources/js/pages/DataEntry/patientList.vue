@@ -297,12 +297,11 @@ const printTable = () => {
             <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
                 
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                    <div class="relative w-full sm:max-w-sm">
                         <search v-model="searchTerm" />
-                    </div>
+                  
                     
                     <div class="dropdown dropdown-start">
-                        <div tabindex="0" role="button" class="btn button inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
+                        <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
         rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden 
         text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
                             <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
@@ -360,7 +359,7 @@ const printTable = () => {
                     </p>
                 </div>
 
-                <div class="flex items-center gap-5 w-full sm:w-auto justify-end">
+                <div class="flex items-end gap-3 w-full sm:w-auto justify-end">
                     <inputadd @open-modal="openAddModal" />
                     <btnprint @click="printTable" />
                 </div>
@@ -480,7 +479,7 @@ const printTable = () => {
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
             dir="rtl"
         >
             {{ successMessage }}

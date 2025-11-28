@@ -88,7 +88,7 @@
       <div class="flex justify-start gap-3 pt-4 border-t">
         <button
           type="submit"
-          class="btn button inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-15 w-40 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
+          class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-15 w-40 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
         >
           <Icon icon="ic:baseline-check" class="w-5 h-5 ml-2" />
           حفظ التغييرات

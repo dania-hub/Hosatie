@@ -23,7 +23,7 @@ const fetchOperations = async () => {
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات. يرجى التحقق من اتصال الشبكة.");
+        showSuccessAlert("❌ فشل في تحميل البيانات.");
     } finally {
         isLoading.value = false;
     }
@@ -242,7 +242,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                         </div>
                         
                         <div class="dropdown dropdown-start">
-                            <div tabindex="0" role="button" class="btn button inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
+                            <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
                                 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
                                 text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
                                 <Icon icon="lucide:filter" class="w-5 h-5 ml-2" />
@@ -261,7 +261,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                         </div>
                         
                         <div class="dropdown dropdown-start">
-                            <div tabindex="0" role="button" class="btn button inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
+                            <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
                                 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
                                 text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
                                 <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
@@ -362,7 +362,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 </tbody>
                             </table>
                             <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات عمليات لعرضها.
+                                ⚠️ لا توجد بيانات  لعرضها.
                             </div>
                         </div>
                     </div>
@@ -380,7 +380,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
             dir="rtl"
         >
             {{ successMessage }}

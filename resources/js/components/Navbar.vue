@@ -93,7 +93,7 @@ onMounted(() => {
 </script>
 <template>
   <header
-    class="navbar bg-white border-b border-primary/10 top-0 z-10 shadow-sm px-4 lg:px-8 py-4 flex justify-between items-center"
+    class="navbar bg-white z-[50] border-b border-primary/10 top-0 z-10 shadow-sm px-4 lg:px-8 py-4 flex justify-between items-center"
   >
     <div class="flex items-center">
       <label for="my-drawer" class="btn btn-ghost lg:hidden p-0 mr-4">
@@ -115,11 +115,11 @@ onMounted(() => {
 
         <div
           tabindex="0"
-          class="mt-5 z-[1] shadow dropdown-content bg-white rounded-lg w-80 text-right p-0"
+          class="mt-5 z-[100] shadow dropdown-content bg-white rounded-lg w-80 text-right p-0"
         >
-          <div class="bg-[#2E5077] text-white p-4 rounded-t-lg">
+          <div class="bg-[#2E5077] text-white p-2 rounded-t-lg">
             <h3 class="text-lg font-bold">الإشعارات</h3>
-            <span class="text-4xl font-extrabold">{{ unreadCount }}</span>
+            <span class="text-2xl font-extrabold">{{ unreadCount }}</span>
           </div>
 
           <ul

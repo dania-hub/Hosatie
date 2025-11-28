@@ -3,59 +3,31 @@
 
 .button {
 
-    /* التغيير الأساسي: استخدام flexbox لترتيب الأيقونة والنص */
-
     display: inline-flex;
-
     align-items: center; 
-
-    
-
-    padding:  8px;
-
-    border: 2px solid #4da1a9;
-
+     padding:  1px;;
+   border: 2px solid #4da1a9;
     border-radius: 30px;
-
     transition: all 0.2s ease-in;
-
     position: relative;
-
     overflow: hidden;
-
     font-size: 15px;
-
     cursor: pointer;
-
     color: #4da1a9;
-
     z-index: 1;
-
     background-color: white;
 
 }
-
-
-
-
-
 .icon-wrapper {
-
-    
-
-    margin-left: 8px; 
+    margin-left: 1px; 
 
     display: flex; 
 
 }
-
-
-
-
-
 .button:before {
 
     content: "";
+    
 
     position: absolute;
 
@@ -80,9 +52,6 @@
     z-index: -1;
 
 }
-
-
-
 .button:after {
 
     content: "";
@@ -118,17 +87,11 @@
     color: #4da1a9;
 
     border: 2px solid #4da1a9;
-
 }
-
-
-
 .button:hover:before {
-
     top: -35%;
-
     background-color: #2E5077;
-
+ border-color:#4da1a9 ;
     transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
 
 }
@@ -140,6 +103,7 @@
     top: -45%;
 
     background-color: #d7e9ea;
+    border-color:#4da1a9 ;
 
     transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
 
@@ -151,13 +115,13 @@
 
 <template>
 
-    <button class="button">
+    <button class="button"style="width: 100px;" >
 
         <span class="icon-wrapper">
 
             <Icon icon="mdi-light:printer" class="w-5 h-5"
 
-            style="color: #4da1a9" />
+          />
 
         </span>
 

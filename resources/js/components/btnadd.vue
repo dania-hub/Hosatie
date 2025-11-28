@@ -12,6 +12,7 @@
     overflow: hidden;
     cursor: pointer;
     z-index: 1;
+    width: 62%;
 
     /* تنسيقات اللون والحدود */
     color: white;
@@ -21,14 +22,14 @@
 
     /* التجاوب على الهواتف الصغيرة (Default) */
     padding: 8px 14px; /* تصميم أكثر اكتنازًا للهواتف */
-    font-size: 13.5px; /* خط أصغر ليتسع على شاشات الهاتف */
+    font-size: 13px; /* خط أصغر ليتسع على شاشات الهاتف */
 }
 
 
 /* التجاوب للشاشات الأكبر (Tablets and Desktops) */
-@media (min-width: 640px) {
+@media (min-width: 620px) {
     .button {
-        padding: 10px 20px; /* تباعد أكبر للكمبيوتر المكتبي */
+        padding: 10px 10px; /* تباعد أكبر للكمبيوتر المكتبي */
         font-size: 16px; /* خط أكبر وأوضح للشاشات الواسعة */
     }
 }
@@ -36,7 +37,7 @@
 
 .icon-wrapper {
     /* ضبط الهامش ليتوافق مع RTL: الأيقونة قبل النص، لذا الهامش على اليمين */
-    margin-right: 8px; 
+    margin-right: 1px; 
     margin-left: 0; 
     display: flex; 
 }
@@ -78,7 +79,7 @@
 
 .button:hover {
     color: white;
-    border: 1px solid #a8a8a8;
+    border: 2px solid #a8a8a8;
 }
 
 .button:hover:before {
@@ -95,7 +96,7 @@
 </style>
 
 <template>
-    <button class="button" @click="handleClick">
+    <button class="button " @click="handleClick">
         <span class="icon-wrapper">
             <Icon icon="line-md:person-add" class="w-5 h-5" />
         </span>

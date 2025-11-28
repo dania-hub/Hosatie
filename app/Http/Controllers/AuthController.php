@@ -1,18 +1,31 @@
 <?php
 
-namespace App\Duplicate\Controllers;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\BaseApiController;
-use App\Http\Requests\DashboardLoginRequest;   // NEW
-use App\Http\Requests\ForceChangePasswordRequest;
-use App\Http\Requests\Mobile;     // NEW
-use App\Http\Requests\ChangePasswordRequest;
-use App\Http\Resources\UserResource;
+use App\Http\Controllers\Controller;
+// use App\Http\Controllers\Api\BaseApiController; // <--- REMOVE THIS LINE
+// BaseApiController is in the same folder, so you don't need to "use" it, or just use:
+use App\Http\Controllers\BaseApiController; 
 
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use App\Http\Resources\UserResource;
+
+// --- Mobile Requests ---
+use App\Http\Requests\Mobile\MobileLoginRequest;
+use App\Http\Requests\Mobile\ForceChangePasswordRequest;
+use App\Http\Requests\Mobile\UpdateMobileProfileRequest;
+use App\Http\Requests\Mobile\ChangeMobilePasswordRequest;
+
+// --- Dashboard Requests ---
+use App\Http\Requests\DashboardLoginRequest;
+use App\Http\Requests\ChangeDashboardPasswordRequest;
+use App\Http\Requests\UpdateDashboardProfileRequest;
+
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class AuthController extends BaseApiController
 {
@@ -36,7 +49,7 @@ class AuthController extends BaseApiController
   /**
      * 1. MOBILE LOGIN (Patients Only)
      */
-    public function loginMobile(Request $request)
+    public function loginMobile(MobileLoginRequest $request)
    
     {
         try {
@@ -233,7 +246,7 @@ class AuthController extends BaseApiController
 //   **
 //      * 1. UPDATE MOBILE PROFILE (Patients)
 //      */
-    public function updateProfileMobile(Request $request)
+    public function updateProfileMobile(UpdateMobileProfileRequest $request)
     {
         try {
             $user = $request->user();
@@ -260,7 +273,7 @@ class AuthController extends BaseApiController
     /**
      * 2. UPDATE DASHBOARD PROFILE (Staff)
      */
-    public function updateProfileDashboard(\App\Http\Requests\UpdateDashboardProfileRequest $request)
+    public function updateProfileDashboard(UpdateDashboardProfileRequest $request)
     {
         try {
             $user = $request->user();
@@ -287,7 +300,7 @@ class AuthController extends BaseApiController
    /**
      * 1. CHANGE PASSWORD MOBILE (Patients)
      */
-    public function changePasswordMobile(\App\Http\Requests\ChangeMobilePasswordRequest $request)
+    public function changePasswordMobile(ChangeMobilePasswordRequest $request)
     {
         try {
             $user = $request->user();
@@ -298,12 +311,12 @@ class AuthController extends BaseApiController
             }
 
             // Verify Current Password
-            if (!\Illuminate\Support\Facades\Hash::check($request->current_password, $user->password)) {
+            if (!Hash::check($request->current_password, $user->password)) {
                 return $this->sendError('كلمة المرور الحالية غير صحيحة.', [], 400);
             }
 
             // Update
-            $user->password = \Illuminate\Support\Facades\Hash::make($request->new_password);
+            $user->password = Hash::make($request->new_password);
             $user->save();
 
             return $this->sendSuccess([], 'Password changed successfully (Mobile).');
@@ -313,29 +326,61 @@ class AuthController extends BaseApiController
         }
     }
 
-    /**
-     * 2. CHANGE PASSWORD DASHBOARD (Staff)
-     */
-    public function changePasswordDashboard(\App\Http\Requests\ChangeDashboardPasswordRequest $request)
-    {
-        try {
-            $user = $request->user();
-
-            // Security Check
-            if ($user->type === 'patient') {
-                return $this->sendError('Access denied.', [], 403);
+        public function changePasswordDashboard(ChangeDashboardPasswordRequest $request)
+        {
+            try {
+                $user = $request->user();
+    
+                // Security Check
+                if ($user->type === 'patient') {
+                    return $this->sendError('Access denied.', [], 403);
+                }
+    
+                if (!Hash::check($request->current_password, $user->password)) {
+                    return $this->sendError('Current password is incorrect.', [], 400);
+                }
+    
+                $user->password = Hash::make($request->new_password);
+                $user->save();
+    
+                return $this->sendSuccess([], 'Password changed successfully (Dashboard).');
+    
+            } catch (\Exception $e) {
+                return $this->handleException($e, 'Change Dashboard Password Error');
             }
-
-            if (!\Illuminate\Support\Facades\Hash::check($request->current_password, $user->password)) {
-                return $this->sendError('Current password is incorrect.', [], 400);
-            }
-
-            $user->password = \Illuminate\Support\Facades\Hash::make($request->new_password);
-            $user->save();
-
-            return $this->sendSuccess([], 'Password changed successfully (Dashboard).');
-
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'Change Dashboard Password Error');
         }
-    }}
+    
+        /**
+         * Activate Account & Set Password (From Email Link)
+         */
+            public function activateAccount(Request $request)
+            {
+                $request->validate([
+                    'token'    => 'required|string',
+                    'email'    => 'required|email|exists:users,email',
+                    'password' => 'required|string|min:8|confirmed',
+                ]);
+        
+                // 1. Check Token
+              
+$key = 'activation_token_' . $request->email;
+$cachedToken = \Illuminate\Support\Facades\Cache::get($key);
+
+// 1. Check Token existence and validity
+if (!$cachedToken || $cachedToken !== $request->token) {
+    return $this->sendError('Invalid or expired token.', [], 400);
+}
+        
+                // 3. Activate User & Set Password
+                $user = User::where('email', $request->email)->first();
+                $user->password = Hash::make($request->password);
+                $user->status = 'active';
+                $user->save();
+        
+                // 4. Delete Token
+              \Illuminate\Support\Facades\Cache::forget($key);
+        
+                return $this->sendSuccess([], 'Account activated successfully. You can now login.');
+            }
+    }
+

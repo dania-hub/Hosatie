@@ -48,8 +48,11 @@ class Prescription extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    // Relationship to Drugs (Many-to-Many via prescription_drug)
     public function drugs()
     {
-        return $this->hasMany(PrescriptionDrug::class);
+        return $this->belongsToMany(Drug::class, 'prescription_drug', 'prescription_id', 'drug_id')
+                    ->withPivot('monthly_quantity', 'note')
+                    ->withTimestamps();
     }
 }

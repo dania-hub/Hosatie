@@ -12,7 +12,7 @@ class CreateUsersTable extends Migration
             $table->string('national_id')->nullable()->unique();
             $table->enum('type', ['patient','doctor','pharmacist','warehouse_manager','hospital_admin','supplier_admin','super_admin','department_head']);
             $table->string('email')->nullable()->unique();
-            $table->string('phone')->unique();
+            $table->string('phone')->nullable()->unique();
             $table->string('full_name');
             $table->string('password');
             $table->string('fcm_token')->nullable();

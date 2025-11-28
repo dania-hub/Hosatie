@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\PrescriptionController;
+use App\Http\Controllers\Mobile\PrescriptionController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -32,11 +32,14 @@ Route::get('profile/mobile', [AuthController::class, 'profileMobile']);
     Route::put('profile/password/mobile', [AuthController::class, 'changePasswordMobile']);
 
     // Change Password Dashboard
-    Route::put('profile/password/dashboard', [AuthController::class, 'changePasswordDashboard']);    Route::get('prescriptions', [PrescriptionController::class, 'patientPrescriptions']);
+    Route::put('profile/password/dashboard', [AuthController::class, 'changePasswordDashboard']);    
     Route::post('force-change-password', [AuthController::class, 'forceChangePassword']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
-    
+    // Prescriptions (Mobile)
+    Route::get('mobile/prescriptions/current', [PrescriptionController::class, 'index']);
+    Route::get('mobile/prescriptions/history', [PrescriptionController::class, 'history']);
+    Route::get('mobile/prescriptions/{id}', [PrescriptionController::class, 'show']);
     // Add your other protected routes here...
 });

@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import axios from 'axios'; // 💡 تم إضافة استيراد axios
+import axios from 'axios'; 
 import { Icon } from "@iconify/vue";
-import Navbar from "@/components/Navbar.vue";
-import Sidebar from "@/components/Sidebar.vue";
+// 💡 تم استبدال استيراد Navbar و Sidebar بـ DefaultLayout
+import DefaultLayout from "@/components/DefaultLayout.vue"; 
 import search from "@/components/search.vue";
 import inputadd from "@/components/btnadd.vue";
 import btnprint from "@/components/btnprint.vue";
@@ -16,45 +16,40 @@ import PatientEditModal from "@/components/patientsDataEntry/PatientEditModel.vu
 import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vue";
 
 // ----------------------------------------------------
-// 1. بيانات المرضى والـ Endpoint
+// 1. بيانات المرضى والـ Endpoint (لم يتغير)
 // ----------------------------------------------------
-const API_URL = '/api/patients'; // 💡 Endpoint الخاص بقائمة المرضى
+const API_URL = '/api/patients';
 const patients = ref([]);
 
 // ----------------------------------------------------
-// 2. منطق جلب البيانات (Fetch)
+// 2. منطق جلب البيانات (Fetch) (لم يتغير)
 // ----------------------------------------------------
-
 const fetchPatients = async () => {
     try {
         const response = await axios.get(API_URL);
-        // نفترض أن API يرجع مصفوفة من المرضى
-        patients.value = response.data; 
+        patients.value = response.data;
     } catch (error) {
         console.error("Error fetching patients:", error);
-        // يمكن إضافة منطق لإظهار رسالة خطأ للمستخدم هنا
         showSuccessAlert("❌ فشل تحميل بيانات المرضى من الخادم.");
     }
 };
 
-// جلب البيانات عند تحميل المكون
 onMounted(() => {
     fetchPatients();
 });
 
 
 // ----------------------------------------------------
-// 3. منطق البحث والفرز الموحد (بقي كما هو)
+// 3. منطق البحث والفرز الموحد (لم يتغير)
 // ----------------------------------------------------
 const searchTerm = ref("");
 const sortKey = ref('lastUpdated');
 const sortOrder = ref('desc');
 
-// (دالة calculateAge و sortPatients و filteredPatients لم تتغير وبقيت في الكود)
 const calculateAge = (birthDateString) => {
     if (!birthDateString) return 0;
     const parts = birthDateString.split('/');
-    if (parts.length !== 3) return 0; 
+    if (parts.length !== 3) return 0;
     
     // Note: Assuming D/M/Y format for simplicity in this demo.
     const birthDate = new Date(parts[2], parts[1] - 1, parts[0]); 
@@ -110,7 +105,7 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 4. منطق رسالة النجاح)
+// 4. منطق رسالة النجاح (لم يتغير)
 // ----------------------------------------------------
 const isSuccessAlertVisible = ref(false);
 const successMessage = ref("");
@@ -131,7 +126,7 @@ const showSuccessAlert = (message) => {
 };
 
 // ----------------------------------------------------
-// 5. حالة الـ Modals ودوام الفتح/الإغلاق )
+// 5. حالة الـ Modals ودوام الفتح/الإغلاق (لم يتغير)
 // ----------------------------------------------------
 const isViewModalOpen = ref(false);
 const isEditModalOpen = ref(false);
@@ -146,15 +141,11 @@ const openAddModal = () => { isAddModalOpen.value = true; };
 const closeAddModal = () => { isAddModalOpen.value = false; };
 
 // ----------------------------------------------------
-// 6. دوال إدارة البيانات (تم التعديل لاستخدام Axios)
+// 6. دوال إدارة البيانات (لم تتغير)
 // ----------------------------------------------------
-
 const addPatient = async (newPatient) => {
     try {
-        // 💡 إرسال طلب POST لإضافة مريض جديد
         const response = await axios.post(API_URL, newPatient);
-        
-        // نفترض أن الـ API يرجع الكائن الجديد بالرقم الملف المخصص
         patients.value.push(response.data); 
         closeAddModal();
         showSuccessAlert("✅ تم تسجيل بيانات المريض بنجاح!");
@@ -166,14 +157,10 @@ const addPatient = async (newPatient) => {
 
 const updatePatient = async (updatedPatient) => {
     try {
-        // 💡 إرسال طلب PUT/PATCH لتعديل مريض
-        // يجب أن يحتوي updatedPatient على fileNumber أو ID
         await axios.put(`${API_URL}/${updatedPatient.fileNumber}`, updatedPatient);
         
-        // تحديث القائمة محليًا بعد نجاح التعديل
         const index = patients.value.findIndex(p => p.fileNumber === updatedPatient.fileNumber);
         if (index !== -1) {
-             // نفترض أن البيانات التي أرسلتها هي التي ستحل محل البيانات القديمة
             patients.value[index] = { ...updatedPatient, lastUpdated: new Date().toISOString() };
         }
         
@@ -191,10 +178,8 @@ const deletePatient = async (fileNumber) => {
     }
     
     try {
-        // 💡 إرسال طلب DELETE لحذف مريض
         await axios.delete(`${API_URL}/${fileNumber}`);
         
-        // تحديث القائمة محليًا بعد نجاح الحذف
         const index = patients.value.findIndex(p => p.fileNumber === fileNumber);
         if (index !== -1) {
             patients.value.splice(index, 1);
@@ -208,11 +193,10 @@ const deletePatient = async (fileNumber) => {
 };
 
 // ----------------------------------------------------
-// 7. منطق الطباعة (بقي كما هو)
+// 7. منطق الطباعة (لم يتغير)
 // ----------------------------------------------------
 const printTable = () => {
     const resultsCount = filteredPatients.value.length;
-    // ... بقية منطق الطباعة (لم يتغير)
     
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
@@ -228,6 +212,7 @@ const printTable = () => {
                 direction: rtl; 
                 padding: 20px;
             }
+            /* ... (بقية تنسيقات الطباعة) ... */
             table { 
                 width: 100%; 
                 border-collapse: collapse; 
@@ -307,172 +292,164 @@ const printTable = () => {
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
-        <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
-
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
-
-            <main class="flex-1 p-4 sm:p-5 pt-3">
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
+    <DefaultLayout>
+        <main class="flex-1 p-4 sm:p-5 pt-3">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
+                
+                <div class="flex items-center gap-3 w-full sm:max-w-xl">
+                    <div class="relative w-full sm:max-w-sm">
+                        <search v-model="searchTerm" />
+                    </div>
                     
-                    <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <div class="relative w-full sm:max-w-sm">
-                            <search v-model="searchTerm" />
+                    <div class="dropdown dropdown-start">
+                        <div tabindex="0" role="button" class="btn button inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
+        rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden 
+        text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
+                            <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
+                            فرز
                         </div>
-                        
-                        <div class="dropdown dropdown-start">
-                            <div tabindex="0" role="button" class="btn button inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
-      rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden 
-      text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
-                                <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
-                                فرز
-                            </div>
-                            <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg  bg-white border-2   hover:border hover:border-[#a8a8a8]  border-[#ffffff8d] 
-      rounded-[35px] w-52 text-right">
-                                <li class="menu-title text-gray-700 font-bold text-sm">حسب الاسم:</li>
-                                <li>
-                                    <a @click="sortPatients('name', 'asc')" 
-                                       :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
-                                        الاسم (أ - ي)
-                                    </a>
-                                </li>
-                                <li>
-                                    <a @click="sortPatients('name', 'desc')" 
-                                       :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
-                                        الاسم (ي - أ)
-                                    </a>
-                                </li>
-                                
-                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب العمر:</li>
-                                <li>
-                                    <a @click="sortPatients('birth', 'asc')" 
-                                       :class="{'font-bold text-[#4DA1A9]': sortKey === 'birth' && sortOrder === 'asc'}">
-                                        الأصغر سناً أولاً
-                                    </a>
-                                </li>
-                                <li>
-                                    <a @click="sortPatients('birth', 'desc')" 
-                                       :class="{'font-bold text-[#4DA1A9]': sortKey === 'birth' && sortOrder === 'desc'}">
-                                        الأكبر سناً أولاً
-                                    </a>
-                                </li>
-                                
-                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب آخر تحديث:</li>
-                                <li>
-                                    <a @click="sortPatients('lastUpdated', 'desc')" 
-                                       :class="{'font-bold text-[#4DA1A9]': sortKey === 'lastUpdated' && sortOrder === 'desc'}">
-                                        الأحدث 
-                                    </a>
-                                </li>
-                                <li>
-                                    <a @click="sortPatients('lastUpdated', 'asc')" 
-                                       :class="{'font-bold text-[#4DA1A9]': sortKey === 'lastUpdated' && sortOrder === 'asc'}">
-                                        الأقدم 
-                                    </a>
-                                </li>
-                            </ul>
+                        <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg  bg-white border-2  hover:border hover:border-[#a8a8a8]  border-[#ffffff8d] 
+        rounded-[35px] w-52 text-right">
+                            <li class="menu-title text-gray-700 font-bold text-sm">حسب الاسم:</li>
+                            <li>
+                                <a @click="sortPatients('name', 'asc')" 
+                                   :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
+                                    الاسم (أ - ي)
+                                </a>
+                            </li>
+                            <li>
+                                <a @click="sortPatients('name', 'desc')" 
+                                   :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
+                                    الاسم (ي - أ)
+                                </a>
+                            </li>
                             
-                        </div>
-                        <p class="text-sm font-semibold text-gray-600 self-end sm:self-center">
-        عدد النتائج : 
-        <span class="text-[#4DA1A9] text-lg font-bold">{{ filteredPatients.length }}</span>
-    </p>
+                            <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب العمر:</li>
+                            <li>
+                                <a @click="sortPatients('birth', 'asc')" 
+                                   :class="{'font-bold text-[#4DA1A9]': sortKey === 'birth' && sortOrder === 'asc'}">
+                                    الأصغر سناً أولاً
+                                </a>
+                            </li>
+                            <li>
+                                <a @click="sortPatients('birth', 'desc')" 
+                                   :class="{'font-bold text-[#4DA1A9]': sortKey === 'birth' && sortOrder === 'desc'}">
+                                    الأكبر سناً أولاً
+                                </a>
+                            </li>
+                            
+                            <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب آخر تحديث:</li>
+                            <li>
+                                <a @click="sortPatients('lastUpdated', 'desc')" 
+                                   :class="{'font-bold text-[#4DA1A9]': sortKey === 'lastUpdated' && sortOrder === 'desc'}">
+                                    الأحدث 
+                                </a>
+                            </li>
+                            <li>
+                                <a @click="sortPatients('lastUpdated', 'asc')" 
+                                   :class="{'font-bold text-[#4DA1A9]': sortKey === 'lastUpdated' && sortOrder === 'asc'}">
+                                    الأقدم 
+                                </a>
+                            </li>
+                        </ul>
+                        
                     </div>
-
-                    <div class="flex items-center gap-5 w-full sm:w-auto justify-end">
-                        <inputadd @open-modal="openAddModal" />
-                        <btnprint @click="printTable" />
-                    </div>
+                    <p class="text-sm font-semibold text-gray-600 self-end sm:self-center">
+                        عدد النتائج : 
+                        <span class="text-[#4DA1A9] text-lg font-bold">{{ filteredPatients.length }}</span>
+                    </p>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
-                    <div
-                        class="overflow-y-auto flex-1"
-                        style="
-                            scrollbar-width: auto;
-                            scrollbar-color: grey transparent;
-                            direction: ltr;
-                        "
-                    >
-                     <div class="overflow-x-auto h-full">
-    <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
-        <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
-            <tr>
-                <th class="file-number-col">رقم الملف</th>
-                <th class="name-col">الإسم الرباعي</th>
-                <th class="national-id-col">الرقم الوطني</th>
-                <th class="birth-date-col">تاريخ الميلاد</th>
-                <th class="phone-col">رقم الهاتف</th>
-                <th class="actions-col">الإجراءات</th>
-            </tr>
-        </thead>
+                <div class="flex items-center gap-5 w-full sm:w-auto justify-end">
+                    <inputadd @open-modal="openAddModal" />
+                    <btnprint @click="printTable" />
+                </div>
+            </div>
 
-        <tbody>
-            <tr
-                v-for="(patient, index) in filteredPatients"
-                :key="index"
-                class="hover:bg-gray-100 border border-gray-300"
-            >
-                <td class="file-number-col">{{ patient.fileNumber }}</td>
-                <td class="name-col">{{ patient.name }}</td>
-                <td class="national-id-col">{{ patient.nationalId }}</td>
-                <td class="birth-date-col">{{ patient.birth }}</td>
-                <td class="phone-col">{{ patient.phone }}</td>
+            <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
+                <div
+                    class="overflow-y-auto flex-1"
+                    style="
+                        scrollbar-width: auto;
+                        scrollbar-color: grey transparent;
+                        direction: ltr;
+                    "
+                >
+                    <div class="overflow-x-auto h-full">
+                        <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
+                            <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
+                                <tr>
+                                    <th class="file-number-col">رقم الملف</th>
+                                    <th class="name-col">الإسم الرباعي</th>
+                                    <th class="national-id-col">الرقم الوطني</th>
+                                    <th class="birth-date-col">تاريخ الميلاد</th>
+                                    <th class="phone-col">رقم الهاتف</th>
+                                    <th class="actions-col">الإجراءات</th>
+                                </tr>
+                            </thead>
 
-                <td class="actions-col">
-                    <div class="flex gap-3 justify-center items-center">
-                        <button 
-                            @click="openViewModal(patient)"
-                            class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                            title="عرض البيانات"
-                        >
-                            <Icon
-                                icon="tabler:eye-minus"
-                                class="w-5 h-5 text-green-600"
-                            />
-                        </button>
+                            <tbody>
+                                <tr
+                                    v-for="(patient, index) in filteredPatients"
+                                    :key="index"
+                                    class="hover:bg-gray-100 border border-gray-300"
+                                >
+                                    <td class="file-number-col">{{ patient.fileNumber }}</td>
+                                    <td class="name-col">{{ patient.name }}</td>
+                                    <td class="national-id-col">{{ patient.nationalId }}</td>
+                                    <td class="birth-date-col">{{ patient.birth }}</td>
+                                    <td class="phone-col">{{ patient.phone }}</td>
 
-                        <button 
-                            @click="openEditModal(patient)"
-                            class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
-                            title="تعديل البيانات"
-                        >
-                            <Icon
-                                icon="line-md:pencil"
-                                class="w-5 h-5 text-yellow-500"
-                            />
-                        </button>
+                                    <td class="actions-col">
+                                        <div class="flex gap-3 justify-center items-center">
+                                            <button 
+                                                @click="openViewModal(patient)"
+                                                class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                title="عرض البيانات"
+                                            >
+                                                <Icon
+                                                    icon="tabler:eye-minus"
+                                                    class="w-5 h-5 text-green-600"
+                                                />
+                                            </button>
 
-                        <button 
-                            @click="deletePatient(patient.fileNumber)"
-                            class="p-1 rounded-full hover:bg-red-100 transition-colors"
-                            title="حذف المريض"
-                        >
-                            <Icon
-                                icon="line-md:account-delete"
-                                class="w-5 h-5 text-red-600"
-                            />
-                        </button>
-                    </div>
-                </td>
-            </tr>
-            
-            <tr v-if="filteredPatients.length === 0">
-                <td colspan="6" class="text-center py-8 text-gray-500">
-                    لا توجد بيانات لعرضها
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</div>
+                                            <button 
+                                                @click="openEditModal(patient)"
+                                                class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                title="تعديل البيانات"
+                                            >
+                                                <Icon
+                                                    icon="line-md:pencil"
+                                                    class="w-5 h-5 text-yellow-500"
+                                                />
+                                            </button>
+
+                                            <button 
+                                                @click="deletePatient(patient.fileNumber)"
+                                                class="p-1 rounded-full hover:bg-red-100 transition-colors"
+                                                title="حذف المريض"
+                                            >
+                                                <Icon
+                                                    icon="line-md:account-delete"
+                                                    class="w-5 h-5 text-red-600"
+                                                />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <tr v-if="filteredPatients.length === 0">
+                                    <td colspan="6" class="text-center py-8 text-gray-500">
+                                        لا توجد بيانات لعرضها
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </main>
-        </div>
-
-        <Sidebar />
-    </div>
+            </div>
+        </main>
+    </DefaultLayout>
 
     <PatientAddModal
         :is-open="isAddModalOpen"
@@ -512,6 +489,7 @@ const printTable = () => {
 </template>
 
 <style>
+/* ... (التنسيقات لم تتغير) ... */
 /* تنسيقات شريط التمرير */
 ::-webkit-scrollbar {
     width: 8px;

@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Icon } from "@iconify/vue";
 import Navbar from "@/components/Navbar.vue";
 import Sidebar from "@/components/Sidebar.vue";
-
+import DefaultLayout from "@/components/DefaultLayout.vue"; 
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
@@ -51,9 +51,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="drawer" dir="rtl">
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
+<DefaultLayout>
             <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-30">
                 
                 <div 
@@ -97,10 +95,7 @@ onMounted(() => {
                     </div>
                 </div>
             </main>
-        </div>
-
-        <Sidebar />
-    </div>
+        </DefaultLayout>
 </template>
 
 <style scoped>

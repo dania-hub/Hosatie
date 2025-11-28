@@ -2,9 +2,8 @@
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from 'axios'; 
+import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
-import Navbar from "@/components/Navbar.vue";
-import Sidebar from "@/components/Sidebar.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
@@ -233,12 +232,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 
 </script>
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
-        <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
-
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
-
+ <DefaultLayout>
             <main class="flex-1 p-4 sm:p-5 pt-3">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
                     
@@ -374,10 +368,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     </div>
                 </div>
             </main>
-        </div>
-
-        <Sidebar />
-    </div>
+        </DefaultLayout>
 
     <Transition
         enter-active-class="transition duration-300 ease-out transform"

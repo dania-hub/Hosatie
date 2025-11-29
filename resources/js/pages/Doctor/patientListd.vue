@@ -3,12 +3,7 @@ import { ref, computed, onMounted } from "vue"; // 1. استيراد onMounted
 import axios from "axios"; // 2. استيراد axios
 
 import { Icon } from "@iconify/vue";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-import Navbar from "@/components/Navbar.vue";
-import Sidebar from "@/components/Sidebar.vue";
+import  DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 

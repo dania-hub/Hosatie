@@ -10,9 +10,8 @@ const props = defineProps({
     patient: Object
 });
 
-const emit = defineEmits(['close', 'add-medication', 'dispensation-record', 'edit-medication', 'delete-medication', 'update-medication']); // إضافة emit جديد للتحديث
+const emit = defineEmits(['close', 'add-medication', 'dispensation-record', 'delete-medication', 'update-medication']);
 
-// حالة التحكم في نافذة تأكيد الحذف
 const showDeleteConfirmation = ref(false);
 const medicationIndexToDelete = ref(null);
 
@@ -43,7 +42,10 @@ const cancelDelete = () => {
 // فتح نافذة تعديل الدواء
 const handleEditMedication = (medIndex) => {
     editingIndex.value = medIndex;
-    editingDosage.value = props.patient.medications[medIndex].dosage; // تعيين الجرعة الحالية
+    // استخراج الرقم فقط من النص إذا كان النص يحتوي على "قرص واحد"
+    const currentDosageText = props.patient.medications[medIndex].dosage;
+    const numericDosage = parseInt(currentDosageText.match(/\d+/)?.[0] || '1');
+    editingDosage.value = numericDosage;
     showEditModal.value = true;
 };
 
@@ -51,18 +53,15 @@ const handleEditMedication = (medIndex) => {
 const saveEdit = () => {
     const newDosage = parseInt(editingDosage.value);
     if (newDosage > 0) {
-        // تحديث البيانات محلياً في الجدول (افتراض أن patient قابل للتعديل أو أن المكون يدير البيانات)
-        props.patient.medications[editingIndex.value].dosage = newDosage;
-        props.patient.medications[editingIndex.value].monthlyQuantity = newDosage * 30; // تحديث الكمية الشهرية
-
-        // إصدار الحدث للمكون الأب إذا لزم الأمر (للحفظ في الخادم أو قاعدة البيانات)
+        // إصدار الحدث للمكون الأب مع البيانات اللازمة
         emit('update-medication', { index: editingIndex.value, newDosage });
 
+        // إغلاق النافذة
         showEditModal.value = false;
         editingIndex.value = null;
         editingDosage.value = '';
     } else {
-        alert('يرجى إدخال جرعة صحيحة (رقم موجب).'); // رسالة خطأ بسيطة
+        alert('يرجى إدخال جرعة صحيحة (رقم موجب).');
     }
 };
 

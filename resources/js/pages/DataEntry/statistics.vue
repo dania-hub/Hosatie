@@ -8,7 +8,7 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
-const API_URL = '/api/dashboard/stats';
+const API_URL = '/api/data-entry/stats';
 
 // متغير لتخزين الإحصائيات
 const stats = ref({

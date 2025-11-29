@@ -1,5 +1,5 @@
 <?php
-
+use App\Http\Controllers\DataEntry\PatientController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -58,4 +58,14 @@ Route::get('profile/mobile', [AuthController::class, 'profileMobile']);
     Route::get('mobile/prescriptions/history', [PrescriptionController::class, 'history']);
     Route::get('mobile/prescriptions/{id}', [PrescriptionController::class, 'show']);
     // Add your other protected routes here...
+
+    // Data Entry - Patient Management
+    Route::prefix('data-entry')->group(function () {
+        Route::post('patients', [PatientController::class, 'store']);       // Register
+        Route::get('patients/{id}', [PatientController::class, 'show']);    // View
+        Route::put('patients/{id}', [PatientController::class, 'update']);  // Edit
+        Route::get('activity-log', [PatientController::class, 'activityLog']);
+Route::get('stats', [PatientController::class, 'stats']); // بتاع الاحصائيات
+
+    });
 });

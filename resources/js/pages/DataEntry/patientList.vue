@@ -18,7 +18,7 @@ import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vu
 // ----------------------------------------------------
 // 1. بيانات المرضى والـ Endpoint (لم يتغير)
 // ----------------------------------------------------
-const API_URL = '/api/patients';
+const API_URL = '/api/data-entry';
 const patients = ref([]);
 
 // ----------------------------------------------------

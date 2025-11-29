@@ -1,5 +1,8 @@
 <script setup>
 import { Icon } from "@iconify/vue";
+import { ref, watch } from "vue"; // 1. استيراد ref و watch
+import axios from "axios"; // 2. استيراد axios
+
 
 const props = defineProps({
     isOpen: Boolean,
@@ -8,17 +11,34 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-// بيانات سجل الصرف الوهمية
-const dummyDispensationData = [
-    { drugName: 'Warfarin 5mg', quantity: 30, date: '2025/06/01', assignedBy: 'د. هالة محمد' },
-    { drugName: 'Salbutamol Inhaler', quantity: 60, date: '2025/06/01', assignedBy: 'د. هالة محمد' },
-    { drugName: 'Warfarin 5mg', quantity: 30, date: '2025/07/01', assignedBy: 'د. محمد خالد' },
-    { drugName: 'Salbutamol Inhaler', quantity: 60, date: '2025/07/01', assignedBy: 'د. محمد خالد' },
-    { drugName: 'Warfarin 5mg', quantity: 30, date: '2025/08/01', assignedBy: 'د. محمد خالد' },
-    { drugName: 'Salbutamol Inhaler', quantity: 60, date: '2025/08/01', assignedBy: 'د. محمد خالد' },
-];
-</script>
+// 3. متغيرات جديدة لحالة التحميل والبيانات
+const dispensationData = ref([]);
+const isLoading = ref(false);
 
+// 4. دالة لجلب سجل الصرف
+const fetchDispensationHistory = async (patientId) => {
+    if (!patientId) return;
+    try {
+        isLoading.value = true;
+        const response = await axios.get(`/api/patients/${patientId}/dispensation-history`); // <-- استبدل بالـ URL الصحيح
+        dispensationData.value = response.data;
+    } catch (error) {
+        console.error("فشل جلب سجل الصرف:", error);
+        dispensationData.value = []; // تفريغ البيانات عند حدوث خطأ
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+// 5. مراقبة فتح النافذة لجلب البيانات
+watch(() => props.isOpen, (newVal) => {
+    if (newVal && props.patient) {
+        fetchDispensationHistory(props.patient.fileNumber); // أو patient.id
+    } else {
+        dispensationData.value = []; // تنظيف البيانات عند الإغلاق
+    }
+});
+</script>
 <template>
     <div
         v-if="isOpen"
@@ -49,9 +69,24 @@ const dummyDispensationData = [
                 </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6">
+            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6 min-h-[200px]">
 
-                <div class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
+                <!-- 1. حالة التحميل: تظهر عندما يتم جلب البيانات من الـ API -->
+                <div v-if="isLoading" class="flex items-center justify-center h-full pt-10">
+                    <p class="text-lg font-semibold text-gray-500 animate-pulse">
+                        جاري تحميل السجل...
+                    </p>
+                </div>
+
+                <!-- 2. حالة عدم وجود بيانات: تظهر بعد انتهاء التحميل وعدم العثور على سجل -->
+                <div v-else-if="!dispensationData || dispensationData.length === 0" class="flex items-center justify-center h-full pt-10">
+                     <p class="text-lg font-semibold text-gray-500">
+                        لا يوجد سجل صرف لهذا المريض.
+                    </p>
+                </div>
+
+                <!-- 3. حالة عرض البيانات: تظهر عند وجود بيانات لعرضها -->
+                <div v-else class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
                     <table class="table w-full text-right min-w-[500px] border-collapse">
                         <thead class="bg-[#9aced2] text-black text-sm">
                             <tr>
@@ -62,7 +97,8 @@ const dummyDispensationData = [
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(item, index) in dummyDispensationData" :key="index" class="hover:bg-gray-50 border-b border-gray-200">
+                            <!-- يتم الآن التكرار على dispensationData التي يتم جلبها من الـ API -->
+                            <tr v-for="(item, index) in dispensationData" :key="index" class="hover:bg-gray-50 border-b border-gray-200">
                                 <td class="p-3 border border-gray-300">{{ item.drugName }}</td>
                                 <td class="p-3 border border-gray-300">{{ item.quantity }}</td>
                                 <td class="p-3 border border-gray-300">{{ item.date }}</td>

@@ -218,6 +218,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import axios from "axios"; // 1. استيراد axios
 
 const props = defineProps({
     isOpen: Boolean,
@@ -229,28 +230,10 @@ const emit = defineEmits(['close', 'save']);
 // ------------ بيانات وثوابت الحدود القصوى ------------
 const MAX_PILL_QTY = 15;
 const MAX_LIQUID_QTY = 30;
-
-const categories = ref([
-    { id: 1, name: 'مسكنات الألم' },
-    { id: 2, name: 'أدوية الضغط' },
-    { id: 3, name: 'مضادات حيوية' },
-    { id: 4, name: 'السكري' },
-    { id: 5, name: 'الكوليسترول' },
-    { id: 6, name: 'عام' },
-]);
-
-const allDrugsData = [
-    { id: 101, name: 'بروفين', categoryId: 1, dosage: '200 مجم', type: 'Tablet' },
-    { id: 102, name: 'بروفين', categoryId: 1, dosage: '400 مجم', type: 'Tablet' },
-    { id: 103, name: 'فولتارين', categoryId: 1, dosage: '50 مجم', type: 'Tablet' },
-    { id: 401, name: 'مضاد حيوي شراب', categoryId: 3, dosage: '50 مل/100 مل', type: 'Liquid' },
-    { id: 402, name: 'باراسيتامول شراب', categoryId: 1, dosage: '120 مل/5 مل', type: 'Liquid' },
-    { id: 1, name: 'إنالابريل', categoryId: 2, dosage: '5 مجم', type: 'Tablet' },
-    { id: 41, name: 'دواء السعال', categoryId: 6, dosage: '100 مل', type: 'Liquid' },
-    { id: 403, name: 'Metformin', categoryId: 4, dosage: '500 مجم', type: 'Tablet' },
-    { id: 404, name: 'Insulin Glargine', categoryId: 4, dosage: '100 وحدة/مل', type: 'Liquid' },
-    { id: 405, name: 'Atorvastatin', categoryId: 5, dosage: '10 مجم', type: 'Tablet' },
-];
+//الفئات 
+const categories = ref([]);
+//الادوية
+const allDrugsData = [];
 
 // ------------ حالة المكون (Component State) ------------
 const selectedCategory = ref('');
@@ -341,22 +324,23 @@ const clearForm = () => {
     selectedDrugType.value = '';
     dailyQuantity.value = null;
     dailyDosageList.value = [];
-    filteredDrugs.value = [];
+    //filteredDrugs.value = [];
+       filteredDrugs.value = allDrugsData.value; // إعادة التعيين إلى القائمة الكاملة
 };
 
+// 4. تعديل دالة البحث لتستخدم البيانات المحملة
 const fetchDrugsData = () => {
-    let results = allDrugsData.filter(drug => {
+    let results = allDrugsData.value.filter(drug => {
         const categoryMatch = !selectedCategory.value || drug.categoryId === selectedCategory.value;
         const searchMatch = !searchTermDrug.value || drug.name.toLowerCase().includes(searchTermDrug.value.toLowerCase());
         return categoryMatch && searchMatch;
     });
-
     filteredDrugs.value = results;
 };
 
 // عرض جميع الأدوية تلقائياً عند فتح النافذة
 const showAllDrugs = () => {
-    filteredDrugs.value = allDrugsData;
+    filteredDrugs.value = allDrugsData.value;
     showResults.value = true;
 };
 
@@ -472,10 +456,18 @@ const closeModal = () => {
 watch(() => props.isOpen, (newVal) => {
     if (newVal) {
         clearForm();
-        // عرض جميع الأدوية تلقائياً عند فتح النافذة
-        setTimeout(() => {
-            showAllDrugs();
-        }, 100);
+       // جلب البيانات فقط إذا لم تكن موجودة بالفعل
+        if (categories.value.length === 0) {
+            fetchCategories();
+        }
+        if (allDrugsData.value.length === 0) {
+            fetchAllDrugs();
+        } else {
+            // إذا كانت البيانات موجودة، فقط اعرضها
+            setTimeout(() => {
+                showAllDrugs();
+            }, 100);
+        }
     }
 });
 

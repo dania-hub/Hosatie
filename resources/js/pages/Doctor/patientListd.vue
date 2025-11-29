@@ -1,5 +1,7 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue"; // 1. استيراد onMounted
+import axios from "axios"; // 2. استيراد axios
+
 import { Icon } from "@iconify/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,59 +17,31 @@ import PatientViewModal from "@/components/patientDoctor/PatientViewModal.vue";
 import AddMedicationModal from "@/components/patientDoctor/AddMedicationModal.vue";
 import DispensationModal from "@/components/patientDoctor/DispensationModal.vue";
 
+
 // ----------------------------------------------------
-// 1. بيانات المرضى الأولية
+// 1. بيانات المرضى (تم التعديل)
 // ----------------------------------------------------
-const patients = ref([
-    {
-        fileNumber: 1001,
-        name: 'علي محمد سالم العلواني',
-        nationalId: '123456789012',
-        birth: '1967/07/22',
-        phone: '0911234567',
-        lastUpdated: new Date('2024-01-15T10:00:00').toISOString(),
-        nationalIdDisplay: '12369852793',
-        nameDisplay: 'علي محمد سالم العلواني',
-        birthDisplay: '22/07/1967',
-        healthCenter: 'مركز طرابلس الجامعي',
-        medications: [
-            { drugName: 'Metformin', dosage: 'قرص واحد', monthlyQuantity: '30 حبة', assignmentDate: '2020/10/20', expirationDate: '2022/10/20', assignedBy: 'د. محمد خالد' },
-            { drugName: 'Amlodipine', dosage: 'قرصين', monthlyQuantity: '60 حبة', assignmentDate: '2020/10/20', expirationDate: '2025/10/20', assignedBy: 'د. محمد خالد' },
-            { drugName: 'Gliclazide', dosage: 'قرص واحد', monthlyQuantity: '30 حبة', assignmentDate: '2025/10/23', expirationDate: '2025/10/23', assignedBy: 'د. لجين أبوجناح' },
-        ]
-    },
-    {
-        fileNumber: 1002,
-        name: 'فاطمة سعد إبراهيم العلي',
-        nationalId: '234567890123',
-        birth: '1988/11/20',
-        phone: '0929876543',
-        lastUpdated: new Date('2024-01-14T15:30:00').toISOString(),
-        nationalIdDisplay: '23410587604',
-        nameDisplay: 'فاطمة سعد إبراهيم العلي',
-        birthDisplay: '15/03/1988',
-        healthCenter: 'مركز الاندلس الصحي',
-        medications: [
-            { drugName: 'Insulin Glargine', dosage: '10 وحدات', monthlyQuantity: '5 أقلام', assignmentDate: '2023/05/01', expirationDate: '2026/05/01', assignedBy: 'د. أحمد السنوسي' },
-            { drugName: 'Lisinopril', dosage: 'قرص واحد', monthlyQuantity: '30 حبة', assignmentDate: '2022/01/10', expirationDate: '2025/01/10', assignedBy: 'د. سارة عريبي' },
-        ]
-    },
-    {
-        fileNumber: 1003,
-        name: 'خالد ناصر يوسف العمري',
-        nationalId: '345678901234',
-        birth: '2001/01/15',
-        phone: '0915554433',
-        lastUpdated: new Date('2024-01-16T08:45:00').toISOString(),
-        nationalIdDisplay: '34599901235',
-        nameDisplay: 'خالد ناصر يوسف العمري',
-        birthDisplay: '01/01/2001',
-        healthCenter: 'مستشفى الزهراء العام',
-        medications: [
-            { drugName: 'Atorvastatin', dosage: 'نصف قرص', monthlyQuantity: '15 حبة', assignmentDate: '2024/02/01', expirationDate: '2027/02/01', assignedBy: 'د. مريم النعاس' },
-        ]
-    },
-]);
+const patients = ref([]); // 3. تفريغ المصفوفة الأولية
+const isLoading = ref(true); // 4. إضافة متغير لتتبع حالة التحميل
+
+// 5. دالة لجلب بيانات المرضى من الـ API
+const fetchPatients = async () => {
+    try {
+        isLoading.value = true;
+        const response = await axios.get('/api/patients'); // <-- استبدل هذا بالـ URL الصحيح
+        patients.value = response.data;
+    } catch (error) {
+        console.error("حدث خطأ أثناء جلب بيانات المرضى:", error);
+        // يمكنك إضافة رسالة خطأ للمستخدم هنا
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+// 6. استدعاء الدالة عند تحميل المكون
+onMounted(() => {
+    fetchPatients();
+});
 
 // ----------------------------------------------------
 // 2. منطق البحث والفرز الموحد
@@ -196,45 +170,76 @@ const closeDispensationModal = () => {
 };
 
 // ----------------------------------------------------
-// 6. دوال إدارة الأدوية
+// 6. دوال إدارة الأدوية (تم التعديل)
 // ----------------------------------------------------
-const addMedicationToPatient = (medicationsData) => {
-    const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-    if (patientIndex !== -1) {
-        // تحويل البيانات من AddMedicationModal إلى تنسيق PatientViewModal
-        const newMedications = medicationsData.map(med => ({
-            drugName: med.name,
-            dosage: `${med.quantity} ${med.unit} يومياً`,
-            monthlyQuantity: `${med.quantity * 30} ${med.unit === 'حبة/قرص' ? 'حبة' : med.unit}`,
-            assignmentDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-            expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '/'),
-            assignedBy: 'د. المستخدم الحالي'
-        }));
+const addMedicationToPatient = async (medicationsData) => {
+    const patientId = selectedPatient.value.fileNumber; // أو patient.id حسب الـ API
+    try {
+        // 7. إرسال الأدوية الجديدة إلى الـ API
+        const response = await axios.post(`/api/patients/${patientId}/medications`, {
+            medications: medicationsData
+        }); // <-- استبدل هذا بالـ URL الصحيح
 
-        // إضافة الأدوية الجديدة إلى المريض
-        patients.value[patientIndex].medications = [
-            ...patients.value[patientIndex].medications,
-            ...newMedications
-        ];
-
-        // تحديث المريض المحدد
-        selectedPatient.value = patients.value[patientIndex];
+        // 8. تحديث بيانات المريض محلياً من الاستجابة (أفضل ممارسة)
+        const updatedPatient = response.data;
+        const patientIndex = patients.value.findIndex(p => p.fileNumber === patientId);
+        if (patientIndex !== -1) {
+            patients.value[patientIndex] = updatedPatient;
+            selectedPatient.value = updatedPatient;
+        }
         
-        showSuccessAlert(`✅ تم إضافة ${newMedications.length} دواء بنجاح للمريض ${selectedPatient.value.nameDisplay}`);
+        showSuccessAlert(`✅ تم إضافة ${medicationsData.length} دواء بنجاح للمريض ${selectedPatient.value.nameDisplay}`);
+    } catch (error) {
+        console.error("حدث خطأ أثناء إضافة الدواء:", error);
+        showSuccessAlert("❌ فشلت عملية إضافة الدواء.");
     }
 };
 
-const handleEditMedication = () => {
-    showSuccessAlert(`تحرير الحصة الدوائية للمريض ${selectedPatient.value.nameDisplay} قريباً...`);
+const handleDeleteMedication = async (medIndex) => {
+    const patientId = selectedPatient.value.fileNumber;
+    const medicationId = selectedPatient.value.medications[medIndex].id; // افترض أن كل دواء له ID
+    const medicationName = selectedPatient.value.medications[medIndex].drugName;
+
+    try {
+        // 9. إرسال طلب الحذف إلى الـ API
+        await axios.delete(`/api/patients/${patientId}/medications/${medicationId}`); // <-- استبدل هذا بالـ URL الصحيح
+
+        // 10. تحديث البيانات محلياً بعد نجاح الحذف
+        const patientIndex = patients.value.findIndex(p => p.fileNumber === patientId);
+        if (patientIndex !== -1) {
+            patients.value[patientIndex].medications.splice(medIndex, 1);
+            selectedPatient.value = { ...patients.value[patientIndex] };
+            showSuccessAlert(`🗑️ تم حذف الدواء ${medicationName} بنجاح`);
+        }
+    } catch (error) {
+        console.error("حدث خطأ أثناء حذف الدواء:", error);
+        showSuccessAlert("❌ فشلت عملية حذف الدواء.");
+    }
 };
 
-const handleDeleteMedication = (medIndex) => {
-    const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-    if (patientIndex !== -1) {
-        const medicationName = patients.value[patientIndex].medications[medIndex].drugName;
-        patients.value[patientIndex].medications.splice(medIndex, 1);
-        selectedPatient.value = patients.value[patientIndex];
-        showSuccessAlert(`🗑️ تم حذف الدواء ${medicationName} بنجاح`);
+// 11. دالة جديدة لتحديث الدواء
+const handleUpdateMedication = async ({ index, newDosage }) => {
+    const patientId = selectedPatient.value.fileNumber;
+    const medication = selectedPatient.value.medications[index];
+    const medicationId = medication.id; // افترض أن كل دواء له ID
+
+    try {
+        const response = await axios.put(`/api/patients/${patientId}/medications/${medicationId}`, {
+            dosage: newDosage,
+            // يمكنك إرسال أي بيانات أخرى تحتاج للتحديث
+        });
+
+        // تحديث البيانات محلياً
+        const updatedMedication = response.data;
+        const patientIndex = patients.value.findIndex(p => p.fileNumber === patientId);
+        if (patientIndex !== -1) {
+            patients.value[patientIndex].medications[index] = updatedMedication;
+            selectedPatient.value = { ...patients.value[patientIndex] };
+            showSuccessAlert(`✅ تم تحديث جرعة الدواء ${medication.drugName} بنجاح.`);
+        }
+    } catch (error) {
+        console.error("حدث خطأ أثناء تحديث الدواء:", error);
+        showSuccessAlert("❌ فشلت عملية تحديث الدواء.");
     }
 };
 
@@ -310,11 +315,7 @@ const printTable = () => {
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
-        <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
-
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
+    <DefaultLayout>
 
             <main class="flex-1 p-4 sm:p-5 pt-3">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
@@ -390,6 +391,12 @@ const printTable = () => {
                 </div>
 
                 <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
+
+<!-- 12. إضافة حالة التحميل -->
+                    <div v-if="isLoading" class="flex items-center justify-center h-full">
+                        <p class="text-lg font-semibold text-gray-500">جاري تحميل البيانات...</p>
+                    </div>
+
                     <div
                         class="overflow-y-auto flex-1"
                         style="
@@ -440,20 +447,17 @@ const printTable = () => {
                     </div>
                 </div>
             </main>
-        </div>
-
-        <Sidebar />
-    </div>
+        </DefaultLayout>
 
     <!-- Modal Components -->
-    <PatientViewModal
+     <PatientViewModal
         :is-open="isViewModalOpen"
         :patient="selectedPatient"
         @close="closeViewModal"
         @add-medication="openAddMedicationModal"
         @dispensation-record="openDispensationModal"
-        @edit-medication="handleEditMedication"
         @delete-medication="handleDeleteMedication"
+        @update-medication="handleUpdateMedication"  
     />
 
     <AddMedicationModal

@@ -2,8 +2,6 @@
 import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
-import Navbar from "@/components/Navbar.vue";
-import Sidebar from "@/components/Sidebar.vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة

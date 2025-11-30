@@ -7,8 +7,6 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import inputadd from "@/components/btnadd.vue";
 import btnprint from "@/components/btnprint.vue";
-import btnform from "@/components/btnform.vue";
-import Btncancel from "@/components/btncancel.vue";
 
 // استيراد المكونات المنفصلة
 import PatientAddModal from "@/components/patientsDataEntry/PatientAddModel.vue";

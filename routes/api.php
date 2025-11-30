@@ -37,7 +37,10 @@ Route::post('login/dashboard', [AuthController::class, 'loginDashboard']);
 // Password Recovery
 Route::post('forgot-password/mobile', [ForgotPasswordController::class, 'sendResetOtp']);
 Route::post('reset-password/mobile', [ForgotPasswordController::class, 'resetPassword']);
-
+Route::post('forgot-password/dashboard', [ForgotPasswordController::class, 'sendOtpDashboard']);
+Route::post('reset-password/dashboard', [ForgotPasswordController::class, 'resetPasswordDashboard']);
+// Staff Account Activation (Email Link)
+Route::post('activate-account', [AuthController::class, 'activateAccount']);
 
 // ========================================================================
 // 2. Protected Routes (Token Required: Sanctum)

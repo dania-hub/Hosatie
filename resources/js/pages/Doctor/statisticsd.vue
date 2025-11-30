@@ -2,13 +2,11 @@
 import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
-import Navbar from "@/components/Navbar.vue";
-import Sidebar from "@/components/Sidebar.vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
-const API_URL = '/api/data-entry/stats';
+const API_URL = '/api/dashboard/stats';
 
 // متغير لتخزين الإحصائيات
 const stats = ref({
@@ -68,7 +66,7 @@ onMounted(() => {
                 hover:!blur-none">
                 <div class="content flex items-center gap-2 justify-end">
                     <Icon icon="lucide:users" class="icon w-10 h-10 text-[#2E5077]" />
-                    <p class="text text-xl font-bold text-[#2E5077]">العدد الكلي للمسجلين</p>
+                    <p class="text text-xl font-bold text-[#2E5077]"> عدد المرضى اليوم </p>
                 </div>
                 <p class="number text-4xl font-bold text-left text-white">{{ stats.totalRegistered }}</p>
             </div>
@@ -78,7 +76,7 @@ onMounted(() => {
                 hover:!blur-none">
                 <div class="content flex items-center gap-2 justify-end">
                     <Icon icon="material-symbols:add-box-rounded" class="icon w-10 h-10 text-[#4DA1A9]" />
-                    <p class="text text-xl font-bold text-[#2E5077]">عدد المسجلين خلال اليوم</p>
+                    <p class="text text-xl font-bold text-[#2E5077]">عدد الكشوفات  اليوم</p>
                 </div>
                 <p class="number text-4xl font-bold text-left text-white">{{ stats.todayRegistered }}</p>
             </div>
@@ -88,7 +86,7 @@ onMounted(() => {
                 hover:!blur-none">
                 <div class="content flex items-center gap-2 justify-end">
                     <Icon icon="simple-line-icons:calender" class="icon w-10 h-10 text-[#79D7BE]" />
-                    <p class="text text-xl font-bold text-[#2E5077]">عدد المسجلين خلال الأسبوع</p>
+                    <p class="text text-xl font-bold text-[#2E5077]">عدد الحالات التي تتابعها</p>
                 </div>
                 <p class="number text-4xl font-bold text-left text-white">{{ stats.weekRegistered }}</p>
             </div>

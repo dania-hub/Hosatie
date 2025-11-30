@@ -18,11 +18,11 @@ class PatientTransferRequest extends Model
         'requested_by',
         'status',
         'reason',
-        'approved_by',
-        'approved_at',
-        'rejected_by',
-        'rejected_at',
-        'rejection_reason',
+        // 'approved_by',
+        // 'approved_at',
+        // 'rejected_by',
+        // 'rejected_at',
+        // 'rejection_reason',
     ];
 
     protected $casts = [

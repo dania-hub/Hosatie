@@ -57,4 +57,7 @@ class Dispensing extends Model
     {
         return $this->belongsTo(User::class, 'reverted_by');
     }
+    public function drug() {
+        return $this->belongsTo(Drug::class, 'drug_id');
+}
 }

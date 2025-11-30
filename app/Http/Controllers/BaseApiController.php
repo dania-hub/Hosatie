@@ -17,7 +17,7 @@ class BaseApiController
      * @param int $code
      * @return JsonResponse
      */
-    protected function sendSuccess($data = null, string $message = null, int $code = 200): JsonResponse
+    protected function sendSuccess($data = null, ?string $message = null, int $code = 200): JsonResponse
     {
         $response = [
             'success' => true,
@@ -42,7 +42,7 @@ class BaseApiController
      * @param int $code
      * @return JsonResponse
      */
-    protected function sendError(string $message = null, $errors = null, int $code = 400): JsonResponse
+    protected function sendError(string $message, $errors = null, int $code = 400): JsonResponse
     {
         $response = [
             'success' => false,
@@ -69,8 +69,8 @@ class BaseApiController
     {
         Log::error($logMessage . ': ' . $e->getMessage());
         if (config('app.debug')) {
-            return $this->sendError('Server Error: ' . $e->getMessage(), [], 500);
+            return $this->sendError('خطا في الخادم: ' . $e->getMessage(), [], 500);
         }
-        return $this->sendError('An unexpected error occurred. Please try again.', [], 500);
+        return $this->sendError('ظهر خطا غير متوقع', [], 500);
     }
 }

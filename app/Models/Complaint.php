@@ -19,8 +19,9 @@ class Complaint extends Model
         'status',
         'replied_by',
         'reply_message',
-        'replied_at',
-        'created_at',
+        'replied_at'
+        // ,'created_at', 'updated_at'
+       
     ];
 
     protected $casts = [

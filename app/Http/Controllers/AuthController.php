@@ -36,9 +36,9 @@ class AuthController extends BaseApiController
     {
         Log::error($logMessage . ': ' . $e->getMessage());
         if (config('app.debug')) {
-            return $this->sendError('Server Error: ' . $e->getMessage(), [], 500);
+            return $this->sendError('خطا في الخادم ' . $e->getMessage(), [], 500);
         }
-        return $this->sendError('An unexpected error occurred. Please try again.', [], 500);
+        return $this->sendError('ظهر خطا غير متوقع.', [], 500);
     }
 
     /**
@@ -49,25 +49,23 @@ class AuthController extends BaseApiController
   /**
      * 1. MOBILE LOGIN (Patients Only)
      */
-    public function loginMobile(MobileLoginRequest $request)
-   
+       public function loginMobile(MobileLoginRequest $request)
     {
         try {
-            $credentials = $request->validate([
-                'phone' => 'required|string',
-                'password' => 'required|string',
-                'fcm_token' => 'nullable|string',
-            ]);
+            // استخدم البيانات التي تم التحقق منها بالفعل في Request Class
+            $credentials = $request->validated();
+
             // Find by PHONE
             $user = User::where('phone', $credentials['phone'])->first();
 
-            // Check Credentials & Type
+            // Check Credentials
             if (!$user || !Hash::check($credentials['password'], $user->password)) {
-                return $this->sendError('Invalid phone or password.', [], 401);
+                return $this->sendError('رقم الهاتف أو كلمة المرور غير صحيحة.', [], 401);
             }
 
+            // Check User Type
             if ($user->type !== 'patient') {
-                return $this->sendError('Access denied. Only patients can use the mobile app.', [], 403);
+                return $this->sendError('عذراً، هذا التطبيق مخصص للمرضى فقط.', [], 403);
             }
 
             // FR-3 Logic: Force Password Change
@@ -75,7 +73,7 @@ class AuthController extends BaseApiController
             if ($user->status === 'pending_activation') {
                 $requiresPasswordChange = true;
             } elseif ($user->status !== 'active') {
-                return $this->sendError('Your account is inactive.', [], 403);
+                return $this->sendError('حسابك غير نشط، يرجى مراجعة الإدارة.', [], 403);
             }
 
             // Update FCM
@@ -92,12 +90,13 @@ class AuthController extends BaseApiController
                 'requires_password_change' => $requiresPasswordChange,
             ];
 
-            return $this->sendSuccess($data, 'Mobile login successful.');
+            return $this->sendSuccess($data, 'تم تسجيل الدخول بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Mobile Login Error');
+            return $this->handleException($e, 'خطأ في تسجيل دخول المريض');
         }
     }
+
 
     /**
      * 2. DASHBOARD LOGIN (Staff Only)
@@ -112,16 +111,16 @@ class AuthController extends BaseApiController
 
             // Check Credentials & Type
             if (!$user || !Hash::check($credentials['password'], $user->password)) {
-                return $this->sendError('Invalid email or password.', [], 401);
+                return $this->sendError('البريد الإلكتروني أو كلمة المرور غير صحيحة.', [], 401);
             }
 
             if ($user->type === 'patient') {
-                return $this->sendError('Access denied. Patients cannot access the dashboard.', [], 403);
+                return $this->sendError('تم رفض الوصول. لا يمكن للمرضى الوصول إلى لوحة التحكم.', [], 403);
             }
 
             // Check Status (Must be active)
             if ($user->status !== 'active') {
-                return $this->sendError('Your account is inactive. Contact Admin.', [], 403);
+                return $this->sendError('حسابك غير نشط. تواصل مع المسؤول.', [], 403);
             }
 
             $token = $user->createToken('web_dashboard')->plainTextToken;
@@ -132,10 +131,10 @@ class AuthController extends BaseApiController
                 'role'  => $user->type,
             ];
 
-            return $this->sendSuccess($data, 'Dashboard login successful.');
+            return $this->sendSuccess($data, 'تم تسجيل الدخول إلى لوحة التحكم بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Dashboard Login Error');
+            return $this->handleException($e, 'خطأ في تسجيل الدخول إلى لوحة التحكم');
         }
     }
     public function forceChangePassword(ForceChangePasswordRequest $request)
@@ -145,12 +144,12 @@ class AuthController extends BaseApiController
 
             // Security: Only patients
             if ($user->type !== 'patient') {
-                return $this->sendError('This action is reserved for patients.', [], 403);
+                return $this->sendError('هذا الإجراء مخصص للمرضى فقط.', [], 403);
             }
 
             // Security: Only if pending
             if ($user->status === 'active') {
-                return $this->sendError('Your account is already active.', [], 400);
+                return $this->sendError('حسابك نشط بالفعل.', [], 400);
             }
 
             // Update Password & Activate
@@ -158,10 +157,10 @@ class AuthController extends BaseApiController
             $user->status = 'active';
             $user->save();
 
-            return $this->sendSuccess(new UserResource($user), 'Password changed and account activated successfully.');
+            return $this->sendSuccess(new UserResource($user), 'تم تغيير كلمة المرور وتفعيل الحساب بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Force Change Password Error');
+            return $this->handleException($e, 'خطأ في تغيير كلمة المرور الإجباري');
         }
     }
 
@@ -175,10 +174,10 @@ class AuthController extends BaseApiController
             // if ($request->user()->type !== 'patient') { ... }
 
             $request->user()->currentAccessToken()->delete();
-            return $this->sendSuccess([], 'Mobile logout successful.');
+            return $this->sendSuccess([], 'تم تسجيل الخروج  بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Mobile Logout Error');
+            return $this->handleException($e, 'خطأ في تسجيل الخروج');
         }
     }
 
@@ -189,10 +188,10 @@ class AuthController extends BaseApiController
     {
         try {
             $request->user()->currentAccessToken()->delete();
-            return $this->sendSuccess([], 'Dashboard logout successful.');
+            return $this->sendSuccess([], 'تم تسجيل الخروج من لوحة التحكم بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Dashboard Logout Error');
+            return $this->handleException($e, 'خطأ في تسجيل الخروج من لوحة التحكم');
         }
     }
 
@@ -209,15 +208,15 @@ class AuthController extends BaseApiController
 
             // Security Check
             if ($user->type !== 'patient') {
-                return $this->sendError('Access denied. This profile is for patients only.', [], 403);
+                return $this->sendError('تم رفض الوصول. هذا الملف الشخصي مخصص للمرضى فقط.', [], 403);
             }
 
             // Use a specific resource if you want customized patient data
             // For now, we use UserResource, but you could create PatientResource later
-            return $this->sendSuccess(new UserResource($user), 'Patient profile retrieved.');
+            return $this->sendSuccess(new UserResource($user), 'تم استرجاع ملف تعريف المريض بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Mobile Profile Error');
+            return $this->handleException($e, 'خطأ في الملف الشخصي');
         }
     }
 
@@ -231,13 +230,13 @@ class AuthController extends BaseApiController
 
             // Security Check
             if ($user->type === 'patient') {
-                return $this->sendError('Access denied. Patients cannot view dashboard profiles.', [], 403);
+                return $this->sendError('تم رفض الوصول. المرضى لا يمكنهم عرض ملفات تعريف لوحة التحكم.', [], 403);
             }
 
             return $this->sendSuccess(new UserResource($user), 'Staff profile retrieved.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Dashboard Profile Error');
+            return $this->handleException($e, 'خطأ في ملف تعريف لوحة التحكم');
         }
     }
     /**
@@ -252,7 +251,7 @@ class AuthController extends BaseApiController
             $user = $request->user();
 
             if ($user->type !== 'patient') {
-                return $this->sendError('Access denied.', [], 403);
+                return $this->sendError('تم رفض الوصول. هذا الملف الشخصي مخصص للمرضى فقط.', [], 403);
             }
 
             // Using the generic Request here; consider creating App\Http\Requests\Mobile\UpdateMobileProfileRequest
@@ -263,10 +262,10 @@ class AuthController extends BaseApiController
             $user->fill($data);
             $user->save();
 
-            return $this->sendSuccess(new UserResource($user), 'Patient profile updated.');
+            return $this->sendSuccess(new UserResource($user), 'تم تحديث ملف تعريف المريض بنجاح.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Update Mobile Profile Error');
+            return $this->handleException($e, 'خطأ في تحديث ملف تعريف المريض');
         }
     }
 
@@ -279,7 +278,7 @@ class AuthController extends BaseApiController
             $user = $request->user();
 
             if ($user->type === 'patient') {
-                return $this->sendError('Access denied.', [], 403);
+                return $this->sendError('تم رفض الوصول. المرضى لا يمكنهم تحديث ملفات تعريف لوحة التحكم.', [], 403);
             }
 
             $data = $request->validated();
@@ -290,7 +289,7 @@ class AuthController extends BaseApiController
             return $this->sendSuccess(new UserResource($user), 'Staff profile updated.');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Update Dashboard Profile Error');
+            return $this->handleException($e, 'خطأ في تحديث ملف تعريف لوحة التحكم');
         }
     }
 
@@ -307,7 +306,7 @@ class AuthController extends BaseApiController
 
             // Security Check
             if ($user->type !== 'patient') {
-                return $this->sendError('Access denied.', [], 403);
+                return $this->sendError('تم رفض الوصول. هذا الملف الشخصي مخصص للمرضى فقط.', [], 403);
             }
 
             // Verify Current Password
@@ -319,10 +318,10 @@ class AuthController extends BaseApiController
             $user->password = Hash::make($request->new_password);
             $user->save();
 
-            return $this->sendSuccess([], 'Password changed successfully (Mobile).');
+            return $this->sendSuccess([], 'تم تغيير كلمة المرور بنجاح .');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Change Mobile Password Error');
+            return $this->handleException($e, 'خطأ في تغيير كلمة مرور');
         }
     }
 
@@ -333,20 +332,20 @@ class AuthController extends BaseApiController
     
                 // Security Check
                 if ($user->type === 'patient') {
-                    return $this->sendError('Access denied.', [], 403);
+                    return $this->sendError('تم رفض الوصول. المرضى لا يمكنهم تغيير كلمة المرور في لوحة التحكم.', [], 403);
                 }
     
                 if (!Hash::check($request->current_password, $user->password)) {
-                    return $this->sendError('Current password is incorrect.', [], 400);
+                    return $this->sendError('كلمة المرور الحالية غير صحيحة.', [], 400);
                 }
     
                 $user->password = Hash::make($request->new_password);
                 $user->save();
     
-                return $this->sendSuccess([], 'Password changed successfully (Dashboard).');
+                return $this->sendSuccess([], 'تم تغيير كلمة المرور بنجاح (لوحة التحكم).');
     
             } catch (\Exception $e) {
-                return $this->handleException($e, 'Change Dashboard Password Error');
+                return $this->handleException($e, 'خطأ في تغيير كلمة مرور لوحة التحكم');
             }
         }
     
@@ -368,7 +367,7 @@ $cachedToken = \Illuminate\Support\Facades\Cache::get($key);
 
 // 1. Check Token existence and validity
 if (!$cachedToken || $cachedToken !== $request->token) {
-    return $this->sendError('Invalid or expired token.', [], 400);
+    return $this->sendError('رمز غير صالح أو منتهي الصلاحية.', [], 400);
 }
         
                 // 3. Activate User & Set Password
@@ -380,7 +379,19 @@ if (!$cachedToken || $cachedToken !== $request->token) {
                 // 4. Delete Token
               \Illuminate\Support\Facades\Cache::forget($key);
         
-                return $this->sendSuccess([], 'Account activated successfully. You can now login.');
+                return $this->sendSuccess([], 'تم تفعيل الحساب بنجاح. يمكنك الآن تسجيل الدخول.');
             }
+                // 7.2 تسجيل توكن الجهاز
+    public function updateFcmToken(Request $request)
+    {
+        $request->validate(['fcm_token' => 'required|string']);
+
+        $user = $request->user();
+        $user->fcm_token = $request->fcm_token;
+        $user->save();
+
+        return response()->json(['success' => true, 'message' => 'تم تحديث توكن FCM بنجاح.']);
+    }
+
     }
 

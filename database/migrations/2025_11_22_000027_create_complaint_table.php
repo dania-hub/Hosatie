@@ -15,7 +15,8 @@ class CreateComplaintTable extends Migration
             $table->unsignedBigInteger('replied_by')->nullable();
             $table->text('reply_message')->nullable();
             $table->dateTime('replied_at')->nullable();
-            $table->timestamp('created_at')->useCurrent();
+               $table->timestamp('created_at')->useCurrent();
+             $table->timestamp('updated_at')->nullable();
 
             $table->foreign('patient_id')->references('id')->on('users');
             $table->foreign('replied_by')->references('id')->on('users')->onDelete('set null');

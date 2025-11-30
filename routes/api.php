@@ -1,71 +1,114 @@
 <?php
-use App\Http\Controllers\DataEntry\PatientController;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// --- Auth & General ---
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\Mobile\PrescriptionController;
 use App\Http\Controllers\ForgotPasswordController;
+
+// --- Mobile Controllers ---
+use App\Http\Controllers\Mobile\HomeController;
+use App\Http\Controllers\Mobile\OrderController;
+use App\Http\Controllers\Mobile\NotificationController;
+use App\Http\Controllers\Mobile\DrugController;
+use App\Http\Controllers\Mobile\PrescriptionController;
+
+// --- Data Entry Controllers ---
+use App\Http\Controllers\DataEntry\PatientController;
+
+// --- Admin Hospital Controllers ---
 use App\Http\Controllers\AdminHospital\StaffController;
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
 
-// Public Routes (No Middleware)
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-// Public Route (For the employee to set password)
-Route::post('activate-account', [AuthController::class, 'activateAccount']);
+// ========================================================================
+// 1. Public Routes (No Token Required)
+// ========================================================================
 
-// Protected Admin Route (To create the user)
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::post('admin/staff', [StaffController::class, 'store']);
-});
-// Mobile
-Route::post('forgot-password/mobile', [ForgotPasswordController::class, 'sendOtpMobile']);
-Route::post('reset-password/mobile', [ForgotPasswordController::class, 'resetPasswordMobile']);
+// Authentication
+Route::post('login/mobile', [AuthController::class, 'loginMobile']);
+Route::post('login/dashboard', [AuthController::class, 'loginDashboard']);
 
-// Dashboard
-Route::post('forgot-password/dashboard', [ForgotPasswordController::class, 'sendOtpDashboard']);
-Route::post('reset-password/dashboard', [ForgotPasswordController::class, 'resetPasswordDashboard']);
-Route::post('login/mobile', [AuthController::class, 'loginMobile']);       // For Patient App
-Route::post('login/dashboard', [AuthController::class, 'loginDashboard']); // For Web Dashboard
+// Password Recovery
+Route::post('forgot-password/mobile', [ForgotPasswordController::class, 'sendResetOtp']);
+Route::post('reset-password/mobile', [ForgotPasswordController::class, 'resetPassword']);
 
-// Protected Routes (Token Required)
+
+// ========================================================================
+// 2. Protected Routes (Token Required: Sanctum)
+// ========================================================================
 Route::middleware('auth:sanctum')->group(function () {
-    
-// Logout Mobile
+
+    // --------------------------------------------------------------------
+    // A. General Auth & Profile (Shared or Specific)
+    // --------------------------------------------------------------------
     Route::post('logout/mobile', [AuthController::class, 'logoutMobile']);
-
-    // Logout Dashboard
     Route::post('logout/dashboard', [AuthController::class, 'logoutDashboard']);
-Route::get('profile/mobile', [AuthController::class, 'profileMobile']);
-    Route::get('profile/dashboard', [AuthController::class, 'profileDashboard']);
-// Update Profile Mobile
+    
+    // FCM Token
+    Route::post('fcm-token', [AuthController::class, 'updateFcmToken']);
+
+    // Profile (Mobile)
+    Route::get('profile/mobile', [AuthController::class, 'profileMobile']);
     Route::put('profile/mobile', [AuthController::class, 'updateProfileMobile']);
-
-    // Update Profile Dashboard
-    Route::put('profile/dashboard', [AuthController::class, 'updateProfileDashboard']);
- // Change Password Mobile
     Route::put('profile/password/mobile', [AuthController::class, 'changePasswordMobile']);
+    Route::post('force-change-password', [AuthController::class, 'forceChangePassword']); // FR-3
 
-    // Change Password Dashboard
-    Route::put('profile/password/dashboard', [AuthController::class, 'changePasswordDashboard']);    
-    Route::post('force-change-password', [AuthController::class, 'forceChangePassword']);
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
-    // Prescriptions (Mobile)
-    Route::get('mobile/prescriptions/current', [PrescriptionController::class, 'index']);
-    Route::get('mobile/prescriptions/history', [PrescriptionController::class, 'history']);
-    Route::get('mobile/prescriptions/{id}', [PrescriptionController::class, 'show']);
-    // Add your other protected routes here...
+    // Profile (Dashboard)
+    Route::get('profile/dashboard', [AuthController::class, 'profileDashboard']);
+    Route::put('profile/dashboard', [AuthController::class, 'updateProfileDashboard']);
+    Route::put('profile/password/dashboard', [AuthController::class, 'changePasswordDashboard']);
 
-    // Data Entry - Patient Management
+
+    // --------------------------------------------------------------------
+    // B. Mobile App Features (Patient)
+    // --------------------------------------------------------------------
+    
+    // 2.1 Home Screen
+    Route::get('home/mobile', [HomeController::class, 'mobileIndex']);
+
+    // 4. Orders (Complaints & Transfers)
+    Route::get('orders/mobile', [OrderController::class, 'index']);       
+    Route::post('orders/mobile', [OrderController::class, 'store']);      
+    Route::get('orders/mobile/{id}', [OrderController::class, 'show']);   
+    Route::get('hospitals', [OrderController::class, 'hospitals']);       
+
+    // 5. & 7. Notifications
+    Route::get('notifications/mobile', [NotificationController::class, 'index']);
+    Route::post('notifications/mark-as-read', [NotificationController::class, 'markAsRead']);
+
+    // 6. Drugs & Prescriptions
+    Route::get('drugs/{id}', [DrugController::class, 'show']);
+    Route::get('prescriptions/history', [PrescriptionController::class, 'history']); 
+    Route::get('prescriptions/current', [PrescriptionController::class, 'current']); 
+
+
+    // --------------------------------------------------------------------
+    // C. Data Entry Dashboard
+    // --------------------------------------------------------------------
     Route::prefix('data-entry')->group(function () {
-        Route::post('patients', [PatientController::class, 'store']);       // Register
-        Route::get('patients/{id}', [PatientController::class, 'show']);    // View
-        Route::put('patients/{id}', [PatientController::class, 'update']);  // Edit
-        Route::get('activity-log', [PatientController::class, 'activityLog']);
-Route::get('stats', [PatientController::class, 'stats']); // بتاع الاحصائيات
-
+        Route::post('patients', [PatientController::class, 'store']);       
+        Route::get('patients/{id}', [PatientController::class, 'show']);    
+        Route::put('patients/{id}', [PatientController::class, 'update']);  
+        
+        Route::get('activity-log', [PatientController::class, 'activityLog']); 
+        Route::get('stats', [PatientController::class, 'stats']);           
     });
+
+
+    // --------------------------------------------------------------------
+    // D. Admin Hospital Dashboard
+    // --------------------------------------------------------------------
+    Route::prefix('admin-hospital')->group(function () {
+        // Example Staff Management Routes
+        Route::get('staff', [StaffController::class, 'index']);
+        Route::post('staff', [StaffController::class, 'store']);
+        // Add other Admin Hospital routes here...
+    });
+
 });

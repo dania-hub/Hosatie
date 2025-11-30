@@ -25,11 +25,11 @@ class PrescriptionController extends BaseApiController
 
             return $this->sendSuccess(
                 PrescriptionResource::collection($prescriptions), 
-                'Current active prescriptions retrieved.'
+                'الروشتات النشطة الحالية تم جلبها بنجاح'
             );
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Error fetching prescriptions');
+            return $this->handleException($e, 'خطأ في جلب الروشتات النشطة الحالية');
         }
     }
 
@@ -47,7 +47,7 @@ class PrescriptionController extends BaseApiController
                 ->first();
 
             if (!$prescription) {
-                return $this->sendError('Prescription not found.', [], 404);
+                return $this->sendError('لم يتم ايجاد الروشيتة .', [], 404);
             }
 
             return $this->sendSuccess(
@@ -56,7 +56,7 @@ class PrescriptionController extends BaseApiController
             );
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Error fetching details');
+            return $this->handleException($e, 'خطأ في جلب تفاصيل الروشيتة');
         }
     }
 
@@ -66,24 +66,27 @@ class PrescriptionController extends BaseApiController
      * Do you want 'Prescription History' or 'Dispensing History'?
      * Assuming Prescription History for now based on FR text.
      */
+        // 6.3 سجل صرف الدواء
     public function history(Request $request)
     {
-        try {
-            $user = $request->user();
+        // نحتاج موديل Dispensing
+        $history = \App\Models\Dispensing::with(['drug', 'pharmacist', 'pharmacy'])
+            ->where('patient_id', $request->user()->id)
+            ->where('reverted', false) // نجلب الصرف الناجح فقط
+            ->latest('dispense_month')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'medicine_name'   => $item->drug->name ?? 'Unknown',
+                    'date'            => $item->created_at->format('Y-m-d'),
+                    'pharmacist_name' => $item->pharmacist->full_name ?? 'Unknown',
+                    'pharmacy_name'   => $item->pharmacy->name ?? 'Unknown',
+                    'quantity'        => $item->quantity_dispensed,
+                ];
+            });
 
-            $history = Prescription::with(['doctor', 'drugs'])
-                ->where('patient_id', $user->id)
-                ->whereIn('status', ['cancelled', 'suspended']) // Old/Inactive stuff
-                ->latest()
-                ->get();
-
-            return $this->sendSuccess(
-                PrescriptionResource::collection($history),
-                'History retrieved.'
-            );
-
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'Error fetching history');
-        }
+        return response()->json(['success' => true, 'data' => $history]);
     }
-}
+
+    }
+

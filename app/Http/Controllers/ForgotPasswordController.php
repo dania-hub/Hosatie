@@ -28,7 +28,7 @@ class ForgotPasswordController extends BaseApiController
         Cache::put($key, $otp, 900); // 15 Minutes
 
         // SMS Simulation
-        return $this->sendSuccess(['dev_otp' => $otp], 'OTP sent to phone (Mobile).');
+        return $this->sendSuccess(['dev_otp' => $otp], 'تم إرسال رمز التحقق إلى الهاتف المحمول.');
     }
 
     public function resetPasswordMobile(ResetMobilePasswordRequest $request)
@@ -39,7 +39,7 @@ class ForgotPasswordController extends BaseApiController
         $cachedOtp = Cache::get($key);
 
         if (!$cachedOtp || $cachedOtp != $data['otp']) {
-            return $this->sendError('Invalid or expired OTP.', [], 400);
+            return $this->sendError('رمز التحقق غير صالح أو منتهي الصلاحية.', [], 400);
         }
 
         // Update User
@@ -49,7 +49,7 @@ class ForgotPasswordController extends BaseApiController
 
         Cache::forget($key); // Clear OTP
 
-        return $this->sendSuccess([], 'Password reset successfully (Mobile).');
+        return $this->sendSuccess([], 'تم إعادة تعيين كلمة المرور بنجاح .');
     }
 
     /* -----------------------------------------------------------------
@@ -65,7 +65,7 @@ class ForgotPasswordController extends BaseApiController
         Cache::put($key, $otp, 900);
 
         // Email Simulation
-        return $this->sendSuccess(['dev_otp' => $otp], 'OTP sent to email (Dashboard).');
+        return $this->sendSuccess(['dev_otp' => $otp], 'تم إرسال رمز التحقق إلى البريد الإلكتروني .');
     }
 
     public function resetPasswordDashboard(ResetDashboardPasswordRequest $request)
@@ -76,7 +76,7 @@ class ForgotPasswordController extends BaseApiController
         $cachedOtp = Cache::get($key);
 
         if (!$cachedOtp || $cachedOtp != $data['otp']) {
-            return $this->sendError('Invalid or expired OTP.', [], 400);
+            return $this->sendError('رمز التحقق غير صالح أو منتهي الصلاحية.', [], 400);
         }
 
         // Update User
@@ -86,6 +86,6 @@ class ForgotPasswordController extends BaseApiController
 
         Cache::forget($key);
 
-        return $this->sendSuccess([], 'Password reset successfully (Dashboard).');
+        return $this->sendSuccess([], 'تم إعادة تعيين كلمة المرور بنجاح .');
     }
 }

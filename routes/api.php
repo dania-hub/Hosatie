@@ -15,11 +15,16 @@ use App\Http\Controllers\Mobile\DrugController;
 use App\Http\Controllers\Mobile\PrescriptionController;
 
 // --- Data Entry Controllers ---
-use App\Http\Controllers\DataEntry\PatientController;
+use App\Http\Controllers\DataEntry\PatientDataEntryController;
 
 // --- Admin Hospital Controllers ---
 use App\Http\Controllers\AdminHospital\StaffController;
-
+// --- Doctor Dashboard Controllers ---
+use App\Http\Controllers\Doctor\DashboardDoctorController;
+use App\Http\Controllers\Doctor\PatientDoctorController;
+use App\Http\Controllers\Doctor\PrescriptionDoctorController;
+use App\Http\Controllers\Doctor\DispensationDoctorController;
+use App\Http\Controllers\Doctor\LookupDoctorController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -95,13 +100,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // C. Data Entry Dashboard
     // --------------------------------------------------------------------
     Route::prefix('data-entry')->group(function () {
-        Route::post('patients', [PatientController::class, 'store']);       
-        Route::get('patients/{id}', [PatientController::class, 'show']);    
-        Route::put('patients/{id}', [PatientController::class, 'update']);  
-        
-        Route::get('activity-log', [PatientController::class, 'activityLog']); 
-        Route::get('stats', [PatientController::class, 'stats']);           
-    });
+             Route::get('patients', [PatientDataEntryController::class, 'index']); // NEW: List
+            Route::post('patients', [PatientDataEntryController::class, 'store']);       
+            Route::get('patients/{id}', [PatientDataEntryController::class, 'show']);    
+            Route::put('patients/{id}', [PatientDataEntryController::class, 'update']);  
+            
+            Route::get('activity-log', [PatientDataEntryController::class, 'activityLog']); 
+            Route::get('stats', [PatientDataEntryController::class, 'stats']);  
+            Route::delete('patients/{id}', [PatientDataEntryController::class, 'destroy']); // NEW: Delete
+        });
 
 
     // --------------------------------------------------------------------
@@ -113,5 +120,30 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('staff', [StaffController::class, 'store']);
         // Add other Admin Hospital routes here...
     });
+     
+// Doctor Dashboard Routes
+Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
+    
+    // 1. Patients
+    Route::get('patients', [PatientDoctorController::class, 'index']); // List
+    Route::get('patients/{id}', [PatientDoctorController::class, 'show']); // Single Details (NEW)
+
+    // 2. Lookups (For Dropdowns)
+    Route::get('drugs', [LookupDoctorController::class, 'drugs']);
+    Route::get('drug-categories', [LookupDoctorController::class, 'categories']);
+
+    // 3. Manage Drugs (Add, Edit, Delete)
+    Route::post('patients/{id}/medications', [PrescriptionDoctorController::class, 'store']);
+    Route::put('patients/{id}/medications/{pivotId}', [PrescriptionDoctorController::class, 'update']);
+    Route::delete('patients/{id}/medications/{pivotId}', [PrescriptionDoctorController::class, 'destroy']);
+
+    // 4. Dispensing History
+    Route::get('patients/{id}/dispensations', [DispensationDoctorController::class, 'history']);
+    
+    // 5. Dashboard
+    Route::get('dashboard/stats', [DashboardDoctorController::class, 'stats']);
+    Route::get('dashboard/activity-log', [DashboardDoctorController::class, 'activityLog']);
+});
+
 
 });

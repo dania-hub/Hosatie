@@ -11,7 +11,7 @@ use App\Models\A;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 
-class PatientController extends BaseApiController
+class PatientDataEntryController extends BaseApiController
 {
     // 1. Register New Patient
     public function store(StorePatientRequest $request)

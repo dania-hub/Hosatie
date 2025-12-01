@@ -125,6 +125,7 @@
                 placeholder="أدخل البريد الإلكتروني الخاص بك"
                 class="custom-input text-right text-sm sm:text-base"
                 :class="{ 'input-error': emailError }"
+                :disabled="loading"
               />
               <Mail
                 class="absolute right-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
@@ -156,6 +157,7 @@
                 placeholder="أدخل كلمة المرور الخاصة بك"
                 class="custom-input text-right text-sm sm:text-base"
                 :class="{ 'input-error': passwordError }"
+                :disabled="loading"
               />
               <Lock
                 class="absolute right-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
@@ -175,7 +177,7 @@
 
           <div class="text-center text-sm mt-1">
             <a
-              href="#"
+              href="/Forgotpassword"
               class="inline-block text-[#2E5077] hover:underline transition duration-200"
             >
               هل نسيت كلمة المرور؟
@@ -183,9 +185,27 @@
           </div>
 
           <div class="flex flex-col items-center mt-2 w-full">
-            <button type="submit" class="button w-full sm:w-3/4">
-              تسجيل الدخول
+            <button 
+              type="submit" 
+              class="button w-full sm:w-3/4"
+              :disabled="loading"
+              :class="{ 'opacity-50 cursor-not-allowed': loading }"
+            >
+              <span v-if="loading" class="flex items-center justify-center gap-2">
+                <Icon icon="eos-icons:loading" class="w-5 h-5" />
+                جاري التسجيل...
+              </span>
+              <span v-else>تسجيل الدخول</span>
             </button>
+            
+            <!-- رسالة الخطأ من الـ API -->
+            <div v-if="apiError" class="mt-4 p-2 bg-red-50 border border-red-200 rounded-lg">
+              <p class="text-red-700 text-sm font-medium flex items-center gap-2 justify-center">
+                <Icon icon="material-symbols:error-outline" class="w-4 h-4" />
+                {{ apiError }}
+              </p>
+            </div>
+
             <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
               2024© حصتي. جميع الحقوق محفوظة
             </p>
@@ -206,6 +226,8 @@ const email = ref("");
 const password = ref("");
 const emailError = ref("");
 const passwordError = ref("");
+const apiError = ref("");
+const loading = ref(false);
 
 // ****** متغيرات الحالة لتعقب اللمس ******
 const emailTouched = ref(false);
@@ -247,11 +269,9 @@ const validatePassword = () => {
 const handleBlur = (field) => {
     if (field === 'email') {
         emailTouched.value = true;
-        // نتحقق فقط إذا كان هناك محتوى في الحقل (لتجنب ظهور "مطلوب" بمجرد الخروج من حقل فارغ)
         if (email.value.length > 0) {
             validateEmail();
         } else {
-            // نمسح الخطأ إذا كان الحقل فارغاً، ونعتمد على handleLogin لإظهار "مطلوب"
             emailError.value = "";
         }
     } else if (field === 'password') {
@@ -264,18 +284,70 @@ const handleBlur = (field) => {
     }
 };
 
-// دالة الإرسال النهائية - تضمن ظهور أخطاء "مطلوب" في حال كانت الحقول فارغة
-const handleLogin = () => {
-    // نجبر التحقق على جميع الحقول
+// دالة الاتصال بالـ API لتسجيل الدخول
+const loginToAPI = async (email, password) => {
+    try {
+        const response = await fetch('/api/login/dashboard', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email,
+                password: password
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'حدث خطأ أثناء تسجيل الدخول');
+        }
+
+        return data;
+    } catch (error) {
+        throw new Error(error.message || 'فشل الاتصال بالخادم');
+    }
+};
+
+// دالة الإرسال النهائية
+const handleLogin = async () => {
+    // إعادة تعيين رسالة الخطأ
+    apiError.value = "";
+    
+    // التحقق من صحة البيانات
     const isEmailValid = validateEmail();
     const isPasswordValid = validatePassword();
 
-    // يتم الإرسال فقط إذا كانت جميع التحققات ناجحة
-    if (isEmailValid && isPasswordValid) {
-        // هنا يتم وضع كود الاتصال بالـ API
-        console.log("تم تسجيل الدخول بنجاح", { email: email.value });
-    } else {
-        console.log("خطأ في التحقق، يرجى مراجعة البيانات المدخلة.");
+    if (!isEmailValid || !isPasswordValid) {
+        return;
+    }
+
+    // تفعيل حالة التحميل
+    loading.value = true;
+
+    try {
+        // الاتصال بالـ API
+        const result = await loginToAPI(email.value, password.value);
+        
+        console.log("تم تسجيل الدخول بنجاح", result);
+        
+        // هنا يمكنك توجيه المستخدم إلى الصفحة التالية
+        // مثال: router.push('/dashboard');
+        
+        // عرض رسالة نجاح (يمكن استبدالها بالتوجيه)
+        alert('تم تسجيل الدخول بنجاح!');
+        
+        // إعادة تعيين النموذج
+        email.value = "";
+        password.value = "";
+        
+    } catch (error) {
+        console.error("خطأ في تسجيل الدخول:", error);
+        apiError.value = error.message;
+    } finally {
+        loading.value = false;
     }
 };
 </script>
@@ -285,7 +357,6 @@ const handleLogin = () => {
 .custom-container {
   background: linear-gradient(0deg, #ffffff 0%, #f4f7fb 100%);
   border-radius: 35px;
-  /* حواشي متجاوبة: صغيرة للموبايل وكبيرة للشاشات الأكبر */
   padding: 3.5rem 1.5rem 2rem 1.5rem !important;
   border: 5px solid #efefef;
   box-shadow: rgba(46, 80, 119, 0.88) 0px 30px 30px -20px;
@@ -318,13 +389,12 @@ const handleLogin = () => {
   font-size: 15px;
   cursor: pointer;
   height: 48px;
-  /* العرض يتم التحكم فيه بواسطة Tailwind Classes الآن */
 }
-.button:hover {
+.button:hover:not(:disabled) {
   transform: scale(1.02); 
   border-color: #fff9;
 }
-.button:hover::before {
+.button:hover:not(:disabled)::before {
   animation: shine 1.5s ease-out infinite;
 }
 .button::before {
@@ -359,7 +429,6 @@ const handleLogin = () => {
   width: 100% !important;
   background: white !important;
   border: 1px solid #d1d5db !important;
-  /* تعديل البادينج للموبايل */
   padding: 15px 50px 15px 15px !important;
   border-radius: 15px !important;
   box-shadow: #afc6e1 0px 10px 10px -5px;
@@ -385,5 +454,13 @@ const handleLogin = () => {
 .custom-input::placeholder {
   color: rgb(170, 170, 170);
   text-align: right;
+}
+
+/* تنسيق لحالة التحميل */
+.opacity-50 {
+  opacity: 0.5;
+}
+.cursor-not-allowed {
+  cursor: not-allowed;
 }
 </style>

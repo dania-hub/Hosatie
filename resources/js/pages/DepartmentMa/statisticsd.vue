@@ -49,7 +49,7 @@ onMounted(() => {
 
 <template>
 <DefaultLayout>
-    <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-30">
+    <main class="flex-1 p-4  sm:p-8 pt-20 sm:pt-30">
         
         <div 
             v-if="stats.isLoading" 
@@ -59,7 +59,7 @@ onMounted(() => {
             <Icon icon="svg-spinners:ring-resize" class="w-6 h-6 mr-2" />
         </div>
 
-        <div v-else class="cards flex flex-col md:flex-row md:justify-between items-center mb-6 group gap-4">
+        <div v-else class="cards flex flex-col md:flex-row md:justify-between items-center mb-6 group gap-3">
 
             <div class="card bg-[#A0B0BF] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#2E5077] flex flex-col justify-between transition duration-300 ease-in-out
                 group-hover:blur-xs
@@ -90,6 +90,7 @@ onMounted(() => {
                 </div>
                 <p class="number text-4xl font-bold text-left text-white">{{ stats.weekRegistered }}</p>
             </div>
+           
         </div>
     </main>
 </DefaultLayout>

@@ -105,5 +105,47 @@ class PatientDataEntryController extends BaseApiController
             'weekRegistered'  => $week,
         ]);
     }
+     /**
+     * List All Patients (Index)
+     */
+    public function index(Request $request)
+    {
+        // Basic pagination and search
+        $query = User::where('type', 'patient');
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('full_name', 'like', "%$search%")
+                  ->orWhere('national_id', 'like', "%$search%")
+                  ->orWhere('phone', 'like', "%$search%");
+            });
+        }
+
+        $patients = $query->latest()->get(); // Or ->paginate(10)
+
+        return $this->sendSuccess($patients, 'تم جلب قائمة المرضى بنجاح.');
+    }
+
+    /**
+     * Delete Patient (Destroy)
+     */
+    public function destroy(Request $request, $id)
+    {
+        $patient = User::where('type', 'patient')->where('id', $id)->first();
+
+        if (!$patient) {
+            return $this->sendError('المريض غير موجود.', [], 404);
+        }
+
+        // Optional: Check if patient has dependencies (Prescriptions, etc.)
+        // if ($patient->prescriptions()->exists()) {
+        //     return $this->sendError('لا يمكن حذف المريض لوجود سجلات طبية مرتبطة به.', [], 400);
+        // }
+
+        $patient->delete();
+
+        return $this->sendSuccess([], 'تم حذف المريض بنجاح.');
+    }
 
 }

@@ -100,13 +100,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // C. Data Entry Dashboard
     // --------------------------------------------------------------------
     Route::prefix('data-entry')->group(function () {
-        Route::post('patients', [PatientDataEntryController::class, 'store']);       
-        Route::get('patients/{id}', [PatientDataEntryController::class, 'show']);    
-        Route::put('patients/{id}', [PatientDataEntryController::class, 'update']);  
-        
-        Route::get('activity-log', [PatientDataEntryController::class, 'activityLog']); 
-        Route::get('stats', [PatientDataEntryController::class, 'stats']);           
-    });
+             Route::get('patients', [PatientDataEntryController::class, 'index']); // NEW: List
+            Route::post('patients', [PatientDataEntryController::class, 'store']);       
+            Route::get('patients/{id}', [PatientDataEntryController::class, 'show']);    
+            Route::put('patients/{id}', [PatientDataEntryController::class, 'update']);  
+            
+            Route::get('activity-log', [PatientDataEntryController::class, 'activityLog']); 
+            Route::get('stats', [PatientDataEntryController::class, 'stats']);  
+            Route::delete('patients/{id}', [PatientDataEntryController::class, 'destroy']); // NEW: Delete
+        });
 
 
     // --------------------------------------------------------------------

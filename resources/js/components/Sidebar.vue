@@ -150,6 +150,12 @@ const dataEntryLinks = ref([
 
         to: "/Statistics",
     },
+
+    { name: "طلبات التوريد",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/SuRequests",
+    },
 ]);
 </script>
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Mobile;
+namespace App\Http\Controllers\Mobile; // تأكد من الـ Namespace الصحيح
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\Drug;
@@ -19,11 +19,15 @@ class DrugController extends BaseApiController
             'success' => true,
             'data' => [
                 'name' => $drug->name,
-                'generic_name' => $drug->generic_name ?? 'N/A', // العمود في الميجريشن
+                'generic_name' => $drug->generic_name ?? 'N/A',
                 'strength' => $drug->strength,
-                'form' => $drug->form,         // قرص، شراب..
+                'form' => $drug->form,
                 'manufacturer' => $drug->manufacturer,
-                'warnings' => $drug->warnings, // التحذيرات
+                'warnings' => $drug->warnings,
+                
+                // ✅ الحقول الجديدة المطلوبة
+                'indications' => $drug->indications ?? 'غير متوفر', // دواعي الاستعمال
+                'contraindications' => $drug->contraindications ?? 'غير متوفر', // موانع الاستعمال
             ]
         ]);
     }

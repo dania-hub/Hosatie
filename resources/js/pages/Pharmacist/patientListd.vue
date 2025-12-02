@@ -12,7 +12,7 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
 // استيراد المكونات المنفصلة
-import PatientViewModal from "@/components/patientDoctor/PatientViewModal.vue";
+import PatientViewModal from "@/components/forpharmacist/PatientViewModal.vue";
 import AddMedicationModal from "@/components/patientDoctor/AddMedicationModal.vue";
 import DispensationModal from "@/components/patientDoctor/DispensationModal.vue";
 
@@ -46,7 +46,23 @@ api.interceptors.request.use(
 // ----------------------------------------------------
 // 2. بيانات المرضى - أصبحت تأتي من API
 // ----------------------------------------------------
-const patients = ref([]);
+const patients = ref([  {
+        fileNumber: 1001,
+        name: 'علي محمد سالم العلواني',
+        nationalId: '123456789012',
+        birth: '1967/07/22',
+        phone: '0911234567',
+        lastUpdated: new Date('2024-01-15T10:00:00').toISOString(),
+        nationalIdDisplay: '12369852793',
+        nameDisplay: 'علي محمد سالم العلواني',
+        birthDisplay: '22/07/1967',
+        healthCenter: 'مركز طرابلس الجامعي',
+        medications: [
+            { drugName: 'Metformin', dosage: 'قرص واحد', monthlyQuantity: '30 حبة', assignmentDate: '2020/10/20', expirationDate: '2022/10/20', assignedBy: 'د. محمد خالد' },
+            { drugName: 'Amlodipine', dosage: 'قرصين', monthlyQuantity: '60 حبة', assignmentDate: '2020/10/20', expirationDate: '2025/10/20', assignedBy: 'د. محمد خالد' },
+            { drugName: 'Gliclazide', dosage: 'قرص واحد', monthlyQuantity: '30 حبة', assignmentDate: '2025/10/23', expirationDate: '2025/10/23', assignedBy: 'د. لجين أبوجناح' },
+        ]
+    },]);
 const isLoading = ref(false);
 const hasError = ref(false);
 const errorMessage = ref("");
@@ -70,11 +86,7 @@ const fetchPatients = async () => {
     hasError.value = true;
     errorMessage.value = err.response?.data?.message || 'حدث خطأ في جلب بيانات المرضى';
     
-    // في حالة الخطأ، نعرض الجدول فارغًا ولا نعرض رسالة خطأ
-    patients.value = [];
     
-    // يمكنك إظهار تنبيه خفيف بدلاً من رسالة خطأ كبيرة
-    showInfoAlert('لا يمكن الاتصال بالخادم. سيتم عرض الجدول فارغًا.');
   } finally {
     isLoading.value = false;
   }

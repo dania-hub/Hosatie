@@ -161,14 +161,11 @@ const updatedMonthlyQuantity = computed(() => {
                 <div class="space-y-4 pt-2">
                     <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
                         <Icon icon="tabler:pill" class="w-5 h-5 ml-2" />
-                        إسناد جرعة دوائية
+                        صرف جرعة دوائية
                     </h3>
 
                     <div class="flex justify-end gap-3">
-                        <Button @click="$emit('add-medication')" class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-28 rounded-[30px] transition-all duration-200 ease-in relative overflow-hiddentext-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
-                            <Icon icon="tabler:plus" class="w-4 h-4 ml-1" />
-                            إضافة دواء
-                        </Button>
+                        
                         <Button @click="$emit('dispensation-record')" class="inline-flex items-center h-11 px-[11px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
                             سجل الصرف
                         </Button>
@@ -195,18 +192,7 @@ const updatedMonthlyQuantity = computed(() => {
                                     <td class="p-3 border border-gray-300">{{ med.assignedBy }}</td>
                                     <td class="p-3 border border-gray-300 text-center">
                                         <div class="flex justify-center gap-2">
-                                            <button @click="handleEditMedication(medIndex)">
-                                                <Icon
-                                                    icon="line-md:pencil"
-                                                    class="w-5 h-5 text-yellow-500 cursor-pointer hover:scale-110 transition-transform"
-                                                />
-                                            </button>
-                                            <button @click="handleDeleteMedication(medIndex)">
-                                                <Icon
-                                                    icon="material-symbols:delete-outline"
-                                                    class="w-5 h-5 text-red-600 cursor-pointer hover:scale-110 transition-transform"
-                                                />
-                                            </button>
+                                            
                                         </div>
                                     </td>
                                 </tr>

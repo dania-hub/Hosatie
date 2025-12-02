@@ -1,44 +1,18 @@
 <script setup>
 import { Icon } from "@iconify/vue";
-import { ref, watch } from "vue"; // 1. استيراد ref و watch
-import axios from "axios"; // 2. استيراد axios
-
+import { onMounted, ref } from "vue";
 
 const props = defineProps({
     isOpen: Boolean,
-    patient: Object
+    patient: Object,
+    dispensationHistory: Array
 });
 
 const emit = defineEmits(['close']);
 
-// 3. متغيرات جديدة لحالة التحميل والبيانات
-const dispensationData = ref([]);
-const isLoading = ref(false);
-
-// 4. دالة لجلب سجل الصرف
-const fetchDispensationHistory = async (patientId) => {
-    if (!patientId) return;
-    try {
-        isLoading.value = true;
-        const response = await axios.get(`/api/patients/${patientId}/dispensation-history`); // <-- استبدل بالـ URL الصحيح
-        dispensationData.value = response.data;
-    } catch (error) {
-        console.error("فشل جلب سجل الصرف:", error);
-        dispensationData.value = []; // تفريغ البيانات عند حدوث خطأ
-    } finally {
-        isLoading.value = false;
-    }
-};
-
-// 5. مراقبة فتح النافذة لجلب البيانات
-watch(() => props.isOpen, (newVal) => {
-    if (newVal && props.patient) {
-        fetchDispensationHistory(props.patient.fileNumber); // أو patient.id
-    } else {
-        dispensationData.value = []; // تنظيف البيانات عند الإغلاق
-    }
-});
+// عرض البيانات الممررة كـ prop
 </script>
+
 <template>
     <div
         v-if="isOpen"
@@ -58,7 +32,7 @@ watch(() => props.isOpen, (newVal) => {
             >
                 <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
                     <Icon icon="tabler:history" class="w-6 h-6 sm:w-8 sm:h-8 ml-2 text-[#2E5077]" />
-                    سجل الصرف
+                    سجل الصرف - {{ patient.nameDisplay }}
                 </h2>
 
                 <button
@@ -69,24 +43,8 @@ watch(() => props.isOpen, (newVal) => {
                 </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6 min-h-[200px]">
-
-                <!-- 1. حالة التحميل: تظهر عندما يتم جلب البيانات من الـ API -->
-                <div v-if="isLoading" class="flex items-center justify-center h-full pt-10">
-                    <p class="text-lg font-semibold text-gray-500 animate-pulse">
-                        جاري تحميل السجل...
-                    </p>
-                </div>
-
-                <!-- 2. حالة عدم وجود بيانات: تظهر بعد انتهاء التحميل وعدم العثور على سجل -->
-                <div v-else-if="!dispensationData || dispensationData.length === 0" class="flex items-center justify-center h-full pt-10">
-                     <p class="text-lg font-semibold text-gray-500">
-                        لا يوجد سجل صرف لهذا المريض.
-                    </p>
-                </div>
-
-                <!-- 3. حالة عرض البيانات: تظهر عند وجود بيانات لعرضها -->
-                <div v-else class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
+            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6">
+                <div v-if="dispensationHistory.length > 0" class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
                     <table class="table w-full text-right min-w-[500px] border-collapse">
                         <thead class="bg-[#9aced2] text-black text-sm">
                             <tr>
@@ -97,8 +55,7 @@ watch(() => props.isOpen, (newVal) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- يتم الآن التكرار على dispensationData التي يتم جلبها من الـ API -->
-                            <tr v-for="(item, index) in dispensationData" :key="index" class="hover:bg-gray-50 border-b border-gray-200">
+                            <tr v-for="(item, index) in dispensationHistory" :key="index" class="hover:bg-gray-50 border-b border-gray-200">
                                 <td class="p-3 border border-gray-300">{{ item.drugName }}</td>
                                 <td class="p-3 border border-gray-300">{{ item.quantity }}</td>
                                 <td class="p-3 border border-gray-300">{{ item.date }}</td>
@@ -107,7 +64,7 @@ watch(() => props.isOpen, (newVal) => {
                         </tbody>
                     </table>
                 </div>
-                
+                <p v-else class="text-center text-gray-500 py-4">لا يوجد سجل صرف لهذا المريض.</p>
             </div>
 
             <div class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]">

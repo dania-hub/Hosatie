@@ -156,6 +156,12 @@ const dataEntryLinks = ref([
 
         to: "/SuRequests",
     },
+
+    { name: "طلبات التوريدkk",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/medicationsList",
+    },
 ]);
 </script>
 

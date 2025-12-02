@@ -9,7 +9,6 @@
             aria-modal="true"
             aria-labelledby="modal-title"
         >
-            <!-- الهيدر -->
             <div
                 class="flex justify-between items-center bg-[#F6F4F0] p-4 sm:p-6 border-b border-[#B8D7D9] sticky top-0 rounded-t-2xl z-10"
             >
@@ -26,23 +25,13 @@
                 <button
                     @click="closeModal"
                     class="text-gray-400 hover:text-gray-600 transition duration-150"
-                    :disabled="isLoading || isSubmitting"
                 >
                     <Icon icon="tabler:x" class="w-6 h-6" />
                 </button>
             </div>
 
-            <!-- المحتوى -->
             <div class="p-4 sm:pr-6 sm:pl-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                
-                <!-- حالة التحميل -->
-                <div v-if="isLoading" class="text-center py-8">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تحميل البيانات...</p>
-                </div>
-                
-                <!-- معلومات الدواء -->
-                <div v-else class="space-y-4">
+                <div class="space-y-4">
                     <h3
                         class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center"
                     >
@@ -53,7 +42,6 @@
                         معلومات الدواء
                     </h3>
 
-                    <!-- البحث والاختيار -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="flex flex-col gap-1 sm:col-span-1">
                             <label
@@ -66,7 +54,6 @@
                                 v-model="selectedCategory"
                                 @change="handleInput"
                                 class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white cursor-pointer shadow-none text-gray-700"
-                                :disabled="isSubmitting"
                             >
                                 <option value="">كل الفئات</option>
                                 <option
@@ -94,10 +81,9 @@
                                 @blur="hideResults"
                                 placeholder="ابدأ بكتابة اسم الدواء"
                                 class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white shadow-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                                :disabled="selectedDrugName.length > 0 || isSubmitting"
+                                :disabled="selectedDrugName.length > 0"
                             />
 
-                            <!-- نتائج البحث -->
                             <ul
                                 v-if="showResults && uniqueFilteredDrugs.length"
                                 class="absolute top-full left-0 right-0 z-10 list-none p-0 m-0 border border-[#4DA1A9] border-t-0 rounded-b-lg max-h-52 overflow-y-auto bg-white shadow-xl"
@@ -119,7 +105,6 @@
                         </div>
                     </div>
 
-                    <!-- الكمية والإضافة -->
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col gap-1 col-span-1">
                             <label
@@ -138,7 +123,7 @@
                                 v-model.number="dailyQuantity"
                                 class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white shadow-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                                 placeholder="أدخل الكمية"
-                                :disabled="!selectedDrugName || isSubmitting"
+                                :disabled="!selectedDrugName"
                             />
                             <p
                                 v-if="quantityError"
@@ -151,7 +136,7 @@
                         <div class="pt-9">
                             <button
                                 @click="addNewDrug"
-                                :disabled="!isCurrentDrugValid || isSubmitting"
+                                :disabled="!isCurrentDrugValid"
                                 class="h-11 inline-flex items-center justify-center px-[25px] border-2 border-[#4DA1A9] rounded-[30px] transition-all duration-200 ease-in text-[15px] cursor-pointer text-[#4DA1A9] bg-white hover:bg-[#EAF3F4] disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed w-full"
                             >
                                 <Icon icon="tabler:plus" class="w-5 h-5 ml-1" />
@@ -160,7 +145,6 @@
                         </div>
                     </div>
 
-                    <!-- رسائل التوجيه -->
                     <div
                         v-if="
                             !selectedDrugName &&
@@ -191,7 +175,6 @@
                         </p>
                     </div>
 
-                    <!-- القائمة المضافة -->
                     <div v-if="dailyDosageList.length > 0" class="mt-8">
                         <h3
                             class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 mb-4 flex items-center"
@@ -218,8 +201,6 @@
                                     <span
                                         class="text-red-600 cursor-pointer text-base opacity-90 hover:opacity-70 transition duration-200"
                                         @click="removeItem(index)"
-                                        :class="{'cursor-not-allowed opacity-50': isSubmitting}"
-                                        :disabled="isSubmitting"
                                         >❌ حذف</span
                                     >
                                 </li>
@@ -231,7 +212,6 @@
                     </p>
                 </div>
                 
-                <!-- ملاحظات -->
                 <div class="space-y-4 pt-2">
                     <h3
                         class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center"
@@ -245,29 +225,27 @@
                             rows="3"
                             placeholder="أدخل أي ملاحظات خاصة بطلب التوريد (مثل: حاجة مستعجلة، تفضيلات مورد، إلخ)..."
                             class="w-full px-2 py-2 border-none focus:outline-none text-sm text-[#2E5077] bg-transparent resize-none placeholder-gray-400"
-                            :disabled="isSubmitting"
                         ></textarea>
                     </div>
                 </div>
             </div>
 
-            <!-- الأزرار -->
             <div
                 class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]"
             >
                 <button
                     @click="confirmAddition"
-                    :disabled="!isReadyToConfirm || isSubmitting"
+                    :disabled="!isReadyToConfirm"
                     class="inline-flex items-center px-[25px] py-[9px] border-2 h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] border-[#4DA1A9] hover:bg-[#398086] hover:border-[#398086] disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed font-medium"
                 >
-                    <Icon v-if="isSubmitting" icon="eos-icons:loading" class="w-5 h-5 ml-1" />
-                    <span v-else>تأكيد القائمة ({{ dailyDosageList.length + (isCurrentDrugValid ? 1 : 0) }})</span>
+                    تأكيد القائمة ({{
+                        dailyDosageList.length + (isCurrentDrugValid ? 1 : 0)
+                    }})
                 </button>
 
                 <button
                     @click="closeModal"
                     class="inline-flex h-11 items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border-[#a8a8a8] hover:bg-[#b7b9bb] font-medium"
-                    :disabled="isSubmitting"
                 >
                     إلغاء
                 </button>
@@ -293,19 +271,15 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
-    drugsData: {
+    drugsData: { // المخزون الحالي
         type: Array,
         default: () => []
-    },
-    isLoading: {
-        type: Boolean,
-        default: false
     }
 });
 
 const emit = defineEmits(['close', 'confirm', 'show-alert']);
 
-// البيانات المحلية
+// البيانات المحلية للنموذج
 const selectedCategory = ref("");
 const searchTermDrug = ref("");
 const filteredDrugs = ref([]);
@@ -314,8 +288,7 @@ const selectedDrugType = ref("");
 const dailyQuantity = ref(null);
 const showResults = ref(false);
 const dailyDosageList = ref([]);
-const requestNotes = ref('');
-const isSubmitting = ref(false);
+const requestNotes = ref(''); // المتغير الجديد للملاحظات
 
 // الثوابت
 const MAX_PILL_QTY = 15;
@@ -403,13 +376,12 @@ const clearForm = () => {
     dailyQuantity.value = null;
     dailyDosageList.value = [];
     filteredDrugs.value = [];
-    requestNotes.value = '';
-    isSubmitting.value = false;
+    requestNotes.value = ''; // مسح الملاحظات
 };
 
 const getDrugType = (drugName) => {
     const drugInfo = props.allDrugsData.find(d => d.name.toLowerCase() === drugName.toLowerCase());
-    return drugInfo ? drugInfo.type : 'Tablet';
+    return drugInfo ? drugInfo.type : 'Tablet'; // افتراضيا 'Tablet'
 };
 
 const fetchDrugsData = () => {
@@ -475,10 +447,7 @@ const showAllDrugsOnFocus = () => {
 
 const addNewDrug = () => {
     if (isCurrentDrugValid.value) {
-        const drugInfo = props.allDrugsData.find(d => d.name === selectedDrugName.value);
-        
         dailyDosageList.value.push({
-            drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
@@ -509,12 +478,10 @@ const removeItem = (index) => {
     emit('show-alert', "🗑️ تم حذف الدواء من القائمة بنجاح.");
 };
 
-const confirmAddition = async () => {
+const confirmAddition = () => {
+    // 1. إضافة الدواء الحالي إذا كان صالحاً قبل التأكيد النهائي
     if (isCurrentDrugValid.value) {
-        const drugInfo = props.allDrugsData.find(d => d.name === selectedDrugName.value);
-        
         dailyDosageList.value.push({
-            drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
@@ -524,7 +491,7 @@ const confirmAddition = async () => {
                 minute: "2-digit",
             }),
         });
-        
+        // مسح الحقول الحالية لمنع الإضافة المكررة بالخطأ
         searchTermDrug.value = "";
         selectedCategory.value = "";
         selectedDrugName.value = "";
@@ -532,74 +499,57 @@ const confirmAddition = async () => {
         dailyQuantity.value = null;
     }
 
+    // 2. التحقق من وجود عناصر في القائمة
     if (dailyDosageList.value.length === 0) {
         emit('show-alert', "⚠️ لا يمكنك التأكيد دون إضافة دواء واحد على الأقل.");
-        return;
-    }
-
-    isSubmitting.value = true;
-    
-    try {
+    } else {
+        // 3. إرسال البيانات
         const confirmationData = {
             items: dailyDosageList.value,
-            notes: requestNotes.value.trim(),
-            departmentId: 1,
-            priority: 'normal'
+            notes: requestNotes.value.trim() // تمرير الملاحظات
         };
-        
         emit('confirm', confirmationData);
-        
-    } catch (error) {
-        console.error('Error submitting supply request:', error);
-        emit('show-alert', `❌ فشل في إرسال طلب التوريد: ${error.message}`);
-    } finally {
-        isSubmitting.value = false;
+        closeModal();
     }
 };
 
 const closeModal = () => {
-    if (!isSubmitting.value) {
-        clearForm();
-        emit('close');
-    }
+    clearForm();
+    emit('close');
 };
 
-// عند فتح النموذج
+// عند فتح النموذج (للتعبئة التلقائية للأدوية الناقصة)
 watch(() => props.isOpen, (isOpen) => {
     if (isOpen) {
         clearForm();
         
-        if (props.drugsData && props.drugsData.length > 0) {
-            const TARGET_QUANTITY = 100;
-            const REORDER_THRESHOLD = 20;
+        const TARGET_QUANTITY = 100;
+        const REORDER_THRESHOLD = 20;
 
-            const drugsToReorder = props.drugsData.filter(
-                (drug) => drug.quantity <= REORDER_THRESHOLD
-            );
+        const drugsToReorder = props.drugsData.filter(
+            (drug) => drug.quantity <= REORDER_THRESHOLD
+        );
 
-            if (drugsToReorder.length > 0) {
-                const reorderList = drugsToReorder.map((drug) => {
-                    const drugInfo = props.allDrugsData.find(d => d.name === drug.drugName);
-                    const quantityNeeded = TARGET_QUANTITY - drug.quantity;
-                    const drugType = getDrugType(drug.drugName);
-                    const unit = drugType === 'Liquid' ? 'مل' : 'حبة/قرص';
+        if (drugsToReorder.length > 0) {
+            const reorderList = drugsToReorder.map((drug) => {
+                const quantityNeeded = TARGET_QUANTITY - drug.quantity;
+                const drugType = getDrugType(drug.drugName);
+                const unit = drugType === 'Liquid' ? 'مل' : 'حبة/قرص';
 
-                    return {
-                        drugId: drugInfo?.id || null,
-                        name: drug.drugName,
-                        quantity: quantityNeeded > 0 ? quantityNeeded : 0,
-                        unit: unit,
-                        type: drugType,
-                        time: new Date().toLocaleTimeString("ar-EG", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        }),
-                    };
-                });
+                return {
+                    name: drug.drugName,
+                    quantity: quantityNeeded > 0 ? quantityNeeded : 0,
+                    unit: unit,
+                    type: drugType,
+                    time: new Date().toLocaleTimeString("ar-EG", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    }),
+                };
+            });
 
-                dailyDosageList.value = reorderList;
-                emit('show-alert', `💡 تم إدراج ${reorderList.length} دواء ناقص في القائمة تلقائياً.`);
-            }
+            dailyDosageList.value = reorderList;
+            emit('show-alert', `💡 تم إدراج ${reorderList.length} دواء ناقص في القائمة تلقائياً.`);
         }
     }
 });
@@ -609,7 +559,7 @@ fetchDrugsData();
 </script>
 
 <style scoped>
-/* الأنماط كما هي */
+/* إخفاء أسهم حقل الإدخال */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
@@ -620,11 +570,13 @@ input[type="number"] {
     -moz-appearance: textfield;
 }
 
+/* تنسيقات للتركيز */
 textarea:focus {
     outline: none;
     box-shadow: none;
 }
 
+/* لضمان أقصى ارتفاع مناسب للمحتوى القابل للتمرير */
 .max-h-\[70vh\] {
     max-height: 70vh; 
 }

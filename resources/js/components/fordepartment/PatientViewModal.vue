@@ -10,16 +10,15 @@ const props = defineProps({
     patient: Object
 });
 
-const emit = defineEmits(['close', 'add-medication', 'dispensation-record', 'edit-medication', 'delete-medication']);
+const emit = defineEmits(['close', 'add-medication', 'dispensation-record', 'delete-medication', 'update-medication']);
 
-// حالة التحكم في نافذة تأكيد الحذف
 const showDeleteConfirmation = ref(false);
 const medicationIndexToDelete = ref(null);
 
 // حالة التحكم في نافذة تعديل الدواء
 const showEditModal = ref(false);
 const editingIndex = ref(null);
-const editingDosage = ref('');
+const editingDosage = ref(''); // الجرعة الجديدة (كـ string للإدخال)
 
 // فتح نافذة تأكيد الحذف
 const handleDeleteMedication = (medIndex) => {
@@ -43,18 +42,21 @@ const cancelDelete = () => {
 // فتح نافذة تعديل الدواء
 const handleEditMedication = (medIndex) => {
     editingIndex.value = medIndex;
-    // استخراج الرقم فقط من الجرعة (مثال: "2 حبة يومياً" ← "2")
-    const dosageText = props.patient.medications[medIndex].dosage;
-    const dosageNumber = dosageText.match(/\d+/)?.[0] || '';
-    editingDosage.value = dosageNumber;
+    // استخراج الرقم فقط من النص إذا كان النص يحتوي على "قرص واحد"
+    const currentDosageText = props.patient.medications[medIndex].dosage;
+    const numericDosage = parseInt(currentDosageText.match(/\d+/)?.[0] || '1');
+    editingDosage.value = numericDosage;
     showEditModal.value = true;
 };
 
-// حفظ التعديل
+// حفظ التعديل وتحديث البيانات محلياً (للجدول)
 const saveEdit = () => {
     const newDosage = parseInt(editingDosage.value);
     if (newDosage > 0) {
-        emit('edit-medication', editingIndex.value, newDosage);
+        // إصدار الحدث للمكون الأب مع البيانات اللازمة
+        emit('update-medication', { index: editingIndex.value, newDosage });
+
+        // إغلاق النافذة
         showEditModal.value = false;
         editingIndex.value = null;
         editingDosage.value = '';
@@ -63,17 +65,17 @@ const saveEdit = () => {
     }
 };
 
-// إلغاء التعديل
+// إلغاء التعديل وإغلاق النافذة
 const cancelEdit = () => {
     showEditModal.value = false;
     editingIndex.value = null;
     editingDosage.value = '';
 };
 
-// حساب الكمية الشهرية المحدثة
+// حساب الكمية الشهرية المحدثة (computed للتحديث التلقائي)
 const updatedMonthlyQuantity = computed(() => {
     const dosage = parseInt(editingDosage.value) || 0;
-    return dosage * 30;
+    return dosage * 30; // افتراض: 30 يوماً في الشهر
 });
 </script>
 
@@ -114,7 +116,7 @@ const updatedMonthlyQuantity = computed(() => {
             </div>
 
             <div class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
-                <!-- المعلومات الشخصية -->
+                <!-- المعلومات الشخصية (غير معدلة) -->
                 <div class="space-y-2">
                     <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
                         <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
@@ -224,7 +226,7 @@ const updatedMonthlyQuantity = computed(() => {
         </div>
     </div>
 
-    <!-- نافذة تأكيد الحذف -->
+    <!-- نافذة تأكيد الحذف (غير معدلة) -->
     <div
         v-if="showDeleteConfirmation"
         class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
@@ -266,7 +268,7 @@ const updatedMonthlyQuantity = computed(() => {
         </div>
     </div>
 
-    <!-- نافذة تعديل الدواء -->
+    <!-- نافذة تعديل الدواء (جديدة) -->
     <div
         v-if="showEditModal"
         class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"

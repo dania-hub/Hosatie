@@ -83,7 +83,7 @@ class OrderController extends BaseApiController
                 'to_hospital_id'   => $request->transfer_to_hospital_id,
                 'requested_by'     => $user->id,
                 'reason'           => $request->input('reason') ?? $request->input('content') ?? 'بدون سبب', // استخدم content كسبب إذا لم يرسل reason
-                'status'           => 'pending',
+                'status'           => 'قيد المراجعة',
             ]);
         }
 

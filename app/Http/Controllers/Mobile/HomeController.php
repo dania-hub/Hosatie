@@ -2,24 +2,34 @@
 
 namespace App\Http\Controllers\Mobile;
 
-use App\Http\Controllers\BaseApiController;
+use App\Http\Controllers\baseApiController;
 use Illuminate\Http\Request;
 use App\Models\Prescription;
+use App\Models\Dispensing;
+use Carbon\Carbon;
 
-class HomeController extends BaseApiController
+class HomeController extends baseApiController
 {
     public function mobileIndex(Request $request)
     {
         $user = $request->user();
 
+        $user->load('hospital');
+        
+        $hospitalName = 'غير محدد';
+        if ($user->hospital) {
+            $hospitalName = $user->hospital->name;
+        }
+        // ==================================================
+
         $healthFile = [
             'full_name'   => $user->full_name,
-            'file_number' => $user->id, // أو عمود آخر لو أضفته لاحقاً
+            'file_number' => $user->id,
             'national_id' => $user->national_id,
+            'hospital'    => $hospitalName, 
         ];
 
-        // جلب الوصفات النشطة مع الأدوية المرتبطة بها
-        // العلاقة: Prescription -> belongsToMany Drug (via prescription_drug)
+        // 2. Active Prescriptions
         $activePrescriptions = Prescription::with(['drugs'])
             ->where('patient_id', $user->id)
             ->where('status', 'active')
@@ -29,15 +39,44 @@ class HomeController extends BaseApiController
 
         foreach ($activePrescriptions as $prescription) {
             foreach ($prescription->drugs as $drug) {
-                // الوصول للكمية الشهرية من الجدول الوسيط (Pivot)
-                $monthlyQty = $drug->pivot->monthly_quantity ?? 0;
                 
+                // A. Calculate Duration (Months not taken)
+                $lastDispensation = Dispensing::where('patient_id', $user->id)
+                    ->where('drug_id', $drug->id)
+                    ->latest('created_at')
+                    ->first();
+
+                $durationLabel = 'جديد';
+                
+                if ($lastDispensation) {
+                    $lastDate = Carbon::parse($lastDispensation->created_at);
+                    $diffInMonths = (int) $lastDate->diffInMonths(Carbon::now());
+
+                    if ($diffInMonths >= 1 && $diffInMonths < 4) {
+                        $durationLabel = $diffInMonths . ' شهر';
+                    } elseif ($diffInMonths >= 4) {
+                        $durationLabel = '+3 أشهر'; 
+                    } else {
+                        $durationLabel = 'تم الصرف مؤخراً';
+                    }
+                } else {
+                    $startDate = Carbon::parse($prescription->start_date);
+                    $diffInMonths = (int) $startDate->diffInMonths(Carbon::now());
+                     if ($diffInMonths >= 1) {
+                        $durationLabel = $diffInMonths . ' شهر';
+                     }
+                }
+
+                $monthlyQty = $drug->pivot->monthly_quantity ?? 0;
+
                 $drugStatus[] = [
+                    'id'        => $drug->id,
                     'drug_name' => $drug->name,
-                    'strength'  => $drug->strength,
-                    'status'    => 'متاح للصرف', // منطق بسيط حالياً
-                    'quantity'  => $monthlyQty,
-                    'next_refill' => date('Y-m-d', strtotime('+1 month')), // مثال
+                    'duration'  => $durationLabel,
+                    'dosage'    => $monthlyQty . ' حبة',
+                    'status'    => ($drug->status === 'متوفر') ? 'متوفر' : 'غير متوفر',
+                    'status_color' => ($drug->status === 'متوفر') ? '#dcfce7' : '#fee2e2',
+                    'text_color' => ($drug->status === 'متوفر') ? '#166534' : '#991b1b',
                 ];
             }
         }

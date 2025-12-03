@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\baseApiController;
 use Illuminate\Http\Request;
 use App\Models\Prescription;
-use App\Models\Dispensing; // We need this to check history
+use App\Models\Dispensing;
 use Carbon\Carbon;
 
 class HomeController extends baseApiController
@@ -14,11 +14,19 @@ class HomeController extends baseApiController
     {
         $user = $request->user();
 
-        // 1. Health File Data
+        $user->load('hospital');
+        
+        $hospitalName = 'غير محدد';
+        if ($user->hospital) {
+            $hospitalName = $user->hospital->name;
+        }
+        // ==================================================
+
         $healthFile = [
             'full_name'   => $user->full_name,
             'file_number' => $user->id,
             'national_id' => $user->national_id,
+            'hospital'    => $hospitalName, 
         ];
 
         // 2. Active Prescriptions
@@ -33,30 +41,25 @@ class HomeController extends baseApiController
             foreach ($prescription->drugs as $drug) {
                 
                 // A. Calculate Duration (Months not taken)
-                // 1. Find the LAST time this drug was dispensed to this patient
                 $lastDispensation = Dispensing::where('patient_id', $user->id)
                     ->where('drug_id', $drug->id)
                     ->latest('created_at')
                     ->first();
 
-                $durationLabel = 'جديد'; // Default if never dispensed
+                $durationLabel = 'جديد';
                 
                 if ($lastDispensation) {
-                    // Calculate difference in months from last dispensation until now
                     $lastDate = Carbon::parse($lastDispensation->created_at);
                     $diffInMonths = (int) $lastDate->diffInMonths(Carbon::now());
 
                     if ($diffInMonths >= 1 && $diffInMonths < 4) {
                         $durationLabel = $diffInMonths . ' شهر';
                     } elseif ($diffInMonths >= 4) {
-                        // If 4+ months, logically the account might be inactive, 
-                        // but for display we show the delay.
                         $durationLabel = '+3 أشهر'; 
                     } else {
-                        $durationLabel = 'تم الصرف مؤخراً'; // Less than 1 month
+                        $durationLabel = 'تم الصرف مؤخراً';
                     }
                 } else {
-                    // If never dispensed, check when prescription started
                     $startDate = Carbon::parse($prescription->start_date);
                     $diffInMonths = (int) $startDate->diffInMonths(Carbon::now());
                      if ($diffInMonths >= 1) {
@@ -64,16 +67,12 @@ class HomeController extends baseApiController
                      }
                 }
 
-                // B. Monthly Quantity
                 $monthlyQty = $drug->pivot->monthly_quantity ?? 0;
 
                 $drugStatus[] = [
                     'id'        => $drug->id,
                     'drug_name' => $drug->name,
-                    
-                    // The Calculated Duration
-                    'duration'  => $durationLabel, 
-
+                    'duration'  => $durationLabel,
                     'dosage'    => $monthlyQty . ' حبة',
                     'status'    => ($drug->status === 'متوفر') ? 'متوفر' : 'غير متوفر',
                     'status_color' => ($drug->status === 'متوفر') ? '#dcfce7' : '#fee2e2',

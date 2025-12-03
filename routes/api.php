@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 // --- Auth & General ---
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\TestSmsController;
 
 // --- Mobile Controllers ---
 use App\Http\Controllers\Mobile\HomeController;
@@ -45,7 +46,7 @@ use App\Http\Controllers\DepartmentAdmin\PatientDepartmentAdminController;
 // Authentication
 Route::post('login/mobile', [AuthController::class, 'loginMobile']);
 Route::post('login/dashboard', [AuthController::class, 'loginDashboard']);
-
+Route::get('test-sms', [TestSmsController::class, 'sendTest']);
 // Password Recovery
 Route::post('forgot-password/mobile', [ForgotPasswordController::class, 'sendResetOtp']);
 Route::post('reset-password/mobile', [ForgotPasswordController::class, 'resetPassword']);

@@ -25,6 +25,13 @@ use App\Http\Controllers\Doctor\PatientDoctorController;
 use App\Http\Controllers\Doctor\PrescriptionDoctorController;
 use App\Http\Controllers\Doctor\DispensationDoctorController;
 use App\Http\Controllers\Doctor\LookupDoctorController;
+// --- Department Admin Controllers ---
+use App\Http\Controllers\DepartmentAdmin\CategoryDepartmentAdminController;
+use App\Http\Controllers\DepartmentAdmin\DrugDepartmentAdminController;
+use App\Http\Controllers\DepartmentAdmin\ShipmentDepartmentAdminController;
+use App\Http\Controllers\DepartmentAdmin\SupplyRequestControllerDepartmentAdmin;
+use App\Http\Controllers\DepartmentAdmin\DashboardDepartmentAdminController;
+use App\Http\Controllers\DepartmentAdmin\PatientDepartmentAdminController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -144,6 +151,36 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     Route::get('dashboard/stats', [DashboardDoctorController::class, 'stats']);
     Route::get('dashboard/activity-log', [DashboardDoctorController::class, 'activityLog']);
 });
+    // ========================================================================
+    // E. Department Admin Dashboard
+    // ========================================================================
+    Route::prefix('department-admin')->group(function () {
+        
+        // 1. Categories & Drugs
+        Route::get('categories', [CategoryDepartmentAdminController::class, 'index']);
+        Route::get('drugs', [DrugDepartmentAdminController::class, 'index']);
+        Route::get('drugs/search', [DrugDepartmentAdminController::class, 'search']);
+
+        // 2. Shipments (Incoming)
+        Route::get('shipments', [ShipmentDepartmentAdminController::class, 'index']);
+        Route::get('shipments/{id}', [ShipmentDepartmentAdminController::class, 'show']);
+        Route::post('shipments/{id}/confirm', [ShipmentDepartmentAdminController::class, 'confirm']);
+
+        // 3. Supply Requests (Outgoing)
+        Route::post('supply-requests', [SupplyRequestControllerDepartmentAdmin::class, 'store']);
+
+        // 4. Dashboard Stats
+        Route::get('dashboard/stats', [DashboardDepartmentAdminController::class, 'stats']);
+    // Operations Log
+    Route::get('operations', [DashboardDepartmentAdminController::class, 'operations']);
+    // Patient Management (For View 2)
+    Route::get('patients', [PatientDepartmentAdminController::class, 'index']);
+    Route::get('patients/{id}', [PatientDepartmentAdminController::class, 'show']);
+    Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);
+    Route::get('patients/{id}/dispensation-history', [PatientDepartmentAdminController::class, 'dispensationHistory']);
+
+    });
+
 
 
 });

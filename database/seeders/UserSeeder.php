@@ -63,10 +63,11 @@ class UserSeeder extends Seeder
             ]
         );
 
-         // Patient (idempotent)
+        // Patient (idempotent) - lookup by national_id to avoid unique constraint conflicts
         User::updateOrCreate(
-            ['email' => 'patient@hosatie.ly'],
+            ['national_id' => '119990001234'],
             [
+                'email' => 'patient@hosatie.ly',
                 'full_name' => 'المريض سالم',
                 'phone' => '0910000005',
                 'national_id' => '119990001234',
@@ -75,14 +76,30 @@ class UserSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+
         User::updateOrCreate(
-            ['email' => 'data@hosatie.ly'],
+            ['national_id' => '119990001237'],
             [
+                'email' => 'data@hosatie.ly',
                 'full_name' => 'مدخل البيانات احمد',
                 'phone' => '0910000000',
                 'national_id' => '119990001237',
                 'password' => Hash::make('password'),
                 'type' => 'data_entry',
+                'status' => 'active',
+            ]
+        );
+
+        // Department Admin (idempotent)
+        User::updateOrCreate(
+            ['email' => 'dept_admin@hosatie.ly'],
+            [
+                'full_name' => 'مدير القسم',
+                'phone' => '0910000006',
+                'password' => Hash::make('password'),
+                'type' => 'department_head',
+                'hospital_id' => 1,
+                'department_id' => 1,
                 'status' => 'active',
             ]
         );

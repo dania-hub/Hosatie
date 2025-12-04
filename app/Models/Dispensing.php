@@ -13,17 +13,17 @@ class Dispensing extends Model
 
     public $timestamps = false;
 
-    protected $fillable = [
+      protected $fillable = [
         'prescription_id',
         'patient_id',
         'pharmacist_id',
         'pharmacy_id',
+        'drug_id',            // <--- ADD THIS
+        'quantity_dispensed', // <--- Ensure this matches your DB column name
         'dispense_month',
-        'quantity_dispensed',
         'reverted',
         'reverted_at',
-        'reverted_by',
-        'created_at',
+        'reverted_by'
     ];
 
     protected $casts = [

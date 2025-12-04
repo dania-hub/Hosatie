@@ -26,6 +26,7 @@ use App\Http\Controllers\Doctor\PatientDoctorController;
 use App\Http\Controllers\Doctor\PrescriptionDoctorController;
 use App\Http\Controllers\Doctor\DispensationDoctorController;
 use App\Http\Controllers\Doctor\LookupDoctorController;
+use App\Http\Controllers\Doctor\DrugDoctorController;
 // --- Department Admin Controllers ---
 use App\Http\Controllers\DepartmentAdmin\CategoryDepartmentAdminController;
 use App\Http\Controllers\DepartmentAdmin\DrugDepartmentAdminController;
@@ -143,9 +144,9 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     Route::get('patients', [PatientDoctorController::class, 'index']); // List
     Route::get('patients/{id}', [PatientDoctorController::class, 'show']); // Single Details (NEW)
 
-    // 2. Lookups (For Dropdowns)
-    Route::get('drugs', [LookupDoctorController::class, 'drugs']);
-    Route::get('drug-categories', [LookupDoctorController::class, 'categories']);
+    // 2. Drugs & Categories (UPDATED - Using DrugDoctorController)
+    Route::get('drugs', [DrugDoctorController::class, 'index']);
+    Route::get('drug-categories', [DrugDoctorController::class, 'categories']);
 
     // 3. Manage Drugs (Add, Edit, Delete)
     Route::post('patients/{id}/medications', [PrescriptionDoctorController::class, 'store']);
@@ -158,7 +159,9 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     // 5. Dashboard
     Route::get('dashboard/stats', [DashboardDoctorController::class, 'stats']);
     Route::get('dashboard/activity-log', [DashboardDoctorController::class, 'activityLog']);
+
 });
+
     // ========================================================================
     // E. Department Admin Dashboard
     // ========================================================================

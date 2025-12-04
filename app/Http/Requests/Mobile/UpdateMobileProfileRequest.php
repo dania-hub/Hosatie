@@ -17,9 +17,9 @@ class UpdateMobileProfileRequest extends FormRequest
         $userId = $this->user()->id;
 
         return [
-            'full_name' => 'required|string|max:255',
+            'full_name' => 'string|max:255',
             'phone'     => [
-                'required',
+              
                 'string',
                 Rule::unique('users', 'phone')->ignore($userId),
             ],

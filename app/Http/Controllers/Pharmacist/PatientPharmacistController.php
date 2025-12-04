@@ -8,29 +8,29 @@ use App\Models\User;
 use App\Models\Dispensing;
 use App\Models\Inventory;
 use App\Models\Drug;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use App\Models\Prescription;
+use App\Models\Pharmacy;
+use Illuminate\Support\Facades\DB;
+
 class PatientPharmacistController extends BaseApiController
 {
     /**
      * GET /api/pharmacist/patients
-     * List patients for the pharmacist view
+     * قائمة المرضى (للقراءة فقط - لا تغيير في المنطق).
      */
     public function index(Request $request)
     {
-        // Fetch all users of type 'patient'
         $patients = User::where('type', 'patient')
             ->get()
             ->map(function ($p) {
                 return [
-                    'fileNumber' => $p->id, // Using ID as file number
-                    'name' => $p->full_name ?? $p->name, // Use full_name if available
+                    'fileNumber' => $p->id,
+                    'name' => $p->full_name ?? $p->name,
                     'nationalId' => $p->national_id,
                     'birthDate' => $p->birth_date,
                     'phone' => $p->phone,
                     'lastUpdated' => $p->updated_at,
-                    'medications' => [], // To be implemented if there's a current prescriptions table
+                    'medications' => [],
                     'dispensationHistory' => []
                 ];
             });
@@ -40,58 +40,89 @@ class PatientPharmacistController extends BaseApiController
 
     /**
      * POST /api/pharmacist/dispense
-     * Record the dispensation of drugs
+     * صرف الأدوية (يخصم من مخزون صيدلية المستشفى تحديداً).
      */
-     
-      public function dispense(Request $request)
+      /**
+     * POST /api/pharmacist/dispense
+     * صرف الأدوية (يخصم من مخزون الصيدلية + يتحقق من وجود الدواء في الوصفة).
+     */
+    public function dispense(Request $request)
     {
         $request->validate([
             'patientFileNumber' => 'required|exists:users,id',
             'dispensedItems' => 'required|array',
-            // ...
+            'dispensedItems.*.drugName' => 'required|string',
+            'dispensedItems.*.quantity' => 'required|integer|min:1',
         ]);
 
         DB::beginTransaction();
         try {
             $patient = User::findOrFail($request->patientFileNumber);
-            $pharmacistId = $request->user()->id ?? 1;
-            $pharmacyId = 1; 
+            $pharmacist = $request->user();
 
-            // =========================================================
-            // STEP 1: Find the EXISTING Active Prescription
-            // =========================================================
+            // 1. تحديد الصيدلية (مصدر الصرف)
+            $pharmacyId = null;
+
+            if ($pharmacist->pharmacy_id) {
+                $pharmacyId = $pharmacist->pharmacy_id;
+            } elseif ($patient->hospital_id) {
+                $pharmacy = Pharmacy::where('hospital_id', $patient->hospital_id)->first();
+                $pharmacyId = $pharmacy ? $pharmacy->id : null;
+            }
+            
+            // حل مؤقت للتجربة
+            if (!$pharmacyId) $pharmacyId = 1; 
+
+            if (!$pharmacyId) {
+                throw new \Exception("لا توجد صيدلية محددة لخصم المخزون منها.");
+            }
+
+            // 2. العثور على الوصفة النشطة
             $prescription = Prescription::where('patient_id', $patient->id)
-                ->where('status', 'active') // Only look for active ones
-                ->latest() // Get the most recent one
+                ->where('status', 'active')
+                ->latest()
                 ->first();
 
             if (!$prescription) {
                 throw new \Exception("لا توجد وصفة طبية نشطة لهذا المريض. يرجى مراجعة الطبيب.");
             }
 
-            // =========================================================
-            // STEP 2: Dispense Drugs LINKED to that Prescription
-            // =========================================================
+            // 3. صرف الأدوية
             foreach ($request->dispensedItems as $item) {
                 
-                // A. Find Drug
+                // أ. العثور على الدواء
                 $drug = Drug::where('name', $item['drugName'])->first();
-                if (!$drug) throw new \Exception("الدواء غير موجود: " . $item['drugName']);
+                if (!$drug) throw new \Exception("الدواء غير موجود في النظام: " . $item['drugName']);
 
-                // B. Check & Deduct Inventory
-                $inventory = Inventory::where('drug_id', $drug->id)->first();
-                if (!$inventory || $inventory->current_quantity < $item['quantity']) {
-                    throw new \Exception("الكمية غير كافية: " . $item['drugName']);
+                // =========================================================
+                // ب. التحقق الأمني: هل الدواء موجود في الوصفة فعلاً؟
+                // =========================================================
+                $isPrescribed = \App\Models\PrescriptionDrug::where('prescription_id', $prescription->id)
+                    ->where('drug_id', $drug->id)
+                    ->exists();
+
+                if (!$isPrescribed) {
+                    throw new \Exception("عفواً، الدواء (" . $item['drugName'] . ") غير موجود في وصفة المريض الحالية.");
                 }
+
+                // ج. فحص المخزون في الصيدلية المحددة
+                $inventory = Inventory::where('drug_id', $drug->id)
+                    ->where('pharmacy_id', $pharmacyId)
+                    ->first();
+
+                if (!$inventory || $inventory->current_quantity < $item['quantity']) {
+                    throw new \Exception("الكمية غير كافية للدواء: " . $item['drugName'] . " في هذه الصيدلية.");
+                }
+                
+                // د. خصم الكمية والحفظ
                 $inventory->current_quantity -= $item['quantity'];
                 $inventory->save();
 
-                // C. Create Dispensing Record linked to existing Prescription
                 Dispensing::create([
-                    'prescription_id' => $prescription->id, // 👈 Using Existing ID
+                    'prescription_id' => $prescription->id,
                     'patient_id' => $patient->id,
                     'drug_id' => $drug->id,
-                    'pharmacist_id' => $pharmacistId,
+                    'pharmacist_id' => $pharmacist->id,
                     'pharmacy_id' => $pharmacyId,
                     'dispense_month' => now()->format('Y-m-d'),
                     'quantity_dispensed' => $item['quantity'],
@@ -99,7 +130,7 @@ class PatientPharmacistController extends BaseApiController
             }
 
             DB::commit();
-            return $this->sendSuccess([], 'تم صرف الأدوية بناءً على الوصفة النشطة.');
+            return $this->sendSuccess([], 'تم صرف الأدوية الموصوفة بنجاح.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -107,51 +138,44 @@ class PatientPharmacistController extends BaseApiController
         }
     }
 
+
     /**
      * GET /api/pharmacist/patients/{fileNumber}/dispensations
-     * Get history for a specific patient
+     * سجل صرف المريض.
      */
     public function history($fileNumber)
     {
         $patient = User::where('id', $fileNumber)->where('type', 'patient')->first();
+        if (!$patient) return $this->sendError('المريض غير موجود.');
 
-        if (!$patient) {
-            return $this->sendError('المريض غير موجود.');
-        }
-
-        // Fetch dispensation history
-        $dispensations = Dispensing::with(['drug', 'pharmacist']) // Relations needed
+        $dispensations = Dispensing::with(['drug', 'pharmacist'])
             ->where('patient_id', $patient->id)
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Group by Date/Transaction if needed, but simple list is okay
-        // Here we format it to match the view structure roughly
         $formattedHistory = $dispensations->map(function ($d) {
             return [
                 'id' => $d->id,
                 'date' => $d->created_at,
-                'pharmacistName' => $d->pharmacist ? $d->pharmacist->name : 'غير معروف',
-                'totalItems' => 1, // Since we store per row, each row is 1 item type
+                'pharmacistName' => $d->pharmacist ? ($d->pharmacist->full_name ?? $d->pharmacist->name) : 'غير معروف',
+                'totalItems' => 1,
                 'items' => [
                     [
                         'drugName' => $d->drug ? $d->drug->name : 'غير معروف', 
-                        'quantity' => $d->quantity, 
+                        'quantity' => $d->quantity_dispensed,
                         'unit' => $d->drug->unit ?? 'علبة'
                     ]
                 ]
             ];
         });
 
-        $response = [
+        return $this->sendSuccess([
             'patientInfo' => [
                 'fileNumber' => $patient->id,
                 'name' => $patient->full_name ?? $patient->name,
                 'nationalId' => $patient->national_id
             ],
             'dispensations' => $formattedHistory
-        ];
-
-        return $this->sendSuccess($response, 'تم جلب سجل المريض بنجاح.');
+        ], 'تم جلب سجل المريض بنجاح.');
     }
 }

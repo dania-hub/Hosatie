@@ -33,6 +33,13 @@ use App\Http\Controllers\DepartmentAdmin\ShipmentDepartmentAdminController;
 use App\Http\Controllers\DepartmentAdmin\SupplyRequestControllerDepartmentAdmin;
 use App\Http\Controllers\DepartmentAdmin\DashboardDepartmentAdminController;
 use App\Http\Controllers\DepartmentAdmin\PatientDepartmentAdminController;
+// --- Pharmacist Controllers ---
+use App\Http\Controllers\Pharmacist\DrugPharmacistController;
+use App\Http\Controllers\Pharmacist\CategoryPharmacistController;
+use App\Http\Controllers\Pharmacist\SupplyRequestPharmacistController;
+use App\Http\Controllers\Pharmacist\DashboardPharmacistController;
+use App\Http\Controllers\Pharmacist\PatientPharmacistController;
+use App\Http\Controllers\Pharmacist\ShipmentPharmacistController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -181,7 +188,44 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     Route::get('patients/{id}/dispensation-history', [PatientDepartmentAdminController::class, 'dispensationHistory']);
 
     });
+    // ========================================================================
+    // F. Pharmacist Dashboard
+    // ========================================================================
+ Route::prefix('pharmacist')->group(function () {
+    
+    // Inventory Management
+    Route::get('drugs', [DrugPharmacistController::class, 'index']); // List inventory
+    Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']); // Search global
+    Route::post('drugs', [DrugPharmacistController::class, 'store']); // Add to inventory
+    Route::put('drugs/{id}', [DrugPharmacistController::class, 'update']); // Update stock
+    Route::delete('drugs/{id}', [DrugPharmacistController::class, 'destroy']); // Remove
 
+    // Categories
+    Route::get('categories', [CategoryPharmacistController::class, 'index']);
 
+    // Supply Requests
+    Route::post('supply-requests', [SupplyRequestPharmacistController::class, 'store']);
+ // Operations Log
+    Route::get('operations', [DashboardPharmacistController::class, 'operations']);
+ // Patient Management
+    Route::get('patients', [PatientPharmacistController::class, 'index']);
+    
+    // Dispensing Action
+    Route::post('dispense', [PatientPharmacistController::class, 'dispense']);
+ // Dashboard Stats
+    Route::get('dashboard/stats', [DashboardPharmacistController::class, 'stats']);
+ // Shipment Management
+    Route::get('shipments', [ShipmentPharmacistController::class, 'index']);
+    Route::get('shipments/{id}', [ShipmentPharmacistController::class, 'show']);
+    Route::post('shipments/{id}/confirm', [ShipmentPharmacistController::class, 'confirm']);
+      // 1. Low Stock
+    Route::get('drugs/low-stock', [DrugPharmacistController::class, 'lowStock']);
+    
+    // 2. Specific Search
+    Route::get('drugs/search', [DrugPharmacistController::class, 'search']);
+
+    // 3. Patient History
+    Route::get('patients/{fileNumber}/dispensations', [PatientPharmacistController::class, 'history']);
+});
 
 });

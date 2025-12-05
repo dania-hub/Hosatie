@@ -8,7 +8,7 @@ use App\Models\InternalSupplyRequest;
 use App\Models\Inventory;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-
+use App\Models\AuditLog;
 class ShipmentPharmacistController extends BaseApiController
 {
     /**
@@ -60,54 +60,83 @@ class ShipmentPharmacistController extends BaseApiController
      * POST /api/pharmacist/shipments/{id}/confirm
      * تأكيد الاستلام: ينقل الأدوية إلى مخزون الصيدلية.
      */
-    public function confirm(Request $request, $id)
+   public function confirm(Request $request, $id)
     {
         DB::beginTransaction();
         try {
-            // جلب الشحنة
+            // 1) جلب الطلب الداخلي مع العناصر
             $shipment = InternalSupplyRequest::with('items')->findOrFail($id);
 
             if ($shipment->status === 'fulfilled') {
                 return $this->sendError('تم استلام هذه الشحنة مسبقاً.');
             }
 
-            // التحقق من أن الشحنة تخص صيدلية هذا المستخدم (أمان إضافي)
+            // 2) تحقق أن الشحنة تخص صيدلية هذا المستخدم (أمان)
             $user = $request->user();
             if ($user->pharmacy_id && $shipment->pharmacy_id !== $user->pharmacy_id) {
-                 // return $this->sendError('هذه الشحنة لا تخص صيدليتك.'); // يمكنك تفعيل هذا الشرط
+                // يمكن تفعيل هذا الشرط لو أردت
+                // return $this->sendError('هذه الشحنة لا تخص صيدليتك.');
             }
 
-            // 1. تحديث الحالة
-            $shipment->status = 'fulfilled';
+            // 3) تغيير الحالة إلى fulfilled (استلام نهائي)
+            $shipment->status = 'approved';
             $shipment->save();
 
-            // 2. إضافة الأدوية لمخزون الصيدلية (pharmacy_id الموجود في الطلب)
-            $targetPharmacyId = $shipment->pharmacy_id; 
-            
+            // 4) إضافة الأدوية لمخزون الصيدلية
+            $targetPharmacyId = $shipment->pharmacy_id ?: ($user->pharmacy_id ?? null);
             if (!$targetPharmacyId) {
-                // احتياط: إذا لم يكن في الطلب pharmacy_id، نستخدم صيدلية المستخدم
-                 $targetPharmacyId = $user->pharmacy_id ?? 1; 
+                DB::rollBack();
+                return $this->sendError('لا يوجد صيدلية مرتبطة بهذا الطلب أو بالمستخدم.');
             }
 
             foreach ($shipment->items as $item) {
-                // البحث عن مخزون هذا الدواء في الصيدلية المحددة
+                // الكمية التي ستضاف للصيدلية:
+                // الأفضل استخدام approved_qty أو fulfilled_qty إن حدّثتها في خطوة المخزن
+                $qtyToAdd = $item->approved_qty ?? $item->requested_qty ?? 0;
+
+                if ($qtyToAdd <= 0) {
+                    continue;
+                }
+
+                // البحث عن مخزون هذا الدواء في هذه الصيدلية
                 $inventory = Inventory::firstOrNew([
-                    'drug_id' => $item->drug_id,
-                    'pharmacy_id' => $targetPharmacyId // <--- الربط الصحيح
+                    'drug_id'    => $item->drug_id,
+                    'pharmacy_id'=> $targetPharmacyId,
                 ]);
 
-                // إذا كان سجلاً جديداً، نتأكد من تصفير warehouse_id
+                // سجل جديد؟ نتأكد ألا يكون مرتبطاً بمستودع
                 if (!$inventory->exists) {
                     $inventory->warehouse_id = null;
                 }
-                
-                $qtyToAdd = $item->requested_qty ?? 0;
+
                 $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $qtyToAdd;
                 $inventory->save();
+
+                // (اختياري) يمكنك هنا أيضاً تحديث fulfilled_qty في item:
+                $item->fulfilled_qty = $qtyToAdd;
+                $item->save();
             }
 
             DB::commit();
 
+AuditLog::create([
+    'user_id'    => $user->id,
+     'hospital_id'=> $user->hospital_id,
+    'action'     => 'pharmacist_confirm_internal_receipt',
+    'table_name' => 'internal_supply_request',
+    'record_id'  => $shipment->id,
+    'old_values' => null,
+    'new_values' => json_encode([
+        'status'      => $shipment->status,
+        'pharmacy_id' => $shipment->pharmacy_id,
+        'items'       => $shipment->items->map(fn($item) => [
+            'item_id'       => $item->id,
+            'drug_id'       => $item->drug_id,
+            'fulfilled_qty' => $item->fulfilled_qty ?? $item->approved_qty ?? $item->requested_qty,
+        ]),
+    ]),
+    'ip_address' => $request->ip(),
+]);
             return $this->sendSuccess([
                 'id' => $id,
                 'status' => 'تم الإستلام',
@@ -119,9 +148,7 @@ class ShipmentPharmacistController extends BaseApiController
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->sendError('فشل في تأكيد الاستلام: ' . $e->getMessage());
-        }
-    }
-
+        }}
     // Helper function
     private function translateStatus($status)
     {

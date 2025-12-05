@@ -40,7 +40,17 @@ use App\Http\Controllers\Pharmacist\CategoryPharmacistController;
 use App\Http\Controllers\Pharmacist\SupplyRequestPharmacistController;
 use App\Http\Controllers\Pharmacist\DashboardPharmacistController;
 use App\Http\Controllers\Pharmacist\PatientPharmacistController;
-use App\Http\Controllers\Pharmacist\ShipmentPharmacistController;
+// -- Store Keeper ---
+use App\Http\Controllers\StoreKeeper\WarehouseInventoryController;
+use App\Http\Controllers\StoreKeeper\CategoryStoreKeeperController;
+use App\Http\Controllers\StoreKeeper\ExternalSupplyRequestController;
+use App\Http\Controllers\StoreKeeper\AuditLogStoreKeeperController;
+use App\Http\Controllers\StoreKeeper\InternalSupplyRequestController;
+use App\Http\Controllers\StoreKeeper\DashboardStoreKeeperController;
+
+
+
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -195,6 +205,7 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     // F. Pharmacist Dashboard
     // ========================================================================
  Route::prefix('pharmacist')->group(function () {
+ Route::prefix('pharmacist')->group(function () {
     
     // Inventory Management
     Route::get('drugs', [DrugPharmacistController::class, 'index']); // List inventory
@@ -218,9 +229,9 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
  // Dashboard Stats
     Route::get('dashboard/stats', [DashboardPharmacistController::class, 'stats']);
  // Shipment Management
-    Route::get('shipments', [ShipmentPharmacistController::class, 'index']);
-    Route::get('shipments/{id}', [ShipmentPharmacistController::class, 'show']);
-    Route::post('shipments/{id}/confirm', [ShipmentPharmacistController::class, 'confirm']);
+    Route::get('shipments', 'App\Http\Controllers\Pharmacist\ShipmentPharmacistController@index');
+    Route::get('shipments/{id}', 'App\Http\Controllers\Pharmacist\ShipmentPharmacistController@show');
+    Route::post('shipments/{id}/confirm', 'App\Http\Controllers\Pharmacist\ShipmentPharmacistController@confirm');
       // 1. Low Stock
     Route::get('drugs/low-stock', [DrugPharmacistController::class, 'lowStock']);
     
@@ -231,4 +242,35 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     Route::get('patients/{fileNumber}/dispensations', [PatientPharmacistController::class, 'history']);
 });
 
-});
+ // ونفلتر بالـ type داخل الكود
+
+
+       Route::prefix('storekeeper') ->group(function () {  
+
+       
+       
+        // 1) عرض مخزون مخزن المستشفى (warehouse inventory)
+        Route::get('drugs',        [WarehouseInventoryController::class, 'index']);    // قائمة الأدوية وكمياتها
+        Route::get('drugs/all',    [WarehouseInventoryController::class, 'allDrugs']); // كل الأدوية للتحديد في الطلب
+
+        // هذه الثلاثة موجودة فقط لأن الواجهة تستدعيها حاليًا
+        Route::post('drugs',       [WarehouseInventoryController::class, 'store']);    // (اختياري/مؤقت)
+        Route::put('drugs/{id}',   [WarehouseInventoryController::class, 'update']);   // (اختياري/مؤقت)
+        Route::delete('drugs/{id}',[WarehouseInventoryController::class, 'destroy']);  // (اختياري/مؤقت)
+
+        // 2) التصنيفات مستخرجة من عمود في جدول drug
+        Route::get('categories',   [CategoryStoreKeeperController::class, 'index']);
+
+        // 3) طلب توريد خارجي (External Supply Request)
+        // من store keeper إلى إدارة المستشفى (التي تتعامل مع المورد)
+        Route::post('supply-requests', [ExternalSupplyRequestController::class, 'store']);
+         Route::get('operations', [AuditLogStoreKeeperController::class, 'index']);
+  Route::get('shipments',               [InternalSupplyRequestController::class, 'index']);
+        Route::get('shipments/{id}',          [InternalSupplyRequestController::class, 'show']);
+        Route::post('shipments/{id}/confirm', [InternalSupplyRequestController::class, 'confirm']);
+        Route::post('shipments/{id}/reject',  [InternalSupplyRequestController::class, 'reject']);
+                Route::get('dashboard/stats', [DashboardStoreKeeperController::class, 'stats']);
+
+ });
+ });
+  });

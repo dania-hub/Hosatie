@@ -11,11 +11,13 @@ class PatientResource extends JsonResource
         return [
             'id'          => $this->id,
             'national_id' => $this->national_id,
-            'name'        => $this->full_name, // Mapped to 'full_name' in DB
-            'birth'       => $this->birth_date, // Assuming you add 'birth_date' column to users table or use pivot
+            'name'        => $this->full_name,
+            'birth'       => $this->birth_date
+                               ? $this->birth_date->format('Y-m-d')
+                               : null,
             'phone'       => $this->phone,
             'email'       => $this->email,
-            'file_number' => 'FILE-' . $this->id, // Simulated file number
+            'file_number' => 'FILE-' . $this->id,
             'status'      => $this->status,
         ];
     }

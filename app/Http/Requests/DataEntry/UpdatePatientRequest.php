@@ -14,20 +14,19 @@ class UpdatePatientRequest extends FormRequest
 
     public function rules()
     {
-        // Get the ID from the route URL parameter {id}
         $id = $this->route('id'); 
 
         return [
-            'birth_date'  => 'required|date|before:today',
-            'phone'       => [
-                'required', 
-                'regex:/^(002189|09|\+2189)[1-6]\d{7}$/', 
-                Rule::unique('users', 'phone')->ignore($id) // Ignore current user
+            'birth_date' => 'required|date|before:today',
+            'phone'      => [
+                'required',
+                'regex:/^(002189|09|\+2189)[1-6]\d{7}$/',
+                Rule::unique('users', 'phone')->ignore($id),
             ],
-            'email'       => [
-                'required', 
-                'email', 
-                Rule::unique('users', 'email')->ignore($id)
+            'email'      => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')->ignore($id),
             ],
         ];
     }

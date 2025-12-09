@@ -28,11 +28,16 @@ class User extends Authenticatable
         'pharmacy_id',
         'status',
         'created_by',
+        'birth_date',   // 👈 جديد
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    protected $casts = [
+        'birth_date' => 'date', // اختياري لكنه مفيد
     ];
 
     public function warehouse()

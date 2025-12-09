@@ -7,7 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class AuditLog extends Model
 {
     protected $table = 'audit_log';
-    protected $fillable = ['user_id', 'action', 'table_name', 'record_id', 'old_values', 'new_values', 'ip_address','created_at', 'updated_at'];
+protected $fillable = [
+  'user_id','hospital_id','action','table_name',
+  'record_id','old_values','new_values','ip_address',
+  'created_at','updated_at'
+];
 
     // Who performed the action
     public function user()

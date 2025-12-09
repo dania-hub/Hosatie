@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\InternalSupplyRequest;
 use App\Models\InternalSupplyRequestItem;
+use App\Models\Pharmacy; // <--- إضافة موديل الصيدلية
 use Illuminate\Support\Facades\DB;
 
 class SupplyRequestPharmacistController extends BaseApiController
@@ -13,7 +14,7 @@ class SupplyRequestPharmacistController extends BaseApiController
     /**
      * Create a new internal supply request from Pharmacy to Warehouse/Admin.
      */
-       public function store(Request $request)
+    public function store(Request $request)
     {
         $request->validate([
             'items' => 'required|array|min:1',
@@ -24,34 +25,41 @@ class SupplyRequestPharmacistController extends BaseApiController
 
         DB::beginTransaction();
         try {
+            $user = $request->user();
+            $pharmacyId = null;
+
+            // 1. تحديد الصيدلية الطالبة
+            if ($user->pharmacy_id) {
+                $pharmacyId = $user->pharmacy_id;
+            } elseif ($user->hospital_id) {
+                $pharmacy = Pharmacy::where('hospital_id', $user->hospital_id)->first();
+                $pharmacyId = $pharmacy ? $pharmacy->id : null;
+            }
+
+            // حل مؤقت للتجربة (يمكنك إزالته في الإنتاج)
+            if (!$pharmacyId) $pharmacyId = 1;
+
+            if (!$pharmacyId) {
+                throw new \Exception("لا توجد صيدلية محددة لإنشاء الطلب منها.");
+            }
+
             $supplyRequest = new InternalSupplyRequest();
             
-            // 1. Fix: Use correct column names from Migration
-            $supplyRequest->requested_by = $request->user()->id ?? 1; // Was 'requester_id'
-            
-            // 2. Fix: Add required pharmacy_id
-            // Ideally: $request->user()->pharmacy_id;
-            // For now: Use 1 if testing locally
-            $supplyRequest->pharmacy_id = 1; 
+            // Use correct column names
+            $supplyRequest->requested_by = $user->id;
+            $supplyRequest->pharmacy_id = $pharmacyId; // <--- استخدام الصيدلية المستنتجة
             
             $supplyRequest->status = 'pending';
             $supplyRequest->notes = $request->notes;
             $supplyRequest->save();
 
-                       foreach ($request->items as $item) {
+            foreach ($request->items as $item) {
                 $requestItem = new InternalSupplyRequestItem();
-                
-                // 1. Correct Column: request_id
                 $requestItem->request_id = $supplyRequest->id; 
-                
                 $requestItem->drug_id = $item['drugId'];
-                
-                // 2. Correct Column: requested_qty
                 $requestItem->requested_qty = $item['quantity']; 
-                
                 $requestItem->save();
             }
-
 
             DB::commit();
 
@@ -65,5 +73,4 @@ class SupplyRequestPharmacistController extends BaseApiController
             return $this->sendError('حدث خطأ أثناء حفظ الطلب: ' . $e->getMessage());
         }
     }
-
 }

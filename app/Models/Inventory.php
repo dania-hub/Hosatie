@@ -14,6 +14,7 @@ class Inventory extends Model
     protected $fillable = [
         'drug_id',
         'warehouse_id',
+        'pharmacy_id', // <--- تمت الإضافة
         'current_quantity',
         'minimum_level',
         'supplier_id',
@@ -24,9 +25,16 @@ class Inventory extends Model
         return $this->belongsTo(Drug::class);
     }
 
+    // العلاقة مع المخزن الرئيسي (المستودع)
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    // العلاقة الجديدة مع الصيدلية
+    public function pharmacy()
+    {
+        return $this->belongsTo(Pharmacy::class);
     }
 
     public function supplier()

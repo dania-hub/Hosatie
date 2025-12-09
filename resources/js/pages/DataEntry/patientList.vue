@@ -14,18 +14,41 @@ import PatientEditModal from "@/components/patientsDataEntry/PatientEditModel.vu
 import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vue";
 
 // ----------------------------------------------------
-// 1. بيانات المرضى والـ Endpoint (لم يتغير)
+// 1. بيانات المرضى والـ Endpoint
 // ----------------------------------------------------
-const API_URL = '/api/data-entry';
+const API_URL = '/api/data-entry/patients';
 const patients = ref([]);
 
+// Helper to get headers with token
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('auth_token');
+    return {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    };
+};
+
 // ----------------------------------------------------
-// 2. منطق جلب البيانات (Fetch) (لم يتغير)
+// 2. منطق جلب البيانات (Fetch)
 // ----------------------------------------------------
 const fetchPatients = async () => {
     try {
-        const response = await axios.get(API_URL);
-        patients.value = response.data;
+        const response = await axios.get(API_URL, getAuthHeaders());
+        
+        // Handle response from sendSuccess (response.data.data is the array)
+        const rawData = response.data.data || [];
+        
+        patients.value = rawData.map(p => ({
+            id: p.id,
+            fileNumber: p.file_number || `FILE-${p.id}`, // Generate if missing
+            name: p.full_name || p.name, // Handle raw 'full_name' or Resource 'name'
+            nationalId: p.national_id || p.nationalId,
+            birth: p.birth_date || p.birth || 'غير متوفر',
+            phone: p.phone,
+            email: p.email,
+            lastUpdated: p.updated_at || new Date().toISOString()
+        }));
     } catch (error) {
         console.error("Error fetching patients:", error);
         showSuccessAlert("❌ فشل تحميل بيانات المرضى من الخادم.");
@@ -71,11 +94,11 @@ const filteredPatients = computed(() => {
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(patient => 
-            patient.fileNumber.toString().includes(search) ||
-            patient.name.toLowerCase().includes(search) ||
-            patient.nationalId.includes(search) ||
-            patient.birth.includes(search) || 
-            patient.phone.includes(search) 
+            (patient.fileNumber && patient.fileNumber.toString().includes(search)) ||
+            (patient.name && patient.name.toLowerCase().includes(search)) ||
+            (patient.nationalId && patient.nationalId.includes(search)) ||
+            (patient.birth && patient.birth.includes(search)) || 
+            (patient.phone && patient.phone.includes(search)) 
         );
     }
 
@@ -139,46 +162,113 @@ const openAddModal = () => { isAddModalOpen.value = true; };
 const closeAddModal = () => { isAddModalOpen.value = false; };
 
 // ----------------------------------------------------
-// 6. دوال إدارة البيانات (لم تتغير)
+// 6. دوال إدارة البيانات
 // ----------------------------------------------------
 const addPatient = async (newPatient) => {
     try {
-        const response = await axios.post(API_URL, newPatient);
-        patients.value.push(response.data); 
+        // Map frontend fields to backend expected fields
+        const payload = {
+            full_name: newPatient.name,
+            national_id: newPatient.nationalId,
+            phone: newPatient.phone,
+            email: newPatient.email || `patient${newPatient.nationalId}@example.com`, // Fallback email
+            birth_date: newPatient.birth.replace(/\//g, '-') // Ensure YYYY-MM-DD format
+        };
+
+        const response = await axios.post(API_URL, payload, getAuthHeaders());
+        
+        // Store returns PatientResource, so we map it
+        const p = response.data.data;
+        patients.value.unshift({
+            id: p.id,
+            fileNumber: p.file_number, // Resource has this
+            name: p.name, // Resource maps full_name to name
+            nationalId: p.national_id, // Resource has this
+            birth: p.birth, // Resource has this
+            phone: p.phone,
+            lastUpdated: new Date().toISOString()
+        });
+
         closeAddModal();
         showSuccessAlert("✅ تم تسجيل بيانات المريض بنجاح!");
     } catch (error) {
         console.error("Error adding patient:", error);
-        showSuccessAlert("❌ فشل تسجيل المريض. تحقق من البيانات.");
+        let msg = "❌ فشل تسجيل المريض.";
+        if (error.response) {
+            msg += ` (رمز الخطأ: ${error.response.status})`;
+            if (error.response.data && error.response.data.message) {
+                msg += `\nالرسالة: ${error.response.data.message}`;
+            }
+            if (error.response.data && error.response.data.errors) {
+                msg += `\nالأخطاء: ${JSON.stringify(error.response.data.errors)}`;
+            }
+        }
+        showSuccessAlert(msg);
     }
 };
 
 const updatePatient = async (updatedPatient) => {
     try {
-        await axios.put(`${API_URL}/${updatedPatient.fileNumber}`, updatedPatient);
+        const payload = {
+            full_name: updatedPatient.name,
+            national_id: updatedPatient.nationalId,
+            phone: updatedPatient.phone,
+            email: updatedPatient.email,
+            birth_date: updatedPatient.birth.replace(/\//g, '-') // Ensure YYYY-MM-DD format
+        };
+
+        // Use ID for the URL
+        const response = await axios.put(`${API_URL}/${updatedPatient.id}`, payload, getAuthHeaders());
         
-        const index = patients.value.findIndex(p => p.fileNumber === updatedPatient.fileNumber);
+        // Update returns PatientResource
+        const p = response.data.data;
+        
+        const index = patients.value.findIndex(item => item.id === updatedPatient.id);
         if (index !== -1) {
-            patients.value[index] = { ...updatedPatient, lastUpdated: new Date().toISOString() };
+            // Update local state with returned data
+            patients.value[index] = {
+                id: p.id,
+                fileNumber: p.file_number,
+                name: p.name,
+                nationalId: p.national_id,
+                birth: p.birth,
+                phone: p.phone,
+                lastUpdated: new Date().toISOString()
+            };
         }
         
         closeEditModal();
-        showSuccessAlert(`✅ تم تعديل بيانات المريض ${updatedPatient.fileNumber} بنجاح!`);
+        showSuccessAlert(`✅ تم تعديل بيانات المريض ${p.file_number} بنجاح!`);
     } catch (error) {
         console.error("Error updating patient:", error);
-        showSuccessAlert("❌ فشل تعديل بيانات المريض.");
+        let msg = "❌ فشل تعديل بيانات المريض.";
+        if (error.response) {
+            msg += ` (رمز الخطأ: ${error.response.status})`;
+            if (error.response.data && error.response.data.message) {
+                msg += `\nالرسالة: ${error.response.data.message}`;
+            }
+            if (error.response.data && error.response.data.errors) {
+                msg += `\nالأخطاء: ${JSON.stringify(error.response.data.errors)}`;
+            }
+        }
+        showSuccessAlert(msg);
     }
 };
 
 const deletePatient = async (fileNumber) => {
+    // Find the patient to get the ID
+    const patient = patients.value.find(p => p.fileNumber === fileNumber);
+    if (!patient) return;
+
     if (!confirm(`هل أنت متأكد من حذف المريض برقم ملف ${fileNumber}؟`)) {
         return;
     }
     
     try {
-        await axios.delete(`${API_URL}/${fileNumber}`);
+        // Use ID for the URL
+        await axios.delete(`${API_URL}/${patient.id}`, getAuthHeaders());
         
-        const index = patients.value.findIndex(p => p.fileNumber === fileNumber);
+        const index = patients.value.findIndex(p => p.id === patient.id);
         if (index !== -1) {
             patients.value.splice(index, 1);
         }
@@ -186,7 +276,14 @@ const deletePatient = async (fileNumber) => {
         showSuccessAlert(`✅ تم حذف المريض ${fileNumber} بنجاح!`);
     } catch (error) {
         console.error("Error deleting patient:", error);
-        showSuccessAlert("❌ فشل حذف المريض.");
+        let msg = "❌ فشل حذف المريض.";
+        if (error.response) {
+            msg += ` (رمز الخطأ: ${error.response.status})`;
+            if (error.response.data && error.response.data.message) {
+                msg += `\nالرسالة: ${error.response.data.message}`;
+            }
+        }
+        showSuccessAlert(msg);
     }
 };
 

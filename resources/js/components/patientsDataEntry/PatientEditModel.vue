@@ -141,6 +141,11 @@ watch(() => props.isOpen, (newVal) => {
         };
     }
 });
+const maxDate = computed(() => {
+    const today = new Date();
+    today.setDate(today.getDate() - 1);
+    return today.toISOString().split('T')[0];
+});
 </script>
 
 <template>
@@ -216,6 +221,7 @@ watch(() => props.isOpen, (newVal) => {
                                 <Input
                                     id="edit-birth"
                                     type="date" 
+                                    :max="maxDate" 
                                     v-model="editForm.birthDate"
                                     :class="{ 'border-red-500 hover:border-red-500': editErrors.birthDate, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !editErrors.birthDate }"
                                     class="h-9 text-right w-full pr-3 appearance-none rounded-2xl bg-white"

@@ -220,6 +220,7 @@
 import { ref } from "vue";
 import { Mail, Lock, Stethoscope } from "lucide-vue-next";
 import { Icon } from "@iconify/vue";
+import { router } from '@inertiajs/vue3';
 
 // تعريف المتغيرات
 const email = ref("");
@@ -331,13 +332,58 @@ const handleLogin = async () => {
         // الاتصال بالـ API
         const result = await loginToAPI(email.value, password.value);
         
-        console.log("تم تسجيل الدخول بنجاح", result);
+        // Redirection Logic
+        let role = null;
         
-        // هنا يمكنك توجيه المستخدم إلى الصفحة التالية
-        // مثال: router.push('/dashboard');
+        // Try to find user role in different common structures
+        if (result && result.user && result.user.type) {
+            role = result.user.type;
+        } else if (result && result.data && result.data.user && result.data.user.type) {
+            role = result.data.user.type;
+        } else if (result && result.role) {
+            role = result.role;
+        }
+
+        // Store Token if present
+        if (result.token) {
+            localStorage.setItem('auth_token', result.token);
+        } else if (result.data && result.data.token) {
+            localStorage.setItem('auth_token', result.data.token);
+        }
         
-        // عرض رسالة نجاح (يمكن استبدالها بالتوجيه)
-        alert('تم تسجيل الدخول بنجاح!');
+        if (role) {
+            // Store user role in localStorage for Sidebar to use
+            localStorage.setItem('user_role', role);
+
+            switch (role) {
+                case 'hospital_admin':
+                    router.visit('/admin/statistics');
+                    break;
+                case 'pharmacist':
+                    router.visit('/pharmacist/statistics');
+                    break;
+                case 'doctor':
+                    router.visit('/doctor/statistics');
+                    break;
+                case 'data_entry':
+                    router.visit('/data-entry/statistics');
+                    break;
+                case 'department_head':
+                    router.visit('/department/statistics');
+                    break;
+                case 'storekeeper':
+                    router.visit('/storekeeper/statistics');
+                    break;
+               
+                default:
+                    console.warn("Unknown role:", role);
+                    router.visit('/profile');
+            }
+        } else {
+            console.error("User role not found in response", result);
+            // Fallback if structure is different, try to guess or just go to profile
+            router.visit('/profile');
+        }
         
         // إعادة تعيين النموذج
         email.value = "";

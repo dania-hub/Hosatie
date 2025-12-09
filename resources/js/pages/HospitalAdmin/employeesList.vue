@@ -1,0 +1,1158 @@
+<script setup>
+import { ref, computed, onMounted } from "vue";
+import axios from "axios";
+import { Icon } from "@iconify/vue";
+import DefaultLayout from "@/components/DefaultLayout.vue";
+import search from "@/components/search.vue";
+import inputadd from "@/components/btnaddEmp.vue";
+import btnprint from "@/components/btnprint.vue";
+import employeeAddModel from "@/components/forhospitaladmin/employeeAddModel.vue";
+import employeeEditModel from "@/components/forhospitaladmin/employeeEditModel.vue";
+import employeeViewModel from "@/components/forhospitaladmin/employeeViewModel.vue";
+
+// ----------------------------------------------------
+// 1. إعدادات API
+// ----------------------------------------------------
+const API_URL = "/api/data-entry/employees";
+const DEPARTMENTS_API_URL = "/api/departments";
+const ROLES_API_URL = "/api/employee-roles"; // رابط API للأدوار
+
+// قائمة الأدوار المتاحة (سيتم جلبها من API)
+const employeeRoles = ref([]);
+
+// قائمة الأقسام المتاحة (سيتم جلبها من API)
+const availableDepartments = ref([]);
+
+// فلتر الحالة
+const statusFilter = ref("all");
+
+// بيانات الموظفين
+const employees = ref([]);
+
+// ----------------------------------------------------
+// 2. الحالة العامة للتطبيق
+// ----------------------------------------------------
+const loading = ref(true);
+const loadingDepartments = ref(true);
+const loadingRoles = ref(true);
+const error = ref(null);
+const departmentsError = ref(null);
+const rolesError = ref(null);
+
+// ----------------------------------------------------
+// 3. دوال جلب البيانات من API
+// ----------------------------------------------------
+
+// جلب بيانات الموظفين
+const fetchEmployees = async () => {
+    loading.value = true;
+    error.value = null;
+    
+    try {
+        const response = await axios.get(API_URL);
+        employees.value = response.data.map(emp => ({
+            ...emp,
+            nameDisplay: emp.name || "",
+            nationalIdDisplay: emp.nationalId || "",
+            birthDisplay: emp.birth ? formatDateForDisplay(emp.birth) : "",
+        }));
+    } catch (err) {
+       
+        employees.value = [];
+    } finally {
+        loading.value = false;
+    }
+};
+
+// جلب بيانات الأقسام
+const fetchDepartments = async () => {
+    loadingDepartments.value = true;
+    departmentsError.value = null;
+    
+    try {
+        const response = await axios.get(DEPARTMENTS_API_URL);
+        availableDepartments.value = response.data;
+    } catch (err) {
+       
+        availableDepartments.value = [];
+    } finally {
+        loadingDepartments.value = false;
+    }
+};
+
+// جلب بيانات الأدوار الوظيفية
+const fetchEmployeeRoles = async () => {
+    loadingRoles.value = true;
+    rolesError.value = null;
+    
+    try {
+        const response = await axios.get(ROLES_API_URL);
+        employeeRoles.value = response.data;
+    } catch (err) {
+       
+        employeeRoles.value = [];
+    } finally {
+        loadingRoles.value = false;
+    }
+};
+
+// ----------------------------------------------------
+// 4. دالة مساعدة لتنسيق التاريخ
+// ----------------------------------------------------
+const formatDateForDisplay = (dateString) => {
+    if (!dateString) return "";
+    
+    // تحويل من YYYY/MM/DD إلى DD/MM/YYYY
+    const parts = dateString.split(/[/-]/);
+    if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateString;
+};
+
+// ----------------------------------------------------
+// 5. تحميل البيانات عند التهيئة
+// ----------------------------------------------------
+onMounted(async () => {
+    await Promise.all([
+        fetchEmployees(), 
+        fetchDepartments(), 
+        fetchEmployeeRoles()
+    ]);
+});
+
+// ----------------------------------------------------
+// 6. دوال الحساب
+// ----------------------------------------------------
+
+// التحقق من وجود مدير مخزن واحد فقط
+const hasWarehouseManager = computed(() => {
+    // ابحث عن دور "مدير المخزن" في قائمة الأدوار
+    const warehouseManagerRole = employeeRoles.value.find(role => 
+        role.name === "مدير المخزن" || role === "مدير المخزن"
+    );
+    
+    if (!warehouseManagerRole) return false;
+    
+    return employees.value.some(
+        (employee) => {
+            const roleName = typeof employee.role === 'object' ? employee.role.name : employee.role;
+            return roleName === "مدير المخزن" && employee.isActive;
+        }
+    );
+});
+
+// تتبع الأقسام التي لها مدير مفعل
+const departmentsWithManager = computed(() => {
+    // ابحث عن دور "مدير القسم" في قائمة الأدوار
+    const departmentManagerRole = employeeRoles.value.find(role => 
+        role.name === "مدير القسم" || role === "مدير القسم"
+    );
+    
+    if (!departmentManagerRole) return [];
+    
+    return employees.value
+        .filter(emp => {
+            const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+            return roleName === "مدير القسم" && emp.isActive && emp.department;
+        })
+        .map(emp => emp.department);
+});
+
+// ----------------------------------------------------
+// 7. متغيرات نافذة تأكيد التفعيل/التعطيل
+// ----------------------------------------------------
+const isStatusConfirmationModalOpen = ref(false);
+const employeeToToggle = ref(null);
+const statusAction = ref("");
+
+const openStatusConfirmationModal = (employee) => {
+    employeeToToggle.value = employee;
+    statusAction.value = employee.isActive ? "تعطيل" : "تفعيل";
+    isStatusConfirmationModalOpen.value = true;
+};
+
+const closeStatusConfirmationModal = () => {
+    isStatusConfirmationModalOpen.value = false;
+    employeeToToggle.value = null;
+    statusAction.value = "";
+};
+
+const confirmStatusToggle = async () => {
+    if (!employeeToToggle.value) return;
+
+    const newStatus = !employeeToToggle.value.isActive;
+
+    try {
+        await axios.patch(
+            `${API_URL}/${employeeToToggle.value.fileNumber}/status`,
+            { isActive: newStatus }
+        );
+
+        const index = employees.value.findIndex(
+            (p) => p.fileNumber === employeeToToggle.value.fileNumber
+        );
+        if (index !== -1) {
+            employees.value[index].isActive = newStatus;
+            employees.value[index].lastUpdated = new Date().toISOString();
+        }
+
+        showSuccessAlert(
+            `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name} بنجاح!`
+        );
+        closeStatusConfirmationModal();
+    } catch (error) {
+        console.error(`Error ${statusAction.value} employee:`, error);
+        showSuccessAlert(`❌ فشل ${statusAction.value} حساب الموظف.`);
+        closeStatusConfirmationModal();
+    }
+};
+
+// ----------------------------------------------------
+// 8. منطق البحث والفرز
+// ----------------------------------------------------
+const searchTerm = ref("");
+const sortKey = ref("lastUpdated");
+const sortOrder = ref("desc");
+
+const calculateAge = (birthDateString) => {
+    if (!birthDateString) return 0;
+    const parts = birthDateString.split(/[/-]/);
+    if (parts.length !== 3) return 0;
+
+    const birthDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+};
+
+const sortEmployees = (key, order) => {
+    sortKey.value = key;
+    sortOrder.value = order;
+};
+
+const filteredEmployees = computed(() => {
+    let list = employees.value;
+
+    // فلتر حسب الحالة
+    if (statusFilter.value !== "all") {
+        const isActiveFilter = statusFilter.value === "active";
+        list = list.filter((employee) => employee.isActive === isActiveFilter);
+    }
+
+    // فلتر حسب البحث
+    if (searchTerm.value) {
+        const search = searchTerm.value.toLowerCase();
+        list = list.filter(
+            (employee) =>
+                employee.fileNumber?.toString().includes(search) ||
+                employee.name?.toLowerCase().includes(search) ||
+                employee.nationalId?.includes(search) ||
+                employee.birth?.includes(search) ||
+                employee.phone?.includes(search) ||
+                (employee.role && 
+                    (typeof employee.role === 'object' 
+                        ? employee.role.name?.toLowerCase().includes(search)
+                        : employee.role.toLowerCase().includes(search))) ||
+                (employee.department && employee.department.toLowerCase().includes(search))
+        );
+    }
+
+    // الفرز
+    if (sortKey.value) {
+        list.sort((a, b) => {
+            let comparison = 0;
+
+            if (sortKey.value === "name") {
+                comparison = (a.name || "").localeCompare(b.name || "", "ar");
+            } else if (sortKey.value === "birth") {
+                const ageA = calculateAge(a.birth);
+                const ageB = calculateAge(b.birth);
+                comparison = ageA - ageB;
+            } else if (sortKey.value === "lastUpdated") {
+                const dateA = new Date(a.lastUpdated || 0);
+                const dateB = new Date(b.lastUpdated || 0);
+                comparison = dateA.getTime() - dateB.getTime();
+            } else if (sortKey.value === "role") {
+                const roleA = typeof a.role === 'object' ? a.role.name : a.role;
+                const roleB = typeof b.role === 'object' ? b.role.name : b.role;
+                
+                if (!roleA && !roleB) comparison = 0;
+                else if (!roleA) comparison = 1;
+                else if (!roleB) comparison = -1;
+                else comparison = roleA.localeCompare(roleB, "ar");
+            } else if (sortKey.value === "status") {
+                if (a.isActive === b.isActive) comparison = 0;
+                else if (a.isActive && !b.isActive) comparison = -1;
+                else comparison = 1;
+            } else if (sortKey.value === "department") {
+                if (!a.department && !b.department) comparison = 0;
+                else if (!a.department) comparison = 1;
+                else if (!b.department) comparison = -1;
+                else comparison = a.department.localeCompare(b.department, "ar");
+            }
+
+            return sortOrder.value === "asc" ? comparison : -comparison;
+        });
+    }
+
+    return list;
+});
+
+// ----------------------------------------------------
+// 9. منطق رسالة النجاح
+// ----------------------------------------------------
+const isSuccessAlertVisible = ref(false);
+const successMessage = ref("");
+let alertTimeout = null;
+
+const showSuccessAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+
+    successMessage.value = message;
+    isSuccessAlertVisible.value = true;
+
+    alertTimeout = setTimeout(() => {
+        isSuccessAlertVisible.value = false;
+        successMessage.value = "";
+    }, 4000);
+};
+
+// ----------------------------------------------------
+// 10. حالة الـ Modals
+// ----------------------------------------------------
+const isViewModalOpen = ref(false);
+const isEditModalOpen = ref(false);
+const isAddModalOpen = ref(false);
+const selectedEmployee = ref({});
+
+const openViewModal = (employee) => {
+    selectedEmployee.value = {
+        ...employee,
+        nameDisplay: employee.name || "",
+        nationalIdDisplay: employee.nationalId || "",
+        birthDisplay: employee.birth ? formatDateForDisplay(employee.birth) : "",
+    };
+    isViewModalOpen.value = true;
+};
+
+const closeViewModal = () => {
+    isViewModalOpen.value = false;
+    selectedEmployee.value = {};
+};
+
+const openEditModal = (employee) => {
+    selectedEmployee.value = {
+        ...employee,
+        nameDisplay: employee.name || "",
+        nationalIdDisplay: employee.nationalId || "",
+        birthDisplay: employee.birth ? formatDateForDisplay(employee.birth) : "",
+    };
+    isEditModalOpen.value = true;
+};
+
+const closeEditModal = () => {
+    isEditModalOpen.value = false;
+    selectedEmployee.value = {};
+};
+
+const openAddModal = () => {
+    isAddModalOpen.value = true;
+};
+
+const closeAddModal = () => {
+    isAddModalOpen.value = false;
+};
+
+// ----------------------------------------------------
+// 11. دوال إدارة البيانات
+// ----------------------------------------------------
+
+// إضافة موظف جديد
+const addEmployee = async (newEmployee) => {
+    try {
+        // التحقق من وجود مدير مخزن إذا كان الدور الجديد هو "مدير المخزن"
+        const warehouseManagerRole = employeeRoles.value.find(role => 
+            role.name === "مدير المخزن" || role === "مدير المخزن"
+        );
+        
+        if (warehouseManagerRole && newEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
+            showSuccessAlert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+            return;
+        }
+
+        // التحقق من وجود مدير قسم إذا كان الدور الجديد هو "مدير القسم"
+        const departmentManagerRole = employeeRoles.value.find(role => 
+            role.name === "مدير القسم" || role === "مدير القسم"
+        );
+        
+        if (departmentManagerRole && newEmployee.role === "مدير القسم") {
+            const existingManager = employees.value.find(
+                emp => {
+                    const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+                    return roleName === "مدير القسم" && 
+                           emp.department === newEmployee.department && 
+                           emp.isActive;
+                }
+            );
+            
+            if (existingManager) {
+                showSuccessAlert(`❌ القسم "${newEmployee.department}" لديه بالفعل مدير مفعل!`);
+                return;
+            }
+        }
+
+        const employeeData = {
+            ...newEmployee,
+            isActive: true,
+            lastUpdated: new Date().toISOString(),
+            fileNumber: Date.now()
+        };
+
+        const response = await axios.post(API_URL, employeeData);
+        
+        employees.value.push({
+            ...response.data,
+            nameDisplay: response.data.name || "",
+            nationalIdDisplay: response.data.nationalId || "",
+            birthDisplay: response.data.birth ? formatDateForDisplay(response.data.birth) : "",
+        });
+        
+        closeAddModal();
+        showSuccessAlert("✅ تم تسجيل بيانات الموظف بنجاح!");
+    } catch (error) {
+        console.error("Error adding employee:", error);
+        showSuccessAlert("❌ فشل تسجيل الموظف. تحقق من البيانات.");
+    }
+};
+
+// تحديث بيانات موظف
+const updateEmployee = async (updatedEmployee) => {
+    try {
+        // التحقق من وجود مدير مخزن إذا كان الدور الجديد هو "مدير المخزن"
+        const warehouseManagerRole = employeeRoles.value.find(role => 
+            role.name === "مدير المخزن" || role === "مدير المخزن"
+        );
+        
+        if (warehouseManagerRole && updatedEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
+            const currentEmployee = employees.value.find(
+                (p) => p.fileNumber === updatedEmployee.fileNumber
+            );
+            
+            const currentRoleName = currentEmployee ? 
+                (typeof currentEmployee.role === 'object' ? currentEmployee.role.name : currentEmployee.role) : 
+                '';
+            
+            if (!currentEmployee || currentRoleName !== "مدير المخزن") {
+                showSuccessAlert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+                return;
+            }
+        }
+
+        // التحقق من وجود مدير قسم إذا كان الدور الجديد هو "مدير القسم"
+        const departmentManagerRole = employeeRoles.value.find(role => 
+            role.name === "مدير القسم" || role === "مدير القسم"
+        );
+        
+        if (departmentManagerRole && updatedEmployee.role === "مدير القسم") {
+            const currentEmployee = employees.value.find(
+                emp => emp.fileNumber === updatedEmployee.fileNumber
+            );
+            
+            const existingManager = employees.value.find(
+                emp => {
+                    const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+                    return roleName === "مدير القسم" && 
+                           emp.department === updatedEmployee.department && 
+                           emp.isActive &&
+                           emp.fileNumber !== updatedEmployee.fileNumber;
+                }
+            );
+            
+            if (existingManager) {
+                showSuccessAlert(`❌ القسم "${updatedEmployee.department}" لديه بالفعل مدير مفعل!`);
+                return;
+            }
+        }
+
+        const response = await axios.put(
+            `${API_URL}/${updatedEmployee.fileNumber}`,
+            updatedEmployee
+        );
+
+        const index = employees.value.findIndex(
+            (p) => p.fileNumber === updatedEmployee.fileNumber
+        );
+        if (index !== -1) {
+            employees.value[index] = {
+                ...response.data,
+                nameDisplay: response.data.name || "",
+                nationalIdDisplay: response.data.nationalId || "",
+                birthDisplay: response.data.birth ? formatDateForDisplay(response.data.birth) : "",
+                lastUpdated: new Date().toISOString(),
+            };
+        }
+
+        closeEditModal();
+        showSuccessAlert(
+            `✅ تم تعديل بيانات الموظف ${updatedEmployee.fileNumber} بنجاح!`
+        );
+    } catch (error) {
+        console.error("Error updating employee:", error);
+        showSuccessAlert("❌ فشل تعديل بيانات الموظف.");
+    }
+};
+
+const getStatusTooltip = (isActive) => {
+    return isActive ? "تعطيل الحساب" : "تفعيل الحساب";
+};
+
+// ----------------------------------------------------
+// 12. منطق الطباعة
+// ----------------------------------------------------
+const printTable = () => {
+    const resultsCount = filteredEmployees.value.length;
+
+    if (resultsCount === 0) {
+        showSuccessAlert("❌ لا توجد بيانات للطباعة.");
+        return;
+    }
+
+    const printWindow = window.open("", "_blank", "height=600,width=800");
+
+    if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
+        showSuccessAlert(
+            "❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
+        );
+        return;
+    }
+
+    let tableHtml = `
+        <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                direction: rtl;
+                padding: 20px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+            }
+            th, td {
+                border: 1px solid #ccc;
+                padding: 10px;
+                text-align: right;
+            }
+            th {
+                background-color: #f2f2f2;
+                font-weight: bold;
+            }
+            h1 {
+                text-align: center;
+                color: #2E5077;
+                margin-bottom: 10px;
+            }
+            .results-info {
+                text-align: right;
+                margin-bottom: 15px;
+                font-size: 16px;
+                font-weight: bold;
+                color: #4DA1A9;
+            }
+            .status-active {
+                color: green;
+                font-weight: bold;
+            }
+            .status-inactive {
+                color: red;
+                font-weight: bold;
+            }
+        </style>
+
+        <h1>قائمة الموظفين (تقرير طباعة)</h1>
+        
+        <p class="results-info">
+            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
+        </p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>رقم الملف</th>
+                    <th>الاسم الرباعي</th>
+                    <th>الدور الوظيفي</th>
+                    <th>القسم</th>
+                    <th>حالة الحساب</th>
+                    <th>الرقم الوطني</th>
+                    <th>تاريخ الميلاد</th>
+                    <th>رقم الهاتف</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    filteredEmployees.value.forEach((employee) => {
+        const roleName = typeof employee.role === 'object' ? employee.role.name : employee.role;
+        
+        tableHtml += `
+            <tr>
+                <td>${employee.fileNumber || ''}</td>
+                <td>${employee.name || ''}</td>
+                <td>${roleName || ''}</td>
+                <td>${employee.department || '-'}</td>
+                <td class="${employee.isActive ? "status-active" : "status-inactive"}">
+                    ${employee.isActive ? "مفعل" : "معطل"}
+                </td>
+                <td>${employee.nationalId || ''}</td>
+                <td>${employee.birth || ''}</td>
+                <td>${employee.phone || ''}</td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `
+            </tbody>
+        </table>
+    `;
+
+    printWindow.document.write("<html><head><title>طباعة قائمة الموظفين</title>");
+    printWindow.document.write("</head><body>");
+    printWindow.document.write(tableHtml);
+    printWindow.document.write("</body></html>");
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+    };
+};
+</script>
+
+<template>
+    <DefaultLayout>
+        <main class="flex-1 p-4 sm:p-5 pt-3">
+            <!-- حالة التحميل -->
+            <div v-if="loading || loadingDepartments || loadingRoles" class="flex justify-center items-center h-64">
+                <div class="text-center">
+                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto mb-4" />
+                    <p class="text-gray-600">جاري تحميل البيانات...</p>
+                </div>
+            </div>
+
+            <!-- حالة الخطأ -->
+            <div v-else-if="error || departmentsError || rolesError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                <p v-if="error">{{ error }}</p>
+                <p v-if="departmentsError">{{ departmentsError }}</p>
+                <p v-if="rolesError">{{ rolesError }}</p>
+                <button @click="fetchAllData" class="mt-2 text-sm underline">
+                    حاول مرة أخرى
+                </button>
+            </div>
+
+            <!-- المحتوى الرئيسي -->
+            <div v-else>
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
+                    <div class="flex items-center gap-3 w-full sm:max-w-xl">
+                        <search v-model="searchTerm" />
+
+                        <!-- فلتر حالة الحساب -->
+                        <div class="flex items-center gap-2">
+                            <select 
+                                v-model="statusFilter"
+                                class="h-11 px-3 border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] focus:outline-none cursor-pointer"
+                            >
+                                <option value="all">جميع الحالات</option>
+                                <option value="active">المفعلون فقط</option>
+                                <option value="inactive">المعطلون فقط</option>
+                            </select>
+                        </div>
+
+                        <!-- فرز -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
+                            >
+                                <Icon
+                                    icon="lucide:arrow-down-up"
+                                    class="w-5 h-5 ml-2"
+                                />
+                                فرز
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
+                            >
+                                <li class="menu-title text-gray-700 font-bold text-sm">
+                                    حسب الاسم:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('name', 'asc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'name' &&
+                                                sortOrder === 'asc',
+                                        }"
+                                    >
+                                        الاسم (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('name', 'desc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'name' &&
+                                                sortOrder === 'desc',
+                                        }"
+                                    >
+                                        الاسم (ي - أ)
+                                    </a>
+                                </li>
+
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">
+                                    حسب الدور الوظيفي:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('role', 'asc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'role' &&
+                                                sortOrder === 'asc',
+                                        }"
+                                    >
+                                        الدور الوظيفي (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('role', 'desc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'role' &&
+                                                sortOrder === 'desc',
+                                        }"
+                                    >
+                                        الدور الوظيفي (ي - أ)
+                                    </a>
+                                </li>
+
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">
+                                    حسب القسم:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('department', 'asc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'department' &&
+                                                sortOrder === 'asc',
+                                        }"
+                                    >
+                                        القسم (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('department', 'desc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'department' &&
+                                                sortOrder === 'desc',
+                                        }"
+                                    >
+                                        القسم (ي - أ)
+                                    </a>
+                                </li>
+
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">
+                                    حسب حالة الحساب:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('status', 'asc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'status' &&
+                                                sortOrder === 'asc',
+                                        }"
+                                    >
+                                        المعطلون أولاً
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('status', 'desc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'status' &&
+                                                sortOrder === 'desc',
+                                        }"
+                                    >
+                                        المفعلون أولاً
+                                    </a>
+                                </li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">
+                                    حسب العمر:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('birth', 'asc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'birth' &&
+                                                sortOrder === 'asc',
+                                        }"
+                                    >
+                                        الأصغر سناً أولاً
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('birth', 'desc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'birth' &&
+                                                sortOrder === 'desc',
+                                        }"
+                                    >
+                                        الأكبر سناً أولاً
+                                    </a>
+                                </li>
+
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">
+                                    حسب آخر تحديث:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('lastUpdated', 'desc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'lastUpdated' &&
+                                                sortOrder === 'desc',
+                                        }"
+                                    >
+                                        الأحدث
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('lastUpdated', 'asc')"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                sortKey === 'lastUpdated' &&
+                                                sortOrder === 'asc',
+                                        }"
+                                    >
+                                        الأقدم
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-600 self-end sm:self-center">
+                            عدد النتائج :
+                            <span class="text-[#4DA1A9] text-lg font-bold">{{
+                                filteredEmployees.length
+                            }}</span>
+                        </p>
+                    </div>
+
+                    <div class="flex items-end gap-3 w-full sm:w-auto justify-end">
+                        <inputadd @open-modal="openAddModal" />
+                        <btnprint @click="printTable" />
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
+                    <div
+                        class="overflow-y-auto flex-1"
+                        style="
+                            scrollbar-width: auto;
+                            scrollbar-color: grey transparent;
+                            direction: ltr;
+                        "
+                    >
+                        <div class="overflow-x-auto h-full">
+                            <table
+                                dir="rtl"
+                                class="table w-full text-right min-w-[700px] border-collapse"
+                            >
+                                <thead
+                                    class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
+                                >
+                                    <tr>
+                                        <th class="file-number-col">رقم الملف</th>
+                                        <th class="name-col">الإسم الرباعي</th>
+                                        <th class="role-col">الدور الوظيفي</th>
+                                        <th class="department-col">القسم</th>
+                                        <th class="status-col">الحالة</th>
+                                        <th class="phone-col">رقم الهاتف</th>
+                                        <th class="actions-col">الإجراءات</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    <tr
+                                        v-for="(employee, index) in filteredEmployees"
+                                        :key="employee.fileNumber || index"
+                                        class="hover:bg-gray-100 border border-gray-300"
+                                    >
+                                        <td class="file-number-col">
+                                            {{ employee.fileNumber || 'N/A' }}
+                                        </td>
+                                        <td class="name-col">
+                                            {{ employee.name || 'N/A' }}
+                                        </td>
+                                        <td class="role-col">
+                                            {{ typeof employee.role === 'object' ? employee.role.name : employee.role || 'N/A' }}
+                                        </td>
+                                        <td class="department-col">
+                                            {{ employee.department || "-" }}
+                                        </td>
+                                        <td class="status-col">
+                                            <span
+                                                :class="[
+                                                    'px-2 py-1 rounded-full text-xs font-semibold',
+                                                    employee.isActive
+                                                        ? 'bg-green-100 text-green-800 border border-green-200'
+                                                        : 'bg-red-100 text-red-800 border border-red-200',
+                                                ]"
+                                            >
+                                                {{
+                                                    employee.isActive
+                                                        ? "مفعل"
+                                                        : "معطل"
+                                                }}
+                                            </span>
+                                        </td>
+                                        <td class="phone-col">
+                                            {{ employee.phone || 'N/A' }}
+                                        </td>
+
+                                        <td class="actions-col">
+                                            <div class="flex gap-3 justify-center items-center">
+                                                <button
+                                                    @click="openViewModal(employee)"
+                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                    title="عرض البيانات"
+                                                >
+                                                    <Icon
+                                                        icon="tabler:eye-minus"
+                                                        class="w-5 h-5 text-green-600"
+                                                    />
+                                                </button>
+
+                                                <button
+                                                    @click="openEditModal(employee)"
+                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                    title="تعديل البيانات"
+                                                >
+                                                    <Icon
+                                                        icon="line-md:pencil"
+                                                        class="w-5 h-5 text-yellow-500"
+                                                    />
+                                                </button>
+
+                                                <!-- زر تفعيل/تعطيل الحساب -->
+                                                <button
+                                                    @click="openStatusConfirmationModal(employee)"
+                                                    :class="[
+                                                        'p-1 rounded-full transition-colors',
+                                                        employee.isActive
+                                                            ? 'hover:bg-red-100'
+                                                            : 'hover:bg-green-100',
+                                                    ]"
+                                                    :title="getStatusTooltip(employee.isActive)"
+                                                >
+                                                    <Icon
+                                                        v-if="employee.isActive"
+                                                        icon="pepicons-pop:power-off"
+                                                        class="w-5 h-5 text-red-600"
+                                                    />
+                                                    <Icon
+                                                        v-else
+                                                        icon="quill:off"
+                                                        class="w-5 h-5 text-green-600"
+                                                    />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <tr v-if="filteredEmployees.length === 0">
+                                        <td
+                                            colspan="8"
+                                            class="text-center py-8 text-gray-500"
+                                        >
+                                            لا توجد بيانات لعرضها
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </DefaultLayout>
+
+    <!-- Modals -->
+    <employeeAddModel
+        :is-open="isAddModalOpen"
+        :has-warehouse-manager="hasWarehouseManager"
+        :available-departments="availableDepartments"
+        :available-roles="employeeRoles"
+        :departments-with-manager="departmentsWithManager"
+        @close="closeAddModal"
+        @save="addEmployee"
+    />
+
+    <employeeEditModel
+        :is-open="isEditModalOpen"
+        :has-warehouse-manager="hasWarehouseManager"
+        :available-departments="availableDepartments"
+        :available-roles="employeeRoles"
+        :departments-with-manager="departmentsWithManager"
+        :patient="selectedEmployee"
+        @close="closeEditModal"
+        @save="updateEmployee"
+    />
+
+    <employeeViewModel
+        :is-open="isViewModalOpen"
+        :patient="selectedEmployee"
+        @close="closeViewModal"
+    />
+
+    <!-- نافذة تأكيد التفعيل/التعطيل -->
+    <div
+        v-if="isStatusConfirmationModalOpen"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4"
+    >
+        <div
+            @click="closeStatusConfirmationModal"
+            class="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        ></div>
+
+        <div
+            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] p-6 sm:p-8 text-center rtl z-[110] transform transition-all duration-300 scale-100"
+        >
+            <div class="flex flex-col items-center">
+                <Icon
+                    icon="tabler:alert-triangle-filled"
+                    class="w-16 h-16 text-yellow-500 mb-4"
+                />
+                <p class="text-xl font-bold text-[#2E5077] mb-3">
+                    {{
+                        statusAction === "تفعيل"
+                            ? "تفعيل حساب الموظف"
+                            : "تعطيل حساب الموظف"
+                    }}
+                </p>
+                <p class="text-base text-gray-700 mb-6">
+                    هل أنت متأكد من رغبتك في {{ statusAction }} حساب الموظف
+                    <strong>{{ employeeToToggle?.name }}</strong
+                    >؟
+                </p>
+                <div class="flex gap-4 justify-center w-full">
+                    <button
+                        @click="confirmStatusToggle"
+                        class="inline-flex items-center px-[25px] py-[9px] border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#3a8c94]"
+                    >
+                        تأكيد
+                    </button>
+                    <button
+                        @click="closeStatusConfirmationModal"
+                        class="inline-flex items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
+                    >
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <Transition
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="translate-x-full opacity-0"
+        enter-to-class="translate-x-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="translate-x-0 opacity-100"
+        leave-to-class="translate-x-full opacity-0"
+    >
+        <div
+            v-if="isSuccessAlertVisible"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            dir="rtl"
+        >
+            {{ successMessage }}
+        </div>
+    </Transition>
+</template>
+
+<style>
+/* تنسيقات شريط التمرير */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background-color: #4da1a9;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: #3a8c94;
+}
+
+/* تنسيقات عرض أعمدة الجدول */
+.actions-col {
+    width: 130px;
+    min-width: 130px;
+    max-width: 130px;
+    text-align: center;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+.file-number-col {
+    width: 90px;
+    min-width: 90px;
+}
+.status-col {
+    width: 100px;
+    min-width: 100px;
+}
+.role-col {
+    width: 130px;
+    min-width: 130px;
+}
+.department-col {
+    width: 150px;
+    min-width: 150px;
+}
+.national-id-col {
+    width: 130px;
+    min-width: 130px;
+}
+.phone-col {
+    width: 120px;
+    min-width: 120px;
+}
+.name-col {
+    width: 170px;
+    min-width: 150px;
+}
+</style>

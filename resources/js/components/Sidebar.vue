@@ -1,4 +1,5 @@
 <template>
+    
     <aside
         :class="[
             'bg-[#2E5077] text-white rounded-l-3xl min-h-screen flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
@@ -161,6 +162,31 @@ const dataEntryLinks = ref([
         icon: "material-symbols-light:bar-chart-4-bars",
 
         to: "/medicationsList",
+    },
+    { name: "الاقسام ",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/Departments",
+    },
+     { name: "طلبات توريد الصادرة ",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/a",
+    },
+     { name: "طلبات النقل ",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/b",
+    },
+     { name: "الشكاوي ",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/c",
+    },
+     { name: "سجل العمليات قي النظام ",
+        icon: "material-symbols-light:bar-chart-4-bars",
+
+        to: "/d",
     },
 ]);
 </script>

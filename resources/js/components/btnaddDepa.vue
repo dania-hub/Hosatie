@@ -1,34 +1,46 @@
 <style scoped>
 /* ---------------------------------- */
-/* تنسيقات الزر الأساسية        */
+/* تنسيقات الزر الأساسية (Mobile-First)  */
 /* ---------------------------------- */
 .button {
-    /* التغيير الأساسي: استخدام flexbox لترتيب الأيقونة والنص */
+    /* أساسيات التصميم */
     display: inline-flex;
     align-items: center; 
-    
-    padding:  9px;
-    padding-left: 11px;
-    padding-right: 11px;
-    border: 2px solid #ffffff8d;
-    border-radius: 30px;
+    justify-content: center; /* للمحاذاة المركزية */
     transition: all 0.2s ease-in;
     position: relative;
     overflow: hidden;
-    font-size: 15px;
     cursor: pointer;
-    color: white;
     z-index: 1;
+    width: 62%;
+
+    /* تنسيقات اللون والحدود */
+    color: white;
     background-color: #4DA1A9;
+    border: 2px solid #ffffff8d;
+    border-radius: 30px;
+
+    /* التجاوب على الهواتف الصغيرة (Default) */
+    padding: 8px 14px; /* تصميم أكثر اكتنازًا للهواتف */
+    font-size: 13px; /* خط أصغر ليتسع على شاشات الهاتف */
+}
+
+
+/* التجاوب للشاشات الأكبر (Tablets and Desktops) */
+@media (min-width: 620px) {
+    .button {
+        padding: 10px 10px; /* تباعد أكبر للكمبيوتر المكتبي */
+        font-size: 16px; /* خط أكبر وأوضح للشاشات الواسعة */
+    }
 }
 
 
 .icon-wrapper {
-    
-    margin-left: 8px; 
+    /* ضبط الهامش ليتوافق مع RTL: الأيقونة قبل النص، لذا الهامش على اليمين */
+    margin-right: 1px; 
+    margin-left: 0; 
     display: flex; 
 }
-
 
 .button:before {
     content: "";
@@ -62,7 +74,7 @@
 
 .button:hover {
     color: white;
-    border: 1px solid #a8a8a8;
+    border: 2px solid #a8a8a8;
 }
 
 .button:hover:before {
@@ -79,11 +91,20 @@
 </style>
 
 <template>
-    <button class="button " type="submit" style="width: 160;">
-       
-       تأكيد التسجيل
+    <button class="button " @click="handleClick">
+        <span class="icon-wrapper">
+            <Icon icon="line-md:person-add" class="w-5 h-5" />
+        </span>
+        إضافة قسم 
     </button>
 </template>
 
 <script setup>
+import { Icon } from "@iconify/vue";
+
+const emit = defineEmits(["openModal"]);
+
+const handleClick = () => {
+    emit("openModal");
+};
 </script>

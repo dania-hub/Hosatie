@@ -67,7 +67,12 @@
                         <Icon icon="tabler:pill" class="w-6 h-6 ml-2" />
                         الأدوية المطلوبة والمخزون المتاح
                     </h3>
-                    
+
+                    <div v-if="invalidQuantityIndices.length > 0 && !showRejectionNote" class="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm mb-4" role="alert">
+                        <Icon icon="tabler:exclamation-circle" class="w-5 h-5 ml-2 inline align-text-bottom" />
+                        <strong>انتبه:</strong> يرجى مراجعة الكميات المدخلة للأصناف المحددة باللون الأحمر وتصحيحها لتتوافق مع المخزون المتاح.
+                    </div>
+
                     <div
                         v-if="receivedItems.length > 0"
                         class="space-y-4"
@@ -76,6 +81,7 @@
                             v-for="(item, index) in receivedItems"
                             :key="item.id || index"
                             class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg flex flex-col items-start md:flex-row justify-between md:items-center shadow-sm hover:shadow-md transition duration-200"
+                            :class="{ 'border-2 border-red-500/50': invalidQuantityIndices.includes(index) }"
                         >
                             <div
                                 class="flex-1 w-full flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-0 md:pl-20"
@@ -108,32 +114,7 @@
                                 </div>
                             </div>
 
-                            <div
-                                class="flex items-center gap-2 w-full md:w-auto mt-4 md:mt-0 justify-end"
-                            >
-                                <label
-                                    :for="`sent-qty-${index}`"
-                                    class="text-sm text-gray-600 dark:text-gray-300 font-medium whitespace-nowrap"
-                                >
-                                    الكمية :
-                                </label>
-
-                                <input
-                                    :id="`sent-qty-${index}`"
-                                    type="number"
-                                    v-model.number="item.sentQuantity"
-                                    :max="item.availableQuantity"
-                                    :min="0"
-                                    :class="{
-                                        'border-red-300': item.sentQuantity > item.availableQuantity,
-                                        'border-green-300': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0
-                                    }"
-                                    class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-[#15A599] focus:border-[#15A599] text-center transition-all duration-200 text-base"
-                                    @input="validateQuantity(index, item.availableQuantity)"
-                                    :disabled="props.isLoading || isConfirming"
-                                    aria-label="الكمية"
-                                />
-                            </div>
+                           
                         </div>
                     </div>
 
@@ -240,7 +221,7 @@
                             class="w-5 h-5 ml-2 animate-spin"
                         />
                         <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
-                        {{ isConfirming ? "جاري الإرسال..." : "إرسال الشحنة" }}
+                        {{ isConfirming ? "جاري القبول..." : " قبول الطلب" }}
                     </button>
                 </div>
             </div>
@@ -283,6 +264,7 @@ const showRejectionNote = ref(false);
 const rejectionNote = ref("");
 const rejectionError = ref(false);
 const additionalNotes = ref("");
+const invalidQuantityIndices = ref([]); // متغير لتتبع الأخطاء في الكميات
 
 // تهيئة receivedItems
 watch(
@@ -306,6 +288,7 @@ watch(
                     name: item.name || item.drugName,
                     originalQuantity: requested,
                     availableQuantity: available,
+                    // عند التهيئة، يتم وضع القيمة التي طلبها المستخدم أو المتوفر، أيهما أقل
                     sentQuantity: Math.min(requested, available),
                     unit: item.unit || "حبة",
                     dosage: item.dosage || item.strength
@@ -341,14 +324,15 @@ const validateQuantity = (index, maxQuantity) => {
         value = 0;
     }
     
-    if (value > maxQuantity) {
-        value = maxQuantity;
-    }
-    if (value < 0) {
-        value = 0;
-    }
+    // التأكد من أن القيمة المدخلة لا تتجاوز المتوفر ولا تقل عن الصفر
+    value = Math.max(0, Math.min(maxQuantity, value));
 
     receivedItems.value[index].sentQuantity = Math.floor(value);
+    
+    // إزالة مؤشر الخطأ إذا تم التصحيح
+    if (invalidQuantityIndices.value.includes(index) && value <= maxQuantity && value >= 0) {
+        invalidQuantityIndices.value = invalidQuantityIndices.value.filter(i => i !== index);
+    }
 };
 
 // بدء عملية الرفض
@@ -372,6 +356,7 @@ const confirmRejection = () => {
         return;
     }
 
+    // تم الإبقاء على confirm هنا لأنه إجراء حاسم (رفض الطلب بالكامل)
     if (confirm("هل أنت متأكد من رفض هذا الطلب؟ سيتم إلغاء الطلب بالكامل.")) {
         isConfirming.value = true;
         
@@ -386,29 +371,30 @@ const confirmRejection = () => {
     }
 };
 
-// إرسال الشحنة
+// إرسال الشحنة (تم إزالة كل تنبيهات المتصفح)
 const sendShipment = async () => {
-    // التحقق من صحة الكميات
-    const hasInvalidQuantity = receivedItems.value.some(
-        (item) =>
+    // 1. تصفير قائمة الأخطاء قبل البدء بالتحقق
+    invalidQuantityIndices.value = [];
+    
+    // 2. التحقق من صحة الكميات وتعبئة قائمة الأخطاء
+    receivedItems.value.forEach((item, index) => {
+        if (
             item.sentQuantity === null ||
             item.sentQuantity === undefined ||
             item.sentQuantity < 0 ||
             item.sentQuantity > item.availableQuantity
-    );
-    
-    if (hasInvalidQuantity) {
-        alert("يرجى التأكد من إدخال كميات صحيحة لجميع الأصناف، وأنها لا تتجاوز الكمية المتوفرة.");
-        return;
-    }
-    
-    const hasItemsToSend = receivedItems.value.some(item => item.sentQuantity > 0);
-    if (receivedItems.value.length > 0 && !hasItemsToSend) {
-        if (!confirm("لم تحدد أي كمية للإرسال. هل تريد إرسال شحنة فارغة؟ (يمكنك رفض الطلب بدلاً من ذلك).")) {
-            return;
+        ) {
+            invalidQuantityIndices.value.push(index);
         }
-    }
+    });
 
+    // 3. إذا كان هناك كميات غير صحيحة، إيقاف الإرسال
+    if (invalidQuantityIndices.value.length > 0) {
+        return; 
+    }
+    
+    // 4. إزالة التحقق من الشحنة الفارغة الذي يظهر Confirm - (بناءً على طلبك)
+    
     isConfirming.value = true;
     
     try {
@@ -416,7 +402,7 @@ const sendShipment = async () => {
             id: props.requestData.id,
             shipmentNumber: props.requestData.shipmentNumber,
             itemsToSend: receivedItems.value
-                .filter(item => item.sentQuantity > 0)
+                .filter(item => item.sentQuantity > 0) // نرسل فقط الأصناف التي تم تحديد كمية لها (> 0)
                 .map((item) => ({
                     id: item.id,
                     name: item.name,
@@ -430,7 +416,8 @@ const sendShipment = async () => {
         emit("send", shipmentData);
     } catch (error) {
         console.error("Error preparing shipment data:", error);
-        alert("حدث خطأ أثناء تحضير بيانات الشحنة.");
+        // تم الإبقاء على alert لخطأ نظام غير متوقع (Error preparing shipment data)
+        alert("حدث خطأ أثناء تحضير بيانات الشحنة."); 
     }
 };
 

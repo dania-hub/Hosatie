@@ -41,14 +41,14 @@
                     <p class="text-right flex justify-between sm:block">
                         <span class="font-bold text-gray-800 dark:text-gray-200">الجهة الطالبة:</span>
                         <span class="mr-2 text-gray-700 dark:text-gray-300 font-semibold">{{
-                            requestData.department || "غير محدد"
+                            requestData.department || requestData.requestingDepartment || "غير محدد"
                         }}</span>
                     </p>
 
                     <p class="text-right flex justify-between sm:block">
                         <span class="font-bold text-gray-800 dark:text-gray-200">تاريخ الطلب:</span>
                         <span class="mr-2 text-gray-700 dark:text-gray-300">{{
-                            formatDate(requestData.date) || "غير محدد"
+                            formatDate(requestData.createdAt || requestData.date) || "غير محدد"
                         }}</span>
                     </p>
 
@@ -80,41 +80,60 @@
                         <div
                             v-for="(item, index) in receivedItems"
                             :key="item.id || index"
-                            class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg flex flex-col items-start md:flex-row justify-between md:items-center shadow-sm hover:shadow-md transition duration-200"
+                            class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm hover:shadow-md transition duration-200"
                             :class="{ 'border-2 border-red-500/50': invalidQuantityIndices.includes(index) }"
                         >
                             <div
-                                class="flex-1 w-full flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-0 md:pl-20"
+                                class="flex-1 w-full mb-4 md:mb-0 md:pl-20"
                             >
-                                <div>
-                                    <span class="text-gray-700 dark:text-gray-300 font-medium">
-                                        {{ item.name }}
-                                    </span>
-                                    <div v-if="item.dosage" class="text-xs text-gray-500 mt-1">
-                                        الجرعة: {{ item.dosage }}
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                                    <div>
+                                        <span class="text-gray-700 dark:text-gray-300 font-medium">
+                                            {{ item.name }}
+                                        </span>
+                                        <div v-if="item.dosage" class="text-xs text-gray-500 mt-1">
+                                            الجرعة: {{ item.dosage }}
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div
-                                    class="text-sm flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center"
-                                >
-                                    <span class="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
-                                        مطلوب: {{ item.originalQuantity }} {{ item.unit }}
-                                    </span>
-
-                                    <span 
-                                        :class="{
-                                            'text-green-600 dark:text-green-400': item.availableQuantity >= item.originalQuantity,
-                                            'text-red-600 dark:text-red-400': item.availableQuantity < item.originalQuantity
-                                        }" 
-                                        class="font-medium whitespace-nowrap"
+                                    <div
+                                        class="text-sm flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center mt-2 sm:mt-0"
                                     >
-                                        متوفر: {{ item.availableQuantity }} {{ item.unit }}
-                                    </span>
+                                        <span class="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
+                                            مطلوب: {{ item.requestedQuantity }} {{ item.unit }}
+                                        </span>
+
+                                        <span 
+                                            :class="{
+                                                'text-green-600 dark:text-green-400': item.availableQuantity >= item.requestedQuantity,
+                                                'text-red-600 dark:text-red-400': item.availableQuantity < item.requestedQuantity
+                                            }" 
+                                            class="font-medium whitespace-nowrap"
+                                        >
+                                            متوفر: {{ item.availableQuantity }} {{ item.unit }}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
-                           
+                            <div class="w-full md:w-40">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    الكمية المرسلة:
+                                </label>
+                                <input
+                                    type="number"
+                                    v-model.number="item.sentQuantity"
+                                    @input="validateQuantity(index, item.availableQuantity)"
+                                    :min="0"
+                                    :max="item.availableQuantity"
+                                    :disabled="isConfirming"
+                                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-center focus:ring-2 focus:ring-[#4DA1A9] focus:border-[#4DA1A9] transition duration-200"
+                                    :class="{ 'border-red-500': invalidQuantityIndices.includes(index) }"
+                                />
+                                <div v-if="invalidQuantityIndices.includes(index)" class="text-red-500 text-xs mt-1">
+                                    يجب أن تكون الكمية بين 0 و {{ item.availableQuantity }}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -221,7 +240,7 @@
                             class="w-5 h-5 ml-2 animate-spin"
                         />
                         <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
-                        {{ isConfirming ? "جاري القبول..." : " قبول الطلب" }}
+                        {{ isConfirming ? "جاري الإرسال..." : " تأكيد الإرسال" }}
                     </button>
                 </div>
             </div>
@@ -255,7 +274,7 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(["close", "send", "reject"]);
+const emit = defineEmits(["close", "confirm"]);
 
 // البيانات
 const receivedItems = ref([]);
@@ -264,36 +283,25 @@ const showRejectionNote = ref(false);
 const rejectionNote = ref("");
 const rejectionError = ref(false);
 const additionalNotes = ref("");
-const invalidQuantityIndices = ref([]); // متغير لتتبع الأخطاء في الكميات
+const invalidQuantityIndices = ref([]);
 
 // تهيئة receivedItems
 watch(
     () => props.requestData.items,
     (newItems) => {
         if (newItems && newItems.length > 0) {
-            receivedItems.value = newItems.map((item) => {
-                // الحصول على الكمية المتاحة من المخزون (يجب أن تأتي من API)
-                const available = Number(
-                    item.availableQuantity ||
-                    item.stock ||
-                    item.quantity ||
-                    0
-                );
-                const requested = Number(
-                    item.quantity || item.requestedQuantity || 0
-                );
-
-                return {
-                    id: item.id || item.drugId,
-                    name: item.name || item.drugName,
-                    originalQuantity: requested,
-                    availableQuantity: available,
-                    // عند التهيئة، يتم وضع القيمة التي طلبها المستخدم أو المتوفر، أيهما أقل
-                    sentQuantity: Math.min(requested, available),
-                    unit: item.unit || "حبة",
-                    dosage: item.dosage || item.strength
-                };
-            });
+            receivedItems.value = newItems.map((item) => ({
+                id: item.id || item.drugId,
+                name: item.name || item.drugName,
+                requestedQuantity: Number(item.requestedQuantity || item.quantity || 0),
+                availableQuantity: Number(item.availableQuantity || item.stock || 0),
+                sentQuantity: Math.min(
+                    Number(item.requestedQuantity || item.quantity || 0),
+                    Number(item.availableQuantity || item.stock || 0)
+                ),
+                unit: item.unit || "وحدة",
+                dosage: item.dosage || item.strength
+            }));
         } else {
             receivedItems.value = [];
         }
@@ -324,12 +332,9 @@ const validateQuantity = (index, maxQuantity) => {
         value = 0;
     }
     
-    // التأكد من أن القيمة المدخلة لا تتجاوز المتوفر ولا تقل عن الصفر
     value = Math.max(0, Math.min(maxQuantity, value));
-
     receivedItems.value[index].sentQuantity = Math.floor(value);
     
-    // إزالة مؤشر الخطأ إذا تم التصحيح
     if (invalidQuantityIndices.value.includes(index) && value <= maxQuantity && value >= 0) {
         invalidQuantityIndices.value = invalidQuantityIndices.value.filter(i => i !== index);
     }
@@ -356,27 +361,20 @@ const confirmRejection = () => {
         return;
     }
 
-    // تم الإبقاء على confirm هنا لأنه إجراء حاسم (رفض الطلب بالكامل)
-    if (confirm("هل أنت متأكد من رفض هذا الطلب؟ سيتم إلغاء الطلب بالكامل.")) {
-        isConfirming.value = true;
-        
-        const rejectionData = {
-            id: props.requestData.id,
-            shipmentNumber: props.requestData.shipmentNumber,
-            rejectionReason: rejectionNote.value.trim(),
-            timestamp: new Date().toISOString()
-        };
+    isConfirming.value = true;
+    
+    const rejectionData = {
+        rejectionReason: rejectionNote.value.trim(),
+        items: []
+    };
 
-        emit("reject", rejectionData);
-    }
+    emit("confirm", rejectionData);
 };
 
-// إرسال الشحنة (تم إزالة كل تنبيهات المتصفح)
+// إرسال الشحنة
 const sendShipment = async () => {
-    // 1. تصفير قائمة الأخطاء قبل البدء بالتحقق
     invalidQuantityIndices.value = [];
     
-    // 2. التحقق من صحة الكميات وتعبئة قائمة الأخطاء
     receivedItems.value.forEach((item, index) => {
         if (
             item.sentQuantity === null ||
@@ -388,36 +386,30 @@ const sendShipment = async () => {
         }
     });
 
-    // 3. إذا كان هناك كميات غير صحيحة، إيقاف الإرسال
     if (invalidQuantityIndices.value.length > 0) {
         return; 
     }
     
-    // 4. إزالة التحقق من الشحنة الفارغة الذي يظهر Confirm - (بناءً على طلبك)
-    
     isConfirming.value = true;
     
     try {
-        const shipmentData = {
-            id: props.requestData.id,
-            shipmentNumber: props.requestData.shipmentNumber,
-            itemsToSend: receivedItems.value
-                .filter(item => item.sentQuantity > 0) // نرسل فقط الأصناف التي تم تحديد كمية لها (> 0)
+        const confirmationData = {
+            items: receivedItems.value
+                .filter(item => item.sentQuantity > 0)
                 .map((item) => ({
                     id: item.id,
                     name: item.name,
-                    requestedQuantity: item.originalQuantity,
+                    requestedQuantity: item.requestedQuantity,
                     sentQuantity: item.sentQuantity,
                     unit: item.unit,
                 })),
             notes: additionalNotes.value.trim()
         };
 
-        emit("send", shipmentData);
+        emit("confirm", confirmationData);
     } catch (error) {
         console.error("Error preparing shipment data:", error);
-        // تم الإبقاء على alert لخطأ نظام غير متوقع (Error preparing shipment data)
-        alert("حدث خطأ أثناء تحضير بيانات الشحنة."); 
+        isConfirming.value = false;
     }
 };
 

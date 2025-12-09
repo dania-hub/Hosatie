@@ -97,7 +97,7 @@ const confirmEdit = () => {
     let managerName = "";
     if (editForm.value.managerId) {
         const selectedManager = props.availableManagers.find(
-            emp => emp.fileNumber === editForm.value.managerId
+            emp => (emp.id === editForm.value.managerId) || (emp.fileNumber === editForm.value.managerId)
         );
         managerName = selectedManager ? selectedManager.name : "";
     }
@@ -211,9 +211,9 @@ watch(() => props.isOpen, (newVal) => {
                             </div>
                         </div>
 
-                        
+                       
 
-            
+                       
 
                         <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
                             <Label for="edit-manager" class="text-right font-medium text-[#2E5077] pt-2">مدير القسم</Label>
@@ -226,9 +226,9 @@ watch(() => props.isOpen, (newVal) => {
                                 >
                                     <option value="">بدون مدير</option>
                                     <option v-for="manager in props.availableManagers" 
-                                            :key="manager.fileNumber" 
-                                            :value="manager.fileNumber">
-                                        {{ manager.name }} - {{ manager.fileNumber }}
+                                            :key="manager.id || manager.fileNumber" 
+                                            :value="manager.id || manager.fileNumber">
+                                        {{ manager.name }} - {{ manager.id || manager.fileNumber }}
                                     </option>
                                 </select>
                                 <Icon v-if="editErrors.managerId" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />

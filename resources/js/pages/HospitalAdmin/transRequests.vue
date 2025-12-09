@@ -60,10 +60,10 @@
                             </li>
                             <li>
                                 <a
-                                    @click="sortRequests('requestDate', 'asc')"
+                                    @click="sortRequests('createdAt', 'asc')"
                                     :class="{
                                         'font-bold text-[#4DA1A9]':
-                                            sortKey === 'requestDate' &&
+                                            sortKey === 'createdAt' &&
                                             sortOrder === 'asc',
                                     }"
                                 >
@@ -72,10 +72,10 @@
                             </li>
                             <li>
                                 <a
-                                    @click="sortRequests('requestDate', 'desc')"
+                                    @click="sortRequests('createdAt', 'desc')"
                                     :class="{
                                         'font-bold text-[#4DA1A9]':
-                                            sortKey === 'requestDate' &&
+                                            sortKey === 'createdAt' &&
                                             sortOrder === 'desc',
                                     }"
                                 >
@@ -107,10 +107,10 @@
                             </li>
                             <li>
                                 <a
-                                    @click="sortRequests('requestStatus', 'asc')"
+                                    @click="sortRequests('status', 'asc')"
                                     :class="{
                                         'font-bold text-[#4DA1A9]':
-                                            sortKey === 'requestStatus',
+                                            sortKey === 'status',
                                     }"
                                 >
                                     حسب الأبجدية
@@ -135,7 +135,12 @@
                 </div>
             </div>
 
+        
+          
+
+            <!-- عرض البيانات -->
             <div
+               
                 class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col"
             >
                 <div
@@ -176,22 +181,22 @@
                             <tbody class="text-gray-800">
                                 <tr
                                     v-for="(request, index) in filteredRequests"
-                                    :key="index"
+                                    :key="request.id || index"
                                     class="hover:bg-gray-100 bg-white border-b border-gray-200"
                                 >
                                     <td class="font-semibold text-gray-700">
-                                        {{ request.requestNumber }}
+                                        {{ request.requestNumber || `TR-${request.id}` }}
                                     </td>
                                     <td>
-                                        {{ request.patientName }}
+                                        {{ request.patient?.name || 'غير محدد' }}
                                     </td>
                                     <td>
                                         <span :class="getHospitalClass(request.fromHospital)">
-                                            {{ request.fromHospital }}
+                                            {{ getHospitalName(request.fromHospital) }}
                                         </span>
                                     </td>
-                                    <td class="max-w-xs truncate" :title="request.transferReason">
-                                        {{ truncateContent(request.transferReason) }}
+                                    <td class="max-w-xs truncate" :title="request.reason || request.transferReason">
+                                        {{ truncateContent(request.reason || request.transferReason) }}
                                     </td>
                                     <td class="actions-col">
                                         <div class="flex gap-3 justify-center">
@@ -211,11 +216,12 @@
                                                 @click="openResponseModal(request)"
                                                 class="tooltip" 
                                                 data-tip="الرد على طلب النقل"
-                                                :disabled="request.requestStatus === 'تم الرد' || request.requestStatus === 'مرفوض'">
+                                                :disabled="!canRespondToRequest(request)"
+                                                :title="!canRespondToRequest(request) ? 'لا يمكن الرد على هذا الطلب' : ''">
                                                 <Icon
                                                     icon="tabler:message-reply" 
                                                     class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
-                                                    :class="{'opacity-50 cursor-not-allowed': request.requestStatus === 'تم الرد' || request.requestStatus === 'مرفوض'}"
+                                                    :class="{'opacity-50 cursor-not-allowed': !canRespondToRequest(request)}"
                                                 />
                                             </button>
                                         </div>
@@ -260,6 +266,24 @@
                 {{ successMessage }}
             </div>
         </Transition>
+
+        <!-- تنبيهات الخطأ -->
+        <Transition
+            enter-active-class="transition duration-300 ease-out transform"
+            enter-from-class="translate-x-full opacity-0"
+            enter-to-class="translate-x-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in transform"
+            leave-from-class="translate-x-0 opacity-100"
+            leave-to-class="translate-x-full opacity-0"
+        >
+            <div
+                v-if="isErrorAlertVisible"
+                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-red-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+                dir="rtl"
+            >
+                {{ errorMessage }}
+            </div>
+        </Transition>
     </DefaultLayout>
 </template>
 
@@ -278,7 +302,7 @@ import TransferResponseModal from "@/components/forhospitaladmin/TransferRespons
 // 1. إعدادات API
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: 'http://localhost:3000/api', // قم بتعديل الرابط حسب الـ endpoint الخاص بك
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -286,42 +310,19 @@ const api = axios.create({
   }
 });
 
+// إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error('API Error:', error);
     return Promise.reject(error);
   }
 );
 
-const endpoints = {
-  transferRequests: {
-    getAll: () => api.get('/transfer-requests'),
-    getById: (id) => api.get(`/transfer-requests/${id}`),
-    updateStatus: (id, data) => api.put(`/transfer-requests/${id}/status`, data),
-    respond: (id, data) => api.post(`/transfer-requests/${id}/respond`, data)
-  }
-};
-
 // ----------------------------------------------------
 // 2. حالة المكون
 // ----------------------------------------------------
-const transferRequests = ref([
-  {
-    id: 1,
-    requestNumber: 'TR-2023-001',
-    patientName: 'أحمد محمد',
- 
-    patientNationalId: '1234567890',
-    fromHospital: 'مستشفى الخضراء',
-    toHospital: 'مستشفى طرابلس الجامعي',
-    transferReason: 'حاجة المريض إلى أجهزة متخصصة في أمراض القلب غير متوفرة في المستشفى الحالي',
-    requestDate: '2023-10-01',
-    requestStatus: 'قيد المراجعة',
-  },
- 
-]);
-
+const transferRequests = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
 
@@ -329,7 +330,7 @@ const error = ref(null);
 // 3. البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
-const sortKey = ref("requestDate");
+const sortKey = ref("createdAt");
 const sortOrder = ref("desc");
 
 const sortRequests = (key, order) => {
@@ -344,11 +345,14 @@ const filteredRequests = computed(() => {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
             (request) =>
-                request.requestNumber.toLowerCase().includes(search) ||
-                request.patientName.toLowerCase().includes(search) ||
-                request.fromHospital.toLowerCase().includes(search) ||
-                request.transferReason.toLowerCase().includes(search) ||
-                request.medicalCondition?.toLowerCase().includes(search)
+                (request.requestNumber?.toLowerCase().includes(search) || 
+                 `TR-${request.id}`.toLowerCase().includes(search)) ||
+                (request.patient?.name?.toLowerCase().includes(search) || 
+                 request.patientName?.toLowerCase().includes(search)) ||
+                (request.fromHospital?.name?.toLowerCase().includes(search) || 
+                 request.fromHospital?.toLowerCase().includes(search)) ||
+                (request.reason?.toLowerCase().includes(search) || 
+                 request.transferReason?.toLowerCase().includes(search))
         );
     }
 
@@ -357,15 +361,21 @@ const filteredRequests = computed(() => {
             let comparison = 0;
 
             if (sortKey.value === "requestNumber") {
-                comparison = a.requestNumber.localeCompare(b.requestNumber);
-            } else if (sortKey.value === "requestDate") {
-                const dateA = new Date(a.requestDate);
-                const dateB = new Date(b.requestDate);
+                const aNum = a.requestNumber || `TR-${a.id}`;
+                const bNum = b.requestNumber || `TR-${b.id}`;
+                comparison = aNum.localeCompare(bNum);
+            } else if (sortKey.value === "createdAt") {
+                const dateA = new Date(a.createdAt || a.requestDate);
+                const dateB = new Date(b.createdAt || b.requestDate);
                 comparison = dateA.getTime() - dateB.getTime();
             } else if (sortKey.value === "fromHospital") {
-                comparison = a.fromHospital.localeCompare(b.fromHospital, "ar");
-            } else if (sortKey.value === "requestStatus") {
-                comparison = a.requestStatus.localeCompare(b.requestStatus, "ar");
+                const aHospital = getHospitalName(a.fromHospital);
+                const bHospital = getHospitalName(b.fromHospital);
+                comparison = aHospital.localeCompare(bHospital, "ar");
+            } else if (sortKey.value === "status") {
+                comparison = getStatusText(a.status || a.requestStatus).localeCompare(
+                    getStatusText(b.status || b.requestStatus), "ar"
+                );
             }
 
             return sortOrder.value === "asc" ? comparison : -comparison;
@@ -395,8 +405,14 @@ const truncateContent = (content, maxLength = 50) => {
         : content;
 };
 
-const getHospitalClass = (hospital) => {
-    switch (hospital) {
+const getHospitalName = (hospitalData) => {
+    if (!hospitalData) return 'غير محدد';
+    return typeof hospitalData === 'object' ? hospitalData.name : hospitalData;
+};
+
+const getHospitalClass = (hospitalData) => {
+    const hospitalName = getHospitalName(hospitalData);
+    switch (hospitalName) {
         case 'مستشفى الخضراء':
             return 'text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded';
         case 'مستشفى طرابلس الجامعي':
@@ -406,21 +422,61 @@ const getHospitalClass = (hospital) => {
     }
 };
 
-const getUrgencyClass = (urgency) => {
-    switch (urgency) {
-        case 'عاجل جداً':
-            return 'bg-red-100 text-red-800 font-bold px-2 py-1 rounded';
-        case 'عاجل':
-            return 'bg-orange-100 text-orange-800 font-bold px-2 py-1 rounded';
-        case 'متوسط':
-            return 'bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded';
+const getStatusText = (status) => {
+    switch (status) {
+        case 'approved':
+        case 'تم الرد':
+            return 'تم الرد';
+        case 'pending':
+        case 'قيد المراجعة':
+            return 'قيد المراجعة';
+        case 'rejected':
+        case 'مرفوض':
+            return 'مرفوض';
         default:
-            return 'bg-gray-100 text-gray-800';
+            return status || 'غير محدد';
+    }
+};
+
+const canRespondToRequest = (request) => {
+    const status = request.status || request.requestStatus;
+    return status === 'pending' || status === 'قيد المراجعة';
+};
+
+// ----------------------------------------------------
+// 5. دوال API
+// ----------------------------------------------------
+const fetchTransferRequests = async () => {
+    try {
+        isLoading.value = true;
+        error.value = null;
+        
+        // استبدل هذا بـ endpoint الخاص بك
+        const response = await api.get('/transfer-requests');
+        transferRequests.value = response.data || [];
+        
+    } catch (err) {
+ د
+        transferRequests.value = [];
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+const updateRequestStatus = async (requestId, statusData) => {
+    try {
+        // استبدل هذا بـ endpoint الخاص بك
+        await api.put(`/transfer-requests/${requestId}/status`, statusData);
+        return true;
+    } catch (err) {
+        console.error('Error updating request status:', err);
+        showErrorAlert('فشل في تحديث حالة الطلب');
+        return false;
     }
 };
 
 // ----------------------------------------------------
-// 5. المودالات
+// 6. المودالات
 // ----------------------------------------------------
 const isRequestModalOpen = ref(false);
 const isResponseModalOpen = ref(false);
@@ -437,7 +493,7 @@ const closeRequestModal = () => {
 };
 
 const openResponseModal = (request) => {
-    if (request.requestStatus === 'تم الرد' || request.requestStatus === 'مرفوض') return;
+    if (!canRespondToRequest(request)) return;
     selectedRequest.value = request;
     isResponseModalOpen.value = true;
 };
@@ -449,44 +505,47 @@ const closeResponseModal = () => {
 
 const handleTransferResponse = async (responseData) => {
     try {
-        // تحديث حالة طلب النقل في البيانات المحلية
-        const requestIndex = transferRequests.value.findIndex(
-            r => r.id === selectedRequest.value.id
-        );
+        const requestId = selectedRequest.value.id;
         
-        if (requestIndex !== -1) {
-            transferRequests.value[requestIndex].requestStatus = responseData.status;
-            if (responseData.status === 'مرفوض') {
-                transferRequests.value[requestIndex].rejectionReason = responseData.rejectionReason;
-                transferRequests.value[requestIndex].rejectedAt = new Date().toISOString();
-            } else if (responseData.status === 'تم الرد') {
+        // تحديث الطلب في الـ API
+        const success = await updateRequestStatus(requestId, responseData);
+        
+        if (success) {
+            // تحديث البيانات المحلية
+            const requestIndex = transferRequests.value.findIndex(
+                r => r.id === requestId
+            );
+            
+            if (requestIndex !== -1) {
+                transferRequests.value[requestIndex].status = responseData.status;
                 transferRequests.value[requestIndex].response = responseData.response;
-                transferRequests.value[requestIndex].respondedAt = new Date().toISOString();
-                transferRequests.value[requestIndex].respondedBy = 'مسؤول المستشفى';
                 transferRequests.value[requestIndex].notes = responseData.notes;
+                transferRequests.value[requestIndex].rejectionReason = responseData.rejectionReason;
+                transferRequests.value[requestIndex].updatedAt = new Date().toISOString();
             }
+            
+            showSuccessAlert(`✅ تم ${responseData.status === 'rejected' ? 'رفض' : 'الرد على'} طلب النقل بنجاح`);
+            closeResponseModal();
         }
-        
-        showSuccessAlert(`✅ تم ${responseData.status === 'مرفوض' ? 'رفض' : 'الرد على'} طلب النقل بنجاح`);
-        
-        // في حالة حقيقية، هنا نرسل البيانات للـ API
-        // await endpoints.transferRequests.respond(selectedRequest.value.id, responseData);
-        
-        closeResponseModal();
     } catch (err) {
-        showSuccessAlert(`❌ فشل في حفظ الرد: ${err.message}`);
+        showErrorAlert(`❌ فشل في حفظ الرد: ${err.message}`);
     }
 };
 
 // ----------------------------------------------------
-// 6. الطباعة
+// 7. الطباعة
 // ----------------------------------------------------
 const printTable = () => {
+    if (filteredRequests.value.length === 0) {
+        showErrorAlert("لا توجد بيانات للطباعة");
+        return;
+    }
+
     const resultsCount = filteredRequests.value.length;
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -501,8 +560,6 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .status-approved { color: green; font-weight: bold; }
 .status-pending { color: orange; font-weight: bold; }
 .status-rejected { color: red; font-weight: bold; }
-.hospital-green { color: #1e40af; font-weight: bold; }
-.hospital-tripoli { color: #7c3aed; font-weight: bold; }
 </style>
 
 <h1>طلبات نقل المرضى - تقرير طباعة</h1>
@@ -521,20 +578,18 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 `;
 
     filteredRequests.value.forEach((request) => {
-        const statusClass = request.requestStatus === 'مرفوض' ? 'status-rejected' :
-                          request.requestStatus === 'تم الرد' ? 'status-approved' : 
+        const status = getStatusText(request.status || request.requestStatus);
+        const statusClass = status === 'مرفوض' ? 'status-rejected' :
+                          status === 'تم الرد' ? 'status-approved' : 
                           'status-pending';
-        
-        const hospitalClass = request.fromHospital === 'مستشفى الخضراء' ? 'hospital-green' : 
-                            request.fromHospital === 'مستشفى طرابلس الجامعي' ? 'hospital-tripoli' : '';
         
         tableHtml += `
 <tr>
-    <td>${request.requestNumber}</td>
-    <td>${request.patientName}</td>
-    <td class="${hospitalClass}">${request.fromHospital}</td>
-    <td>${request.transferReason}</td>
-    <td class="${statusClass}">${request.requestStatus}</td>
+    <td>${request.requestNumber || `TR-${request.id}`}</td>
+    <td>${request.patient?.name || request.patientName || 'غير محدد'}</td>
+    <td>${getHospitalName(request.fromHospital)}</td>
+    <td>${request.reason || request.transferReason || 'غير محدد'}</td>
+    <td class="${statusClass}">${status}</td>
 </tr>
 `;
     });
@@ -561,10 +616,12 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 };
 
 // ----------------------------------------------------
-// 7. التنبيهات
+// 8. التنبيهات
 // ----------------------------------------------------
 const isSuccessAlertVisible = ref(false);
 const successMessage = ref("");
+const isErrorAlertVisible = ref(false);
+const errorMessage = ref("");
 let alertTimeout = null;
 
 const showSuccessAlert = (message) => {
@@ -581,11 +638,25 @@ const showSuccessAlert = (message) => {
     }, 4000);
 };
 
+const showErrorAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+
+    errorMessage.value = message;
+    isErrorAlertVisible.value = true;
+
+    alertTimeout = setTimeout(() => {
+        isErrorAlertVisible.value = false;
+        errorMessage.value = "";
+    }, 4000);
+};
+
 // ----------------------------------------------------
-// 8. دورة الحياة
+// 9. دورة الحياة
 // ----------------------------------------------------
 onMounted(() => {
-    isLoading.value = false;
+    fetchTransferRequests();
 });
 </script>
 

@@ -13,16 +13,13 @@ import departmentViewModel from "@/components/forhospitaladmin/departmentViewMod
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_URL = "/api/data-entry/departments";
-const EMPLOYEES_API_URL = "/api/data-entry/employees";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const DEPARTMENTS_API_URL = `${API_BASE_URL}/api/departments`;
+const EMPLOYEES_API_URL = `${API_BASE_URL}/api/employees`;
 
-// قائمة الموظفين (للحصول على مدراء الأقسام)
+// بيانات التطبيق
 const availableEmployees = ref([]);
-
-// فلتر الحالة
 const statusFilter = ref("all");
-
-// بيانات الأقسام
 const departments = ref([]);
 
 // ----------------------------------------------------
@@ -38,104 +35,13 @@ const employeesError = ref(null);
 // ----------------------------------------------------
 
 // جلب بيانات الأقسام
-// ----------------------------------------------------
-// 3. دوال جلب البيانات من API (معدلة لاستخدام بيانات وهمية)
-// ----------------------------------------------------
-
-// جلب بيانات الأقسام (بيانات وهمية)
 const fetchDepartments = async () => {
     loading.value = true;
     error.value = null;
     
     try {
-        // محاكاة تأخير API
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // بيانات وهمية للأقسام
-        const mockDepartments = [
-            {
-                id: 1,
-                code: "DEPT-100001",
-                name: "قسم الطوارئ",
-                managerId: 1001,  // مرتبط بموظف fileNumber: 1001
-                managerName: "أحمد محمد علي سالم",
-                description: "قسم الطوارئ للحالات الطارئة",
-                isActive: true,
-                lastUpdated: "2024-10-01T10:00:00Z"
-            },
-            {
-                id: 2,
-                code: "DEPT-100002",
-                name: "قسم الجراحة",
-                managerId: 1002,  // مرتبط بموظف fileNumber: 1002
-                managerName: "فاطمة حسن عبدالله",
-                description: "قسم الجراحة للعمليات الجراحية",
-                isActive: true,
-                lastUpdated: "2024-09-28T14:30:00Z"
-            },
-            {
-                id: 3,
-                code: "DEPT-100003",
-                name: "قسم الباطنية",
-                managerId: null,  // لا مدير
-                managerName: null,
-                description: "قسم الباطنية للأمراض الداخلية",
-                isActive: false,  // معطل
-                lastUpdated: "2024-09-25T08:45:00Z"
-            },
-            {
-                id: 4,
-             
-                name: "قسم الأطفال",
-                managerId: 1003,  // مرتبط بموظف fileNumber: 1003
-                managerName: "محمد خالد يوسف",
-                description: "قسم الأطفال للرعاية الطبية للأطفال",
-                isActive: true,
-                lastUpdated: "2024-09-20T16:00:00Z"
-            },
-            {
-                id: 5,
-            
-                name: "قسم النساء والتوليد",
-                managerId: null,  // لا مدير
-                managerName: null,
-                description: "قسم النساء والتوليد للرعاية النسائية",
-                isActive: true,
-                lastUpdated: "2024-10-03T12:15:00Z"
-            },
-            {
-                id: 6,
-          
-                name: "قسم الإدارة",
-                managerId: 1004,  // مرتبط بموظف fileNumber: 1004
-                managerName: "سارة أحمد محمود",
-                description: "قسم الإدارة للشؤون الإدارية",
-                isActive: false,  // معطل
-                lastUpdated: "2024-09-15T09:00:00Z"
-            },
-            {
-                id: 7,
-            
-                name: "قسم العناية المركزة",
-                managerId: 1005,  // مرتبط بموظف fileNumber: 1005
-                managerName: "علي حسن محمد",
-                description: "قسم العناية المركزة للمرضى الحرجين",
-                isActive: true,
-                lastUpdated: "2024-08-10T11:20:00Z"
-            },
-            {
-                id: 8,
-                code: "DEPT-100008",
-                name: "قسم الأشعة",
-                managerId: null,  // لا مدير
-                managerName: null,
-                description: "قسم الأشعة للتصوير الطبي",
-                isActive: true,
-                lastUpdated: "2024-07-05T15:45:00Z"
-            }
-        ];
-        
-        departments.value = mockDepartments.map(dept => ({
+        const response = await axios.get(DEPARTMENTS_API_URL);
+        departments.value = response.data.map(dept => ({
             ...dept,
             nameDisplay: dept.name || "",
             managerNameDisplay: dept.managerName || "",
@@ -149,80 +55,14 @@ const fetchDepartments = async () => {
     }
 };
 
-// جلب بيانات الموظفين (بيانات وهمية)
+// جلب بيانات الموظفين
 const fetchEmployees = async () => {
     loadingEmployees.value = true;
     employeesError.value = null;
     
     try {
-        // محاكاة تأخير API
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // بيانات وهمية للموظفين (متوافقة مع الأقسام)
-        const mockEmployees = [
-            {
-                fileNumber: 1001,
-                name: "أحمد محمد علي سالم",
-                isActive: true,
-                role: "مدير القسم"  // مدير قسم الطوارئ
-            },
-            {
-                fileNumber: 1002,
-                name: "فاطمة حسن عبدالله",
-                isActive: true,
-                role: "مدير القسم"  // مدير قسم الجراحة
-            },
-            {
-                fileNumber: 1003,
-                name: "محمد خالد يوسف",
-                isActive: true,
-                role: "مدير القسم"  // مدير قسم الأطفال
-            },
-            {
-                fileNumber: 1004,
-                name: "سارة أحمد محمود",
-                isActive: true,
-                role: "مدير القسم"  // مدير قسم الإدارة
-            },
-            {
-                fileNumber: 1005,
-                name: "علي حسن محمد",
-                isActive: true,
-                role: "مدير القسم"  // مدير قسم العناية المركزة
-            },
-            {
-                fileNumber: 1006,
-                name: "لينا عبدالرحمن",
-                isActive: true,
-                role: "طبيب"  // غير مدير قسم، متاح
-            },
-            {
-                fileNumber: 1007,
-                name: "كريم سالم أحمد",
-                isActive: true,
-                role: "ممرض"  // غير مدير قسم، متاح
-            },
-            {
-                fileNumber: 1008,
-                name: "نور محمد حسن",
-                isActive: false,  // معطل، غير متاح
-                role: "إداري"
-            },
-            {
-                fileNumber: 1009,
-                name: "يوسف علي سالم",
-                isActive: true,
-                role: "طبيب"  // غير مدير قسم، متاح
-            },
-            {
-                fileNumber: 1010,
-                name: "مريم خالد عبدالله",
-                isActive: true,
-                role: "ممرض"  // غير مدير قسم، متاح
-            }
-        ];
-        
-        availableEmployees.value = mockEmployees;
+        const response = await axios.get(EMPLOYEES_API_URL);
+        availableEmployees.value = response.data;
     } catch (err) {
         console.error("Error fetching employees:", err);
         availableEmployees.value = [];
@@ -232,16 +72,16 @@ const fetchEmployees = async () => {
     }
 };
 
-
+// إعادة جلب جميع البيانات
+const fetchAllData = async () => {
+    await Promise.all([fetchDepartments(), fetchEmployees()]);
+};
 
 // ----------------------------------------------------
 // 4. تحميل البيانات عند التهيئة
 // ----------------------------------------------------
 onMounted(async () => {
-    await Promise.all([
-        fetchDepartments(), 
-        fetchEmployees()
-    ]);
+    await fetchAllData();
 });
 
 // ----------------------------------------------------
@@ -258,7 +98,7 @@ const isEmployeeManager = (employeeId) => {
 // الحصول على قائمة الموظفين المتاحين لإدارة الأقسام
 const availableManagers = computed(() => {
     return availableEmployees.value.filter(emp => 
-        emp.isActive && !isEmployeeManager(emp.fileNumber)
+        emp.isActive && !isEmployeeManager(emp.id || emp.fileNumber)
     );
 });
 
@@ -285,15 +125,17 @@ const confirmStatusToggle = async () => {
     if (!departmentToToggle.value) return;
 
     const newStatus = !departmentToToggle.value.isActive;
+    const departmentId = departmentToToggle.value.id;
 
     try {
         await axios.patch(
-            `${API_URL}/${departmentToToggle.value.id}/status`,
+            `${DEPARTMENTS_API_URL}/${departmentId}/toggle-status`,
             { isActive: newStatus }
         );
 
+        // تحديث البيانات محلياً
         const index = departments.value.findIndex(
-            (d) => d.id === departmentToToggle.value.id
+            (d) => d.id === departmentId
         );
         if (index !== -1) {
             departments.value[index].isActive = newStatus;
@@ -338,10 +180,10 @@ const filteredDepartments = computed(() => {
         list = list.filter(
             (department) =>
                 department.id?.toString().includes(search) ||
-                department.code?.toString().includes(search) ||
+               
                 department.name?.toLowerCase().includes(search) ||
-                department.managerName?.toLowerCase().includes(search) ||
-                department.description?.toLowerCase().includes(search)
+                department.managerName?.toLowerCase().includes(search)
+               
         );
     }
 
@@ -441,12 +283,10 @@ const addDepartment = async (newDepartment) => {
     try {
         const departmentData = {
             ...newDepartment,
-            isActive: true,
-            lastUpdated: new Date().toISOString(),
-            code: `DEPT-${Date.now().toString().slice(-6)}`
+            isActive: true
         };
 
-        const response = await axios.post(API_URL, departmentData);
+        const response = await axios.post(DEPARTMENTS_API_URL, departmentData);
         
         departments.value.push({
             ...response.data,
@@ -466,7 +306,7 @@ const addDepartment = async (newDepartment) => {
 const updateDepartment = async (updatedDepartment) => {
     try {
         const response = await axios.put(
-            `${API_URL}/${updatedDepartment.id}`,
+            `${DEPARTMENTS_API_URL}/${updatedDepartment.id}`,
             updatedDepartment
         );
 
@@ -478,7 +318,6 @@ const updateDepartment = async (updatedDepartment) => {
                 ...response.data,
                 nameDisplay: response.data.name || "",
                 managerNameDisplay: response.data.managerName || "",
-                lastUpdated: new Date().toISOString(),
             };
         }
 
@@ -569,7 +408,6 @@ const printTable = () => {
             <thead>
                 <tr>
                     <th>رقم القسم</th>
-                   
                     <th>اسم القسم</th>
                     <th>مدير القسم</th>
                     <th>الوصف</th>
@@ -584,7 +422,6 @@ const printTable = () => {
         tableHtml += `
             <tr>
                 <td>${department.id || ''}</td>
-             
                 <td>${department.name || ''}</td>
                 <td>${department.managerName || 'لا يوجد'}</td>
                 <td>${department.description || '-'}</td>
@@ -619,29 +456,72 @@ const printTable = () => {
     <DefaultLayout>
         <main class="flex-1 p-4 sm:p-5 pt-3">
             <!-- حالة التحميل -->
-            <div v-if="loading || loadingEmployees" class="flex justify-center items-center h-64">
-                <div class="text-center">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تحميل البيانات...</p>
-                </div>
-            </div>
+           
 
             <!-- حالة الخطأ -->
-            <div v-else-if="error || employeesError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                <p v-if="error">{{ error }}</p>
-                <p v-if="employeesError">{{ employeesError }}</p>
-                <button @click="fetchAllData" class="mt-2 text-sm underline">
-                    حاول مرة أخرى
-                </button>
-            </div>
+           
 
             <!-- المحتوى الرئيسي -->
-            <div v-else>
+            <div >
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
 
-                        
+                        <!-- فلتر الحالة -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
+                            >
+                                <Icon
+                                    icon="mdi:filter"
+                                    class="w-5 h-5 ml-2"
+                                />
+                                فلتر
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
+                            >
+                                <li class="menu-title text-gray-700 font-bold text-sm">
+                                    حسب الحالة:
+                                </li>
+                                <li>
+                                    <a
+                                        @click="statusFilter = 'all'"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                statusFilter === 'all',
+                                        }"
+                                    >
+                                        الكل
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="statusFilter = 'active'"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                statusFilter === 'active',
+                                        }"
+                                    >
+                                        المفعلة فقط
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="statusFilter = 'inactive'"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                statusFilter === 'inactive',
+                                        }"
+                                    >
+                                        المعطلة فقط
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
 
                         <!-- فرز -->
                         <div class="dropdown dropdown-start">
@@ -834,7 +714,6 @@ const printTable = () => {
                                 >
                                     <tr>
                                         <th class="id-col">رقم القسم</th>
-                                        
                                         <th class="name-col">اسم القسم</th>
                                         <th class="manager-col">مدير القسم</th>
                                         <th class="status-col">الحالة</th>
@@ -851,7 +730,6 @@ const printTable = () => {
                                         <td class="id-col">
                                             {{ department.id || 'N/A' }}
                                         </td>
-                                      
                                         <td class="name-col">
                                             {{ department.name || 'N/A' }}
                                         </td>
@@ -927,7 +805,7 @@ const printTable = () => {
 
                                     <tr v-if="filteredDepartments.length === 0">
                                         <td
-                                            colspan="6"
+                                            colspan="5"
                                             class="text-center py-8 text-gray-500"
                                         >
                                             لا توجد بيانات لعرضها
@@ -1058,10 +936,6 @@ const printTable = () => {
 .id-col {
     width: 100px;
     min-width: 100px;
-}
-.code-col {
-    width: 120px;
-    min-width: 120px;
 }
 .status-col {
     width: 100px;

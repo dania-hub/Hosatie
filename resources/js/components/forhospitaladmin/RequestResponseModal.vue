@@ -27,7 +27,7 @@
                 <button
                     @click="closeModal"
                     class="text-gray-400 hover:text-[#2E5077] transition duration-150 p-2 rounded-full hover:bg-[#B8D7D9]/30"
-                    :disabled="isLoading || isConfirming"
+                    :disabled="isLoading || isSubmitting"
                     aria-label="إغلاق"
                 >
                     <Icon icon="tabler:x" class="w-6 h-6" />
@@ -35,110 +35,134 @@
             </div>
 
             <div class="p-5 sm:px-6 sm:py-5 space-y-6 max-h-[70vh] overflow-y-auto">
-                <div class="space-y-4">
-                    <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50">
-                        <h3
-                            class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                        >
-                            <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
-                            بيانات المريض
-                        </h3>
+              
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">رقم الملف:</span>
-                                <span class="mr-2 text-gray-700 font-semibold">{{ requestData?.fileNumber || 'غير محدد' }}</span>
-                            </p>
+                <!-- محتوى المودال -->
+                <div >
+                    <div class="space-y-4">
+                        <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50">
+                            <h3
+                                class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
+                            >
+                                <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
+                                بيانات المريض
+                            </h3>
 
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">اسم المريض:</span>
-                                <span class="mr-2 text-gray-700">{{ requestData?.patientName || 'غير محدد' }}</span>
-                            </p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                <p class="text-right flex justify-between sm:block">
+                                    <span class="font-bold text-[#2E5077]">رقم الملف:</span>
+                                    <span class="mr-2 text-gray-700 font-semibold">{{ requestData?.fileNumber || 'غير محدد' }}</span>
+                                </p>
 
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">التاريخ:</span>
-                                <span class="mr-2 text-gray-700">{{ formatDate(requestData?.createdDate) || 'غير محدد' }}</span>
-                            </p>
+                                <p class="text-right flex justify-between sm:block">
+                                    <span class="font-bold text-[#2E5077]">اسم المريض:</span>
+                                    <span class="mr-2 text-gray-700">{{ requestData?.patientName || 'غير محدد' }}</span>
+                                </p>
 
+                                <p class="text-right flex justify-between sm:block">
+                                    <span class="font-bold text-[#2E5077]">التاريخ:</span>
+                                    <span class="mr-2 text-gray-700">{{ formatDate(requestData?.createdAt || requestData?.createdDate) || 'غير محدد' }}</span>
+                                </p>
 
+                                <p class="text-right flex justify-between sm:block" v-if="requestData?.patientPhone">
+                                    <span class="font-bold text-[#2E5077]">رقم الهاتف:</span>
+                                    <span class="mr-2 text-gray-700">{{ requestData.patientPhone }}</span>
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="space-y-4">
-                    <h3
-                        class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                    >
-                        <Icon icon="tabler:clipboard-check" class="w-5 h-5 ml-2" />
-                        معلومات الطلب
-                    </h3>
-
-                    <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50 shadow-sm">
-                        <p class="text-right mb-3 flex justify-between sm:block">
-                            <span class="font-bold text-[#2E5077]">نوع الطلب:</span>
-                            <span class="mr-2 font-semibold">{{ requestData?.requestType || 'غير محدد' }}</span>
-                        </p>
-
-                        <p class="text-right mb-3">
-                            <span class="font-bold text-[#2E5077] ">المحتوى:</span>
-                            <span class="mr-2 text-gray-700">
-                                {{ requestData?.content || 'غير محدد' }}
-                            </span>
-                        </p>
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">الحالة:</span>
-                                <span :class="getStatusClass(requestData?.requestStatus)"
-                                    class="mr-2 px-3 py-1 rounded-full text-xs font-semibold">
-                                    {{ requestData?.requestStatus || 'غير محدد' }}
-                                </span>
-                            </p>
-                    </div>
-                </div>
-
-                <div v-if="!showRejectionNote" class="space-y-4">
-                    <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50">
+                    <div class="space-y-4">
                         <h3
                             class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
                         >
-                            <Icon icon="tabler:message-circle" class="w-5 h-5 ml-2" />
-                            الرد على الطلب
+                            <Icon icon="tabler:clipboard-check" class="w-5 h-5 ml-2" />
+                            معلومات الطلب
                         </h3>
 
-                        <label class="block text-right">
+                        <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50 shadow-sm">
+                            <p class="text-right mb-3 flex justify-between sm:block">
+                                <span class="font-bold text-[#2E5077]">نوع الطلب:</span>
+                                <span class="mr-2 font-semibold">{{ requestData?.requestType || 'غير محدد' }}</span>
+                            </p>
 
+                            <p class="text-right mb-3">
+                                <span class="font-bold text-[#2E5077]">المحتوى:</span>
+                                <span class="mr-2 text-gray-700">
+                                    {{ requestData?.content || 'غير محدد' }}
+                                </span>
+                            </p>
+                            
+                            <p class="text-right flex justify-between sm:block">
+                                <span class="font-bold text-[#2E5077]">الحالة الحالية:</span>
+                                <span :class="getStatusClass(requestData?.status || requestData?.requestStatus)"
+                                    class="mr-2 px-3 py-1 rounded-full text-xs font-semibold">
+                                    {{ requestData?.status || requestData?.requestStatus || 'غير محدد' }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div v-if="!showRejectionNote" class="space-y-4">
+                        <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50">
+                            <h3
+                                class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
+                            >
+                                <Icon icon="tabler:message-circle" class="w-5 h-5 ml-2" />
+                                الرد على الطلب
+                            </h3>
+
+                            <label class="block text-right mb-4">
+                                <span class="font-medium text-[#2E5077] mb-2 block">الرد:</span>
+                                <textarea
+                                    v-model="responseText"
+                                    rows="4"
+                                    class="w-full p-3 border-2 border-[#B8D7D9] rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/30 transition-colors text-sm"
+                                    placeholder="أدخل ردك على الطلب هنا..."
+                                    :disabled="isSubmitting"
+                                    required
+                                ></textarea>
+                            </label>
+
+                           
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="showRejectionNote"
+                        class="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-all duration-300"
+                    >
+                        <h4 class="text-lg font-bold text-red-700 dark:text-red-400 mb-3 flex items-center">
+                            <Icon icon="tabler:alert-circle" class="w-5 h-5 ml-2" />
+                            سبب رفض الطلب
+                        </h4>
+
+                        <textarea
+                            v-model="rejectionNote"
+                            rows="4"
+                            class="w-full p-3 border-2 rounded-lg text-sm transition-colors mb-2"
+                            :class="rejectionError ? 'border-red-500 focus:border-red-600 focus:ring-red-600/30' : 'border-[#B8D7D9] focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/30'"
+                            placeholder="يرجى توضيح سبب الرفض هنا. (مطلوب)"
+                            :disabled="isSubmitting"
+                            required
+                        ></textarea>
+                        
+                        <p v-if="rejectionError" class="text-sm text-red-500 mt-1 text-right">
+                            {{ rejectionError }}
+                        </p>
+
+                        <label class="block text-right mt-4">
+                            <span class="font-medium text-[#2E5077] mb-2 block">ملاحظات إضافية (اختياري):</span>
                             <textarea
-                                v-model="responseText"
+                                v-model="additionalNotes"
                                 rows="2"
-                                class="w-full p-1 border-2 border-[#B8D7D9] rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/30 transition-colors text-sm"
-                                placeholder="أدخل ردك على الطلب هنا..."
-                                :disabled="showRejectionNote"
+                                class="w-full p-3 border-2 border-[#B8D7D9] rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/30 transition-colors text-sm"
+                                placeholder="أي ملاحظات إضافية..."
+                                :disabled="isSubmitting"
                             ></textarea>
                         </label>
                     </div>
                 </div>
-
-                <div
-                    v-if="showRejectionNote"
-                    class="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-all duration-300"
-                >
-                    <h4 class="text-lg font-bold text-red-700 dark:text-red-400 mb-3 flex items-center">
-                        <Icon icon="tabler:alert-circle" class="w-5 h-5 ml-2" />
-                        سبب رفض الطلب
-                    </h4>
-
-                    <textarea
-                        v-model="rejectionNote"
-                        rows="2"
-                        class="w-full p-2 border-2 rounded-lg text-sm transition-colors"
-                        :class="rejectionError ? 'border-red-500 focus:border-red-600 focus:ring-red-600/30' : 'border-[#B8D7D9] focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/30'"
-                        placeholder="يرجى توضيح سبب الرفض هنا. (مطلوب)"
-                    ></textarea>
-                    <p v-if="rejectionError" class="text-sm text-red-500 mt-1 text-right">
-                        سبب الرفض مطلوب لإتمام عملية الرفض.
-                    </p>
-                </div>
-
-
             </div>
 
             <div
@@ -147,32 +171,32 @@
                 <button
                     @click="closeModal"
                     class="inline-flex h-11 items-center justify-center px-6 rounded-full transition-all duration-200 ease-in text-base cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
-                    :disabled="isLoading || isConfirming"
+                    :disabled="isLoading || isSubmitting"
                 >
                     إلغاء
                 </button>
 
                 <div class="flex gap-3 w-full sm:w-auto">
                     <template v-if="showRejectionNote">
-                           <button
-                                @click="cancelRejection"
-                                class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
-                                :disabled="isLoading || isConfirming"
-                            >
-                                تراجع
-                            </button>
+                        <button
+                            @click="cancelRejection"
+                            class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
+                            :disabled="isLoading || isSubmitting"
+                        >
+                            تراجع
+                        </button>
                         <button
                             @click="confirmRejection"
                             class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#dc3545] hover:bg-[#c82333]"
-                            :disabled="isLoading || isConfirming"
+                            :disabled="isLoading || isSubmitting"
                         >
                             <Icon
-                                v-if="isConfirming"
+                                v-if="isSubmitting"
                                 icon="eos-icons:loading"
                                 class="w-5 h-5 ml-2 animate-spin"
                             />
                             <Icon v-else icon="tabler:x" class="w-5 h-5 ml-2" />
-                            {{ isConfirming ? "جاري الرفض..." : "تأكيد الرفض" }}
+                            {{ isSubmitting ? "جاري الرفض..." : "تأكيد الرفض" }}
                         </button>
                     </template>
 
@@ -180,7 +204,7 @@
                         <button
                             @click="initiateRejection"
                             class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#dc3545] hover:bg-[#c82333]"
-                            :disabled="isLoading || isConfirming"
+                            :disabled="isLoading || isSubmitting"
                         >
                             <Icon icon="tabler:x" class="w-5 h-5 ml-2" />
                             رفض الطلب
@@ -189,15 +213,15 @@
                         <button
                             @click="submitResponse"
                             class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:bg-[#3a8c94]"
-                            :disabled="isLoading || isConfirming"
+                            :disabled="isLoading || isSubmitting"
                         >
                             <Icon
-                                v-if="isConfirming"
+                                v-if="isSubmitting"
                                 icon="eos-icons:loading"
                                 class="w-5 h-5 ml-2 animate-spin"
                             />
                             <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
-                            {{ isConfirming ? "جاري الإرسال..." : "إرسال الرد" }}
+                            {{ isSubmitting ? "جاري الإرسال..." : "إرسال الرد" }}
                         </button>
                     </template>
                 </div>
@@ -231,9 +255,9 @@ const emit = defineEmits(['close', 'submit', 'reject']);
 const responseText = ref('');
 const rejectionNote = ref('');
 const additionalNotes = ref('');
-const isConfirming = ref(false);
+const isSubmitting = ref(false);
 const showRejectionNote = ref(false);
-const rejectionError = ref(false);
+const rejectionError = ref('');
 
 // إعادة تعيين الحقول عند فتح المودال
 watch(() => props.isOpen, (newVal) => {
@@ -241,9 +265,9 @@ watch(() => props.isOpen, (newVal) => {
         responseText.value = '';
         rejectionNote.value = '';
         additionalNotes.value = '';
-        isConfirming.value = false;
+        isSubmitting.value = false;
         showRejectionNote.value = false;
-        rejectionError.value = false;
+        rejectionError.value = '';
     }
 });
 
@@ -265,8 +289,10 @@ const formatDate = (dateString) => {
 const getStatusClass = (status) => {
     switch (status) {
         case 'تم الرد':
+        case 'مقبول':
             return 'bg-green-100 text-green-700';
         case 'قيد المراجعة':
+        case 'معلق':
             return 'bg-yellow-100 text-yellow-700';
         case 'مرفوض':
             return 'bg-red-100 text-red-700';
@@ -278,34 +304,40 @@ const getStatusClass = (status) => {
 // بدء عملية الرفض (يظهر حقل سبب الرفض)
 const initiateRejection = () => {
     showRejectionNote.value = true;
-    rejectionNote.value = ''; // تأكد من تفريغ الحقل عند البدء
-    rejectionError.value = false;
+    rejectionNote.value = '';
+    rejectionError.value = '';
 };
 
 // إلغاء عملية الرفض (يعود إلى وضع القبول/الإرسال العادي)
 const cancelRejection = () => {
     showRejectionNote.value = false;
     rejectionNote.value = '';
-    rejectionError.value = false;
+    rejectionError.value = '';
 };
 
 // تأكيد الرفض (إرسال الرفض الفعلي)
 const confirmRejection = () => {
     // التحقق من حقل سبب الرفض
     if (!rejectionNote.value.trim()) {
-        rejectionError.value = true;
+        rejectionError.value = 'سبب الرفض مطلوب لإتمام عملية الرفض.';
         return;
     }
 
-    isConfirming.value = true;
+    if (rejectionNote.value.trim().length < 10) {
+        rejectionError.value = 'يرجى كتابة سبب الرفض بتفصيل أكثر (10 أحرف على الأقل).';
+        return;
+    }
+
+    isSubmitting.value = true;
 
     const responseData = {
         status: 'مرفوض',
-        response: responseText.value.trim(), // تم الإبقاء على حقل الرد في البيانات المرسلة إذا كان هناك أي نص قد كتبه المستخدم قبل الرفض، لكنه غير مرئي الآن.
+        response: responseText.value.trim(),
         rejectionReason: rejectionNote.value.trim(),
         notes: additionalNotes.value.trim(),
         date: new Date().toISOString(),
         requestDetails: {
+            id: props.requestData?.id,
             fileNumber: props.requestData?.fileNumber,
             patientName: props.requestData?.patientName,
             requestType: props.requestData?.requestType,
@@ -314,27 +346,30 @@ const confirmRejection = () => {
     };
 
     emit('reject', responseData);
-    // isConfirming سيعود false عند إغلاق المودال من قبل الكومبوننت الأب
 };
 
 // إرسال الرد (قبول)
 const submitResponse = async () => {
-    // *ملاحظة: لقد أضفت خاصية v-if="!showRejectionNote" على حقل الرد، لكن لم يتم إضافتها على حقل الـ `additionalNotes` لذا قد ترغب في إضافة حقل الـ `additionalNotes` أيضاً إلى قسم الرد في القالب إذا كنت لا تريد إرساله مع الردود غير المرفوضة.*
-    
     if (!responseText.value.trim()) {
         alert('يرجى كتابة الرد قبل الإرسال');
         return;
     }
 
-    isConfirming.value = true;
+    if (responseText.value.trim().length < 5) {
+        alert('يرجى كتابة رد مفصل أكثر');
+        return;
+    }
+
+    isSubmitting.value = true;
 
     try {
         const responseData = {
             status: 'تم الرد',
             response: responseText.value.trim(),
-            notes: additionalNotes.value.trim(), // تم تضمين الملاحظات الإضافية هنا
+            notes: additionalNotes.value.trim(),
             date: new Date().toISOString(),
             requestDetails: {
+                id: props.requestData?.id,
                 fileNumber: props.requestData?.fileNumber,
                 patientName: props.requestData?.patientName,
                 requestType: props.requestData?.requestType,
@@ -346,13 +381,12 @@ const submitResponse = async () => {
     } catch (error) {
         console.error("Error preparing response data:", error);
         alert("حدث خطأ أثناء تحضير بيانات الرد.");
+        isSubmitting.value = false;
     }
-    // isConfirming سيعود false عند إغلاق المودال من قبل الكومبوننت الأب
 };
 
 const closeModal = () => {
-    if (!props.isLoading && !isConfirming.value) {
-        // إذا كان حقل الرفض ظاهراً، التراجع عن عملية الرفض قبل الإغلاق
+    if (!props.isLoading && !isSubmitting.value) {
         if (showRejectionNote.value) {
             cancelRejection();
         }

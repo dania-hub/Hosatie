@@ -1,5 +1,4 @@
 <script setup>
-
 import { Icon } from "@iconify/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'dispensation-record']);
-
-
 
 </script>
 
@@ -53,62 +50,90 @@ const emit = defineEmits(['close', 'dispensation-record']);
             </div>
 
             <div class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
+                <!-- حالة التحميل -->
+                <div v-if="!patient || Object.keys(patient).length === 0" 
+                     class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-[#4DA1A9] mx-auto"></div>
+                        <p class="mt-4 text-gray-600">جاري تحميل بيانات المريض...</p>
+                    </div>
+                </div>
+
                 <!-- المعلومات الشخصية -->
-                <div class="space-y-2">
+                <div v-else class="space-y-2">
                     <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
                         <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
                         المعلومات الشخصية
                     </h3>
 
                     <div class="space-y-4 pt-2">
+                        <!-- الرقم الوطني -->
                         <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
                             <Label class="text-right font-medium text-[#2E5077] pt-2">الرقم الوطني</Label>
                             <div class="relative w-full sm:max-w-xs">
                                 <Input
                                     readonly
-                                    :model-value="patient.nationalIdDisplay"
+                                    :value="patient.nationalId || patient.nationalNumber || 'غير متوفر'"
                                     class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
                                 />
                             </div>
                         </div>
 
+                        <!-- الاسم الرباعي -->
                         <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
                             <Label class="text-right font-medium text-[#2E5077] pt-2">الإسم رباعي</Label>
                             <div class="relative w-full">
                                 <Input
                                     readonly
-                                    :model-value="patient.nameDisplay"
+                                    :value="patient.name || patient.fullName || 'غير متوفر'"
                                     class="h-9 text-right rounded-2xl w-81 border-[#B8D7D9] bg-white cursor-default focus:ring-0"
                                 />
                             </div>
                         </div>
 
-                                            <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
+                        <!-- تاريخ الميلاد -->
+                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
                             <Label class="text-right font-medium text-[#2E5077] pt-2">تاريخ الميلاد</Label>
                             <div class="relative w-full sm:max-w-xs">
                                 <Input
                                     readonly
-                                    :model-value="patient.birthDisplay"
+                                    :value="patient.birth || patient.birthDate || 'غير متوفر'"
                                     class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
                                 />
                             </div>
                         </div>
+
+                        <!-- رقم الهاتف -->
                         <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2"> رقم الهاتف</Label>
+                            <Label class="text-right font-medium text-[#2E5077] pt-2">رقم الهاتف</Label>
                             <div class="relative w-full sm:max-w-xs">
                                 <Input
                                     readonly
-                                    :model-value="patient.phone"
+                                    :value="patient.phone || patient.phoneNumber || 'غير متوفر'"
                                     class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
                                 />
                             </div>
                         </div>
-                          <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2"> البريدالإلكتروني</Label>
+
+                        <!-- البريد الإلكتروني -->
+                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
+                            <Label class="text-right font-medium text-[#2E5077] pt-2">البريد الإلكتروني</Label>
                             <div class="relative w-full sm:max-w-xs">
                                 <Input
                                     readonly
-                                    :model-value="patient.email"
+                                    :value="patient.email || 'غير متوفر'"
+                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- المركز الصحي -->
+                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
+                            <Label class="text-right font-medium text-[#2E5077] pt-2">المركز الصحي</Label>
+                            <div class="relative w-full sm:max-w-xs">
+                                <Input
+                                    readonly
+                                    :value="patient.healthCenter || patient.clinic || 'غير محدد'"
                                     class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
                                 />
                             </div>
@@ -116,21 +141,23 @@ const emit = defineEmits(['close', 'dispensation-record']);
                     </div>
                 </div>
 
-              
+                <!-- الأدوية -->
                 <div class="space-y-4 pt-2">
                     <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
                         <Icon icon="tabler:pill" class="w-5 h-5 ml-2" />
-                          الأدوية
+                        الأدوية
                     </h3>
 
                     <div class="flex justify-end gap-3">
-                        
-                        <Button @click="$emit('dispensation-record')" class="inline-flex items-center h-11 px-[11px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
+                        <Button @click="$emit('dispensation-record')" 
+                                class="inline-flex items-center h-11 px-[11px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
+                            <Icon icon="tabler:history" class="w-4 h-4 ml-2" />
                             سجل الصرف
                         </Button>
                     </div>
 
-                    <div v-if="patient.medications && patient.medications.length" class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
+                    <div v-if="patient.medications && patient.medications.length > 0" 
+                         class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
                         <table class="table w-full text-right min-w-[700px] border-collapse">
                             <thead class="bg-[#9aced2] text-black text-sm">
                                 <tr>
@@ -138,34 +165,55 @@ const emit = defineEmits(['close', 'dispensation-record']);
                                     <th class="p-3 border border-gray-300">الجرعة</th>
                                     <th class="p-3 border border-gray-300">الكمية الشهرية</th>
                                     <th class="p-3 border border-gray-300">تاريخ الإسناد</th>
+                                    <th class="p-3 border border-gray-300">تاريخ الانتهاء</th>
                                     <th class="p-3 border border-gray-300">بواسطة</th>
-                                   
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="(med, medIndex) in patient.medications" :key="medIndex" class="hover:bg-gray-50 border-b border-gray-200">
+                                <tr v-for="(med, medIndex) in patient.medications" 
+                                    :key="medIndex" 
+                                    class="hover:bg-gray-50 border-b border-gray-200">
                                     <td class="p-3 border border-gray-300">{{ med.drugName }}</td>
                                     <td class="p-3 border border-gray-300">{{ med.dosage }}</td>
                                     <td class="p-3 border border-gray-300">{{ med.monthlyQuantity }}</td>
                                     <td class="p-3 border border-gray-300">{{ med.assignmentDate }}</td>
+                                    <td class="p-3 border border-gray-300">{{ med.expirationDate || 'غير محدد' }}</td>
                                     <td class="p-3 border border-gray-300">{{ med.assignedBy }}</td>
-                                   
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    <p v-else class="text-center text-gray-500 py-4">لا توجد جرعات دوائية مسجلة لهذا المريض.</p>
+                    <p v-else class="text-center text-gray-500 py-4">
+                        لا توجد جرعات دوائية مسجلة لهذا المريض.
+                    </p>
+                </div>
+
+                <!-- معلومات إضافية -->
+                <div v-if="patient.lastUpdated" class="space-y-4 pt-2">
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <p class="text-sm text-gray-600">
+                            <span class="font-semibold">آخر تحديث:</span> 
+                            {{ new Date(patient.lastUpdated).toLocaleString('ar-SA') }}
+                        </p>
+                        <p v-if="patient.createdAt" class="text-sm text-gray-600 mt-1">
+                            <span class="font-semibold">تاريخ التسجيل:</span> 
+                            {{ new Date(patient.createdAt).toLocaleString('ar-SA') }}
+                        </p>
+                    </div>
                 </div>
             </div>
 
             <div class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]">
-                <Button @click="$emit('close')" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">موافق</Button>
-                <Button @click="$emit('close')" variant="ghost" class="inline-flex items-center h-11 px-[19px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">إلغاء</Button>
+                <Button @click="$emit('close')" 
+                        class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
+                    موافق
+                </Button>
+                <Button @click="$emit('close')" 
+                        variant="ghost" 
+                        class="inline-flex items-center h-11 px-[19px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
+                    إغلاق
+                </Button>
             </div>
         </div>
     </div>
-
-   
-
-    
 </template>

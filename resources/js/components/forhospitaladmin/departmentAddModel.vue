@@ -103,7 +103,7 @@ const confirmRegistration = () => {
     let managerName = "";
     if (form.value.managerId) {
         const selectedManager = props.availableManagers.find(
-            emp => emp.fileNumber === form.value.managerId
+            emp => emp.id === form.value.managerId || emp.fileNumber === form.value.managerId
         );
         managerName = selectedManager ? selectedManager.name : "";
     }
@@ -196,9 +196,38 @@ watch(() => props.isOpen, (newVal) => {
                             </div>
                         </div>
 
-                       
+                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
+                            <Label for="code" class="text-right font-medium text-[#2E5077] pt-2">رمز القسم</Label>
+                            <div class="relative w-full sm:w-75">
+                                <Input
+                                    required
+                                    id="code"
+                                    v-model="form.code"
+                                    placeholder="أدخل رمز القسم"
+                                    type="text"
+                                    :class="{ 'border-red-500 hover:border-red-500': errors.code, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.code }"
+                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                                />
+                                <Icon v-if="errors.code" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
+                                <p v-if="errors.code" class="text-xs text-red-500 mt-1">الرجاء إدخال رمز القسم.</p>
+                            </div>
+                        </div>
 
-                       
+                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
+                            <Label for="description" class="text-right font-medium text-[#2E5077] pt-2">وصف القسم</Label>
+                            <div class="relative w-full sm:w-75">
+                                <textarea
+                                    id="description"
+                                    v-model="form.description"
+                                    placeholder="أدخل وصف القسم"
+                                    :class="{ 'border-red-500 hover:border-red-500': errors.description, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.description }"
+                                    class="h-24 text-right w-full rounded-2xl bg-white px-3 py-2 border focus:outline-none resize-none"
+                                    rows="3"
+                                ></textarea>
+                                <Icon v-if="errors.description" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
+                                <p v-if="errors.description" class="text-xs text-red-500 mt-1">الرجاء إدخال وصف القسم (على الأقل 5 أحرف).</p>
+                            </div>
+                        </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
                             <Label for="manager" class="text-right font-medium text-[#2E5077] pt-2">مدير القسم</Label>
@@ -211,9 +240,9 @@ watch(() => props.isOpen, (newVal) => {
                                 >
                                     <option value="">اختياري - بدون مدير</option>
                                     <option v-for="manager in props.availableManagers" 
-                                            :key="manager.fileNumber" 
-                                            :value="manager.fileNumber">
-                                        {{ manager.name }} - {{ manager.fileNumber }}
+                                            :key="manager.id || manager.fileNumber" 
+                                            :value="manager.id || manager.fileNumber">
+                                        {{ manager.name }} - {{ manager.id || manager.fileNumber }}
                                     </option>
                                 </select>
                                 <Icon v-if="errors.managerId" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />

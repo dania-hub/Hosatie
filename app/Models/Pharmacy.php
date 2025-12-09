@@ -13,7 +13,7 @@ class Pharmacy extends Model
 
     protected $fillable = [
         'hospital_id',
-        'inventory_id',
+        'inventory_id', // قد لا تحتاج هذا العمود مستقبلاً
         'name',
         'status',
     ];
@@ -23,10 +23,14 @@ class Pharmacy extends Model
         return $this->belongsTo(Hospital::class);
     }
 
-    public function inventory()
+    // العلاقة الجديدة: الصيدلية لديها مخزون متعدد (أدوية كثيرة)
+    public function inventories()
     {
-        return $this->belongsTo(Inventory::class);
+        return $this->hasMany(Inventory::class);
     }
+
+    // (اختياري) إذا كنت تريد الوصول لمخزون الصيدلية كعلاقة واحدة قديمة، يفضل استخدام inventories أعلاه
+    // public function inventory() { ... }
 
     public function internalSupplyRequests()
     {

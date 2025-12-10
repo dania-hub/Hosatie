@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\AdminHospital;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\BaseApiController;
 use App\Models\PatientTransferRequest;
 use Illuminate\Http\Request;
 
-class PatientTransferAdminHospitalController extends Controller
+class PatientTransferAdminHospitalController extends BaseApiController
 {
     // قائمة طلبات النقل
     public function index(Request $request)

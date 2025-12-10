@@ -138,7 +138,7 @@
         
           
 
-            <!-- عرض البيانات -->
+            <!-- عرض البيانات  -->
             <div
                
                 class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col"

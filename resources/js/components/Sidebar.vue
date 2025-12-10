@@ -1,5 +1,4 @@
 <template>
-    
     <aside
         :class="[
             'bg-[#2E5077] text-white rounded-l-3xl min-h-screen flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
@@ -55,7 +54,7 @@
 
         <nav class="menu px-4 pt-6 pb-4 flex-grow" aria-label="Main navigation">
             <ul role="menu" class="space-y-2 text-base font-semibold">
-                <li v-for="(link, index) in dataEntryLinks" :key="index">
+                <li v-for="(link, index) in currentLinks" :key="index">
                     <Link
                         role="menuitem"
                         :href="link.to"
@@ -63,13 +62,9 @@
                             'flex items-center w-full text-right py-3 rounded-lg transition-all duration-300 group',
                             'hover:bg-white/15',
                             isCollapsed ? 'justify-center px-0' : 'px-3',
-                            // سنستخدم `link.to` مع `route().current()` أو `page.url` لتحديد الفئة النشطة
-                            // نظرًا لأنني لا أملك الوصول إلى `route()` أو `page`، سأستخدم فئة عامة (إذا كانت مدعومة)
-                            // لكن لتبقى الفئة القديمة تعمل سنعدل قليلا.
-                            // *يجب الانتباه إلى أن تحديد الفئة النشطة لـ Inertia يتطلب مقارنة URL الحالي*
                             isCurrent(link.to)
                                 ? 'bg-[#7093bb] shadow-md text-white'
-                                : '', // **التعديل الهام هنا**
+                                : '', 
                         ]"
                     >
                         <Icon
@@ -78,7 +73,7 @@
                                 'w-6 h-6 text-[#ffffff] flex-shrink-0 transition-margin duration-300',
                                 isCollapsed ? 'mx-auto' : '',
                                 'group-hover:text-[#1cab8c]',
-                                isCurrent(link.to) ? 'text-white' : '', // **التعديل الهام هنا**
+                                isCurrent(link.to) ? 'text-white' : '', 
                             ]"
                         />
                         <span
@@ -108,87 +103,81 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
-import { Link, usePage } from "@inertiajs/vue3"; // تم استيراد usePage
+import { Link, usePage } from "@inertiajs/vue3"; 
 
 const isCollapsed = ref(false);
-const page = usePage(); // الحصول على خصائص الصفحة الحالية من Inertia
+const page = usePage(); 
+const userRole = ref('');
+
+onMounted(() => {
+    // Read user role from localStorage
+    userRole.value = localStorage.getItem('user_role') || '';
+});
 
 const toggleSidebar = () => {
     isCollapsed.value = !isCollapsed.value;
 };
 
-// **دالة جديدة لتحديد ما إذا كان الرابط نشطًا (Active) بناءً على URL الحالي**
 const isCurrent = (href) => {
-    // نأخذ الجزء الأول من الرابط قبل علامة الاستفهام (لتجاهل أي متغيرات استعلام)
     const currentPath = page.url.split('?')[0];
-
-    // إذا كان الرابط هو المسار الجذري "/", يجب أن يتطابق تمامًا.
     if (href === '/') {
-        return currentPath === '/'; // ✅ سيصبح نشطًا فقط إذا كان المسار هو "/"
+        return currentPath === '/'; 
     }
-
-    // للمسارات الأخرى، نستخدم `startsWith`.
     return currentPath.startsWith(href);
 };
 
-// روابط خاصة بمدخل البيانات فقط
-const dataEntryLinks = ref([
-    {
-        icon: "line-md:account",
-        name: "قائمة المرضى",
-        to: "/",
-    },
-    {
-        name: "سجل العمليات ",
-        icon: "line-md:document-report",
-        to: "/OperationLog",
-    },
-    {
-        name: "الاحصائيات",
-        icon: "material-symbols-light:bar-chart-4-bars",
+// Define links for each role
+const links = {
+    hospital_admin: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/admin/statistics" },
+        { name: "قائمة المرضى", icon: "line-md:account", to: "/admin/patients" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/admin/operations" },
+        { name: "سجل العمليات الشامل", icon: "line-md:document-report", to: "/admin/all-operations" },
+        { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/admin/employees" },
+        { name: "الطلبات", icon: "carbon:request-quote", to: "/admin/requests" },
+        { name: "الاقسام", icon: "mingcute:department-fill", to: "/admin/departments" },
+        { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/admin/supply-requests" },
+        { name: "طلبات النقل", icon: "mdi:transfer", to: "/admin/transfer-requests" },
+        { name: "الشكاوي", icon: "fluent:person-feedback-24-regular", to: "/admin/complaints" },
+    ],
+    pharmacist: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/pharmacist/statistics" },
+        { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/pharmacist/medications" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/pharmacist/operations" },
+        { name: "قائمة المرضى", icon: "line-md:account", to: "/pharmacist/patients" },
+        { name: "الطلبات", icon: "carbon:request-quote", to: "/pharmacist/requests" },
+    ],
+    doctor: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/doctor/statistics" },
+        { name: "قائمة المرضى", icon: "line-md:account", to: "/doctor/patients" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/doctor/operations" },
+    ],
+    data_entry: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/data-entry/statistics" },
+        { name: "قائمة المرضى", icon: "line-md:account", to: "/data-entry/patients" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/data-entry/operations" },
+    ],
+    department_head: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/department/statistics" },
+        { name: "قائمة المرضى", icon: "line-md:account", to: "/department/patients" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/department/operations" },
+        { name: "الطلبات", icon: "carbon:request-quote", to: "/department/requests" },
+    ],
+    storekeeper: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/storekeeper/statistics" },
+        { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/storekeeper/medications" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/storekeeper/operations" },
+        { name: "الطلبات", icon: "carbon:request-quote", to: "/storekeeper/requests" },
+        { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/storekeeper/supply-requests" },
+    ]
+};
 
-        to: "/Statistics",
-    },
+const currentLinks = computed(() => {
+    return links[userRole.value] || [];
+});
 
-    { name: "طلبات التوريد",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/SuRequests",
-    },
-
-    { name: "طلبات التوريدkk",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/medicationsList",
-    },
-    { name: "الاقسام ",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/Departments",
-    },
-     { name: "طلبات توريد الصادرة ",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/a",
-    },
-     { name: "طلبات النقل ",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/b",
-    },
-     { name: "الشكاوي ",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/c",
-    },
-     { name: "سجل العمليات قي النظام ",
-        icon: "material-symbols-light:bar-chart-4-bars",
-
-        to: "/d",
-    },
-]);
 </script>
 
 <style scoped>

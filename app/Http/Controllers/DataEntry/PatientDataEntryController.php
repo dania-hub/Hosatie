@@ -111,31 +111,46 @@ class PatientDataEntryController extends BaseApiController
     }
 
     // 4. View Operations Log (سجل العمليات على المرضى)
-    public function activityLog(Request $request)
-    {
-        $logs = AuditLog::with('patientUser')
-            ->where('table_name', 'users')
-            ->whereHas('patientUser', function ($q) {
-                $q->where('type', 'patient');
-            })
-            ->latest()
-            ->get();
+   public function activityLog(Request $request)
+{
+    $logs = AuditLog::where('table_name', 'users')
+        ->latest()
+        ->get();
 
-        $data = $logs->map(function ($log) {
-            $patient = $log->patientUser;
+   $data = $logs->map(function ($log) {
+    $patient = User::find($log->record_id);
+    $old     = $log->old_values ? json_decode($log->old_values, true) : [];
+    $new     = $log->new_values ? json_decode($log->new_values, true) : [];
 
-            return [
-                'fileNumber'    => 'FILE-' . $log->record_id,
-                'fullName'      => $patient->full_name ?? 'غير معروف',
-                'operationType' => $log->action, // create_patient / update_patient / delete_patient
-                'operationDate' => $log->created_at
-                                    ? $log->created_at->format('Y/m/d H:i')
-                                    : null,
-            ];
-        });
-
-        return response()->json($data);
+    if ($log->action === 'update_patient') {
+        // في التعديل نفضّل الاسم الجديد
+        $fullName = $new['full_name'] ?? ($patient->full_name ?? ($old['full_name'] ?? 'غير معروف'));
+    } elseif ($log->action === 'delete_patient') {
+        // في الحذف نعتمد على القديم
+        $fullName = $old['full_name'] ?? 'غير معروف';
+    } else { // create_patient
+        $fullName = $patient->full_name ?? ($new['full_name'] ?? 'غير معروف');
     }
+
+    $operationType = match ($log->action) {
+        'create_patient' => 'إضافة',
+        'update_patient' => 'تعديل',
+        'delete_patient' => 'حذف',
+        default          => $log->action,
+    };
+
+    return [
+        'fileNumber'    => 'FILE-' . $log->record_id,
+        'fullName'      => $fullName,
+        'operationType' => $operationType,
+        'operationDate' => $log->created_at?->format('d-m-Y'),
+    ];
+});
+
+
+    return response()->json($data);
+}
+
 
     // 5. Dashboard Statistics (إحصائيات المرضى)
     public function stats()

@@ -20,6 +20,14 @@ use App\Http\Controllers\DataEntry\PatientDataEntryController;
 
 // --- Admin Hospital Controllers ---
 use App\Http\Controllers\AdminHospital\StaffController;
+use App\Http\Controllers\AdminHospital\ComplaintHospitalAdminController;
+use App\Http\Controllers\AdminHospital\DepartmentHospitalAdminController;
+use App\Http\Controllers\AdminHospital\OperationLogController;
+use App\Http\Controllers\AdminHospital\PatientHospitalAdminController;
+use App\Http\Controllers\AdminHospital\ExternalShipmentAdminHospitalController;
+use App\Http\Controllers\AdminHospital\StatsAdminHospitalController;
+use App\Http\Controllers\AdminHospital\PatientTransferAdminHospitalController;
+
 // --- Doctor Dashboard Controllers ---
 use App\Http\Controllers\Doctor\DashboardDoctorController;
 use App\Http\Controllers\Doctor\PatientDoctorController;
@@ -144,8 +152,49 @@ Route::middleware('auth:sanctum')->group(function () {
         // Example Staff Management Routes
         Route::get('staff', [StaffController::class, 'index']);
         Route::post('staff', [StaffController::class, 'store']);
-        // Add other Admin Hospital routes here...
+
+  Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);
+    Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);
+    Route::put('/departments/{id}', [DepartmentHospitalAdminController::class, 'update']);
+    Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);
+
+    Route::get('/employees', [DepartmentHospitalAdminController::class, 'employees']);
+
+    Route::get('/operations', [OperationLogController::class, 'index']);
+
+   Route::get('/patients', [PatientHospitalAdminController::class, 'index']);
+    Route::get('/patients/{id}', [PatientHospitalAdminController::class, 'show']);
+    Route::put('/patients/{id}/medications', [PatientHospitalAdminController::class, 'updateMedications']);
+    Route::get('/patients/{id}/dispensation-history', [PatientHospitalAdminController::class, 'dispensationHistory']);
+
+    Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
+    Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
+    Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);
+    Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);
+        // Complaint Management Routes
+         Route::get('requests',              [ComplaintHospitalAdminController::class, 'index']);
+        Route::get('requests/{id}',         [ComplaintHospitalAdminController::class, 'show']);
+        Route::post('requests/{id}/respond',[ComplaintHospitalAdminController::class, 'respond']);
+        Route::post('requests/{id}/reject', [ComplaintHospitalAdminController::class, 'reject']);
+
+        Route::get( '/admin-hospital/stats',  [StatsAdminHospitalController::class, 'index']);
+         Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
+    Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
+
+    // للواجهة الأولى (المدير)
+    Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);
+    Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);
+
+    // للواجهة الثانية (القسم)
+    Route::put('/shipments/{id}/status',           [ExternalShipmentAdminHospitalController::class, 'updateStatus']);
+    Route::post('/shipments/{id}/confirm-delivery',[ExternalShipmentAdminHospitalController::class, 'confirmDelivery']);
+        // Patient Transfer Requests
+        Route::get('transfer-requests', [PatientTransferAdminHospitalController::class, 'index']);
+        
+Route::put('transfer-requests/{id}/status', [PatientTransferAdminHospitalController::class, 'updateStatus']);
     });
+        
+   
      
 // Doctor Dashboard Routes
 Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
@@ -273,4 +322,4 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
 
  });
  });
-  });
+ 

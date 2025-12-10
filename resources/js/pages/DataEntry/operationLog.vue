@@ -15,15 +15,26 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        // Retrieve token from localStorage
+        const token = localStorage.getItem('auth_token');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        // Use the correct API endpoint
+        const response = await axios.get('/api/data-entry/activity-log', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        console.log("API Response:", response); // DEBUG
+        console.log("Data:", response.data); // DEBUG
+
+        // Laravel Resources wrap collections in a 'data' property
+        operations.value = response.data.data || response.data; 
         
         showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
     } finally {
         isLoading.value = false;
     }
@@ -354,16 +365,9 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                         <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
-                                    <tr v-if="!isLoading && filteredOperations.length === 0">
-                                        <td colspan="4" class="p-6 text-center text-gray-500 text-lg">
-                                            ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
-                                        </td>
-                                    </tr>
+                                 
                                 </tbody>
                             </table>
-                            <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات  لعرضها.
-                            </div>
                         </div>
                     </div>
                 </div>

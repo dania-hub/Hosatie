@@ -25,7 +25,12 @@ const fetchStats = async () => {
     // لتجنب ظهور رسالة التحميل حتى لفترة وجيزة
 
     try {
-        const response = await axios.get(API_URL);
+        const token = localStorage.getItem('auth_token');
+        const response = await axios.get(API_URL, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
         stats.value.totalRegistered = response.data.totalRegistered;

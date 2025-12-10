@@ -48,6 +48,32 @@ class UserSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+
+        // Warehouse Manager (idempotent)
+        User::updateOrCreate(
+            ['email' => 'warehouse@hosatie.ly'],
+            [
+                'full_name' => 'مسؤول المخزن',
+                'phone' => '0910000007',
+                'password' => Hash::make('password'),
+                'type' => 'warehouse_manager',
+                'warehouse_id' => 1,
+                'status' => 'active',
+            ]
+        );
+
+        // Supplier Admin (idempotent)
+        User::updateOrCreate(
+            ['email' => 'supplier@hosatie.ly'],
+            [
+                'full_name' => 'مسؤول المورد',
+                'phone' => '0910000008',
+                'password' => Hash::make('password'),
+                'type' => 'supplier_admin',
+                'supplier_id' => 1,
+                'status' => 'active',
+            ]
+        );
         
          // Doctor (idempotent)
         User::updateOrCreate(

@@ -18,4 +18,11 @@ protected $fillable = [
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    // App\Models\AuditLog.php
+
+public function patientUser()
+{
+    return $this->belongsTo(User::class, 'record_id');
+}
+
 }

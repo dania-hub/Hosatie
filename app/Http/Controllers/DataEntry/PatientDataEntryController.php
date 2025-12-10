@@ -20,12 +20,28 @@ class PatientDataEntryController extends BaseApiController
         $user = User::create([
             'full_name'   => $request->full_name,
             'national_id' => $request->national_id,
-            'birth_date'  => $request->birth_date,          // حقل جديد
+            'birth_date'  => $request->birth_date,
             'email'       => $request->email,
             'phone'       => $request->phone,
             'password'    => Hash::make('password123'),
             'type'        => 'patient',
             'status'      => 'pending_activation',
+        ]);
+
+        AuditLog::create([
+            'user_id'    => $request->user()->id ?? null,
+            'table_name' => 'users',
+            'record_id'  => $user->id,
+            'action'     => 'create_patient',
+            'old_values' => null,
+            'new_values' => json_encode([
+                'full_name'   => $user->full_name,
+                'national_id' => $user->national_id,
+                'birth_date'  => $user->birth_date,
+                'phone'       => $user->phone,
+                'email'       => $user->email,
+            ]),
+            'ip_address' => $request->ip(),
         ]);
 
         return response()->json([
@@ -69,10 +85,22 @@ class PatientDataEntryController extends BaseApiController
             ], 404);
         }
 
+        $old = $user->only(['full_name', 'national_id', 'birth_date', 'phone', 'email']);
+
         $user->update([
             'email'      => $request->email,
             'phone'      => $request->phone,
             'birth_date' => $request->birth_date,
+        ]);
+
+        AuditLog::create([
+            'user_id'    => $request->user()->id ?? null,
+            'table_name' => 'users',
+            'record_id'  => $user->id,
+            'action'     => 'update_patient',
+            'old_values' => json_encode($old),
+            'new_values' => json_encode($user->only(['full_name','national_id','birth_date','phone','email'])),
+            'ip_address' => $request->ip(),
         ]);
 
         return response()->json([
@@ -82,15 +110,31 @@ class PatientDataEntryController extends BaseApiController
         ]);
     }
 
-    // 4. View Operations Log (سجل العمليات على المستخدمين)
-    public function activityLog()
+    // 4. View Operations Log (سجل العمليات على المرضى)
+    public function activityLog(Request $request)
     {
-        $logs = AuditLog::with('user')
+        $logs = AuditLog::with('patientUser')
             ->where('table_name', 'users')
+            ->whereHas('patientUser', function ($q) {
+                $q->where('type', 'patient');
+            })
             ->latest()
-            ->paginate(20);
+            ->get();
 
-        return \App\Http\Resources\AuditLogResource::collection($logs);
+        $data = $logs->map(function ($log) {
+            $patient = $log->patientUser;
+
+            return [
+                'fileNumber'    => 'FILE-' . $log->record_id,
+                'fullName'      => $patient->full_name ?? 'غير معروف',
+                'operationType' => $log->action, // create_patient / update_patient / delete_patient
+                'operationDate' => $log->created_at
+                                    ? $log->created_at->format('Y/m/d H:i')
+                                    : null,
+            ];
+        });
+
+        return response()->json($data);
     }
 
     // 5. Dashboard Statistics (إحصائيات المرضى)
@@ -146,7 +190,19 @@ class PatientDataEntryController extends BaseApiController
             return $this->sendError('المريض غير موجود.', [], 404);
         }
 
+        $old = $patient->only(['full_name','national_id','birth_date','phone','email']);
+
         $patient->delete();
+
+        AuditLog::create([
+            'user_id'    => $request->user()->id ?? null,
+            'table_name' => 'users',
+            'record_id'  => $id,
+            'action'     => 'delete_patient',
+            'old_values' => json_encode($old),
+            'new_values' => null,
+            'ip_address' => $request->ip(),
+        ]);
 
         return $this->sendSuccess([], 'تم حذف المريض بنجاح.');
     }

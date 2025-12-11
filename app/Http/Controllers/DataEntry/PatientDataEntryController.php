@@ -111,7 +111,7 @@ class PatientDataEntryController extends BaseApiController
     }
 
     // 4. View Operations Log (سجل العمليات على المرضى)
-  public function activityLog(Request $request)
+ public function activityLog(Request $request)
 {
     $logs = AuditLog::where('table_name', 'users')
         ->latest()
@@ -122,17 +122,13 @@ class PatientDataEntryController extends BaseApiController
         $old     = $log->old_values ? json_decode($log->old_values, true) : [];
         $new     = $log->new_values ? json_decode($log->new_values, true) : [];
 
-        // اختيار الاسم حسب نوع العملية
-        if ($log->action === 'update_patient') {
-            // في التعديل نفضّل الاسم الجديد
+        // 1) نحاول من الموديل مباشرة
+        if ($patient) {
+            $fullName = $patient->full_name;
+        } else {
+            // 2) من new_values
             $fullName = $new['full_name']
-                ?? ($patient->full_name ?? ($old['full_name'] ?? 'غير معروف'));
-        } elseif ($log->action === 'delete_patient') {
-            // في الحذف نعتمد على القديم فقط
-            $fullName = $old['full_name'] ?? 'غير معروف';
-        } else { // create_patient
-            $fullName = $new['full_name']
-                ?? ($patient->full_name ?? 'غير معروف');
+                ?? ($old['full_name'] ?? 'غير معروف');
         }
 
         $operationType = match ($log->action) {
@@ -152,6 +148,7 @@ class PatientDataEntryController extends BaseApiController
 
     return response()->json($data);
 }
+
 
 
 

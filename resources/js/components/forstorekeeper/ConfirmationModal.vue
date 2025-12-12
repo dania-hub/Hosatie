@@ -1,207 +1,206 @@
 <template>
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-3xl w-full max-w-2xl mx-auto my-10 transform transition-all duration-300 scale-100 opacity-100 dark:bg-gray-800"
+            @click="closeModal"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        ></div>
+
+        <div
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[95vh] overflow-y-auto"
+            dir="rtl"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modal-title"
-            @click.stop
         >
-            <div
-                class="flex justify-between items-center bg-[#F6F4F0] p-4 sm:p-6 border-b border-[#B8D7D9] sticky top-0 rounded-t-xl z-10"
-            >
-                <h3
-                    id="modal-title"
-                    class="text-xl font-extrabold text-[#2E5077] flex items-center"
-                >
-                    <Icon
-                        icon="tabler:package"
-                        class="w-7 h-7 ml-3 text-[#4DA1A9]"
-                    />
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
                     معالجة الشحنة رقم {{ requestData.shipmentNumber || "..." }}
-                </h3>
-
-                <button
-                    @click="closeModal"
-                    class="text-gray-400 hover:text-[#2E5077] transition duration-150 p-2 rounded-full hover:bg-white/30"
-                    :disabled="props.isLoading || isConfirming"
-                    aria-label="إغلاق"
-                >
-                    <Icon icon="tabler:x" class="w-6 h-6" />
+                </h2>
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
-            <div
-                class="p-3 sm:px-5 sm:py-5 bg-[#F6F4F0] dark:bg-gray-800 space-y-6 max-h-[75vh] overflow-y-auto"
-            >
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm border-b pb-4 border-gray-200 dark:border-gray-700">
-                    <p class="text-right flex justify-between sm:block">
-                        <span class="font-bold text-gray-800 dark:text-gray-200">الجهة الطالبة:</span>
-                        <span class="mr-2 text-gray-700 dark:text-gray-300 font-semibold">{{
-                            requestData.department || "غير محدد"
-                        }}</span>
-                    </p>
-
-                    <p class="text-right flex justify-between sm:block">
-                        <span class="font-bold text-gray-800 dark:text-gray-200">تاريخ الطلب:</span>
-                        <span class="mr-2 text-gray-700 dark:text-gray-300">{{
-                            formatDate(requestData.date) || "غير محدد"
-                        }}</span>
-                    </p>
-
-                    <p class="text-right flex justify-between sm:block">
-                        <span class="font-bold text-gray-800 dark:text-gray-200">الحالة:</span>
-                        <span class="mr-2 font-extrabold text-orange-500 bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 rounded-full inline-block">{{
-                            requestData.status || "قيد التجهيز"
-                        }}</span>
-                    </p>
-                </div>
-
-                <div class="mt-8">
-                    <h3
-                        class="text-xl font-bold text-[#15A599] pb-2 mb-4 flex items-center border-b border-dashed border-[#15A599]/50"
-                    >
-                        <Icon icon="tabler:pill" class="w-6 h-6 ml-2" />
-                        الأدوية المطلوبة والمخزون المتاح
-                    </h3>
-                    
-                    <div
-                        v-if="receivedItems.length > 0"
-                        class="space-y-4"
-                    >
-                        <div
-                            v-for="(item, index) in receivedItems"
-                            :key="item.id || index"
-                            class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg flex flex-col items-start md:flex-row justify-between md:items-center shadow-sm hover:shadow-md transition duration-200"
-                        >
-                            <div
-                                class="flex-1 w-full flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-0 md:pl-20"
-                            >
-                                <div>
-                                    <span class="text-gray-700 dark:text-gray-300 font-medium">
-                                        {{ item.name }}
-                                    </span>
-                                    <div v-if="item.dosage" class="text-xs text-gray-500 mt-1">
-                                        الجرعة: {{ item.dosage }}
-                                    </div>
-                                </div>
-
-                                <div
-                                    class="text-sm flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center"
-                                >
-                                    <span class="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
-                                        مطلوب: {{ item.originalQuantity }} {{ item.unit }}
-                                    </span>
-
-                                    <span 
-                                        :class="{
-                                            'text-green-600 dark:text-green-400': item.availableQuantity >= item.originalQuantity,
-                                            'text-red-600 dark:text-red-400': item.availableQuantity < item.originalQuantity
-                                        }" 
-                                        class="font-medium whitespace-nowrap"
-                                    >
-                                        متوفر: {{ item.availableQuantity }} {{ item.unit }}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div
-                                class="flex items-center gap-2 w-full md:w-auto mt-4 md:mt-0 justify-end"
-                            >
-                                <label
-                                    :for="`sent-qty-${index}`"
-                                    class="text-sm text-gray-600 dark:text-gray-300 font-medium whitespace-nowrap"
-                                >
-                                    الكمية :
-                                </label>
-
-                                <input
-                                    :id="`sent-qty-${index}`"
-                                    type="number"
-                                    v-model.number="item.sentQuantity"
-                                    :max="item.availableQuantity"
-                                    :min="0"
-                                    :class="{
-                                        'border-red-300': item.sentQuantity > item.availableQuantity,
-                                        'border-green-300': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0
-                                    }"
-                                    class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-[#15A599] focus:border-[#15A599] text-center transition-all duration-200 text-base"
-                                    @input="validateQuantity(index, item.availableQuantity)"
-                                    :disabled="props.isLoading || isConfirming"
-                                    aria-label="الكمية"
-                                />
-                            </div>
+            <div class="p-8 space-y-8">
+                
+                <!-- Info Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">الجهة الطالبة</p>
+                            <p class="text-[#2E5077] font-bold text-lg">{{ requestData.department || "غير محدد" }}</p>
+                        </div>
+                        <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                            <Icon icon="solar:hospital-bold-duotone" class="w-6 h-6 text-blue-600" />
                         </div>
                     </div>
 
-                    <p v-else class="text-center text-gray-500 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700 mt-4">
-                        لا توجد أدوية في هذا الطلب.
-                    </p>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">تاريخ الطلب</p>
+                            <p class="text-[#2E5077] font-bold text-lg">{{ formatDate(requestData.date) || "غير محدد" }}</p>
+                        </div>
+                        <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center">
+                            <Icon icon="solar:calendar-bold-duotone" class="w-6 h-6 text-purple-600" />
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">الحالة</p>
+                            <span class="inline-block px-3 py-1 rounded-lg text-sm font-bold bg-orange-100 text-orange-600">
+                                {{ requestData.status || "قيد التجهيز" }}
+                            </span>
+                        </div>
+                        <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
+                            <Icon icon="solar:clock-circle-bold-duotone" class="w-6 h-6 text-orange-600" />
+                        </div>
+                    </div>
                 </div>
 
-                <div
-                    v-if="showRejectionNote"
-                    class="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-all duration-300"
-                >
-                    <h4 class="text-lg font-bold text-red-700 dark:text-red-400 mb-3 flex items-center">
-                        <Icon icon="tabler:alert-circle" class="w-5 h-5 ml-2" />
+                <!-- Items Section -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:pill-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        الأدوية المطلوبة والمخزون المتاح
+                    </h3>
+
+                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div v-if="receivedItems.length > 0" class="divide-y divide-gray-50">
+                            <div 
+                                v-for="(item, index) in receivedItems" 
+                                :key="item.id || index"
+                                class="p-5 hover:bg-gray-50/50 transition-colors"
+                            >
+                                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <!-- Item Info -->
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name }}</h4>
+                                            <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">
+                                                {{ item.dosage }}
+                                            </span>
+                                        </div>
+                                        
+                                        <div class="flex items-center gap-4 text-sm mt-2">
+                                            <div class="flex items-center gap-1 text-gray-600 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                                                <span class="font-medium">مطلوب:</span>
+                                                <span class="font-bold text-[#2E5077]">{{ item.originalQuantity }} {{ item.unit }}</span>
+                                            </div>
+                                            
+                                            <div 
+                                                class="flex items-center gap-1 px-2 py-1 rounded-lg border"
+                                                :class="{
+                                                    'bg-green-50 border-green-100 text-green-700': item.availableQuantity >= item.originalQuantity,
+                                                    'bg-red-50 border-red-100 text-red-700': item.availableQuantity < item.originalQuantity
+                                                }"
+                                            >
+                                                <span class="font-medium">متوفر:</span>
+                                                <span class="font-bold">{{ item.availableQuantity }} {{ item.unit }}</span>
+                                                <Icon v-if="item.availableQuantity < item.originalQuantity" icon="solar:danger-circle-bold" class="w-4 h-4" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action -->
+                                    <div class="flex items-center gap-3 w-full md:w-auto bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                        <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
+                                            الكمية المرسلة:
+                                        </label>
+                                        <input
+                                            :id="`sent-qty-${index}`"
+                                            type="number"
+                                            v-model.number="item.sentQuantity"
+                                            :max="item.availableQuantity"
+                                            :min="0"
+                                            class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
+                                            :class="{
+                                                'border-red-300 focus:border-red-500': item.sentQuantity > item.availableQuantity,
+                                                'border-green-300 focus:border-green-500': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0,
+                                                'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0
+                                            }"
+                                            @input="validateQuantity(index, item.availableQuantity)"
+                                            :disabled="props.isLoading || isConfirming"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="py-12 text-center text-gray-500">
+                            <Icon icon="solar:box-minimalistic-broken" class="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                            لا توجد أدوية في هذا الطلب
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rejection Section -->
+                <div v-if="showRejectionNote" class="bg-red-50 border border-red-100 rounded-2xl p-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <h4 class="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
+                        <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                         سبب رفض الطلب
                     </h4>
                     
                     <div class="space-y-3">
-                        <label class="block text-sm font-medium text-red-700 dark:text-red-300">
-                            يرجى كتابة سبب الرفض (إلزامي) *
+                        <label class="block text-sm font-medium text-red-800">
+                            يرجى كتابة سبب الرفض (إلزامي) <span class="text-red-600">*</span>
                         </label>
                         
                         <textarea
                             v-model="rejectionNote"
                             placeholder="مثال: نقص في المخزون - طلب غير مطابق للسياسات - بيانات ناقصة..."
                             rows="3"
-                            class="w-full h-15 px-4 py-3 border-2 border-red-300 dark:border-red-700 focus:border-red-500 dark:focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 transition-all duration-200 resize-none"
-                            :class="{ 'border-red-500': rejectionError }"
+                            class="w-full p-4 border-2 rounded-xl bg-white text-gray-800 transition-all duration-200 resize-none focus:outline-none focus:ring-4 focus:ring-red-500/10"
+                            :class="rejectionError ? 'border-red-500 focus:border-red-500' : 'border-red-200 focus:border-red-400'"
                             @input="rejectionError = false"
                         ></textarea>
                         
-                        <div v-if="rejectionError" class="text-red-600 dark:text-red-400 text-sm flex items-center">
-                            <Icon icon="tabler:alert-circle" class="w-4 h-4 ml-1" />
+                        <div v-if="rejectionError" class="text-red-600 text-sm flex items-center gap-1 font-medium">
+                            <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
                             يجب كتابة سبب الرفض قبل الإرسال
                         </div>
-                        
                     </div>
                 </div>
 
-                <div v-if="!showRejectionNote" class="mt-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        ملاحظات إضافية (اختياري)
-                    </label>
+                <!-- Additional Notes -->
+                <div v-if="!showRejectionNote" class="space-y-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        ملاحظات إضافية <span class="text-sm font-normal text-gray-400">(اختياري)</span>
+                    </h3>
                     <textarea
                         v-model="additionalNotes"
                         placeholder="أضف أي ملاحظات حول الشحنة..."
                         rows="2"
-                        class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-[#4DA1A9] focus:border-[#4DA1A9] transition duration-200"
+                        class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
                     ></textarea>
                 </div>
             </div>
 
-            <div
-                class="p-5 sm:px-6 sm:py-4 flex flex-col-reverse sm:flex-row justify-between gap-3 sticky bottom-0 bg-[#F6F4F0] dark:bg-gray-800 rounded-b-xl border-t border-gray-200 dark:border-gray-700"
-            >
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex flex-col-reverse sm:flex-row justify-between gap-3 border-t border-gray-100 sticky bottom-0">
                 <button
                     @click="closeModal"
-                    class="inline-flex h-11 items-center justify-center px-6 rounded-full transition-all duration-200 ease-in text-base cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
                     :disabled="props.isLoading || isConfirming"
                 >
                     إلغاء
                 </button>
 
-                <div class="flex gap-3 w-full sm:w-auto">
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <!-- Rejection Actions -->
                     <template v-if="showRejectionNote">
                         <button
                             @click="cancelRejection"
-                            class="inline-flex h-11 items-center justify-center px-6 rounded-full transition-all duration-200 ease-in text-base cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
+                            class="px-6 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
                             :disabled="isConfirming"
                         >
                             إلغاء الرفض
@@ -209,39 +208,36 @@
                         
                         <button
                             @click="confirmRejection"
-                            class="inline-flex items-center h-11 justify-center px-6 rounded-full transition-all duration-200 ease-in text-base cursor-pointer text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 font-semibold w-full sm:w-auto"
+                            class="px-6 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors duration-200 shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 w-full sm:w-auto"
                             :disabled="isConfirming"
                         >
-                            <Icon v-if="isConfirming" icon="eos-icons:loading" class="w-5 h-5 ml-2 animate-spin" />
-                            <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
+                            <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                            <Icon v-else icon="solar:close-circle-bold" class="w-5 h-5" />
                             تأكيد الرفض
                         </button>
                     </template>
 
-                    <button
-                        @click="initiateRejection"
-                        class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 rounded-full transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#90685e] hover:border hover:border-[#a8a8a8] hover:bg-[#90685ee0] font-semibold w-full sm:w-auto"
-                        :disabled="props.isLoading || isConfirming || showRejectionNote"
-                        v-if="!showRejectionNote"
-                    >
-                        <Icon icon="tabler:x" class="w-5 h-5 ml-2" />
-                        رفض الطلب
-                    </button>
+                    <!-- Normal Actions -->
+                    <template v-else>
+                        <button
+                            @click="initiateRejection"
+                            class="px-6 py-2.5 rounded-xl text-red-500 bg-red-50 border border-red-100 font-medium hover:bg-red-100 transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
+                            :disabled="props.isLoading || isConfirming"
+                        >
+                            <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
+                            رفض الطلب
+                        </button>
 
-                    <button
-                        @click="sendShipment"
-                        class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 rounded-full transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] font-semibold w-full sm:w-auto"
-                        :disabled="props.isLoading || isConfirming || showRejectionNote"
-                        v-if="!showRejectionNote"
-                    >
-                        <Icon
-                            v-if="isConfirming"
-                            icon="eos-icons:loading"
-                            class="w-5 h-5 ml-2 animate-spin"
-                        />
-                        <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
-                        {{ isConfirming ? "جاري الإرسال..." : "إرسال الشحنة" }}
-                    </button>
+                        <button
+                            @click="sendShipment"
+                            class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
+                            :disabled="props.isLoading || isConfirming"
+                        >
+                            <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                            <Icon v-else icon="solar:plain-bold" class="w-5 h-5" />
+                            {{ isConfirming ? "جاري الإرسال..." : "إرسال الشحنة" }}
+                        </button>
+                    </template>
                 </div>
             </div>
         </div>
@@ -290,7 +286,7 @@ watch(
     (newItems) => {
         if (newItems && newItems.length > 0) {
             receivedItems.value = newItems.map((item) => {
-                // الحصول على الكمية المتاحة من المخزون (يجب أن تأتي من API)
+                // الحصول على الكمية المتاحة من المخزون
                 const available = Number(
                     item.availableQuantity ||
                     item.stock ||
@@ -456,24 +452,12 @@ input[type="number"] {
     -moz-appearance: textfield;
 }
 
-.shadow-3xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+.animate-in {
+    animation: fadeIn 0.3s ease-out;
 }
 
-.max-h-\[75vh\] {
-    max-height: 75vh;
-}
-
-.animate-spin {
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 </style>

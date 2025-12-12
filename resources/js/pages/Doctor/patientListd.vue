@@ -1,9 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import axios from "axios";
 
 import Navbar from "@/components/Navbar.vue";
@@ -46,7 +43,7 @@ api.interceptors.request.use(
 // ----------------------------------------------------
 // 2. بيانات المرضى - أصبحت تأتي من API
 // ----------------------------------------------------
-const patients = ref([]);
+const patients = ref([ ]);
 const isLoading = ref(false);
 const hasError = ref(false);
 const errorMessage = ref("");
@@ -71,7 +68,7 @@ const fetchPatients = async () => {
     errorMessage.value = err.response?.data?.message || 'حدث خطأ في جلب بيانات المرضى';
     
     // في حالة الخطأ، نعرض الجدول فارغًا ولا نعرض رسالة خطأ
-    patients.value = [];
+ 
     
     // يمكنك إظهار تنبيه خفيف بدلاً من رسالة خطأ كبيرة
     showInfoAlert('لا يمكن الاتصال بالخادم. سيتم عرض الجدول فارغًا.');
@@ -238,15 +235,15 @@ const dispensationHistory = ref([]);
 // ----------------------------------------------------
 const openViewModal = async (patient) => {
   try {
-    // جلب البيانات المحدثة للمريض من API
     const patientData = await fetchPatientDetails(patient.fileNumber);
     if (patientData) {
       selectedPatient.value = patientData;
+      console.log('selectedPatient after API:', selectedPatient.value); // إضافة للتحقق
       isViewModalOpen.value = true;
     }
   } catch (err) {
-    // في حالة الخطأ، نستخدم البيانات المحلية
     selectedPatient.value = patient;
+    console.log('selectedPatient from local data:', selectedPatient.value); // إضافة للتحقق
     isViewModalOpen.value = true;
   }
 };
@@ -268,14 +265,14 @@ const closeAddMedicationModal = () => {
 
 const openDispensationModal = async () => {
   try {
-    // جلب سجل الصرف من API
     const history = await fetchDispensationHistory(selectedPatient.value.fileNumber);
     dispensationHistory.value = history;
+    console.log('dispensationHistory:', dispensationHistory.value); // إضافة للتحقق
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
   } catch (err) {
-    // في حالة الخطأ، نعرض سجل فارغ
     dispensationHistory.value = [];
+    console.log('dispensationHistory (empty):', dispensationHistory.value); // إضافة للتحقق
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
   }

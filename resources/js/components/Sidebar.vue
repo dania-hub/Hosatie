@@ -165,13 +165,22 @@ const links = {
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/department/operations" },
         { name: "الطلبات", icon: "carbon:request-quote", to: "/department/requests" },
     ],
-    storekeeper: [
+    warehouse_manager: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/storekeeper/statistics" },
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/storekeeper/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/storekeeper/operations" },
         { name: "الطلبات", icon: "carbon:request-quote", to: "/storekeeper/requests" },
         { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/storekeeper/supply-requests" },
+    ],
+    supplier_admin:[
+       { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/Supplier/statistics" },
+        { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/Supplier/medications" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/Supplier/operations" },
+        { name: "الطلبات", icon: "carbon:request-quote", to: "/Supplier/requests" },
+        { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/Supplier/supply-requests" },
+     
     ]
+    
 };
 
 const currentLinks = computed(() => {

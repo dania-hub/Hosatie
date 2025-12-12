@@ -12,6 +12,7 @@ import btnprint from "@/components/btnprint.vue";
 import PatientViewModal from "@/components/patientDoctor/PatientViewModal.vue";
 import AddMedicationModal from "@/components/patientDoctor/AddMedicationModal.vue";
 import DispensationModal from "@/components/patientDoctor/DispensationModal.vue";
+import DefaultLayout from "@/components/DefaultLayout.vue";
 
 // ----------------------------------------------------
 // 1. تكوين Axios
@@ -66,9 +67,6 @@ const fetchPatients = async () => {
   } catch (err) {
     hasError.value = true;
     errorMessage.value = err.response?.data?.message || 'حدث خطأ في جلب بيانات المرضى';
-    
-    // في حالة الخطأ، نعرض الجدول فارغًا ولا نعرض رسالة خطأ
-    patients.value = [];
     
     // يمكنك إظهار تنبيه خفيف بدلاً من رسالة خطأ كبيرة
     showInfoAlert('لا يمكن الاتصال بالخادم. سيتم عرض الجدول فارغًا.');
@@ -507,23 +505,11 @@ const reloadData = () => {
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
-        <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
-
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
-
+   <DefaultLayout>
             <main class="flex-1 p-4 sm:p-5 pt-3">
-                <!-- حالة التحميل -->
-                <div v-if="isLoading" class="flex justify-center items-center h-64">
-                    <div class="text-center">
-                        <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto" />
-                        <p class="mt-4 text-gray-600">جاري تحميل البيانات...</p>
-                    </div>
-                </div>
-
+            
                 <!-- المحتوى الرئيسي -->
-                <div v-else>
+                <div>
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                         <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
                             <div class="flex items-center gap-3 w-full sm:max-w-xl">
@@ -590,14 +576,7 @@ const reloadData = () => {
                         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                             <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
                                 <btnprint @click="printTable" />
-                                <button 
-                                    @click="reloadData" 
-                                    class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200"
-                                    title="إعادة تحميل البيانات"
-                                >
-                                    <Icon icon="material-symbols:refresh" class="w-5 h-5 ml-1" />
-                                    تحديث
-                                </button>
+                            
                             </div>
                         </div>
                     </div>
@@ -672,10 +651,7 @@ const reloadData = () => {
                     </div>
                 </div>
             </main>
-        </div>
-
-        <Sidebar />
-    </div>
+      </DefaultLayout>
 
     <!-- Modal Components -->
     <PatientViewModal

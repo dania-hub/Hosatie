@@ -1,253 +1,221 @@
 <template>
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 overflow-y-auto bg-black/50 bg-opacity-50 flex items-center justify-center p-4 "
+        class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
     >
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full max-w-2xl mx-auto my-10 transform transition-all duration-300 scale-100 opacity-100"
+            @click="closeModal"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        ></div>
+
+        <div
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[95vh] overflow-y-auto"
+            dir="rtl"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modal-title"
         >
-            <div
-                class="flex justify-between items-center bg-[#F6F4F0] p-4 sm:p-6 border-b border-[#B8D7D9] sticky top-0 rounded-t-2xl z-10"
-            >
-                <h3
-                    id="modal-title"
-                    class="text-xl font-bold text-[#2E5077] flex items-center"
-                >
-                    <Icon
-                        icon="tabler:medical-cross"
-                        class="w-6 h-6 ml-2 text-[#4DA1A9]"
-                    />
-                    طلب توريد
-                </h3>
-                <button
-                    @click="closeModal"
-                    class="text-gray-400 hover:text-gray-600 transition duration-150"
-                >
-                    <Icon icon="tabler:x" class="w-6 h-6" />
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    طلب توريد أدوية - القسم
+                </h2>
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                <div class="space-y-4">
-                    <h3
-                        class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center"
-                    >
-                        <Icon
-                            icon="tabler:medical-cross"
-                            class="w-5 h-5 ml-2"
-                        />
-                        معلومات الدواء
+            <div class="p-8 space-y-8">
+                
+                <!-- Drug Info Section -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:medical-kit-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        بيانات الدواء
                     </h3>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="flex flex-col gap-1 sm:col-span-1">
-                            <label
-                                for="drugCategory"
-                                class="text-right font-medium text-[#2E5077] pt-2"
-                                >الفئة:</label
-                            >
-                            <select
-                                id="drugCategory"
-                                v-model="selectedCategory"
-                                @change="handleInput"
-                                class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white cursor-pointer shadow-none text-gray-700"
-                            >
-                                <option value="">كل الفئات</option>
-                                <option
-                                    v-for="cat in categories"
-                                    :key="cat.id"
-                                    :value="cat.id"
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Category Select -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:filter-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                الفئة
+                            </label>
+                            <div class="relative">
+                                <select
+                                    v-model="selectedCategory"
+                                    @change="handleInput"
+                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all appearance-none cursor-pointer"
                                 >
-                                    {{ cat.name }}
-                                </option>
-                            </select>
+                                    <option value="">كل الفئات</option>
+                                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                                </select>
+                                <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4" />
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="flex flex-col gap-1 relative sm:col-span-2">
-                            <label
-                                for="drug-search"
-                                class="text-right font-medium text-[#2E5077] pt-2"
-                                >اسم الدواء:</label
-                            >
-                            <input
-                                id="drug-search"
-                                type="text"
-                                v-model="searchTermDrug"
-                                @input="handleInput"
-                                @focus="showAllDrugsOnFocus"
-                                @blur="hideResults"
-                                placeholder="ابدأ بكتابة اسم الدواء"
-                                class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white shadow-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                                :disabled="selectedDrugName.length > 0"
-                            />
+                        <!-- Drug Search -->
+                        <div class="space-y-2 md:col-span-2 relative">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:magnifer-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                اسم الدواء
+                            </label>
+                            <div class="relative">
+                                <input
+                                    type="text"
+                                    v-model="searchTermDrug"
+                                    @input="handleInput"
+                                    @focus="showAllDrugsOnFocus"
+                                    @blur="hideResults"
+                                    placeholder="ابحث عن دواء..."
+                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                    :disabled="selectedDrugName.length > 0"
+                                />
+                            </div>
 
-                            <ul
-                                v-if="showResults && uniqueFilteredDrugs.length"
-                                class="absolute top-full left-0 right-0 z-10 list-none p-0 m-0 border border-[#4DA1A9] border-t-0 rounded-b-lg max-h-52 overflow-y-auto bg-white shadow-xl"
-                            >
-                                <li
-                                    v-for="drug in uniqueFilteredDrugs"
-                                    :key="drug.id"
-                                    @mousedown="selectDrug(drug)"
-                                    class="p-2.5 px-4 cursor-pointer border-b border-gray-100 text-sm text-[#2E5077] hover:bg-[#EAF3F4]"
-                                >
-                                    {{ drug.name }}
-                                    <span
-                                        v-if="drug.mostCommonDosage"
-                                        class="text-gray-500 text-xs"
-                                        >({{ drug.mostCommonDosage }})</span
+                            <!-- Search Results -->
+                            <div v-if="showResults && uniqueFilteredDrugs.length" class="absolute top-full left-0 right-0 z-30 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto">
+                                <ul class="py-2">
+                                    <li
+                                        v-for="drug in uniqueFilteredDrugs"
+                                        :key="drug.id"
+                                        @mousedown="selectDrug(drug)"
+                                        class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                                     >
-                                </li>
-                            </ul>
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-bold text-[#2E5077]">{{ drug.name }}</span>
+                                            <span v-if="drug.mostCommonDosage" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
+                                                {{ drug.mostCommonDosage }}
+                                            </span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-1 col-span-1">
-                            <label
-                                :for="quantityInputId"
-                                class="text-right font-medium text-[#2E5077] pt-2"
-                            >
-                                الكمية (<span class="unit-text">{{
-                                    quantityUnit
-                                }}</span
-                                >):
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                        <!-- Quantity Input -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:calculator-minimalistic-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                الكمية المطلوبة (<span class="text-[#4DA1A9]">{{ quantityUnit }}</span>)
                             </label>
                             <input
-                                :id="quantityInputId"
                                 type="number"
                                 min="0"
                                 v-model.number="dailyQuantity"
-                                class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white shadow-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                                placeholder="أدخل الكمية"
+                                class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                placeholder="0"
                                 :disabled="!selectedDrugName"
                             />
-                            <p
-                                v-if="quantityError"
-                                class="text-xs text-red-500 mt-1 font-semibold"
-                            >
+                            <p v-if="quantityError" class="text-xs text-red-500 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                                 {{ quantityError }}
                             </p>
                         </div>
-
-                        <div class="pt-9">
-                            <button
-                                @click="addNewDrug"
-                                :disabled="!isCurrentDrugValid"
-                                class="h-11 inline-flex items-center justify-center px-[25px] border-2 border-[#4DA1A9] rounded-[30px] transition-all duration-200 ease-in text-[15px] cursor-pointer text-[#4DA1A9] bg-white hover:bg-[#EAF3F4] disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed w-full"
-                            >
-                                <Icon icon="tabler:plus" class="w-5 h-5 ml-1" />
-                                إضافة للقائمة
-                            </button>
-                        </div>
+                        
+                        <!-- Add Button -->
+                        <button
+                            @click="addNewDrug"
+                            :disabled="!isCurrentDrugValid"
+                            class="h-11 w-full rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                            :class="(!isCurrentDrugValid) 
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+                                : 'bg-[#4DA1A9] text-white hover:bg-[#3a8c94] hover:-translate-y-0.5'"
+                        >
+                            <Icon icon="solar:add-circle-bold" class="w-5 h-5" />
+                            إضافة للقائمة
+                        </button>
                     </div>
 
-                    <div
-                        v-if="
-                            !selectedDrugName &&
-                            (searchTermDrug.length > 0 ||
-                                selectedCategory.length > 0) &&
-                            filteredDrugs.length > 0
-                        "
-                    >
-                        <p
-                            class="text-sm p-3 rounded-md border-r-4 border-[#4DA1A9] bg-[#EAF3F4] text-[#2E5077]"
-                        >
-                            الرجاء اختيار دواء من قائمة النتائج الظاهرة
-                            لتحديد الكمية.
-                        </p>
+                    <!-- Alerts -->
+                    <div v-if="!selectedDrugName && (searchTermDrug.length > 0 || selectedCategory) && filteredDrugs.length > 0" class="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 text-sm flex items-center gap-2">
+                        <Icon icon="solar:info-circle-bold" class="w-5 h-5" />
+                        الرجاء اختيار دواء من القائمة لتحديد الكمية
                     </div>
-                    <div
-                        v-else-if="
-                            !selectedDrugName &&
-                            (searchTermDrug.length > 0 ||
-                                selectedCategory.length > 0) &&
-                            filteredDrugs.length === 0
-                        "
-                    >
-                        <p
-                            class="text-sm p-3 rounded-md border-r-4 border-red-400 bg-red-50 text-red-700"
-                        >
-                            لا توجد نتائج مطابقة لاسم الدواء في الفئة المختارة.
-                        </p>
+                    <div v-else-if="!selectedDrugName && (searchTermDrug.length > 0 || selectedCategory) && filteredDrugs.length === 0" class="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex items-center gap-2">
+                        <Icon icon="solar:danger-circle-bold" class="w-5 h-5" />
+                        لا توجد نتائج مطابقة
                     </div>
+                </div>
 
-                    <div v-if="dailyDosageList.length > 0" class="mt-8">
-                        <h3
-                            class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 mb-4 flex items-center"
-                        >
-                            <Icon icon="tabler:list-details" class="w-5 h-5 ml-2" />
-                            الأدوية المضافة للقائمة ({{
-                                dailyDosageList.length
-                            }})
+                <!-- Added List -->
+                <div v-if="dailyDosageList.length > 0" class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div class="bg-gray-50 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="font-bold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:list-check-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
+                            قائمة التوريد
                         </h3>
-
-                        <div
-                            class="p-4 border border-[#B8D7D9] rounded-md bg-[#F6F4F0] max-h-48 overflow-y-auto"
-                        >
-                            <ul class="list-none p-0 m-0">
-                                <li
-                                    v-for="(item, index) in dailyDosageList"
-                                    :key="index"
-                                    class="bg-white p-2.5 px-4 rounded-xl mb-2 flex justify-between items-center text-sm text-[#2E5077] font-medium border border-[#B8D7D9] shadow-sm"
-                                >
-                                    <span>
-                                        **{{ item.name }}** -
-                                        {{ item.quantity }} {{ item.unit }}
-                                    </span>
-                                    <span
-                                        class="text-red-600 cursor-pointer text-base opacity-90 hover:opacity-70 transition duration-200"
-                                        @click="removeItem(index)"
-                                        >❌ حذف</span
-                                    >
-                                </li>
-                            </ul>
-                        </div>
+                        <span class="bg-[#2E5077] text-white text-xs px-2 py-1 rounded-lg">{{ dailyDosageList.length }}</span>
                     </div>
-                    <p v-else class="text-center text-gray-500 py-2">
-                        لم يتم إضافة أي أدوية بعد.
-                    </p>
+                    
+                    <ul class="divide-y divide-gray-50 max-h-60 overflow-y-auto">
+                        <li v-for="(item, index) in dailyDosageList" :key="index" class="p-4 flex justify-between items-center hover:bg-gray-50/50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm">
+                                    {{ index + 1 }}
+                                </div>
+                                <div>
+                                    <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
+                                    <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }}</p>
+                                </div>
+                            </div>
+                            <button 
+                                @click="removeItem(index)"
+                                class="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                                <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-5 h-5" />
+                            </button>
+                        </li>
+                    </ul>
                 </div>
                 
-                <div class="space-y-4 pt-2">
-                    <h3
-                        class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center"
-                    >
-                        <Icon icon="tabler:notes" class="w-5 h-5 ml-2" />
-                        ملاحظات الطلب (اختياري)
+                <div v-else class="py-8 text-center border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                    <Icon icon="solar:box-minimalistic-bold-duotone" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p class="text-gray-500 font-medium">لم يتم إضافة أي أدوية للقائمة بعد</p>
+                </div>
+
+                <!-- Notes -->
+                <div class="space-y-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        ملاحظات الطلب <span class="text-sm font-normal text-gray-400">(اختياري)</span>
                     </h3>
-                    <div class="p-2 border border-[#B8D7D9] rounded-xl bg-white">
-                        <textarea
-                            v-model="requestNotes"
-                            rows="3"
-                            placeholder="أدخل أي ملاحظات خاصة بطلب التوريد (مثل: حاجة مستعجلة، تفضيلات مورد، إلخ)..."
-                            class="w-full px-2 py-2 border-none focus:outline-none text-sm text-[#2E5077] bg-transparent resize-none placeholder-gray-400"
-                        ></textarea>
-                    </div>
+                    <textarea
+                        v-model="requestNotes"
+                        rows="3"
+                        placeholder="أدخل أي ملاحظات خاصة بطلب التوريد..."
+                        class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
+                    ></textarea>
                 </div>
             </div>
 
-            <div
-                class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]"
-            >
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="closeModal" 
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    إلغاء
+                </button>
                 <button
                     @click="confirmAddition"
                     :disabled="!isReadyToConfirm"
-                    class="inline-flex items-center px-[25px] py-[9px] border-2 h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] border-[#4DA1A9] hover:bg-[#398086] hover:border-[#398086] disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed font-medium"
+                    class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#2E5077]/20 flex items-center gap-2 transition-all duration-200"
+                    :class="(!isReadyToConfirm)
+                        ? 'bg-gray-300 cursor-not-allowed shadow-none'
+                        : 'bg-[#2E5077] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
                 >
-                    تأكيد القائمة ({{
-                        dailyDosageList.length + (isCurrentDrugValid ? 1 : 0)
-                    }})
-                </button>
-
-                <button
-                    @click="closeModal"
-                    class="inline-flex h-11 items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border-[#a8a8a8] hover:bg-[#b7b9bb] font-medium"
-                >
-                    إلغاء
+                    <Icon icon="solar:check-read-bold" class="w-5 h-5" />
+                    تأكيد الطلب ({{ dailyDosageList.length + (isCurrentDrugValid ? 1 : 0) }})
                 </button>
             </div>
         </div>
@@ -279,7 +247,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'confirm', 'show-alert']);
 
-// البيانات المحلية للنموذج
+// البيانات المحلية
 const selectedCategory = ref("");
 const searchTermDrug = ref("");
 const filteredDrugs = ref([]);
@@ -288,7 +256,7 @@ const selectedDrugType = ref("");
 const dailyQuantity = ref(null);
 const showResults = ref(false);
 const dailyDosageList = ref([]);
-const requestNotes = ref(''); // المتغير الجديد للملاحظات
+const requestNotes = ref('');
 
 // الثوابت
 const MAX_PILL_QTY = 15;
@@ -376,12 +344,12 @@ const clearForm = () => {
     dailyQuantity.value = null;
     dailyDosageList.value = [];
     filteredDrugs.value = [];
-    requestNotes.value = ''; // مسح الملاحظات
+    requestNotes.value = '';
 };
 
 const getDrugType = (drugName) => {
     const drugInfo = props.allDrugsData.find(d => d.name.toLowerCase() === drugName.toLowerCase());
-    return drugInfo ? drugInfo.type : 'Tablet'; // افتراضيا 'Tablet'
+    return drugInfo ? drugInfo.type : 'Tablet';
 };
 
 const fetchDrugsData = () => {
@@ -479,7 +447,6 @@ const removeItem = (index) => {
 };
 
 const confirmAddition = () => {
-    // 1. إضافة الدواء الحالي إذا كان صالحاً قبل التأكيد النهائي
     if (isCurrentDrugValid.value) {
         dailyDosageList.value.push({
             name: selectedDrugName.value,
@@ -491,7 +458,6 @@ const confirmAddition = () => {
                 minute: "2-digit",
             }),
         });
-        // مسح الحقول الحالية لمنع الإضافة المكررة بالخطأ
         searchTermDrug.value = "";
         selectedCategory.value = "";
         selectedDrugName.value = "";
@@ -499,14 +465,12 @@ const confirmAddition = () => {
         dailyQuantity.value = null;
     }
 
-    // 2. التحقق من وجود عناصر في القائمة
     if (dailyDosageList.value.length === 0) {
         emit('show-alert', "⚠️ لا يمكنك التأكيد دون إضافة دواء واحد على الأقل.");
     } else {
-        // 3. إرسال البيانات
         const confirmationData = {
             items: dailyDosageList.value,
-            notes: requestNotes.value.trim() // تمرير الملاحظات
+            notes: requestNotes.value.trim()
         };
         emit('confirm', confirmationData);
         closeModal();
@@ -557,31 +521,3 @@ watch(() => props.isOpen, (isOpen) => {
 // التهيئة الأولية
 fetchDrugsData();
 </script>
-
-<style scoped>
-/* إخفاء أسهم حقل الإدخال */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-input[type="number"] {
-    -moz-appearance: textfield;
-}
-
-/* تنسيقات للتركيز */
-textarea:focus {
-    outline: none;
-    box-shadow: none;
-}
-
-/* لضمان أقصى ارتفاع مناسب للمحتوى القابل للتمرير */
-.max-h-\[70vh\] {
-    max-height: 70vh; 
-}
-
-.max-h-48 {
-    max-height: 12rem;
-}
-</style>

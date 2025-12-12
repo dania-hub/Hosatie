@@ -1,11 +1,7 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import btnform from "@/components/btnform.vue";
-import Btncancel from "@/components/btncancel.vue";
+import Input from "@/components/ui/input/Input.vue";
 
 const props = defineProps({
     isOpen: Boolean
@@ -152,190 +148,189 @@ const maxDate = computed(() => {
 </script>
 
 <template>
-    <!-- Modal الرئيسي -->
-    <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 " 
-    >
-        <div
-            @click="closeModal"
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        ></div>
-
-        <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full sm:w-150 max-w-[95vw] sm:max-w-[700px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
-        >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon
-                        icon="mingcute:user-add-line"
-                        class="w-7 h-7 sm:w-9 sm:h-9 ml-2 text-[#2E5077]"
-                    />
-                    نموذج تسجيل مريض
+    <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="closeModal">
+        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100">
+            
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="mingcute:user-add-line" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    تسجيل مريض جديد
                 </h2>
-
-                <Button
-                    @click="closeModal"
-                    variant="ghost"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900"
-                >
-                    <Icon
-                        icon="ri:close-large-fill"
-                        class="w-6 h-6 text-[#2E5077] mt-3"
-                    />
-                </Button>
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                </button>
             </div>
 
-            <form @submit.prevent="submitForm" class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
-                <div class="space-y-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1">
-                        المعلومات الشخصية
-                    </h3>
+            <!-- Body -->
+            <div class="p-8 space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- National ID -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:card-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الرقم الوطني
+                        </label>
+                        <Input
+                            id="national-id"
+                            v-model="form.nationalId"
+                            placeholder="أدخل الرقم الوطني (12 رقم)"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.nationalId }"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                        />
+                        <p v-if="errors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم)
+                        </p>
+                    </div>
 
-                    <div class="space-y-4 pt-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="national-id" class="text-right font-medium text-[#2E5077] pt-2">الرقم الوطني</Label>
-                            <div class="relative w-full sm:w-75">
-                                <Input
-                                    required
-                                    id="national-id"
-                                    v-model="form.nationalId"
-                                    placeholder="أدخل الرقم الوطني"
-                                    type="text"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.nationalId, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9] ': !errors.nationalId }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                    <!-- Full Name -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:user-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الاسم الرباعي
+                        </label>
+                        <Input
+                            id="full-name"
+                            v-model="form.fullName"
+                            placeholder="أدخل الاسم الرباعي"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.fullName }"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                        />
+                        <p v-if="errors.fullName" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            الرجاء إدخال الاسم الرباعي بشكل صحيح
+                        </p>
+                    </div>
+
+                    <!-- Birth Date -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            تاريخ الميلاد
+                        </label>
+                        <div class="relative w-full">
+                            <Input
+                                id="birth-date"
+                                type="date" 
+                                :max="maxDate" 
+                                v-model="form.birthDate"
+                                :class="{ 'border-red-500 hover:border-red-500': errors.birthDate, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.birthDate }"
+                                class="h-9 text-right w-full pr-3 appearance-none rounded-2xl bg-white"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <Icon 
+                                    icon="solar:calendar-linear" 
+                                    class="w-5 h-5 transition-colors duration-200"
+                                    :class="errors.birthDate ? 'text-red-500' : 'text-[#79D7BE]'"
                                 />
-                                <Icon v-if="errors.nationalId" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.nationalId" class="text-xs text-red-500 mt-1">الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم).</p>
                             </div>
                         </div>
+                        <p v-if="errors.birthDate" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            تاريخ الميلاد مطلوب
+                        </p>
+                    </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="full-name" class="text-right font-medium text-[#2E5077] pt-2">الإسم رباعي</Label>
-                            <div class="relative w-full sm:w-75">
-                                <Input
-                                    required
-                                    id="full-name"
-                                    v-model="form.fullName"
-                                    placeholder="أدخل الإسم الرباعي "
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.fullName, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.fullName }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
-                                />
-                                    <Icon v-if="errors.fullName" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.fullName" class="text-xs text-red-500 mt-1">الرجاء إدخال الاسم الرباعي بشكل صحيح.</p>
-                            </div>
-                        </div>
+                    <!-- Phone -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            رقم الهاتف
+                        </label>
+                        <Input
+                            id="phone"
+                            v-model="form.phone"
+                            placeholder="09XXXXXXXX"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone }"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                        />
+                        <p v-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            رقم الهاتف غير صحيح
+                        </p>
+                    </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="birth-date" class="text-right font-medium text-[#2E5077] pt-2">تاريخ الميلاد</Label>
-                            <div class="relative w-full sm:w-75">
-                                <Input
-                                    required
-                                    id="birth-date"
-                                    type="date"
-                                    :max="maxDate"
-                                    v-model="form.birthDate"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.birthDate, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.birthDate }"
-                                    class="h-9 text-right w-full pr-3 pl-40 appearance-none rounded-2xl bg-white"
-                                />
-                                    <Icon v-if="errors.birthDate" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.birthDate" class="text-xs text-red-500 mt-1">الرجاء تحديد تاريخ الميلاد.</p>
-                            </div>
-                        </div>
+                    <!-- Email -->
+                    <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:letter-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            البريد الإلكتروني
+                        </label>
+                        <Input
+                            id="email"
+                            type="email"
+                            v-model="form.email"
+                            placeholder="example@domain.com"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.email }"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                        />
+                        <p v-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            البريد الإلكتروني غير صحيح
+                        </p>
                     </div>
                 </div>
+            </div>
 
-                <div class="space-y-2 pt-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1">
-                        معلومات الإتصال
-                    </h3>
-                    <div class="space-y-4 pt-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="phone" class="text-right font-medium text-[#2E5077] pt-2">رقم الهاتف</Label>
-                            <div class="relative w-full sm:w-75">
-                                <Input
-                                    required
-                                    id="phone"
-                                    v-model="form.phone"
-                                    placeholder="أدخل رقم الهاتف"
-                                    type="text"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.phone, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.phone }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
-                                />
-                                <Icon v-if="errors.phone" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.phone" class="text-xs text-red-500 mt-1">تأكد من إدخال رقم هاتف صحيح (مثال: 091xxxxxxx).</p>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="email" class="text-right font-medium text-[#2E5077] pt-2">البريدالإلكتروني</Label>
-                            <div class="relative w-full sm:w-75">
-                                <Input
-                                    required
-                                    id="email"
-                                    type="email"
-                                    v-model="form.email"
-                                    placeholder="أدخل البريد الإلكتروني"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.email, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.email }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
-                                />
-                                <Icon v-if="errors.email" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.email" class="text-xs text-red-500 mt-1">تأكد من إدخال البريد الإلكتروني صحيح.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex justify-end items-center">
-                    <div class="flex gap-3 pb-4">
-                        <btnform :disabled="!isFormValid" />
-                        <Btncancel @cancel="closeModal" />
-                    </div>
-                </div>
-            </form>
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100">
+                <button 
+                    @click="closeModal" 
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2"
+                >
+                    إلغاء
+                </button>
+                <button 
+                    @click="submitForm" 
+                    :disabled="!isFormValid"
+                    :class="[
+                        'px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200',
+                        isFormValid 
+                            ? 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-0.5' 
+                            : 'bg-gray-300 cursor-not-allowed shadow-none'
+                    ]"
+                >
+                    <Icon icon="solar:check-read-bold" class="w-5 h-5" />
+                    حفظ البيانات
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- نافذة التأكيد -->
-    <div
-        v-if="isConfirmationModalOpen"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
-    >
-        <div
-            @click="closeConfirmationModal"
-            class="absolute inset-0 bg-black/30 backdrop-blur-sm"
-        ></div>
-
-        <div
-            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] p-6 sm:p-8 text-center rtl z-[70] transform transition-all duration-300 scale-100"
-        >
-            <div class="flex flex-col items-center">
-                <Icon
-                    icon="tabler:alert-triangle-filled"
-                    class="w-16 h-16 text-yellow-500 mb-4"
-                />
-                <p class="text-xl font-bold text-[#2E5077] mb-3">
-                    لقد قمت بتسجيل بيانات لحساب جديد.
-                </p>
-                <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في إنشاء هذا الحساب؟
-                </p>
-                <div class="flex gap-4 justify-center w-full">
-                    <button
-                        @click="confirmRegistration"
-                        class="bg-[#4DA1A9] text-white font-semibold py-2 px-6 rounded-full hover:bg-[#3a8c94] transition-colors duration-200"
-                    >
-                        تأكيد
-                    </button>
-                    <button
-                        @click="closeConfirmationModal"
-                        class="bg-gray-300 text-[#374151] font-semibold py-2 px-6 rounded-full hover:bg-gray-400 transition-colors duration-200"
-                    >
-                        إلغاء
-                    </button>
+    <!-- Confirmation Modal -->
+    <div v-if="isConfirmationModalOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeConfirmationModal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div class="p-6 text-center space-y-4">
+                <div class="w-16 h-16 bg-[#4DA1A9]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon icon="solar:question-circle-bold-duotone" class="w-10 h-10 text-[#4DA1A9]" />
                 </div>
+                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد التسجيل</h3>
+                <p class="text-gray-500 leading-relaxed">
+                    هل أنت متأكد من صحة البيانات المدخلة؟
+                    <br>
+                    <span class="text-sm text-[#4DA1A9]">سيتم إنشاء ملف جديد للمريض</span>
+                </p>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                <button 
+                    @click="closeConfirmationModal" 
+                    class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    مراجعة
+                </button>
+                <button 
+                    @click="confirmRegistration" 
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-[#2E5077] text-white font-medium hover:bg-[#1a2f4d] transition-colors duration-200 shadow-lg shadow-[#2E5077]/20"
+                >
+                    تأكيد وإنشاء
+                </button>
             </div>
         </div>
     </div>

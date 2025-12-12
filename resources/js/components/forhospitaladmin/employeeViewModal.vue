@@ -6,213 +6,148 @@ import { Label } from "@/components/ui/label";
 
 const props = defineProps({
     isOpen: Boolean,
-    patient: Object
+    employee: Object
 });
 
-const emit = defineEmits(['close', 'dispensation-record']);
-
+const emit = defineEmits(['close']);
 </script>
 
 <template>
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
         <div
             @click="$emit('close')"
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
-        <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-[780px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
+       <div
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all scale-100"
+            dir="rtl"
         >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10 border-b border-[#B8D7D9]"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon
-                        icon="jam:write-f"
-                        class="w-7 h-7 sm:w-9 sm:h-9 ml-2 text-[#2E5077]"
-                    />
-                    نموذج عرض حالة المريض
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:user-id-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    عرض بيانات الموظف
                 </h2>
-
-                <Button
-                    @click="$emit('close')"
-                    variant="ghost"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900 cursor-pointer"
-                >
-                    <Icon
-                        icon="ri:close-large-fill"
-                        class="w-6 h-6 text-[#2E5077] mt-3"
-                    />
-                </Button>
+                <button @click="$emit('close')" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
-                <!-- حالة التحميل -->
-                <div v-if="!patient || Object.keys(patient).length === 0" 
-                     class="flex items-center justify-center py-12">
-                    <div class="text-center">
-                        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-[#4DA1A9] mx-auto"></div>
-                        <p class="mt-4 text-gray-600">جاري تحميل بيانات المريض...</p>
-                    </div>
-                </div>
-
+            <div class="p-8 space-y-8">
                 <!-- المعلومات الشخصية -->
-                <div v-else class="space-y-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
-                        <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                        <Icon icon="solar:user-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         المعلومات الشخصية
                     </h3>
 
-                    <div class="space-y-4 pt-2">
-                        <!-- الرقم الوطني -->
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">الرقم الوطني</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :value="patient.nationalId || patient.nationalNumber || 'غير متوفر'"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">الرقم الوطني</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
+                                {{ employee.nationalId }}
                             </div>
                         </div>
 
-                        <!-- الاسم الرباعي -->
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">الإسم رباعي</Label>
-                            <div class="relative w-full">
-                                <Input
-                                    readonly
-                                    :value="patient.name || patient.fullName || 'غير متوفر'"
-                                    class="h-9 text-right rounded-2xl w-81 border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">الاسم</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077]">
+                                {{ employee.name }}
                             </div>
                         </div>
-
-                        <!-- تاريخ الميلاد -->
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">تاريخ الميلاد</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :value="patient.birth || patient.birthDate || 'غير متوفر'"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- رقم الهاتف -->
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">رقم الهاتف</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :value="patient.phone || patient.phoneNumber || 'غير متوفر'"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- البريد الإلكتروني -->
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">البريد الإلكتروني</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :value="patient.email || 'غير متوفر'"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- المركز الصحي -->
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">المركز الصحي</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :value="patient.healthCenter || patient.clinic || 'غير محدد'"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
+                        
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">تاريخ الميلاد</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
+                                {{ employee.birth }}
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- الأدوية -->
-                <div class="space-y-4 pt-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
-                        <Icon icon="tabler:pill" class="w-5 h-5 ml-2" />
-                        الأدوية
+                <!-- المعلومات الوظيفية -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                        <Icon icon="solar:case-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        المعلومات الوظيفية
                     </h3>
 
-                    <div class="flex justify-end gap-3">
-                        <Button @click="$emit('dispensation-record')" 
-                                class="inline-flex items-center h-11 px-[11px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
-                            <Icon icon="tabler:history" class="w-4 h-4 ml-2" />
-                            سجل الصرف
-                        </Button>
-                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">الدور الوظيفي</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077]">
+                                {{ employee.role }}
+                            </div>
+                        </div>
 
-                    <div v-if="patient.medications && patient.medications.length > 0" 
-                         class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
-                        <table class="table w-full text-right min-w-[700px] border-collapse">
-                            <thead class="bg-[#9aced2] text-black text-sm">
-                                <tr>
-                                    <th class="p-3 border border-gray-300">إسم الدواء</th>
-                                    <th class="p-3 border border-gray-300">الجرعة</th>
-                                    <th class="p-3 border border-gray-300">الكمية الشهرية</th>
-                                    <th class="p-3 border border-gray-300">تاريخ الإسناد</th>
-                                    <th class="p-3 border border-gray-300">تاريخ الانتهاء</th>
-                                    <th class="p-3 border border-gray-300">بواسطة</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="(med, medIndex) in patient.medications" 
-                                    :key="medIndex" 
-                                    class="hover:bg-gray-50 border-b border-gray-200">
-                                    <td class="p-3 border border-gray-300">{{ med.drugName }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.dosage }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.monthlyQuantity }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.assignmentDate }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.expirationDate || 'غير محدد' }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.assignedBy }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">القسم</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077]">
+                                {{ employee.department || 'لا يوجد' }}
+                            </div>
+                        </div>
                     </div>
-                    <p v-else class="text-center text-gray-500 py-4">
-                        لا توجد جرعات دوائية مسجلة لهذا المريض.
-                    </p>
                 </div>
 
-                <!-- معلومات إضافية -->
-                <div v-if="patient.lastUpdated" class="space-y-4 pt-2">
-                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <p class="text-sm text-gray-600">
-                            <span class="font-semibold">آخر تحديث:</span> 
-                            {{ new Date(patient.lastUpdated).toLocaleString('ar-SA') }}
-                        </p>
-                        <p v-if="patient.createdAt" class="text-sm text-gray-600 mt-1">
-                            <span class="font-semibold">تاريخ التسجيل:</span> 
-                            {{ new Date(patient.createdAt).toLocaleString('ar-SA') }}
-                        </p>
+                <!-- معلومات الإتصال والحالة -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                        <Icon icon="solar:phone-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        معلومات الإتصال والحالة
+                    </h3>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">رقم الهاتف</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
+                                {{ employee.phone }}
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label class="text-gray-500 font-medium">البريد الإلكتروني</Label>
+                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
+                                {{ employee.email }}
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 sm:col-span-2">
+                            <Label class="text-gray-500 font-medium">حالة الحساب</Label>
+                            <div class="mt-1">
+                                <span
+                                    :class="[
+                                        'px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 w-fit',
+                                        employee.isActive
+                                            ? 'bg-green-100 text-green-700 border border-green-200'
+                                            : 'bg-red-100 text-red-700 border border-red-200',
+                                    ]"
+                                >
+                                    <Icon :icon="employee.isActive ? 'solar:check-circle-bold' : 'solar:close-circle-bold'" class="w-5 h-5" />
+                                    {{ employee.isActive ? "مفعل" : "معطل" }}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]">
-                <Button @click="$emit('close')" 
-                        class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
-                    موافق
-                </Button>
-                <Button @click="$emit('close')" 
-                        variant="ghost" 
-                        class="inline-flex items-center h-11 px-[19px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+                <button
+                    @click="$emit('close')"
+                    class="px-8 py-3 rounded-xl bg-[#2E5077] text-white font-bold hover:bg-[#1a3b5e] transition-all duration-200 shadow-lg shadow-[#2E5077]/20"
+                >
                     إغلاق
-                </Button>
+                </button>
             </div>
         </div>
     </div>

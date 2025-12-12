@@ -43,10 +43,7 @@
                             <span class="text-gray-500 font-medium">رقم الشحنة</span>
                             <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestDetails.shipmentNumber || requestDetails.id || 'غير محدد' }}</span>
                         </div>
-                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">الجهة الطالبة</span>
-                            <span class="font-bold text-[#2E5077]">{{ requestDetails.department || 'غير محدد' }}</span>
-                        </div>
+                        
                         <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
                             <span class="text-gray-500 font-medium">تاريخ الطلب</span>
                             <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.date) || 'غير محدد' }}</span>

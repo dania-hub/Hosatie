@@ -66,3 +66,12 @@ Route::prefix('storekeeper')->group(function () {
     Route::get('/statistics', function () { return Inertia::render('storekeeper/statistics'); });
     Route::get('/supply-requests', function () { return Inertia::render('storekeeper/SuRequests'); });
 });
+
+//Supplier
+Route::prefix('Supplier')->group(function () {
+    Route::get('/medications', function () { return Inertia::render('Supplier/medicationsList'); });
+    Route::get('/operations', function () { return Inertia::render('Supplier/operationLogd'); });
+    Route::get('/requests', function () { return Inertia::render('Supplier/Requests'); });
+    Route::get('/statistics', function () { return Inertia::render('Supplier/statistics'); });
+    Route::get('/supply-requests', function () { return Inertia::render('Supplier/SuRequests'); });
+});

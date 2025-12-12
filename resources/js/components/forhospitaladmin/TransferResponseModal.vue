@@ -1,123 +1,110 @@
 <template>
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-3xl w-full max-w-2xl mx-auto my-10 transform transition-all duration-300 scale-100 opacity-100 dark:bg-gray-800"
+            @click="closeModal"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        ></div>
+
+        <div
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            dir="rtl"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modal-title"
-            @click.stop
         >
-            <div
-                class="flex justify-between items-center bg-[#F6F4F0] p-4 sm:p-6 border-b border-[#B8D7D9] sticky top-0 rounded-t-xl z-10"
-            >
-                <h3
-                    id="modal-title"
-                    class="text-xl font-extrabold text-[#2E5077] flex items-center"
-                >
-                    <Icon
-                        icon="tabler:message-reply"
-                        class="w-7 h-7 ml-3 text-[#4DA1A9]"
-                    />
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:chat-round-line-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
                     الرد على طلب النقل
-                </h3>
-
-                <button
-                    @click="closeModal"
-                    class="text-gray-400 hover:text-[#2E5077] transition duration-150 p-2 rounded-full hover:bg-[#B8D7D9]/30"
-                    :disabled="isLoading"
-                    aria-label="إغلاق"
-                >
-                    <Icon icon="tabler:x" class="w-6 h-6" />
+                </h2>
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
-            <div class="p-5 sm:px-6 sm:py-5 space-y-6 max-h-[70vh] overflow-y-auto">
-                <div class="space-y-4">
-                    <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50">
-                        <h3
-                            class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                        >
-                            <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
-                            بيانات الطلب
-                        </h3>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">رقم الطلب:</span>
-                                <span class="mr-2 text-gray-700 font-semibold">{{ requestData?.requestNumber || `TR-${requestData?.id}` || 'غير محدد' }}</span>
-                            </p>
-
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">اسم المريض:</span>
-                                <span class="mr-2 text-gray-700">{{ requestData?.patient?.name || requestData?.patientName || 'غير محدد' }}</span>
-                            </p>
-
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">من المستشفى:</span>
-                                <span class="mr-2 text-gray-700">{{ getHospitalName(requestData?.fromHospital) }}</span>
-                            </p>
-
-                            <p class="text-right flex justify-between sm:block">
-                                <span class="font-bold text-[#2E5077]">حالة الطلب:</span>
-                                <span :class="getStatusClass(requestData?.status || requestData?.requestStatus)"
-                                    class="mr-2 px-3 py-1 rounded-full text-xs font-semibold">
-                                    {{ getStatusText(requestData?.status || requestData?.requestStatus) }}
-                                </span>
-                            </p>
+            <div class="p-8 space-y-8">
+                <!-- بيانات الطلب -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:user-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        بيانات الطلب
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">رقم الطلب</span>
+                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestData?.requestNumber || `TR-${requestData?.id}` || 'غير محدد' }}</span>
                         </div>
+                        
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">اسم المريض</span>
+                            <span class="font-bold text-[#2E5077]">{{ requestData?.patient?.name || requestData?.patientName || 'غير محدد' }}</span>
+                        </div>
+                        
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">من المستشفى</span>
+                            <span class="font-bold text-[#2E5077]">{{ getHospitalName(requestData?.fromHospital) }}</span>
+                        </div>
+                        
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">الحالة</span>
+                            <span :class="getStatusClass(requestData?.status || requestData?.requestStatus)" class="px-3 py-1 rounded-lg text-sm font-bold">
+                                {{ getStatusText(requestData?.status || requestData?.requestStatus) }}
+                            </span>
+                        </div>
+                    </div>
 
-                        <p class="text-right mt-4 pt-4 border-t border-gray-200">
-                            <span class="font-bold text-[#2E5077]">سبب النقل:</span><br>
-                            <span class="mr-2 text-gray-700">{{ requestData?.reason || requestData?.transferReason || 'غير محدد' }}</span>
-                        </p>
+                    <div class="mt-4 p-4 bg-gray-50 rounded-xl">
+                        <span class="text-gray-500 font-medium block mb-2">سبب النقل</span>
+                        <p class="text-gray-700 leading-relaxed">{{ requestData?.reason || requestData?.transferReason || 'غير محدد' }}</p>
                     </div>
                 </div>
 
+                <!-- نموذج الرد -->
                 <div class="space-y-4">
-                    <div class="bg-white p-4 rounded-lg border border-[#B8D7D9]/50">
-                        <h3
-                            class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                        >
-                            <Icon icon="tabler:message-circle" class="w-5 h-5 ml-2" />
-                            رد المستشفى على الطلب
-                        </h3>
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:chat-line-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        رد المستشفى
+                    </h3>
 
-                        <div v-if="!showRejectionNote">
-                            <label class="block text-right mb-4">
-                                <span class="block text-sm font-medium text-gray-700 mb-2">تفاصيل الموافقة:</span>
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <div v-if="!showRejectionNote" class="animate-in fade-in slide-in-from-top-4 duration-300">
+                            <label class="block mb-4">
+                                <span class="font-bold text-gray-700 mb-2 block">تفاصيل الموافقة</span>
                                 <textarea
                                     v-model="responseText"
                                     rows="4"
-                                    class="w-full p-3 border-2 border-[#B8D7D9] rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/30 transition-colors text-sm"
+                                    class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-[#4DA1A9] focus:ring-4 focus:ring-[#4DA1A9]/10 transition-all resize-none text-gray-700"
                                     placeholder="أدخل تفاصيل الموافقة على النقل (مثال: الموعد المقترح، الشروط، التعليمات، إلخ)..."
                                     :disabled="isLoading"
                                 ></textarea>
                             </label>
-
-                           
                         </div>
 
-                        <div
-                            v-if="showRejectionNote"
-                            class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-all duration-300"
-                        >
-                            <h4 class="text-lg font-bold text-red-700 dark:text-red-400 mb-3 flex items-center">
-                                <Icon icon="tabler:alert-circle" class="w-5 h-5 ml-2" />
+                        <div v-if="showRejectionNote" class="bg-red-50 border border-red-100 rounded-2xl p-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <h4 class="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
+                                <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                                 سبب رفض طلب النقل
                             </h4>
 
                             <textarea
                                 v-model="rejectionReason"
                                 rows="4"
-                                class="w-full p-3 border-2 rounded-lg text-sm transition-colors"
-                                :class="rejectionError ? 'border-red-500 focus:border-red-600 focus:ring-red-600/30' : 'border-[#B8D7D9] focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/30'"
+                                class="w-full p-4 border-2 rounded-xl bg-white text-gray-800 transition-all resize-none focus:outline-none focus:ring-4 focus:ring-red-500/10"
+                                :class="rejectionError ? 'border-red-500 focus:border-red-500' : 'border-red-200 focus:border-red-400'"
                                 placeholder="يرجى توضيح سبب رفض طلب النقل هنا. (مطلوب)"
                                 :disabled="isLoading"
                             ></textarea>
-                            <p v-if="rejectionError" class="text-sm text-red-500 mt-1 text-right">
+                            <p v-if="rejectionError" class="text-sm text-red-600 mt-2 font-medium flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
                                 سبب الرفض مطلوب لإتمام عملية الرفض.
                             </p>
                         </div>
@@ -125,37 +112,32 @@
                 </div>
             </div>
 
-            <div
-                class="p-5 sm:px-6 sm:py-4 flex flex-col-reverse sm:flex-row justify-between gap-3 sticky bottom-0 bg-[#F6F4F0] dark:bg-gray-800 rounded-b-xl border-t border-gray-200 dark:border-gray-700"
-            >
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex flex-col-reverse sm:flex-row justify-between gap-3 border-t border-gray-100 sticky bottom-0">
                 <button
                     @click="closeModal"
-                    class="inline-flex h-11 items-center justify-center px-6 rounded-full transition-all duration-200 ease-in text-base cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
                     :disabled="isLoading"
                 >
                     إلغاء
                 </button>
 
-                <div class="flex gap-3 w-full sm:w-auto">
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <template v-if="showRejectionNote">
                         <button
                             @click="cancelRejection"
-                            class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold w-full sm:w-auto"
+                            class="px-6 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
                             :disabled="isLoading"
                         >
                             تراجع
                         </button>
                         <button
                             @click="handleRejectRequest"
-                            class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#dc3545] hover:bg-[#c82333]"
+                            class="px-6 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors duration-200 shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 w-full sm:w-auto"
                             :disabled="isLoading"
                         >
-                            <Icon
-                                v-if="isLoading"
-                                icon="eos-icons:loading"
-                                class="w-5 h-5 ml-2 animate-spin"
-                            />
-                            <Icon v-else icon="tabler:x" class="w-5 h-5 ml-2" />
+                            <Icon v-if="isLoading" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                            <Icon v-else icon="solar:close-circle-bold" class="w-5 h-5" />
                             {{ isLoading ? "جاري الرفض..." : "تأكيد الرفض" }}
                         </button>
                     </template>
@@ -163,24 +145,20 @@
                     <template v-else>
                         <button
                             @click="initiateRejection"
-                            class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#dc3545] hover:bg-[#c82333]"
+                            class="px-6 py-2.5 rounded-xl text-red-500 bg-red-50 border border-red-100 font-medium hover:bg-red-100 transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
                             :disabled="isLoading"
                         >
-                            <Icon icon="tabler:x" class="w-5 h-5 ml-2" />
+                            <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
                             رفض الطلب
                         </button>
 
                         <button
                             @click="handleApproveRequest"
-                            class="inline-flex items-center justify-center px-5 py-3 border-2 border-[#ffffff8d] h-12 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:bg-[#3a8c94]"
+                            class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
                             :disabled="isLoading"
                         >
-                            <Icon
-                                v-if="isLoading"
-                                icon="eos-icons:loading"
-                                class="w-5 h-5 ml-2 animate-spin"
-                            />
-                            <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
+                            <Icon v-if="isLoading" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                            <Icon v-else icon="solar:check-circle-bold" class="w-5 h-5" />
                             {{ isLoading ? "جاري الإرسال..." : "الموافقة على النقل" }}
                         </button>
                     </template>
@@ -210,7 +188,7 @@ const emit = defineEmits(['close', 'submitted']);
 
 // إعداد API
 const api = axios.create({
-    baseURL: 'http://localhost:3000/api', // قم بتعديل الرابط حسب الـ endpoint الخاص بك
+    baseURL: 'http://localhost:3000/api',
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
@@ -218,7 +196,6 @@ const api = axios.create({
     }
 });
 
-// إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
     (response) => response.data,
     (error) => {
@@ -287,10 +264,8 @@ const getStatusText = (status) => {
 
 // ==================== دوال API ====================
 
-// 1. دالة للموافقة على الطلب
 const approveRequest = async (requestId, approvalData) => {
     try {
-        // استبدل هذا بـ endpoint الخاص بك
         const response = await api.put(`/transfer-requests/${requestId}/approve`, approvalData);
         return response;
     } catch (error) {
@@ -299,10 +274,8 @@ const approveRequest = async (requestId, approvalData) => {
     }
 };
 
-// 2. دالة لرفض الطلب
 const rejectRequest = async (requestId, rejectionData) => {
     try {
-        // استبدل هذا بـ endpoint الخاص بك
         const response = await api.put(`/transfer-requests/${requestId}/reject`, rejectionData);
         return response;
     } catch (error) {
@@ -311,38 +284,21 @@ const rejectRequest = async (requestId, rejectionData) => {
     }
 };
 
-// 3. دالة لتحديث حالة الطلب (بديل)
-const updateRequestStatus = async (requestId, statusData) => {
-    try {
-        // إذا كنت تستخدم endpoint واحد لتحديث الحالة
-        const response = await api.put(`/transfer-requests/${requestId}/status`, statusData);
-        return response;
-    } catch (error) {
-        console.error('Error updating request status:', error);
-        throw error;
-    }
-};
-
 // ==================== معالجة الأحداث ====================
 
-// بدء عملية الرفض
 const initiateRejection = () => {
     showRejectionNote.value = true;
     rejectionReason.value = '';
     rejectionError.value = false;
 };
 
-// إلغاء عملية الرفض
 const cancelRejection = () => {
     showRejectionNote.value = false;
     rejectionReason.value = '';
     rejectionError.value = false;
 };
 
-// معالجة الموافقة على الطلب
 const handleApproveRequest = async () => {
-   
-
     isLoading.value = true;
 
     try {
@@ -356,15 +312,10 @@ const handleApproveRequest = async () => {
             response: responseText.value.trim(),
             notes: additionalNotes.value.trim(),
             respondedAt: new Date().toISOString(),
-            respondedBy: 'admin' // يمكنك استبدال هذا بـ ID المستخدم الحالي
+            respondedBy: 'admin'
         };
 
-        // اختر إحدى الطرق التالية:
-        // الطريقة 1: استخدام endpoint خاص بالموافقة
         const response = await approveRequest(requestId, approvalData);
-        
-        // أو الطريقة 2: استخدام endpoint عام لتحديث الحالة
-        // const response = await updateRequestStatus(requestId, approvalData);
         
         emit('submitted', {
             success: true,
@@ -373,7 +324,6 @@ const handleApproveRequest = async () => {
             requestId: requestId
         });
         
-        showSuccessAlert('✅ تم الموافقة على طلب النقل بنجاح');
         closeModal();
         
     } catch (error) {
@@ -384,14 +334,12 @@ const handleApproveRequest = async () => {
             error: error.message,
             requestId: props.requestData?.id
         });
-        
-        showErrorAlert(`❌ فشل في الموافقة على الطلب: ${error.response?.data?.message || error.message}`);
+        alert(`❌ فشل في الموافقة على الطلب: ${error.response?.data?.message || error.message}`);
     } finally {
         isLoading.value = false;
     }
 };
 
-// معالجة رفض الطلب
 const handleRejectRequest = async () => {
     if (!rejectionReason.value.trim()) {
         rejectionError.value = true;
@@ -411,15 +359,10 @@ const handleRejectRequest = async () => {
             rejectionReason: rejectionReason.value.trim(),
             notes: additionalNotes.value.trim(),
             respondedAt: new Date().toISOString(),
-            respondedBy: 'admin' // يمكنك استبدال هذا بـ ID المستخدم الحالي
+            respondedBy: 'admin'
         };
 
-        // اختر إحدى الطرق التالية:
-        // الطريقة 1: استخدام endpoint خاص بالرفض
         const response = await rejectRequest(requestId, rejectionData);
-        
-        // أو الطريقة 2: استخدام endpoint عام لتحديث الحالة
-        // const response = await updateRequestStatus(requestId, rejectionData);
         
         emit('submitted', {
             success: true,
@@ -428,7 +371,6 @@ const handleRejectRequest = async () => {
             requestId: requestId
         });
         
-        showSuccessAlert('✅ تم رفض طلب النقل بنجاح');
         closeModal();
         
     } catch (error) {
@@ -439,24 +381,10 @@ const handleRejectRequest = async () => {
             error: error.message,
             requestId: props.requestData?.id
         });
-        
-        showErrorAlert(`❌ فشل في رفض الطلب: ${error.response?.data?.message || error.message}`);
+        alert(`❌ فشل في رفض الطلب: ${error.response?.data?.message || error.message}`);
     } finally {
         isLoading.value = false;
     }
-};
-
-// دوال التنبيهات (يمكن استبدالها بنظام تنبيهات حقيقي)
-const showSuccessAlert = (message) => {
-    // هنا يمكنك استخدام مكتبة تنبيهات مثل SweetAlert2
-    // أو إرسال event إلى المكون الأب
-    console.log('Success:', message);
-    // يمكنك إضافة: emit('show-alert', { type: 'success', message });
-};
-
-const showErrorAlert = (message) => {
-    console.error('Error:', message);
-    // يمكنك إضافة: emit('show-alert', { type: 'error', message });
 };
 
 const closeModal = () => {
@@ -470,24 +398,12 @@ const closeModal = () => {
 </script>
 
 <style scoped>
-.shadow-3xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+.animate-in {
+    animation: fadeIn 0.3s ease-out;
 }
 
-.max-h-\[70vh\] {
-    max-height: 70vh;
-}
-
-.animate-spin {
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 </style>

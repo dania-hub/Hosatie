@@ -258,219 +258,230 @@ watch(() => form.value.role, (newRole) => {
     <!-- Modal الرئيسي -->
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 " 
+        class="fixed inset-0 z-50 flex items-center justify-center p-4" 
     >
         <div
             @click="closeModal"
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full sm:w-150 max-w-[95vw] sm:max-w-[700px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto transform transition-all scale-100"
+            dir="rtl"
         >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon
-                        icon="mingcute:user-add-line"
-                        class="w-7 h-7 sm:w-9 sm:h-9 ml-2 text-[#2E5077]"
-                    />
-                    نموذج تسجيل موظف
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:user-plus-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    تسجيل موظف جديد
                 </h2>
-
-                <Button
-                    @click="closeModal"
-                    variant="ghost"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900"
-                >
-                    <Icon
-                        icon="ri:close-large-fill"
-                        class="w-6 h-6 text-[#2E5077] mt-3"
-                    />
-                </Button>
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                </button>
             </div>
 
-            <form @submit.prevent="submitForm" class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
-                <div class="space-y-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1">
-                        المعلومات الشخصية
+            <form @submit.prevent="submitForm" class="p-8 space-y-8">
+                <!-- المعلومات الشخصية -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                        <Icon icon="solar:user-id-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        المعلومات الشخصية والوظيفية
                     </h3>
 
-                    <div class="space-y-4 pt-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="national-id" class="text-right font-medium text-[#2E5077] pt-2">الرقم الوطني</Label>
-                            <div class="relative w-full sm:w-75">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <!-- الرقم الوطني -->
+                        <div class="space-y-2">
+                            <Label for="national-id" class="text-gray-700 font-bold">الرقم الوطني</Label>
+                            <div class="relative">
                                 <Input
                                     required
                                     id="national-id"
                                     v-model="form.nationalId"
                                     placeholder="أدخل الرقم الوطني"
                                     type="text"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.nationalId, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9] ': !errors.nationalId }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.nationalId, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.nationalId }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
                                 />
-                                <Icon v-if="errors.nationalId" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.nationalId" class="text-xs text-red-500 mt-1">الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم).</p>
+                                <Icon v-if="errors.nationalId" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
                             </div>
+                            <p v-if="errors.nationalId" class="text-sm text-red-500 font-medium">الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم).</p>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="name" class="text-right font-medium text-[#2E5077] pt-2">الإسم رباعي</Label>
-                            <div class="relative w-full sm:w-75">
+                        <!-- الاسم الرباعي -->
+                        <div class="space-y-2">
+                            <Label for="name" class="text-gray-700 font-bold">الإسم رباعي</Label>
+                            <div class="relative">
                                 <Input
                                     required
                                     id="name"
                                     v-model="form.name"
-                                    placeholder="أدخل الإسم الرباعي "
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.name, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.name }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                                    placeholder="أدخل الإسم الرباعي"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.name, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.name }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
                                 />
-                                    <Icon v-if="errors.name" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.name" class="text-xs text-red-500 mt-1">الرجاء إدخال الاسم الرباعي بشكل صحيح.</p>
+                                <Icon v-if="errors.name" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
                             </div>
+                            <p v-if="errors.name" class="text-sm text-red-500 font-medium">الرجاء إدخال الاسم الرباعي بشكل صحيح.</p>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="role" class="text-right font-medium text-[#2E5077] pt-2">الدور الوظيفي</Label>
-                            <div class="relative w-full sm:w-75">
+                        <!-- الدور الوظيفي -->
+                        <div class="space-y-2">
+                            <Label for="role" class="text-gray-700 font-bold">الدور الوظيفي</Label>
+                            <div class="relative">
                                 <select
                                     required
                                     id="role"
                                     v-model="form.role"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.role, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9] ': !errors.role }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white px-3 border focus:outline-none"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.role, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.role }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
                                 >
-                                    <option value="" disabled selected></option>
+                                    <option value="" disabled selected>اختر الدور الوظيفي</option>
                                     <option v-for="role in getRoleList" :key="role" :value="role">
                                         {{ role }}
                                     </option>
                                 </select>
-                                <Icon v-if="errors.role" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.role" class="text-xs text-red-500 mt-1">الرجاء اختيار الدور الوظيفي.</p>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
                             </div>
+                            <p v-if="errors.role" class="text-sm text-red-500 font-medium">الرجاء اختيار الدور الوظيفي.</p>
                         </div>
 
-                        <!-- حقل القسم يظهر فقط عندما يكون الدور "مدير قسم" -->
-                        <div v-if="isDepartmentManagerRole(form.role)" class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="department" class="text-right font-medium text-[#2E5077] pt-2">اسم القسم</Label>
-                            <div class="relative w-full sm:w-75">
+                        <!-- تاريخ الميلاد -->
+                        <div class="space-y-2">
+                            <Label for="birth" class="text-gray-700 font-bold">تاريخ الميلاد</Label>
+                            <div class="relative">
+                                <Input
+                                    required
+                                    id="birth"
+                                    type="date"
+                                    v-model="form.birth"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.birth, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.birth }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
+                                />
+                                <Icon v-if="errors.birth" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
+                            </div>
+                            <p v-if="errors.birth" class="text-sm text-red-500 font-medium">الرجاء تحديد تاريخ الميلاد.</p>
+                        </div>
+
+                        <!-- حقل القسم (مشروط) -->
+                        <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 sm:col-span-2 animate-in fade-in slide-in-from-top-2">
+                            <Label for="department" class="text-gray-700 font-bold">اسم القسم</Label>
+                            <div class="relative">
                                 <select
                                     required
                                     id="department"
                                     v-model="form.department"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.department, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.department }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white px-3 border focus:outline-none"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.department, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.department }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
                                 >
                                     <option value="" disabled selected>اختر القسم</option>
                                     <option v-for="dept in filteredDepartments" :key="dept" :value="dept">
                                         {{ dept }}
                                     </option>
                                 </select>
-                                <Icon v-if="errors.department" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.department" class="text-xs text-red-500 mt-1">
-                                    {{ form.department && props.departmentsWithManager.includes(form.department) 
-                                        ? 'هذا القسم لديه مدير بالفعل!' 
-                                        : 'الرجاء اختيار القسم.' }}
-                                </p>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
                             </div>
+                            <p v-if="errors.department" class="text-sm text-red-500 font-medium">
+                                {{ form.department && props.departmentsWithManager.includes(form.department) 
+                                    ? 'هذا القسم لديه مدير بالفعل!' 
+                                    : 'الرجاء اختيار القسم.' }}
+                            </p>
                         </div>
 
-                        <!-- تنبيه للأقسام التي لها مدير بالفعل -->
-                        <div v-if="isDepartmentManagerRole(form.role)" class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2"></Label>
-                            <div class="relative w-full sm:w-75">
-                                <div v-if="props.departmentsWithManager && props.departmentsWithManager.length > 0" class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                                    <Icon icon="tabler:info-circle" class="w-4 h-4 inline ml-1" />
-                                    <span class="font-semibold">ملاحظة:</span> الأقسام التالية لها مدير بالفعل:
-                                    <ul class="mt-1 list-disc list-inside rtl">
-                                        <li v-for="dept in props.departmentsWithManager" :key="dept">
-                                            {{ dept }}
-                                        </li>
+                        <!-- تنبيهات -->
+                        <div v-if="isDepartmentManagerRole(form.role)" class="sm:col-span-2">
+                            <div v-if="props.departmentsWithManager && props.departmentsWithManager.length > 0" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
+                                <Icon icon="solar:info-circle-bold" class="w-6 h-6 text-blue-600 flex-shrink-0" />
+                                <div class="text-sm text-blue-700">
+                                    <span class="font-bold block mb-1">ملاحظة:</span>
+                                    الأقسام التالية لها مدير بالفعل:
+                                    <ul class="mt-1 list-disc list-inside">
+                                        <li v-for="dept in props.departmentsWithManager" :key="dept">{{ dept }}</li>
                                     </ul>
                                 </div>
-                                <div v-else class="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-                                    <Icon icon="tabler:check" class="w-4 h-4 inline ml-1" />
-                                    جميع الأقسام متاحة لتولي منصب المدير.
-                                </div>
+                            </div>
+                            <div v-else class="bg-green-50 border border-green-100 rounded-xl p-4 flex gap-3">
+                                <Icon icon="solar:check-circle-bold" class="w-6 h-6 text-green-600 flex-shrink-0" />
+                                <p class="text-sm text-green-700 font-medium">جميع الأقسام متاحة لتولي منصب المدير.</p>
                             </div>
                         </div>
 
-                        <!-- تنبيه لمدير المخزن -->
-                        <div v-if="isWarehouseManagerRole(form.role)" class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2"></Label>
-                            <div class="relative w-full sm:w-75">
-                                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                                    <Icon icon="tabler:info-circle" class="w-4 h-4 inline ml-1" />
-                                    <span class="font-semibold">ملاحظة:</span> يمكن تعيين مدير مخزن واحد فقط في النظام.
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="birth" class="text-right font-medium text-[#2E5077] pt-2">تاريخ الميلاد</Label>
-                            <div class="relative w-full sm:w-75">
-                                <Input
-                                    required
-                                    id="birth"
-                                    type="date"
-                                    v-model="form.birth"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.birth, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.birth }"
-                                    class="h-9 text-right w-full pr-3 pl-40 appearance-none rounded-2xl bg-white"
-                                />
-                                    <Icon v-if="errors.birth" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.birth" class="text-xs text-red-500 mt-1">الرجاء تحديد تاريخ الميلاد.</p>
+                        <div v-if="isWarehouseManagerRole(form.role)" class="sm:col-span-2">
+                            <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex gap-3">
+                                <Icon icon="solar:shield-warning-bold" class="w-6 h-6 text-yellow-600 flex-shrink-0" />
+                                <p class="text-sm text-yellow-700 font-medium">
+                                    <span class="font-bold">ملاحظة:</span> يمكن تعيين مدير مخزن واحد فقط في النظام.
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="space-y-2 pt-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1">
+                <!-- معلومات الإتصال -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                        <Icon icon="solar:phone-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         معلومات الإتصال
                     </h3>
-                    <div class="space-y-4 pt-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="phone" class="text-right font-medium text-[#2E5077] pt-2">رقم الهاتف</Label>
-                            <div class="relative w-full sm:w-75">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <Label for="phone" class="text-gray-700 font-bold">رقم الهاتف</Label>
+                            <div class="relative">
                                 <Input
                                     required
                                     id="phone"
                                     v-model="form.phone"
                                     placeholder="أدخل رقم الهاتف"
                                     type="text"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.phone, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.phone }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.phone, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.phone }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
                                 />
-                                <Icon v-if="errors.phone" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.phone" class="text-xs text-red-500 mt-1">تأكد من إدخال رقم هاتف صحيح (مثال: 091xxxxxxx).</p>
+                                <Icon v-if="errors.phone" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
                             </div>
+                            <p v-if="errors.phone" class="text-sm text-red-500 font-medium">تأكد من إدخال رقم هاتف صحيح.</p>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[80px_1fr] items-start gap-4">
-                            <Label for="email" class="text-right font-medium text-[#2E5077] pt-2">البريدالإلكتروني</Label>
-                            <div class="relative w-full sm:w-75">
+                        <div class="space-y-2">
+                            <Label for="email" class="text-gray-700 font-bold">البريد الإلكتروني</Label>
+                            <div class="relative">
                                 <Input
                                     required
                                     id="email"
                                     type="email"
                                     v-model="form.email"
                                     placeholder="أدخل البريد الإلكتروني"
-                                    :class="{ 'border-red-500 hover:border-red-500': errors.email, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.email }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.email, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.email }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
                                 />
-                                <Icon v-if="errors.email" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="errors.email" class="text-xs text-red-500 mt-1">تأكد من إدخال البريد الإلكتروني صحيح.</p>
+                                <Icon v-if="errors.email" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
                             </div>
+                            <p v-if="errors.email" class="text-sm text-red-500 font-medium">تأكد من إدخال البريد الإلكتروني صحيح.</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex justify-end items-center">
-                    <div class="flex gap-3 pb-4">
-                        <btnform :disabled="!isFormValid" />
-                        <Btncancel @cancel="closeModal" />
-                    </div>
+                <!-- Footer Buttons -->
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button
+                        type="button"
+                        @click="closeModal"
+                        class="px-6 py-3 rounded-xl text-[#2E5077] font-bold hover:bg-gray-100 transition-all duration-200"
+                    >
+                        إلغاء
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="!isFormValid"
+                        class="px-8 py-3 rounded-xl bg-[#4DA1A9] text-white font-bold hover:bg-[#3a8c94] transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
+                        حفظ الموظف
+                    </button>
                 </div>
             </form>
         </div>
@@ -479,42 +490,56 @@ watch(() => form.value.role, (newRole) => {
     <!-- نافذة التأكيد -->
     <div
         v-if="isConfirmationModalOpen"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-4"
     >
         <div
             @click="closeConfirmationModal"
-            class="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
         <div
-            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] p-6 sm:p-8 text-center rtl z-[70] transform transition-all duration-300 scale-100"
+            class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 text-center rtl z-[70] transform transition-all scale-100"
         >
-            <div class="flex flex-col items-center">
+            <div class="w-20 h-20 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Icon
-                    icon="tabler:alert-triangle-filled"
-                    class="w-16 h-16 text-yellow-500 mb-4"
+                    icon="solar:shield-warning-bold-duotone"
+                    class="w-10 h-10 text-yellow-500"
                 />
-                <p class="text-xl font-bold text-[#2E5077] mb-3">
-                    لقد قمت بتسجيل بيانات لحساب جديد.
-                </p>
-                <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في إنشاء هذا الحساب؟
-                </p>
-                <div class="flex gap-4 justify-center w-full">
-                    <button
-                        @click="confirmRegistration"
-                        class="bg-[#4DA1A9] text-white font-semibold py-2 px-6 rounded-full hover:bg-[#3a8c94] transition-colors duration-200"
-                    >
-                        تأكيد
-                    </button>
-                    <button
-                        @click="closeConfirmationModal"
-                        class="bg-gray-300 text-[#374151] font-semibold py-2 px-6 rounded-full hover:bg-gray-400 transition-colors duration-200"
-                    >
-                        إلغاء
-                    </button>
-                </div>
+            </div>
+            
+            <h3 class="text-xl font-bold text-[#2E5077] mb-3">
+                تأكيد تسجيل الموظف
+            </h3>
+            
+            <p class="text-gray-600 mb-8 leading-relaxed">
+                هل أنت متأكد من رغبتك في إنشاء حساب جديد للموظف <span class="font-bold text-[#2E5077]">"{{ form.name }}"</span>؟
+            </p>
+            
+            <div class="flex gap-3 justify-center">
+                <button
+                    @click="closeConfirmationModal"
+                    class="px-6 py-2.5 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all duration-200"
+                >
+                    إلغاء
+                </button>
+                <button
+                    @click="confirmRegistration"
+                    class="px-8 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-bold hover:bg-[#3a8c94] transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                >
+                    تأكيد التسجيل
+                </button>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.animate-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>

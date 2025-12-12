@@ -1,6 +1,6 @@
 <script setup>
 import { Icon } from "@iconify/vue";
-import { ref, computed, onMounted } from "vue";
+import { ref, computed } from "vue";
 
 const props = defineProps({
     isOpen: Boolean,
@@ -46,7 +46,7 @@ const formatDate = (dateString) => {
 <template>
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-4"
     >
         <div
             @click="$emit('close')"
@@ -54,122 +54,128 @@ const formatDate = (dateString) => {
         ></div>
 
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-[800px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden transform transition-all duration-300 rtl flex flex-col"
             dir="rtl"
         >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10 border-b border-[#B8D7D9]"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon icon="tabler:history" class="w-6 h-6 sm:w-8 sm:h-8 ml-2 text-[#2E5077]" />
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20 shrink-0">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:history-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
                     سجل الصرف - {{ patient?.name || patient?.fullName || 'مريض' }}
                 </h2>
-
-                <button
-                    @click="$emit('close')"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900 cursor-pointer"
-                >
-                    <Icon icon="ri:close-large-fill" class="w-6 h-6 text-[#2E5077] mt-3" />
+                <button @click="$emit('close')" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6">
+            <div class="p-8 space-y-6 overflow-y-auto grow">
                 <!-- معلومات المريض -->
-                <div v-if="patient" class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="text-sm">
-                            <span class="font-semibold text-[#2E5077]">رقم الملف:</span>
-                            <span class="mr-2">{{ patient.fileNumber || patient.id || 'غير محدد' }}</span>
+                <div v-if="patient" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                            <span class="text-gray-500 font-medium">رقم الملف</span>
+                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ patient.fileNumber || patient.id || 'غير محدد' }}</span>
                         </div>
-                        <div class="text-sm">
-                            <span class="font-semibold text-[#2E5077]">الرقم الوطني:</span>
-                            <span class="mr-2">{{ patient.nationalId || patient.nationalNumber || 'غير محدد' }}</span>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                            <span class="text-gray-500 font-medium">الرقم الوطني</span>
+                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ patient.nationalId || patient.nationalNumber || 'غير محدد' }}</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- حالة التحميل -->
-                <div v-if="isLoading" class="flex items-center justify-center py-12">
-                    <div class="text-center">
-                        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-[#4DA1A9] mx-auto"></div>
-                        <p class="mt-4 text-gray-600">جاري تحميل سجل الصرف...</p>
-                    </div>
+                <div v-if="isLoading" class="flex flex-col items-center justify-center py-12">
+                    <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 text-[#4DA1A9] mb-4" />
+                    <p class="text-gray-500 font-medium">جاري تحميل سجل الصرف...</p>
                 </div>
 
                 <!-- حالة الخطأ -->
-                <div v-else-if="errorMessage" class="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div class="flex items-center">
-                        <Icon icon="mdi:alert-circle-outline" class="w-5 h-5 text-red-500 ml-2" />
-                        <p class="text-red-700">{{ errorMessage }}</p>
-                    </div>
+                <div v-else-if="errorMessage" class="bg-red-50 border border-red-100 rounded-2xl p-6 flex items-center gap-3">
+                    <Icon icon="solar:danger-circle-bold-duotone" class="w-8 h-8 text-red-500" />
+                    <p class="text-red-700 font-medium">{{ errorMessage }}</p>
                 </div>
 
                 <!-- الجدول -->
-                <div v-else-if="processedHistory.length > 0" 
-                     class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
-                    <table class="table w-full text-right min-w-[600px] border-collapse">
-                        <thead class="bg-[#9aced2] text-black text-sm sticky top-0">
-                            <tr>
-                                <th class="p-3 border border-gray-300">#</th>
-                                <th class="p-3 border border-gray-300">إسم الدواء</th>
-                                <th class="p-3 border border-gray-300">الكمية</th>
-                                <th class="p-3 border border-gray-300">تاريخ الصرف</th>
-                                <th class="p-3 border border-gray-300">بواسطة</th>
-                                <th class="p-3 border border-gray-300">ملاحظات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(item, index) in processedHistory" 
-                                :key="index" 
-                                class="hover:bg-gray-50 border-b border-gray-200">
-                                <td class="p-3 border border-gray-300 text-center">{{ index + 1 }}</td>
-                                <td class="p-3 border border-gray-300">{{ item.drugName }}</td>
-                                <td class="p-3 border border-gray-300">{{ item.quantity }}</td>
-                                <td class="p-3 border border-gray-300">{{ formatDate(item.date) }}</td>
-                                <td class="p-3 border border-gray-300">{{ item.assignedBy }}</td>
-                                <td class="p-3 border border-gray-300 text-gray-500 text-sm">
-                                    {{ item.notes || '-' }}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div v-else-if="processedHistory.length > 0" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right">
+                            <thead class="bg-gray-50 text-gray-500 text-sm font-bold">
+                                <tr>
+                                    <th class="p-4 border-b border-gray-100">#</th>
+                                    <th class="p-4 border-b border-gray-100">إسم الدواء</th>
+                                    <th class="p-4 border-b border-gray-100">الكمية</th>
+                                    <th class="p-4 border-b border-gray-100">تاريخ الصرف</th>
+                                    <th class="p-4 border-b border-gray-100">بواسطة</th>
+                                    <th class="p-4 border-b border-gray-100">ملاحظات</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <tr v-for="(item, index) in processedHistory" 
+                                    :key="index" 
+                                    class="hover:bg-gray-50/50 transition-colors">
+                                    <td class="p-4 text-gray-400 font-mono">{{ index + 1 }}</td>
+                                    <td class="p-4 font-bold text-[#2E5077]">{{ item.drugName }}</td>
+                                    <td class="p-4">
+                                        <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded-lg font-bold text-sm">
+                                            {{ item.quantity }}
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-gray-600">{{ formatDate(item.date) }}</td>
+                                    <td class="p-4 text-gray-600">{{ item.assignedBy }}</td>
+                                    <td class="p-4 text-gray-500 text-sm italic">
+                                        {{ item.notes || '-' }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                     
                     <!-- ملخص -->
-                    <div class="bg-gray-50 p-3 border-t border-gray-300">
-                        <p class="text-sm text-gray-700 text-center">
-                            إجمالي عدد عمليات الصرف: <span class="font-bold text-[#4DA1A9]">{{ processedHistory.length }}</span>
+                    <div class="bg-gray-50 p-4 border-t border-gray-100 flex justify-center">
+                        <p class="text-sm text-gray-600 font-medium flex items-center gap-2">
+                            <Icon icon="solar:bill-list-bold" class="w-5 h-5 text-[#4DA1A9]" />
+                            إجمالي عدد عمليات الصرف: <span class="font-bold text-[#2E5077] text-lg">{{ processedHistory.length }}</span>
                         </p>
                     </div>
                 </div>
                 
                 <!-- حالة لا يوجد بيانات -->
-                <div v-else class="text-center py-12">
-                    <Icon icon="mdi:file-document-outline" class="w-16 h-16 text-gray-300 mx-auto" />
-                    <p class="text-gray-500 mt-4 text-lg">لا يوجد سجل صرف لهذا المريض</p>
-                    <p class="text-gray-400 text-sm mt-2">سيظهر هنا سجل جميع عمليات الصرف المسجلة</p>
+                <div v-else class="text-center py-16 bg-white rounded-2xl border border-gray-100 border-dashed">
+                    <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Icon icon="solar:file-remove-bold-duotone" class="w-10 h-10 text-gray-300" />
+                    </div>
+                    <p class="text-gray-500 font-bold text-lg">لا يوجد سجل صرف لهذا المريض</p>
+                    <p class="text-gray-400 text-sm mt-1">سيظهر هنا سجل جميع عمليات الصرف المسجلة</p>
                 </div>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-between items-center sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]">
-                <div class="text-sm text-gray-600">
+            <div class="p-6 bg-gray-50 border-t border-gray-100 flex justify-between items-center shrink-0">
+                <div class="text-sm text-gray-500 font-medium flex items-center gap-2">
+                    <Icon icon="solar:clock-circle-bold" class="w-4 h-4" />
                     <span v-if="processedHistory.length > 0">
                         آخر صرف: {{ formatDate(processedHistory[0]?.date) }}
                     </span>
+                    <span v-else>لا يوجد عمليات سابقة</span>
                 </div>
                 
                 <div class="flex gap-3">
                     <button
                         v-if="processedHistory.length > 0"
                         @click="window.print()"
-                        class="inline-flex items-center h-11 px-4 border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
+                        class="px-6 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center gap-2 shadow-sm"
                     >
-                        <Icon icon="mdi:printer" class="w-4 h-4 ml-2" />
+                        <Icon icon="solar:printer-bold-duotone" class="w-5 h-5 text-[#2E5077]" />
                         طباعة
                     </button>
                     
                     <button
                         @click="$emit('close')"
-                        class="inline-flex h-11 items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
+                        class="px-6 py-2.5 rounded-xl bg-[#2E5077] text-white font-medium hover:bg-[#1a3b5e] transition-all duration-200 shadow-lg shadow-[#2E5077]/20"
                     >
                         إغلاق
                     </button>
@@ -191,10 +197,12 @@ const formatDate = (dateString) => {
         box-shadow: none;
         margin: 0;
         padding: 0;
+        overflow: visible;
     }
     
     .fixed {
         position: static;
+        padding: 0;
     }
     
     .absolute {
@@ -203,6 +211,11 @@ const formatDate = (dateString) => {
     
     button {
         display: none !important;
+    }
+
+    .overflow-y-auto {
+        overflow: visible !important;
+        height: auto !important;
     }
     
     table {

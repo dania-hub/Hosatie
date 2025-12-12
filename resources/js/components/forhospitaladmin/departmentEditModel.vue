@@ -157,72 +157,100 @@ watch(() => props.isOpen, (newVal) => {
     <!-- Modal الرئيسي -->
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-[90] flex items-center justify-center p-2 sm:p-4"
+        class="fixed inset-0 z-[90] flex items-center justify-center p-4"
     >
         <div
             @click="closeEditModal"
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
        <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full sm:w-150 max-w-[95vw] sm:max-w-[700px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all scale-100"
+            dir="rtl"
         >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon
-                        icon="tabler:edit"
-                        class="w-7 h-7 sm:w-9 sm:h-9 ml-2 text-[#2E5077]"
-                    />
-                    نموذج تعديل بيانات القسم
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:pen-new-square-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    تعديل بيانات القسم
                 </h2>
-
-                <Button
-                    @click="closeEditModal"
-                    variant="ghost"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900"
-                >
-                    <Icon
-                        icon="ri:close-large-fill"
-                        class="w-6 h-6 text-[#2E5077] mt-3"
-                    />
-                </Button>
+                <button @click="closeEditModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                </button>
             </div>
 
-            <form @submit.prevent="submitEdit" class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
-                <div class="space-y-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1">
-                        معلومات القسم الأساسية
+            <form @submit.prevent="submitEdit" class="p-8 space-y-8">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                        <Icon icon="solar:info-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        معلومات القسم
                     </h3>
 
-                    <div class="space-y-4 pt-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label for="edit-name" class="text-right font-medium text-[#2E5077] pt-2">اسم القسم</Label>
-                            <div class="relative w-full sm:w-75">
+                    <div class="space-y-6">
+                        <!-- اسم القسم -->
+                        <div class="space-y-2">
+                            <Label for="edit-name" class="text-gray-700 font-bold">اسم القسم</Label>
+                            <div class="relative">
                                 <Input
                                     id="edit-name"
                                     v-model="editForm.name"
-                                    :class="{ 'border-red-500 hover:border-red-500': editErrors.name, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !editErrors.name }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white"
+                                    placeholder="أدخل اسم القسم"
+                                    type="text"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.name, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.name }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
                                 />
-                                <Icon v-if="editErrors.name" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="editErrors.name" class="text-xs text-red-500 mt-1">الرجاء إدخال اسم القسم (على الأقل حرفين).</p>
+                                <Icon v-if="editErrors.name" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
                             </div>
+                            <p v-if="editErrors.name" class="text-sm text-red-500 font-medium">الرجاء إدخال اسم القسم (على الأقل حرفين).</p>
                         </div>
 
-                       
+                        <!-- رمز القسم -->
+                        <div class="space-y-2">
+                            <Label for="edit-code" class="text-gray-700 font-bold">رمز القسم</Label>
+                            <div class="relative">
+                                <Input
+                                    id="edit-code"
+                                    v-model="editForm.code"
+                                    placeholder="أدخل رمز القسم"
+                                    type="text"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.code, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.code }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
+                                />
+                                <Icon v-if="editErrors.code" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
+                            </div>
+                            <p v-if="editErrors.code" class="text-sm text-red-500 font-medium">الرجاء إدخال رمز القسم.</p>
+                        </div>
 
-                       
+                        <!-- وصف القسم -->
+                        <div class="space-y-2">
+                            <Label for="edit-description" class="text-gray-700 font-bold">وصف القسم</Label>
+                            <div class="relative">
+                                <textarea
+                                    id="edit-description"
+                                    v-model="editForm.description"
+                                    placeholder="أدخل وصف القسم"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.description, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.description }"
+                                    class="w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all p-4 min-h-[100px] resize-none focus:outline-none"
+                                ></textarea>
+                                <Icon v-if="editErrors.description" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
+                            </div>
+                            <p v-if="editErrors.description" class="text-sm text-red-500 font-medium">الرجاء إدخال وصف القسم (على الأقل 5 أحرف).</p>
+                        </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label for="edit-manager" class="text-right font-medium text-[#2E5077] pt-2">مدير القسم</Label>
-                            <div class="relative w-full sm:w-75">
+                        <!-- مدير القسم -->
+                        <div class="space-y-2">
+                            <Label for="edit-manager" class="text-gray-700 font-bold">مدير القسم</Label>
+                            <div class="relative">
                                 <select
                                     id="edit-manager"
                                     v-model="editForm.managerId"
-                                    :class="{ 'border-red-500 hover:border-red-500': editErrors.managerId, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !editErrors.managerId }"
-                                    class="h-9 text-right w-full rounded-2xl bg-white px-3 border focus:outline-none"
+                                    :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.managerId, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.managerId }"
+                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
                                 >
                                     <option value="">بدون مدير</option>
                                     <option v-for="manager in props.availableManagers" 
@@ -231,63 +259,64 @@ watch(() => props.isOpen, (newVal) => {
                                         {{ manager.name }} - {{ manager.id || manager.fileNumber }}
                                     </option>
                                 </select>
-                                <Icon v-if="editErrors.managerId" icon="tabler:alert-triangle-filled" class="w-5 h-5 text-red-500 absolute left-2 top-2" />
-                                <p v-if="editErrors.managerId" class="text-xs text-red-500 mt-1">الرجاء اختيار مدير للقسم.</p>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
                             </div>
+                            <p v-if="editErrors.managerId" class="text-sm text-red-500 font-medium">الرجاء اختيار مدير للقسم.</p>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label for="edit-isActive" class="text-right font-medium text-[#2E5077] pt-2">حالة القسم</Label>
-                            <div class="relative w-full sm:w-75">
-                                <div class="flex items-center gap-3 mt-2">
-                                    <label class="flex items-center cursor-pointer">
+                        <!-- حالة القسم -->
+                        <div class="space-y-2">
+                            <Label class="text-gray-700 font-bold">حالة القسم</Label>
+                            <div class="flex gap-4 p-2">
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <div class="relative flex items-center justify-center">
                                         <input 
                                             type="radio" 
                                             v-model="editForm.isActive" 
                                             :value="true"
-                                            class="mr-2"
+                                            class="peer sr-only"
                                         />
-                                        <span>مفعل</span>
-                                    </label>
-                                    <label class="flex items-center cursor-pointer">
+                                        <div class="w-6 h-6 border-2 border-gray-300 rounded-full peer-checked:border-[#4DA1A9] peer-checked:bg-[#4DA1A9] transition-all"></div>
+                                        <Icon icon="solar:check-circle-bold" class="w-4 h-4 text-white absolute opacity-0 peer-checked:opacity-100 transition-all" />
+                                    </div>
+                                    <span class="text-gray-700 font-medium group-hover:text-[#4DA1A9] transition-colors">مفعل</span>
+                                </label>
+
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <div class="relative flex items-center justify-center">
                                         <input 
                                             type="radio" 
                                             v-model="editForm.isActive" 
                                             :value="false"
-                                            class="mr-2"
+                                            class="peer sr-only"
                                         />
-                                        <span>معطل</span>
-                                    </label>
-                                </div>
+                                        <div class="w-6 h-6 border-2 border-gray-300 rounded-full peer-checked:border-red-500 peer-checked:bg-red-500 transition-all"></div>
+                                        <Icon icon="solar:close-circle-bold" class="w-4 h-4 text-white absolute opacity-0 peer-checked:opacity-100 transition-all" />
+                                    </div>
+                                    <span class="text-gray-700 font-medium group-hover:text-red-500 transition-colors">معطل</span>
+                                </label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex justify-end items-center mt-6">
-                    <div class="flex gap-3 pb-4">
-                        <button
-                            type="submit"
-                            :disabled="!isEditFormModified || !isEditFormValid"
-                            :class="{
-                                'bg-[#4DA1A9] hover:bg-[#3a8c94] border-[#ffffff8d]': isEditFormModified && isEditFormValid,
-                                'bg-gray-400 border-[#a8a8a8] text-gray-100 cursor-not-allowed': !isEditFormModified || !isEditFormValid
-                            }"
-                            class=" inline-flex items-center px-[13px] py-[9px] border-2 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1]"
-                        >
-                            تأكيد التعديل
-                        </button>
-                        
-                        <button
-                            type="button"
-                            @click="closeEditModal"
-                            class="inline-flex items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] 
-                            transition-all duration-200 ease-in relative overflow-hidden text-[15px] 
-                            cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
-                        >
-                            إلغاء
-                        </button>
-                    </div>
+                <!-- Footer Buttons -->
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button
+                        type="button"
+                        @click="closeEditModal"
+                        class="px-6 py-3 rounded-xl text-[#2E5077] font-bold hover:bg-gray-100 transition-all duration-200"
+                    >
+                        إلغاء
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="!isEditFormModified || !isEditFormValid"
+                        class="px-8 py-3 rounded-xl bg-[#4DA1A9] text-white font-bold hover:bg-[#3a8c94] transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
+                        حفظ التعديلات
+                    </button>
                 </div>
             </form>
         </div>
@@ -296,45 +325,44 @@ watch(() => props.isOpen, (newVal) => {
     <!-- نافذة التأكيد -->
     <div
         v-if="isEditConfirmationModalOpen"
-        class="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
     >
         <div
             @click="closeEditConfirmationModal"
-            class="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
         <div
-            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] p-6 sm:p-8 text-center rtl z-[110] transform transition-all duration-300 scale-100"
+            class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 text-center rtl z-[110] transform transition-all scale-100"
         >
-            <div class="flex flex-col items-center">
+            <div class="w-20 h-20 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Icon
-                    icon="tabler:alert-triangle-filled"
-                    class="w-16 h-16 text-yellow-500 mb-4"
+                    icon="solar:shield-warning-bold-duotone"
+                    class="w-10 h-10 text-yellow-500"
                 />
-                <p class="text-xl font-bold text-[#2E5077] mb-3">
-                    تعديل بيانات القسم
-                </p>
-                <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في حفظ التعديلات على القسم "{{ editForm.name }}"؟
-                </p>
-                <div class="flex gap-4 justify-center w-full">
-                    <button
-                        @click="confirmEdit"
-                        class=" inline-flex items-center px-[25px] py-[9px] border-2 border-[#ffffff8d] 
-                        rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden 
-                        text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#3a8c94]"
-                    >
-                        تأكيد
-                    </button>
-                    <button
-                        @click="closeEditConfirmationModal"
-                        class="inline-flex items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] 
-                        transition-all duration-200 ease-in relative overflow-hidden text-[15px] 
-                        cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
-                    >
-                        إلغاء
-                    </button>
-                </div>
+            </div>
+            
+            <h3 class="text-xl font-bold text-[#2E5077] mb-3">
+                تأكيد التعديل
+            </h3>
+            
+            <p class="text-gray-600 mb-8 leading-relaxed">
+                هل أنت متأكد من رغبتك في حفظ التعديلات على القسم <span class="font-bold text-[#2E5077]">"{{ editForm.name }}"</span>؟
+            </p>
+            
+            <div class="flex gap-3 justify-center">
+                <button
+                    @click="closeEditConfirmationModal"
+                    class="px-6 py-2.5 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all duration-200"
+                >
+                    إلغاء
+                </button>
+                <button
+                    @click="confirmEdit"
+                    class="px-8 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-bold hover:bg-[#3a8c94] transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                >
+                    تأكيد الحفظ
+                </button>
             </div>
         </div>
     </div>

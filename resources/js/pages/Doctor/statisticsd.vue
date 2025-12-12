@@ -3,34 +3,43 @@ import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
+
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
-const API_URL = '/api/dashboard/stats';
+const API_URL = '/api/doctor/dashboard/stats';
 
 // متغير لتخزين الإحصائيات
 const stats = ref({
     totalRegistered: 0,
     todayRegistered: 0,
     weekRegistered: 0,
-    // 💡 تم تغيير القيمة الافتراضية إلى false
     isLoading: false, 
 });
+
+// Helper to get headers with token
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('auth_token');
+    return {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    };
+};
 
 // ----------------------------------------------------
 // 2. دالة جلب البيانات باستخدام Axios
 // ----------------------------------------------------
 const fetchStats = async () => {
-    // 💡 تم حذف السطر stats.value.isLoading = true;
-    // لتجنب ظهور رسالة التحميل حتى لفترة وجيزة
-
     try {
-        const response = await axios.get(API_URL);
+        const response = await axios.get(API_URL, getAuthHeaders());
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
-        stats.value.totalRegistered = response.data.totalRegistered;
-        stats.value.todayRegistered = response.data.todayRegistered;
-        stats.value.weekRegistered = response.data.weekRegistered;
+        // Controller uses sendSuccess, so data is in response.data.data
+        const data = response.data.data || {};
+        stats.value.totalRegistered = data.totalRegistered || 0;
+        stats.value.todayRegistered = data.todayRegistered || 0;
+        stats.value.weekRegistered = data.weekRegistered || 0;
         
     } catch (error) {
         console.error("Error fetching dashboard statistics:", error);

@@ -68,12 +68,23 @@ const sortKey = ref('lastUpdated');
 const sortOrder = ref('desc');
 
 const calculateAge = (birthDateString) => {
-    if (!birthDateString) return 0;
-    const parts = birthDateString.split('/');
-    if (parts.length !== 3) return 0;
+    if (!birthDateString || birthDateString === 'غير متوفر') return 0;
     
-    // Note: Assuming D/M/Y format for simplicity in this demo.
-    const birthDate = new Date(parts[2], parts[1] - 1, parts[0]); 
+    let birthDate;
+    // Handle YYYY-MM-DD (Backend)
+    if (birthDateString.includes('-')) {
+        birthDate = new Date(birthDateString);
+    } 
+    // Handle DD/MM/YYYY (Legacy/Frontend)
+    else if (birthDateString.includes('/')) {
+        const parts = birthDateString.split('/');
+        if (parts.length === 3) {
+            birthDate = new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+    }
+
+    if (!birthDate || isNaN(birthDate.getTime())) return 0;
+
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();

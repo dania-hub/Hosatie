@@ -1,189 +1,157 @@
 <template>
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
         <div
-            class="relative bg-white rounded-xl shadow-3xl w-full max-w-2xl mx-auto my-10 transform transition-all duration-300 scale-100 opacity-100 dark:bg-gray-800"
+            @click="closeModal"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        ></div>
+
+        <div
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            dir="rtl"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modal-title"
-            @click.stop
         >
-            <!-- الهيدر -->
-            <div
-                class="flex justify-between items-center bg-[#F6F4F0] p-5 sm:p-6 border-b border-[#B8D7D9] sticky top-0 rounded-t-xl z-10"
-            >
-                <h3
-                    id="modal-title"
-                    class="text-xl font-extrabold text-[#2E5077] flex items-center"
-                >
-                    <Icon
-                        icon="tabler:truck-delivery"
-                        class="w-7 h-7 ml-3 text-[#4DA1A9]"
-                    />
- تأكيد استلام الشحنة رقم: {{ requestData.id || '...' }}
-                </h3>
-                <button
-                    @click="closeModal"
-                    class="text-gray-400 hover:text-[#2E5077] transition duration-150 p-1 rounded-full hover:bg-[#B8D7D9]/30"
-                    :disabled="props.isLoading"
-                >
-                    <Icon icon="tabler:x" class="w-6 h-6" />
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    تأكيد استلام الشحنة
+                </h2>
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
-            <!-- المحتوى -->
-            <div class="p-5 sm:px-6 sm:py-5 bg-[#F6F4F0] space-y-8 max-h-[70vh] overflow-y-auto">
+            <div class="p-8 space-y-8">
                 
-                <!-- حالة التحميل -->
-                <div v-if="isLoading" class="text-center py-8">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تأكيد الاستلام...</p>
+                <!-- Loading State -->
+                <div v-if="isLoading" class="py-12 text-center">
+                    <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 text-[#4DA1A9] mx-auto mb-4" />
+                    <p class="text-gray-500 font-medium">جاري معالجة البيانات...</p>
                 </div>
                 
-                <!-- بيانات الشحنة -->
-                <div class="space-y-4 pt-1">
-                    <h3
-                        class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                    >
-                        <Icon
-                            icon="tabler:info-square"
-                            class="w-5 h-5 ml-2"
-                        />
-                        بيانات الشحنة
-                    </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <p class="text-right">
-                            <span class="font-bold text-[#2E5077]">رقم الشحنة:</span>
-                            <span class="mr-2 text-gray-700 font-mono">{{ requestData.id || 'غير محدد' }}</span>
-                        </p>
-                        <p class="text-right">
-                            <span class="font-bold text-[#2E5077]">تاريخ الطلب:</span>
-                            <span class="mr-2 text-gray-700">{{ formatDate(requestData.date) || 'غير محدد' }}</span>
-                        </p>
+                <div v-else class="space-y-8">
+                    <!-- Shipment Info -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                            <Icon icon="solar:info-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            بيانات الشحنة
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                                <span class="text-gray-500 font-medium">رقم الشحنة</span>
+                                <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestData.id || 'غير محدد' }}</span>
+                            </div>
+                            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                                <span class="text-gray-500 font-medium">تاريخ الطلب</span>
+                                <span class="font-bold text-[#2E5077]">{{ formatDate(requestData.date) || 'غير محدد' }}</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- الكميات المستلمة -->
-                <div class="mt-8">
-                    <h3
-                        class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                    >
-                        <Icon icon="tabler:checklist" class="w-5 h-5 ml-2" />
-                        الكميات المستلمة لكل صنف
-                    </h3>
+                    <!-- Items List -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:checklist-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            الكميات المستلمة
+                        </h3>
 
-                    <div
-                        class="p-4 border border-[#B8D7D9] rounded-md bg-gray-50 max-h-80 overflow-y-auto shadow-inner"
-                    >
-                        <ul v-if="receivedItems.length > 0" class="list-none p-0 m-0 space-y-3">
-                            <li
-                                v-for="(item, index) in receivedItems"
-                                :key="item.id || index"
-                                class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center"
-                            >
-                                <div class="mb-3 md:mb-0 flex-1">
-                                    <span class="font-extrabold text-[#2E5077] text-[15px] block">
-                                        {{ item.name }}
-                                    </span>
-                                    <span class="text-xs text-gray-500 mt-1 block">
-                                        المطلوب: **{{ item.originalQuantity }}** {{ item.unit || 'وحدة' }}
-                                    </span>
-                                </div>
-                                
-                                <div class="flex items-center gap-4 w-full md:w-auto">
-                                    <div class="flex items-center gap-2">
-                                        <label class="text-sm text-gray-600 font-medium whitespace-nowrap">
-                                            الكمية المستلمة:
-                                        </label>
-                                        <input
-                                            type="number"
-                                            v-model.number="item.receivedQuantity"
-                                            :max="item.originalQuantity"
-                                            min="0"
-                                            class="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#4DA1A9] focus:border-[#4DA1A9] text-center transition-all duration-200 text-base"
-                                            :class="{'border-green-400 focus:border-green-600': item.receivedQuantity === item.originalQuantity, 'border-amber-400 focus:border-amber-600': item.receivedQuantity !== item.originalQuantity && item.receivedQuantity > 0 && item.receivedQuantity < item.originalQuantity, 'border-red-400 focus:border-red-600': item.receivedQuantity === 0 && item.originalQuantity > 0 }"
-                                            @input="validateQuantity(index, item.originalQuantity)"
-                                            :disabled="props.isLoading || isConfirming"
-                                        />
-                                        <span class="text-gray-500 text-sm">
-                                            {{ item.unit || 'وحدة' }}
-                                        </span>
+                        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                            <div v-if="receivedItems.length > 0" class="divide-y divide-gray-50">
+                                <div 
+                                    v-for="(item, index) in receivedItems" 
+                                    :key="item.id || index"
+                                    class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
+                                >
+                                    <div class="flex-1 w-full md:w-auto">
+                                        <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                        <div class="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                                            <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">مطلوب: {{ item.originalQuantity }} {{ item.unit }}</span>
+                                        </div>
                                     </div>
                                     
-                                    <div 
-                                        :class="{
-                                            'text-green-600 bg-green-100 p-2 rounded-full': item.receivedQuantity >= item.originalQuantity,
-                                            'text-amber-600 bg-amber-100 p-2 rounded-full': item.receivedQuantity > 0 && item.receivedQuantity < item.originalQuantity,
-                                            'text-red-600 bg-red-100 p-2 rounded-full': item.receivedQuantity === 0 && item.originalQuantity > 0
-                                        }"
-                                        class="flex items-center gap-1 text-sm font-bold min-w-[70px] justify-center transition-colors duration-200"
-                                        v-if="item.receivedQuantity !== null"
-                                    >
-                                        <Icon 
-                                            v-if="item.receivedQuantity >= item.originalQuantity"
-                                            icon="tabler:circle-check" 
-                                            class="w-5 h-5" 
-                                        />
-                                        <Icon 
-                                            v-else-if="item.receivedQuantity > 0"
-                                            icon="tabler:alert-triangle" 
-                                            class="w-5 h-5" 
-                                        />
-                                        <Icon 
-                                            v-else
-                                            icon="tabler:circle-x" 
-                                            class="w-5 h-5" 
-                                        />
+                                    <div class="flex items-center gap-4 w-full md:w-auto justify-end">
+                                        <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                                            <span class="text-sm text-gray-500 font-medium px-2">مستلم:</span>
+                                            <input
+                                                type="number"
+                                                v-model.number="item.receivedQuantity"
+                                                :max="item.originalQuantity"
+                                                min="0"
+                                                class="w-20 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
+                                                :class="{
+                                                    'text-green-600': item.receivedQuantity === item.originalQuantity,
+                                                    'text-amber-600': item.receivedQuantity < item.originalQuantity && item.receivedQuantity > 0,
+                                                    'text-red-600': item.receivedQuantity === 0
+                                                }"
+                                                @input="validateQuantity(index, item.originalQuantity)"
+                                                :disabled="props.isLoading || isConfirming"
+                                            />
+                                        </div>
+                                        
+                                        <div 
+                                            class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                                            :class="{
+                                                'bg-green-100 text-green-600': item.receivedQuantity >= item.originalQuantity,
+                                                'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.originalQuantity,
+                                                'bg-red-100 text-red-600': item.receivedQuantity === 0
+                                            }"
+                                        >
+                                            <Icon v-if="item.receivedQuantity >= item.originalQuantity" icon="solar:check-circle-bold" class="w-6 h-6" />
+                                            <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
+                                            <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
+                                        </div>
                                     </div>
                                 </div>
-                            </li>
-                        </ul>
-                        <p v-else class="text-center text-gray-500 py-2">
-                            لا توجد أدوية في هذا الطلب.
-                        </p>
+                            </div>
+                            <div v-else class="py-8 text-center text-gray-500">
+                                لا توجد أصناف في هذا الطلب.
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- ملاحظات -->
-                <div class="space-y-4 pt-2">
-                    <h3
-                        class="text-lg font-semibold text-[#4DA1A9] border-b-2 border-dashed border-[#B8D7D9]/50 pb-2 mb-4 flex items-center"
-                    >
-                        <Icon icon="tabler:notes" class="w-5 h-5 ml-2" />
-                        ملاحظات الاستلام (اختياري)
-                    </h3>
-                    <div class="border border-[#B8D7D9] rounded-lg bg-white shadow-sm transition-shadow focus-within:shadow-md focus-within:border-[#4DA1A9]">
+                    <!-- Notes -->
+                    <div class="space-y-2">
+                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            ملاحظات الاستلام <span class="text-sm font-normal text-gray-400">(اختياري)</span>
+                        </h3>
                         <textarea
                             v-model="notes"
                             rows="3"
                             placeholder="أدخل أي ملاحظات حول الاستلام (مثل: نقص في الكمية، تغليف تالف، إلخ)..."
-                            class="w-full px-4 py-3 border-none focus:outline-none text-sm text-[#2E5077] bg-transparent resize-none placeholder-gray-400"
+                            class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
                             :disabled="props.isLoading || isConfirming"
                         ></textarea>
                     </div>
                 </div>
             </div>
 
-            <!-- الأزرار -->
-            <div
-                class="p-5 sm:px-6 sm:py-4 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-gray-200 dark:bg-gray-800 dark:border-gray-700"
-            >
-                <button
-                    @click="closeModal"
-                    class="inline-flex h-11 items-center px-6 rounded-full transition-all duration-200 ease-in text-base cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] border-2 border-[#b7b9bb] hover:bg-[#d1d5db] font-semibold"
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="closeModal" 
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
                     :disabled="props.isLoading || isConfirming"
                 >
                     إلغاء
                 </button>
                 <button
                     @click="confirmReceipt"
-                    class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-12 w-35 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
                     :disabled="props.isLoading || isConfirming"
+                    class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200"
+                    :class="(props.isLoading || isConfirming) ? 'bg-gray-300 cursor-not-allowed shadow-none' : 'bg-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5'"
                 >
-                    <Icon v-if="isConfirming" icon="eos-icons:loading" class="w-5 h-5 ml-2" />
-                    <Icon v-else icon="tabler:check" class="w-5 h-5 ml-2" />
+                    <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                    <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
                     {{ isConfirming ? 'جاري التأكيد...' : 'تأكيد الاستلام' }}
                 </button>
             </div>
@@ -304,33 +272,3 @@ const closeModal = () => {
     }
 };
 </script>
-
-<style scoped>
-/* الأنماط كما هي */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-input[type="number"] {
-    -moz-appearance: textfield;
-}
-
-textarea:focus {
-    outline: none;
-    box-shadow: none;
-}
-
-.shadow-3xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
-}
-
-.max-h-\[70vh\] {
-    max-height: 70vh;
-}
-
-.max-h-80 {
-    max-height: 20rem;
-}
-</style>

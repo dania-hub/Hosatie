@@ -23,7 +23,7 @@
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
                         <Icon icon="solar:box-minimalistic-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
-                    طلب توريد أدوية
+                    تسجيل  أدوية
                 </h2>
                 <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
                     <Icon icon="mingcute:close-fill" class="w-6 h-6" />
@@ -236,7 +236,7 @@
                 >
                     <Icon v-if="isSubmitting" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                     <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
-                    {{ isSubmitting ? 'جاري الإرسال...' : `تأكيد الطلب (${dailyDosageList.length + (isCurrentDrugValid ? 1 : 0)})` }}
+                    {{ isSubmitting ? 'جاري التسجيل...' : `تأكيد  (${dailyDosageList.length + (isCurrentDrugValid ? 1 : 0)})` }}
                 </button>
             </div>
         </div>
@@ -556,61 +556,6 @@ const closeModal = () => {
     }
 };
 
-watch(() => props.isOpen, (isOpen) => {
-    if (isOpen) {
-        clearForm();
-        
-        // عرض جميع الأدوية عند فتح النموذج
-        filteredDrugs.value = props.allDrugsData || [];
-        
-        // التحقق من الأدوية التي تحتاج توريد
-        if (props.drugsData && props.drugsData.length > 0) {
-            const drugsNeedingSupply = [];
-            
-            props.drugsData.forEach((drug) => {
-                const neededSupply = (drug.neededQuantity || 0) - (drug.quantity || 0);
-                
-                if (neededSupply > 0) {
-                    const drugInfo = props.allDrugsData.find(d => 
-                        (d.name === drug.drugName) || 
-                        (d.drugName === drug.drugName) ||
-                        (drug.drugName && drug.drugName.includes((d.name || d.drugName || '').split(' ')[0]))
-                    );
-                    
-                    const drugType = drugInfo ? (drugInfo.type || 'Tablet') : 'Tablet';
-                    const unit = getDrugUnit({ type: drugType });
-                    
-                    drugsNeedingSupply.push({
-                        drugId: drug.id,
-                        drugCode: drug.drugCode,
-                        name: drug.drugName,
-                        currentQuantity: drug.quantity,
-                        neededQuantity: drug.neededQuantity,
-                        quantity: neededSupply,
-                        unit: unit,
-                        type: drugType,
-                        expiryDate: drug.expiryDate
-                    });
-                }
-            });
-            
-            if (drugsNeedingSupply.length > 0) {
-                dailyDosageList.value = drugsNeedingSupply;
-                
-                requestNotes.value = `توريد تلقائي للأدوية الناقصة - ${new Date().toLocaleDateString('ar-EG')}`;
-                
-                const totalItems = drugsNeedingSupply.length;
-                const totalQuantity = drugsNeedingSupply.reduce((sum, drug) => sum + drug.quantity, 0);
-                
-                emit('show-alert', 
-                    `📋 تم إدراج ${totalItems} دواء ناقص تلقائياً (إجمالي ${totalQuantity} وحدة)`
-                );
-            } else {
-                emit('show-alert', "✅ جميع الأدوية متوفرة بالكميات المطلوبة حالياً");
-            }
-        }
-    }
-});
 
 // التهيئة الأولية
 if (props.isOpen) {

@@ -1,9 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
 import { Icon } from "@iconify/vue";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const props = defineProps({
     isOpen: Boolean,
@@ -86,128 +83,115 @@ const updatedMonthlyQuantity = computed(() => {
     >
         <div
             @click="$emit('close')"
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-[780px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden transform transition-all scale-100 max-h-[95vh] overflow-y-auto"
+            dir="rtl"
         >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10 border-b border-[#B8D7D9]"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon
-                        icon="jam:write-f"
-                        class="w-7 h-7 sm:w-9 sm:h-9 ml-2 text-[#2E5077]"
-                    />
-                    نموذج عرض حالة المريض
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:user-id-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    ملف المريض - القسم
                 </h2>
-
-                <Button
-                    @click="$emit('close')"
-                    variant="ghost"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900 cursor-pointer"
-                >
-                    <Icon
-                        icon="ri:close-large-fill"
-                        class="w-6 h-6 text-[#2E5077] mt-3"
-                    />
-                </Button>
+                <button @click="$emit('close')" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-4 sm:space-y-6">
-                <!-- المعلومات الشخصية (غير معدلة) -->
-                <div class="space-y-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
-                        <Icon icon="tabler:user" class="w-5 h-5 ml-2" />
-                        المعلومات الشخصية
+            <div class="p-8 space-y-8">
+                <!-- Personal Info Section -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:user-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        البيانات الشخصية
                     </h3>
-
-                    <div class="space-y-4 pt-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">الرقم الوطني</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :model-value="patient.nationalIdDisplay"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
-                            </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-gray-500">الاسم الرباعي</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nameDisplay }}</div>
                         </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">الإسم رباعي</Label>
-                            <div class="relative w-full">
-                                <Input
-                                    readonly
-                                    :model-value="patient.nameDisplay"
-                                    class="h-9 text-right rounded-2xl w-81 border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
-                            </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-gray-500">الرقم الوطني</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nationalIdDisplay }}</div>
                         </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-start gap-4">
-                            <Label class="text-right font-medium text-[#2E5077] pt-2">تاريخ الميلاد</Label>
-                            <div class="relative w-full sm:max-w-xs">
-                                <Input
-                                    readonly
-                                    :model-value="patient.birthDisplay"
-                                    class="h-9 text-right rounded-2xl w-full border-[#B8D7D9] bg-white cursor-default focus:ring-0"
-                                />
-                            </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.birthDisplay }}</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- إسناد جرعة دوائية -->
-                <div class="space-y-4 pt-2">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
-                        <Icon icon="tabler:pill" class="w-5 h-5 ml-2" />
-                        إسناد جرعة دوائية
-                    </h3>
-
-                    <div class="flex justify-end gap-3">
-                        <Button @click="$emit('add-medication')" class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-28 rounded-[30px] transition-all duration-200 ease-in relative overflow-hiddentext-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
-                            <Icon icon="tabler:plus" class="w-4 h-4 ml-1" />
-                            إضافة دواء
-                        </Button>
-                        <Button @click="$emit('dispensation-record')" class="inline-flex items-center h-11 px-[11px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">
-                            سجل الصرف
-                        </Button>
+                <!-- Medications Section -->
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:pill-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            الجرعات الدوائية
+                        </h3>
+                        <div class="flex gap-3">
+                            <button 
+                                @click="$emit('add-medication')"
+                                class="px-4 py-2 rounded-xl text-white bg-[#4DA1A9] font-medium hover:bg-[#3a8c94] transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#4DA1A9]/20 hover:-translate-y-0.5"
+                            >
+                                <Icon icon="solar:add-circle-bold" class="w-5 h-5" />
+                                إضافة دواء
+                            </button>
+                            <button 
+                                @click="$emit('dispensation-record')"
+                                class="px-4 py-2 rounded-xl text-[#2E5077] bg-white border border-gray-200 font-medium hover:bg-gray-50 transition-colors duration-200 flex items-center gap-2 shadow-sm"
+                            >
+                                <Icon icon="solar:history-bold-duotone" class="w-5 h-5" />
+                                سجل الصرف
+                            </button>
+                        </div>
                     </div>
 
-                    <div v-if="patient.medications && patient.medications.length" class="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
-                        <table class="table w-full text-right min-w-[700px] border-collapse">
-                            <thead class="bg-[#9aced2] text-black text-sm">
+                    <div v-if="patient.medications && patient.medications.length" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <table class="w-full text-right">
+                            <thead class="bg-gray-50 border-b border-gray-100">
                                 <tr>
-                                    <th class="p-3 border border-gray-300">إسم الدواء</th>
-                                    <th class="p-3 border border-gray-300">الجرعة</th>
-                                    <th class="p-3 border border-gray-300">الكمية الشهرية</th>
-                                    <th class="p-3 border border-gray-300">تاريخ الإسناد</th>
-                                    <th class="p-3 border border-gray-300">بواسطة</th>
-                                    <th class="p-3 border border-gray-300">العملية</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077]">إسم الدواء</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077]">الجرعة</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077]">الكمية الشهرية</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077]">تاريخ الإسناد</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077]">بواسطة</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077] text-center">الإجراءات</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <tr v-for="(med, medIndex) in patient.medications" :key="medIndex" class="hover:bg-gray-50 border-b border-gray-200">
-                                    <td class="p-3 border border-gray-300">{{ med.drugName }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.dosage }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.monthlyQuantity }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.assignmentDate }}</td>
-                                    <td class="p-3 border border-gray-300">{{ med.assignedBy }}</td>
-                                    <td class="p-3 border border-gray-300 text-center">
+                            <tbody class="divide-y divide-gray-50">
+                                <tr v-for="(med, medIndex) in patient.medications" :key="medIndex" class="hover:bg-gray-50/50 transition-colors">
+                                    <td class="p-4 font-medium text-gray-700">{{ med.drugName }}</td>
+                                    <td class="p-4 text-gray-600">
+                                        <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium">
+                                            {{ med.dosage }}
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-gray-600">{{ med.monthlyQuantity }}</td>
+                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate }}</td>
+                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy }}</td>
+                                    <td class="p-4">
                                         <div class="flex justify-center gap-2">
-                                            <button @click="handleEditMedication(medIndex)">
-                                                <Icon
-                                                    icon="line-md:pencil"
-                                                    class="w-5 h-5 text-yellow-500 cursor-pointer hover:scale-110 transition-transform"
-                                                />
+                                            <button 
+                                                @click="handleEditMedication(medIndex)"
+                                                class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="تعديل"
+                                            >
+                                                <Icon icon="solar:pen-bold-duotone" class="w-5 h-5" />
                                             </button>
-                                            <button @click="handleDeleteMedication(medIndex)">
-                                                <Icon
-                                                    icon="material-symbols:delete-outline"
-                                                    class="w-5 h-5 text-red-600 cursor-pointer hover:scale-110 transition-transform"
-                                                />
+                                            <button 
+                                                @click="handleDeleteMedication(medIndex)"
+                                                class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="حذف"
+                                            >
+                                                <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-5 h-5" />
                                             </button>
                                         </div>
                                     </td>
@@ -215,125 +199,144 @@ const updatedMonthlyQuantity = computed(() => {
                             </tbody>
                         </table>
                     </div>
-                    <p v-else class="text-center text-gray-500 py-4">لا توجد جرعات دوائية مسجلة لهذا المريض.</p>
+                    
+                    <div v-else class="flex flex-col items-center justify-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                        <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                            <Icon icon="solar:pill-broken" class="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p class="text-gray-500 font-medium">لا توجد جرعات دوائية مسجلة لهذا المريض</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]">
-                <Button @click="$emit('close')" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">موافق</Button>
-                <Button @click="$emit('close')" variant="ghost" class="inline-flex items-center h-11 px-[19px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]">إلغاء</Button>
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="$emit('close')" 
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    إغلاق
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- نافذة تأكيد الحذف (غير معدلة) -->
-    <div
-        v-if="showDeleteConfirmation"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
+    <!-- Delete Confirmation Modal -->
+    <Transition
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
     >
         <div
-            @click="cancelDelete"
-            class="absolute inset-0 bg-black/50 backdrop-blur-sm z-[65]"
-        ></div>
-
-        <div
-            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] p-6 sm:p-8 text-center rtl z-[70] transform transition-all duration-300 scale-100"
+            v-if="showDeleteConfirmation"
+            class="fixed inset-0 z-[60] flex items-center justify-center p-4"
         >
-            <div class="flex flex-col items-center">
-                <Icon
-                    icon="tabler:alert-triangle-filled"
-                    class="w-16 h-16 text-yellow-500 mb-4"
-                />
-                <p class="text-xl font-bold text-[#2E5077] mb-3">
-                    تأكيد عملية الحذف
-                </p>
-                <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في حذف الدواء من هذا المريض؟ لا يمكن التراجع عن هذا الإجراء.
-                </p>
-                <div class="flex gap-4 justify-center w-full">
-                    <button
-                        @click="confirmDelete"
-                        class="bg-yellow-500 text-white font-semibold py-2 px-6 rounded-full hover:bg-yellow-700 transition-colors duration-200"
-                    >
-                        حذف
-                    </button>
-                    <button
-                        @click="cancelDelete"
-                        class="bg-gray-300 text-[#374151] font-semibold py-2 px-6 rounded-full hover:bg-gray-400 transition-colors duration-200"
+            <div
+                @click="cancelDelete"
+                class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            ></div>
+
+            <div
+                class="relative bg-white rounded-2xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] overflow-hidden transform transition-all scale-100"
+            >
+                <div class="p-6 text-center space-y-4">
+                    <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-10 h-10 text-red-500" />
+                    </div>
+                    <h3 class="text-xl font-bold text-[#2E5077]">تأكيد الحذف</h3>
+                    <p class="text-gray-500 leading-relaxed">
+                        هل أنت متأكد من رغبتك في حذف هذا الدواء؟ لا يمكن التراجع عن هذا الإجراء.
+                    </p>
+                </div>
+
+                <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                    <button 
+                        @click="cancelDelete" 
+                        class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                     >
                         إلغاء
                     </button>
+                    <button 
+                        @click="confirmDelete" 
+                        class="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors duration-200 shadow-lg shadow-red-500/20"
+                    >
+                        حذف
+                    </button>
                 </div>
             </div>
         </div>
-    </div>
+    </Transition>
 
-    <!-- نافذة تعديل الدواء (جديدة) -->
-    <div
-        v-if="showEditModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
+    <!-- Edit Modal -->
+    <Transition
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
     >
         <div
-            @click="cancelEdit"
-            class="absolute inset-0 bg-black/50 backdrop-blur-sm z-[65]"
-        ></div>
-
-        <div
-            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[500px] max-w-[90vw] p-6 sm:p-8 rtl z-[70] transform transition-all duration-300 scale-100"
+            v-if="showEditModal"
+            class="fixed inset-0 z-[60] flex items-center justify-center p-4"
         >
-            <div class="flex flex-col">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-[#2E5077] flex items-center">
-                        <Icon icon="line-md:pencil" class="w-6 h-6 ml-2 text-yellow-500" />
-                        تعديل الجرعة اليومية
+            <div
+                @click="cancelEdit"
+                class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            ></div>
+
+            <div
+                class="relative bg-white rounded-2xl shadow-2xl w-full sm:w-[500px] max-w-[90vw] overflow-hidden transform transition-all scale-100"
+            >
+                <!-- Edit Modal Header -->
+                <div class="bg-[#2E5077] px-6 py-4 flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <Icon icon="solar:pen-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
+                        تعديل الجرعة
                     </h3>
-                    <Button
-                        @click="cancelEdit"
-                        variant="ghost"
-                        class="p-2 h-auto text-gray-500 hover:text-gray-900"
-                    >
-                        <Icon icon="ri:close-large-fill" class="w-5 h-5" />
-                    </Button>
+                    <button @click="cancelEdit" class="text-white/70 hover:text-white transition-colors">
+                        <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                    </button>
                 </div>
 
-                <div class="space-y-4">
-                    <div class="grid grid-cols-1 gap-4">
-                        <Label class="text-right font-medium text-[#2E5077]">الجرعة اليومية (عدد الحبوب أو الوحدات)</Label>
-                        <Input
+                <div class="p-6 space-y-6">
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077]">الجرعة اليومية (عدد الحبوب أو الوحدات)</label>
+                        <input
                             v-model="editingDosage"
                             type="number"
                             min="1"
-                            class="h-9 text-right rounded-2xl border-[#B8D7D9] bg-white"
+                            class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all"
                             placeholder="أدخل الجرعة الجديدة"
                         />
                     </div>
 
-                    <div class="grid grid-cols-1 gap-4">
-                        <Label class="text-right font-medium text-[#2E5077]">الكمية الشهرية المحدثة</Label>
-                        <Input
-                            readonly
-                            :model-value="updatedMonthlyQuantity"
-                            class="h-9 text-right rounded-2xl border-[#B8D7D9] bg-gray-100 cursor-default"
-                        />
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077]">الكمية الشهرية المحدثة</label>
+                        <div class="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 flex items-center font-medium">
+                            {{ updatedMonthlyQuantity }}
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex gap-4 justify-end mt-6">
-                    <Button
-                        @click="saveEdit"
-                        class="bg-[#4DA1A9] text-white font-semibold py-2 px-6 rounded-full hover:bg-[#5e8c90f9] transition-colors duration-200"
-                    >
-                        حفظ
-                    </Button>
-                    <Button
-                        @click="cancelEdit"
-                        variant="ghost"
-                        class="bg-gray-300 text-[#374151] font-semibold py-2 px-6 rounded-full hover:bg-gray-400 transition-colors duration-200"
+                <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                    <button 
+                        @click="cancelEdit" 
+                        class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                     >
                         إلغاء
-                    </Button>
+                    </button>
+                    <button 
+                        @click="saveEdit" 
+                        class="flex-1 px-4 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                    >
+                        حفظ التعديلات
+                    </button>
                 </div>
             </div>
         </div>
-    </div>
+    </Transition>
 </template>

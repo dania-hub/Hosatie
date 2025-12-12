@@ -9,231 +9,251 @@
         ></div>
 
         <div
-            class="relative bg-[#F6F4F0] rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-[700px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300 rtl"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[95vh] overflow-y-auto"
             dir="rtl"
         >
-            <div
-                class="flex items-center justify-between p-4 sm:pr-6 sm:pl-6 pb-2.5 bg-[#F6F4F0] rounded-t-xl sticky top-0 z-10 border-b border-[#B8D7D9]"
-            >
-                <h2 class="text-xl sm:text-2xl font-bold text-[#2E5077] flex items-center pt-1.5">
-                    <Icon icon="streamline:tablet-capsule" class="w-6 h-6 sm:w-9 sm:h-8 ml-2 text-[#2E5077]" />
-                    نموذج إضافة جرعة يومية
+            <!-- Header -->
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
+                    <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Icon icon="solar:capsule-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                    </div>
+                    إضافة جرعة دوائية
                 </h2>
-
-                <button
-                    @click="closeModal"
-                    class="p-2 h-auto text-gray-500 hover:text-gray-900 cursor-pointer"
-                >
-                    <Icon icon="ri:close-large-fill" class="w-6 h-6 text-[#2E5077] mt-3" />
+                <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
+                    <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 space-y-6">
+            <div class="p-8 space-y-8">
 
-                <div class="bg-white p-3 rounded-xl border border-[#B8D7D9] shadow-sm">
-                    <p class="text-sm font-medium text-gray-600">المريض المحدد:</p>
-                    <p class="text-lg font-bold text-[#2E5077]">{{ patient.nameDisplay || 'لا يوجد مريض محدد' }}</p>
+                <!-- Patient Info -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                        <Icon icon="solar:user-bold-duotone" class="w-6 h-6 text-[#2E5077]" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">المريض المحدد</p>
+                        <p class="text-lg font-bold text-[#2E5077]">{{ patient.nameDisplay || 'لا يوجد مريض محدد' }}</p>
+                    </div>
                 </div>
 
-                <div class="space-y-4">
-                    <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 flex items-center">
-                        <Icon icon="tabler:medical-cross" class="w-5 h-5 ml-2" />
-                        معلومات الدواء
+                <div class="space-y-6">
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:medical-kit-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        بيانات الدواء
                     </h3>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         
-                        <div class="flex flex-col gap-1 sm:col-span-1">
-                            <label for="drugCategory" class="text-right font-medium text-[#2E5077] pt-2">الفئة:</label>
-                            <select
-                                id="drugCategory"
-                                v-model="selectedCategory"
-                                @change="handleInput"
-                                class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white cursor-pointer shadow-none text-gray-700"
-                                :disabled="isLoadingDrugs"
-                            >
-                                <option value="">كل الفئات</option>
-                                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                            </select>
+                        <!-- Category Select -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:filter-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                الفئة
+                            </label>
+                            <div class="relative">
+                                <select
+                                    v-model="selectedCategory"
+                                    @change="handleInput"
+                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all appearance-none cursor-pointer"
+                                    :disabled="isLoadingDrugs"
+                                >
+                                    <option value="">كل الفئات</option>
+                                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                                </select>
+                                <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4" />
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="flex flex-col gap-1 relative sm:col-span-2">
-                            <label for="drug-search" class="text-right font-medium text-[#2E5077] pt-2">اسم الدواء:</label>
-                            <input
-                                id="drug-search"
-                                type="text"
-                                v-model="searchTermDrug" 
-                                @input="handleInput"
-                                @focus="onSearchFocus"
-                                @blur="hideResults"
-                                placeholder="ابحث عن دواء أو اختر من القائمة"
-                                class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white shadow-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                                :disabled="selectedDrugName.length > 0 || isLoadingDrugs"
-                            />
-
-                            <!-- حالة التحميل -->
-                            <div v-if="isLoadingDrugs && showResults" class="absolute top-full left-0 right-0 z-10 p-4 border border-[#4DA1A9] border-t-0 rounded-b-lg bg-white shadow-xl">
-                                <div class="flex items-center justify-center">
-                                    <Icon icon="eos-icons:loading" class="w-5 h-5 text-[#4DA1A9] animate-spin ml-2" />
-                                    <p class="text-sm text-gray-600">جاري تحميل الأدوية...</p>
+                        <!-- Drug Search -->
+                        <div class="space-y-2 md:col-span-2 relative">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:magnifer-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                اسم الدواء
+                            </label>
+                            <div class="relative">
+                                <input
+                                    type="text"
+                                    v-model="searchTermDrug" 
+                                    @input="handleInput"
+                                    @focus="onSearchFocus"
+                                    @blur="hideResults"
+                                    placeholder="ابحث عن دواء..."
+                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                    :disabled="selectedDrugName.length > 0 || isLoadingDrugs"
+                                />
+                                <div v-if="isLoadingDrugs" class="absolute left-3 top-1/2 -translate-y-1/2">
+                                    <Icon icon="svg-spinners:ring-resize" class="w-5 h-5 text-[#4DA1A9]" />
                                 </div>
                             </div>
 
-                            <ul v-if="showResults && !isLoadingDrugs && filteredDrugs.length" class="absolute top-full left-0 right-0 z-10 list-none p-0 m-0 border border-[#4DA1A9] border-t-0 rounded-b-lg max-h-52 overflow-y-auto bg-white shadow-xl">
-                                <li
-                                    v-for="drug in filteredDrugs"
-                                    :key="drug.id"
-                                    @mousedown="selectDrug(drug)"
-                                    class="p-2.5 px-4 cursor-pointer border-b border-gray-100 text-sm text-[#2E5077] hover:bg-[#EAF3F4] transition-colors duration-200"
-                                >
-                                    <div class="flex justify-between items-center">
-                                        <span class="font-medium">{{ drug.name }}</span>
-                                        <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                                            {{ getCategoryName(drug.categoryId) }}
-                                        </span>
-                                    </div>
-                                    <div class="text-xs text-gray-600 mt-1" v-if="drug.dosage">
-                                        {{ drug.dosage }} - 
-                                        <span class="font-medium" :class="drug.type === 'Tablet' ? 'text-blue-600' : 'text-green-600'">
-                                            {{ drug.type === 'Tablet' ? 'أقراص' : 'سائل' }}
-                                        </span>
-                                    </div>
-                                </li>
-                            </ul>
-
-                            <div v-if="showResults && !isLoadingDrugs && filteredDrugs.length === 0" class="absolute top-full left-0 right-0 z-10 p-4 border border-[#4DA1A9] border-t-0 rounded-b-lg bg-white shadow-xl">
-                                <p class="text-sm text-gray-500 text-center">لا توجد أدوية مطابقة للبحث</p>
+                            <!-- Search Results Dropdown -->
+                            <div v-if="showResults && !isLoadingDrugs && filteredDrugs.length" class="absolute top-full left-0 right-0 z-30 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto">
+                                <ul class="py-2">
+                                    <li
+                                        v-for="drug in filteredDrugs"
+                                        :key="drug.id"
+                                        @mousedown="selectDrug(drug)"
+                                        class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
+                                    >
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-bold text-[#2E5077]">{{ drug.name }}</span>
+                                            <span class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
+                                                {{ getCategoryName(drug.categoryId) }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                            <span>{{ drug.dosage }}</span>
+                                            <span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                            <span :class="drug.type === 'Tablet' ? 'text-blue-500' : 'text-green-500'">
+                                                {{ drug.type === 'Tablet' ? 'أقراص' : 'سائل' }}
+                                            </span>
+                                        </div>
+                                    </li>
+                                </ul>
                             </div>
 
+                            <div v-if="showResults && !isLoadingDrugs && filteredDrugs.length === 0" class="absolute top-full left-0 right-0 z-30 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 p-4 text-center text-gray-500">
+                                لا توجد نتائج مطابقة
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-1 col-span-1">
-                            <label :for="quantityInputId" class="text-right font-medium text-[#2E5077] pt-2">
-                                الكمية اليومية (<span class="unit-text">{{ quantityUnit }}</span>):
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                        <!-- Quantity Input -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:calculator-minimalistic-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                الكمية اليومية (<span class="text-[#4DA1A9]">{{ quantityUnit }}</span>)
                             </label>
                             <input
-                                :id="quantityInputId"
                                 type="number"
                                 min="0"
                                 step="0.5"
                                 v-model.number="dailyQuantity"
-                                class="h-11 p-2.5 px-4 border border-[#B8D7D9] rounded-2xl text-base w-full transition duration-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9] bg-white shadow-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                                placeholder="أدخل الكمية"
+                                class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                placeholder="0"
                                 :disabled="!selectedDrugName || isSaving"
                             />
-                            <p v-if="quantityError" class="text-xs text-red-500 mt-1 font-semibold">{{ quantityError }}</p>
-
+                            <p v-if="quantityError" class="text-xs text-red-500 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ quantityError }}
+                            </p>
                         </div>
                         
-                        <div class="pt-9">
-                            <button
-                                @click="addNewDrug"
-                                :disabled="!isCurrentDrugValid || isSaving"
-                                class="h-11 inline-flex items-center justify-center px-[25px] border-2 border-[#4DA1A9] rounded-[30px] transition-all duration-200 ease-in text-[15px] cursor-pointer text-[#4DA1A9] bg-white hover:bg-[#EAF3F4] disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed w-full"
-                            >
-                                <Icon v-if="!isSaving" icon="tabler:plus" class="w-5 h-5 ml-1" />
-                                <Icon v-else icon="eos-icons:loading" class="w-5 h-5 ml-1 animate-spin" />
-                                {{ isSaving ? 'جاري الإضافة...' : 'إضافة للقائمة' }}
-                            </button>
-                        </div>
+                        <!-- Add Button -->
+                        <button
+                            @click="addNewDrug"
+                            :disabled="!isCurrentDrugValid || isSaving"
+                            class="h-11 w-full rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                            :class="(!isCurrentDrugValid || isSaving) 
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+                                : 'bg-[#4DA1A9] text-white hover:bg-[#3a8c94] hover:-translate-y-0.5'"
+                        >
+                            <Icon v-if="!isSaving" icon="solar:add-circle-bold" class="w-5 h-5" />
+                            <Icon v-else icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                            {{ isSaving ? 'جاري الإضافة...' : 'إضافة للقائمة' }}
+                        </button>
                     </div>
 
-                    <div v-if="!selectedDrugName && searchTermDrug.length === 0 && showResults && !isLoadingDrugs" class="mt-2">
-                        <p class="text-sm p-3 rounded-md border-r-4 border-[#4DA1A9] bg-[#EAF3F4] text-[#2E5077]">
-                            💡 يمكنك البحث بالاسم أو اختيار فئة محددة للتصفية
-                        </p>
+                    <!-- Added Drugs List -->
+                    <div v-if="dailyDosageList.length > 0" class="mt-8 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div class="bg-gray-50 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
+                            <h3 class="font-bold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:list-check-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
+                                القائمة المختارة
+                            </h3>
+                            <span class="bg-[#2E5077] text-white text-xs px-2 py-1 rounded-lg">{{ dailyDosageList.length }}</span>
+                        </div>
+                        
+                        <ul class="divide-y divide-gray-50">
+                            <li v-for="(item, index) in dailyDosageList" :key="index" class="p-4 flex justify-between items-center hover:bg-gray-50/50 transition-colors">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm">
+                                        {{ index + 1 }}
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
+                                        <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }} يومياً</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    @click="removeItem(index)"
+                                    :disabled="isSaving"
+                                    class="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                    <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-5 h-5" />
+                                </button>
+                            </li>
+                        </ul>
                     </div>
                     
-                    <div v-if="dailyDosageList.length > 0" class="mt-8">
-                        <h3 class="text-lg font-semibold text-[#4DA1A9] border-b border-dashed border-[#B8D7D9] pb-1 mb-4">الأدوية المضافة للقائمة ({{ dailyDosageList.length }})</h3>
-                        
-                        <div class="p-4 border border-[#B8D7D9] rounded-md bg-[#F6F4F0] max-h-48 overflow-y-auto">
-                            <ul class="list-none p-0 m-0">
-                                <li v-for="(item, index) in dailyDosageList" :key="index" class="bg-white p-2.5 px-4 rounded-xl mb-2 flex justify-between items-center text-sm text-[#2E5077] font-medium border border-[#B8D7D9] shadow-sm">
-                                    <span>
-                                        **{{ item.name }}** - {{ item.quantity }} {{ item.unit }}
-                                    </span>
-                                    <span 
-                                        class="text-red-600 cursor-pointer text-base opacity-90 hover:opacity-70 transition duration-200" 
-                                        @click="removeItem(index)"
-                                        :class="{'opacity-50 cursor-not-allowed': isSaving}"
-                                        :disabled="isSaving"
-                                    >
-                                        ❌ حذف
-                                    </span>
-                                </li>
-                            </ul>
-                        </div>
+                    <div v-else class="mt-8 py-8 text-center border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                        <Icon icon="solar:pill-broken" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p class="text-gray-500 font-medium">لم يتم إضافة أي أدوية للقائمة بعد</p>
                     </div>
-                    <p v-else class="text-center text-gray-500 py-2">لم يتم إضافة أي أدوية بعد.</p>
                 </div>
-
             </div>
 
-            <div class="p-4 sm:pr-6 sm:pl-6 pt-2 flex justify-end gap-3 sticky bottom-0 bg-[#F6F4F0] rounded-b-xl border-t border-[#B8D7D9]">
-                
-                <button
-                    @click="confirmAddition"
-                    :disabled="!isReadyToConfirm || isSaving"
-                    class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-35 rounded-[30px] transition-all duration-200 ease-in relative overflow-hiddentext-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
-                >
-                    <Icon v-if="isSaving" icon="eos-icons:loading" class="w-5 h-5 ml-2 animate-spin" />
-                    {{ isSaving ? 'جاري الحفظ...' : `تأكيد القائمة (${totalItemsToConfirm})` }}
-                </button>
-                
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
                 <button 
                     @click="closeModal" 
-                    class="inline-flex h-11 items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
                     :disabled="isSaving"
                 >
                     إلغاء
+                </button>
+                <button
+                    @click="confirmAddition"
+                    :disabled="!isReadyToConfirm || isSaving"
+                    class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#2E5077]/20 flex items-center gap-2 transition-all duration-200"
+                    :class="(!isReadyToConfirm || isSaving)
+                        ? 'bg-gray-300 cursor-not-allowed shadow-none'
+                        : 'bg-[#2E5077] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
+                >
+                    <Icon v-if="isSaving" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                    <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
+                    {{ isSaving ? 'جاري الحفظ...' : `تأكيد وحفظ (${totalItemsToConfirm})` }}
                 </button>
             </div>
         </div>
     </div>
 
-    <div
-        v-if="showConfirmationModal"
-        class="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4"
-    >
-        <div
-            @click="cancelConfirmation"
-            class="absolute inset-0 bg-black/50 backdrop-blur-sm z-[75]"
-        ></div>
-
-        <div
-            class="relative bg-white rounded-xl shadow-2xl w-full sm:w-[400px] max-w-[90vw] p-6 sm:p-8 text-center rtl z-[80] transform transition-all duration-300 scale-100"
-        >
-            <div class="flex flex-col items-center">
-                <Icon
-                    icon="tabler:alert-triangle-filled"
-                    class="w-16 h-16 text-yellow-500 mb-4"
-                />
-                <p class="text-xl font-bold text-[#2E5077] mb-3">
-                    تأكيد إسناد الجرعات الدوائية
-                </p>
-                <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في إسناد **{{ totalItemsToConfirm }}** دواء/أدوية للمريض **{{ patient.nameDisplay || 'غير محدد' }}**؟
-                </p>
-                <div class="flex gap-4 justify-center w-full">
-                    <button
-                        @click="handleConfirmation"
-                        :disabled="isSaving"
-                        class="bg-[#4DA1A9] text-white font-semibold py-2 px-6 rounded-full hover:bg-[#3a8c94] transition-colors duration-200 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    >
-                        <Icon v-if="isSaving" icon="eos-icons:loading" class="w-5 h-5 ml-2 animate-spin" />
-                        {{ isSaving ? 'جاري الحفظ...' : 'تأكيد وحفظ' }}
-                    </button>
-                    <button
-                        @click="cancelConfirmation"
-                        :disabled="isSaving"
-                        class="bg-gray-300 text-[#374151] font-semibold py-2 px-6 rounded-full hover:bg-gray-400 transition-colors duration-200 disabled:bg-gray-200 disabled:cursor-not-allowed"
-                    >
-                        إلغاء
-                    </button>
+    <!-- Confirmation Modal -->
+    <div v-if="showConfirmationModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="cancelConfirmation">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div class="p-6 text-center space-y-4">
+                <div class="w-16 h-16 bg-[#4DA1A9]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon icon="solar:question-circle-bold-duotone" class="w-10 h-10 text-[#4DA1A9]" />
                 </div>
+                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد الإضافة</h3>
+                <p class="text-gray-500 leading-relaxed">
+                    هل أنت متأكد من إسناد **{{ totalItemsToConfirm }}** دواء للمريض؟
+                </p>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                <button 
+                    @click="cancelConfirmation" 
+                    :disabled="isSaving"
+                    class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    مراجعة
+                </button>
+                <button 
+                    @click="handleConfirmation" 
+                    :disabled="isSaving"
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-[#2E5077] text-white font-medium hover:bg-[#1a2f4d] transition-colors duration-200 shadow-lg shadow-[#2E5077]/20"
+                >
+                    <Icon v-if="isSaving" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin inline ml-2" />
+                    تأكيد نهائي
+                </button>
             </div>
         </div>
     </div>

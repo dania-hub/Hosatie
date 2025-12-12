@@ -371,8 +371,11 @@ const handleLogin = async () => {
                 case 'department_head':
                     router.visit('/department/statistics');
                     break;
-                case 'storekeeper':
+                case 'warehouse_manager':
                     router.visit('/storekeeper/statistics');
+                    break;
+                     case 'supplier_admin':
+                    router.visit('/Supplier/statistics');
                     break;
                
                 default:

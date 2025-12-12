@@ -9,6 +9,7 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import DrugPreviewModal from "@/components/forpharmacist/DrugPreviewModal.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
+import RegistrationModal from "@/components/forSu/registration.vue";
 
 // ----------------------------------------------------
 // 1. تهيئة axios مع base URL
@@ -35,317 +36,38 @@ api.interceptors.response.use(
 // ----------------------------------------------------
 // 2. بيانات الأدوية (سيتم تحميلها من API)
 // ----------------------------------------------------
-const drugsData = ref([
-  {
-    "id": 1,
-    "drugCode": "ASP001",
-    "drugName": "أسبرين",
-    "quantity": 5,
-    "neededQuantity": 100,
-    "expiryDate": "2024/06/15"
-  },
-  {
-    "id": 2,
-    "drugCode": "PAR002",
-    "drugName": "باراسيتامول",
-    "quantity": 30,
-    "neededQuantity": 100,
-    "expiryDate": "2024/08/20"
-  },
-  {
-    "id": 3,
-    "drugCode": "IBU003",
-    "drugName": "إيبوبروفين",
-    "quantity": 80,
-    "neededQuantity": 100,
-    "expiryDate": "2025/01/10"
-  },
-  {
-    "id": 4,
-    "drugCode": "AMX004",
-    "drugName": "أموكسيسيلين",
-    "quantity": 2,
-    "neededQuantity": 50,
-    "expiryDate": "2024/05/05"
-  },
-  {
-    "id": 5,
-    "drugCode": "OME005",
-    "drugName": "أوميبرازول",
-    "quantity": 25,
-    "neededQuantity": 50,
-    "expiryDate": "2024/09/30"
-  },
-  {
-    "id": 6,
-    "drugCode": "MET006",
-    "drugName": "ميتوفورمين",
-    "quantity": 60,
-    "neededQuantity": 100,
-    "expiryDate": "2025/03/15"
-  },
-  {
-    "id": 7,
-    "drugCode": "LOR007",
-    "drugName": "لوراتادين",
-    "quantity": 1,
-    "neededQuantity": 20,
-    "expiryDate": "2024/04/10"
-  },
-  {
-    "id": 8,
-    "drugCode": "SIM008",
-    "drugName": "سيمفاستاتين",
-    "quantity": 15,
-    "neededQuantity": 50,
-    "expiryDate": "2024/11/25"
-  },
-  {
-    "id": 9,
-    "drugCode": "DIP009",
-    "drugName": "ديبيريدامول",
-    "quantity": 90,
-    "neededQuantity": 100,
-    "expiryDate": "2025/07/20"
-  },
-  {
-    "id": 10,
-    "drugCode": "FLU010",
-    "drugName": "فلوكونازول",
-    "quantity": 0,
-    "neededQuantity": 30,
-    "expiryDate": "2024/03/01"
-  },
-  {
-    "id": 11,
-    "drugCode": "WAR011",
-    "drugName": "وارفارين",
-    "quantity": 45,
-    "neededQuantity": 100,
-    "expiryDate": "2024/12/31"
-  },
-  {
-    "id": 12,
-    "drugCode": "CLO012",
-    "drugName": "كلونازيبام",
-    "quantity": 10,
-    "neededQuantity": 40,
-    "expiryDate": "2025/02/14"
-  },
-  {
-    "id": 13,
-    "drugCode": "RAN013",
-    "drugName": "رانيتيدين",
-    "quantity": 70,
-    "neededQuantity": 100,
-    "expiryDate": "2025/05/05"
-  },
-  {
-    "id": 14,
-    "drugCode": "HYD014",
-    "drugName": "هيدروكلوروثيازيد",
-    "quantity": 3,
-    "neededQuantity": 25,
-    "expiryDate": "2024/07/07"
-  },
-  {
-    "id": 15,
-    "drugCode": "LEV015",
-    "drugName": "ليفوثيروكسين",
-    "quantity": 100,
-    "neededQuantity": 100,
-    "expiryDate": "2025/10/10"
-  }
-]);
-const categories = ref([
-  {
-    "id": 1,
-    "name": "مسكنات"
-  },
-  {
-    "id": 2,
-    "name": "مضادات حيوية"
-  },
-  {
-    "id": 3,
-    "name": "مضادات الالتهاب"
-  },
-  {
-    "id": 4,
-    "name": "أدوية القلب"
-  },
-  {
-    "id": 5,
-    "name": "أدوية الجهاز الهضمي"
-  },
-  {
-    "id": 6,
-    "name": "أدوية الجهاز التنفسي"
-  },
-  {
-    "id": 7,
-    "name": "أدوية الغدد الصماء"
-  },
-  {
-    "id": 8,
-    "name": "أدوية أخرى"
-  }
-]
+const drugsData = ref([]);
+const categories = ref([]
 );
-const allDrugsData = ref([
-  {
-    "id": 1,
-    "drugCode": "ASP001",
-    "name": "أسبرين",
-    "categoryId": 1
-  },
-  {
-    "id": 2,
-    "drugCode": "PAR002",
-    "name": "باراسيتامول",
-    "categoryId": 1
-  },
-  {
-    "id": 3,
-    "drugCode": "IBU003",
-    "name": "إيبوبروفين",
-    "categoryId": 3
-  },
-  {
-    "id": 4,
-    "drugCode": "AMX004",
-    "name": "أموكسيسيلين",
-    "categoryId": 2
-  },
-  {
-    "id": 5,
-    "drugCode": "OME005",
-    "name": "أوميبرازول",
-    "categoryId": 5
-  },
-  {
-    "id": 6,
-    "drugCode": "MET006",
-    "name": "ميتوفورمين",
-    "categoryId": 7
-  },
-  {
-    "id": 7,
-    "drugCode": "LOR007",
-    "name": "لوراتادين",
-    "categoryId": 6
-  },
-  {
-    "id": 8,
-    "drugCode": "SIM008",
-    "name": "سيمفاستاتين",
-    "categoryId": 4
-  },
-  {
-    "id": 9,
-    "drugCode": "DIP009",
-    "name": "ديبيريدامول",
-    "categoryId": 4
-  },
-  {
-    "id": 10,
-    "drugCode": "FLU010",
-    "name": "فلوكونازول",
-    "categoryId": 2
-  },
-  {
-    "id": 11,
-    "drugCode": "WAR011",
-    "name": "وارفارين",
-    "categoryId": 4
-  },
-  {
-    "id": 12,
-    "drugCode": "CLO012",
-    "name": "كلونازيبام",
-    "categoryId": 8
-  },
-  {
-    "id": 13,
-    "drugCode": "RAN013",
-    "name": "رانيتيدين",
-    "categoryId": 5
-  },
-  {
-    "id": 14,
-    "drugCode": "HYD014",
-    "name": "هيدروكلوروثيازيد",
-    "categoryId": 4
-  },
-  {
-    "id": 15,
-    "drugCode": "LEV015",
-    "name": "ليفوثيروكسين",
-    "categoryId": 7
-  },
-  {
-    "id": 16,
-    "drugCode": "DIC016",
-    "name": "ديكلوفيناك",
-    "categoryId": 3
-  },
-  {
-    "id": 17,
-    "drugCode": "CIP017",
-    "name": "سيبروفلوكساسين",
-    "categoryId": 2
-  },
-  {
-    "id": 18,
-    "drugCode": "LOS018",
-    "name": "لوسارتان",
-    "categoryId": 4
-  },
-  {
-    "id": 19,
-    "drugCode": "PRED019",
-    "name": "بريدنيزون",
-    "categoryId": 3
-  },
-  {
-    "id": 20,
-    "drugCode": "SAL020",
-    "name": "سالبوتامول",
-    "categoryId": 6
-  },
-  {
-    "id": 21,
-    "drugCode": "INS021",
-    "name": "إنسولين",
-    "categoryId": 7
-  },
-  {
-    "id": 22,
-    "drugCode": "FUR022",
-    "name": "فوروسيميد",
-    "categoryId": 4
-  },
-  {
-    "id": 23,
-    "drugCode": "AZI023",
-    "name": "أزيثروميسين",
-    "categoryId": 2
-  },
-  {
-    "id": 24,
-    "drugCode": "OME024",
-    "name": "أوميبرازول (جرعة أخرى)",
-    "categoryId": 5
-  },
-  {
-    "id": 25,
-    "drugCode": "VIT025",
-    "name": "فيتامين C",
-    "categoryId": 8
-  }
-]);
+const allDrugsData = ref([]);
 
 // ----------------------------------------------------
+const isRegistrationModalOpen = ref(false);
+const openRegistrationModal = () => {
+  isRegistrationModalOpen.value = true;
+};
+
+const closeRegistrationModal = () => {
+  isRegistrationModalOpen.value = false;
+};
+
+const handleRegistrationConfirm = async (registrationData) => {
+  try {
+    // هنا يمكنك إضافة منطق تسجيل الاستلام
+    console.log("Registration data:", registrationData);
+    showSuccessAlert("✅ تم تسجيل الاستلام بنجاح");
+    
+    // إغلاق النافذة
+    closeRegistrationModal();
+    
+    // تحديث البيانات إذا لزم الأمر
+    await fetchDrugs();
+    
+  } catch (error) {
+    showErrorAlert("❌ فشل في تسجيل الاستلام");
+    console.error("Error handling registration:", error);
+  }
+};
 // 3. حالة المكونات المنبثقة
 // ----------------------------------------------------
 const isDrugPreviewModalOpen = ref(false);
@@ -567,6 +289,7 @@ const handleSupplyConfirm = async (requestData) => {
   }
 };
 
+
 // ----------------------------------------------------
 // 9. منطق الطباعة
 // ----------------------------------------------------
@@ -724,7 +447,7 @@ onMounted(async () => {
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
                         <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                            <div class="relative w-full sm:max-w-sm">
+                            <div class="relative w-full sm:max-w-xs">
                                 <search v-model="searchTerm" />
                             </div>
 
@@ -848,6 +571,12 @@ onMounted(async () => {
                         <div
                             class="flex items-center gap-5 w-full sm:w-auto justify-end"
                         >
+                         <button
+                                class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-29 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
+                                 @click="openRegistrationModal"
+                               >
+                              تسجيل استلام
+                            </button>
                             <button
                                 class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-29 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
                                 @click="openSupplyRequestModal"
@@ -1029,7 +758,15 @@ onMounted(async () => {
             @confirm="handleSupplyConfirm"
             @show-alert="showSuccessAlert"
         />
-
+<RegistrationModal
+    :is-open="isRegistrationModalOpen"
+    :categories="categories"
+    :all-drugs-data="allDrugsData"
+    :drugs-data="drugsData"
+    @close="closeRegistrationModal"
+    @confirm="handleRegistrationConfirm"
+    @show-alert="showSuccessAlert"
+/>
         <!-- تنبيه النجاح -->
         <Transition
             enter-active-class="transition duration-300 ease-out transform"

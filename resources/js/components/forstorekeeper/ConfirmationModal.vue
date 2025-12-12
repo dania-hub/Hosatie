@@ -111,7 +111,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- Action -->
+                                    <!-- Actionh -->
                                     <div class="flex items-center gap-3 w-full md:w-auto bg-gray-50 p-2 rounded-xl border border-gray-200">
                                         <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
                                             الكمية المرسلة:

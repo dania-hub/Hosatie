@@ -9,8 +9,8 @@ class ResetMobilePasswordRequest extends FormRequest
     public function rules(): array {
         return [
             'phone'    => 'required|exists:users,phone',
-            'otp'      => 'required|string|size:6',
-            'password' => 'required|string|min:8|confirmed',
+        'otp'      => 'required|string|size:6',
+        'password' => 'required|string|min:8|confirmed',
         ];
     }
 }

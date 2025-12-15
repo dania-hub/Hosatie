@@ -130,11 +130,22 @@ const isCurrent = (href) => {
 
 // Define links for each role
 const links = {
+     super_admin: [
+        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/superAdmin/statistics" },
+        { name: "قائمة المرضى", icon: "line-md:account", to: "/superAdmin/patients" },
+        { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/superAdmin/employees" },
+        { name: "سجل العمليات", icon: "line-md:document-report", to: "/superAdmin/operations" },
+        { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/superAdmin/all-operations" },
+        { name: "الطلبات", icon: "carbon:request-quote", to: "/superAdmin/requests" },
+        { name: "المستشفيات", icon: "fa:hospital-o", to: "/superAdmin/hospital" },
+    ],
+
+
     hospital_admin: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/admin/statistics" },
         { name: "قائمة المرضى", icon: "line-md:account", to: "/admin/patients" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/admin/operations" },
-        { name: "سجل العمليات الشامل", icon: "line-md:document-report", to: "/admin/all-operations" },
+        { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/admin/all-operations" },
         { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/admin/employees" },
         { name: "الطلبات", icon: "carbon:request-quote", to: "/admin/requests" },
         { name: "الاقسام", icon: "mingcute:department-fill", to: "/admin/departments" },

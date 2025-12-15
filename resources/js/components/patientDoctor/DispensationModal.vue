@@ -53,14 +53,14 @@ const emit = defineEmits(['close']);
                         </thead>
                         <tbody class="divide-y divide-gray-50">
                             <tr v-for="(item, index) in dispensationHistory" :key="index" class="hover:bg-gray-50/50 transition-colors">
-                                <td class="p-4 font-medium text-gray-700">{{ item.drugName }}</td>
+                                <td class="p-4 font-medium text-gray-700">{{ item.drugName || '-' }}</td>
                                 <td class="p-4 text-gray-600">
                                     <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium">
-                                        {{ item.quantity }}
+                                        {{ item.quantity || '-' }}
                                     </span>
                                 </td>
-                                <td class="p-4 text-gray-500 text-sm">{{ item.date }}</td>
-                                <td class="p-4 text-gray-500 text-sm">{{ item.assignedBy }}</td>
+                                <td class="p-4 text-gray-500 text-sm">{{ item.date || '-' }}</td>
+                                <td class="p-4 text-gray-500 text-sm">{{ item.assignedBy || '-' }}</td>
                             </tr>
                         </tbody>
                     </table>

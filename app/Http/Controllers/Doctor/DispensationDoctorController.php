@@ -26,12 +26,12 @@ class DispensationDoctorController extends BaseApiController
             ->map(function ($record) {
                 return [
                     'id'         => $record->id,
-                    'drug_name'  => $record->drug->name,
+                    'drug_name'  => $record->drug ? $record->drug->name : 'غير معروف',
                     'quantity'   => $record->quantity_dispensed,
-                    'date'       => $record->created_at->format('Y-m-d H:i'),
-                    'pharmacist' => $record->pharmacist->full_name ?? 'غير معروف', // Unknown
-                    'pharmacy'   => $record->pharmacy->name ?? 'غير معروف',       // Unknown
-                    'status'     => $record->reverted ? 'تم الإرجاع' : 'تم الصرف', // Reverted : Dispensed
+                    'date'       => $record->created_at ? $record->created_at->format('Y-m-d H:i') : null,
+                    'pharmacist' => $record->pharmacist ? ($record->pharmacist->full_name ?? 'غير معروف') : 'غير معروف',
+                    'pharmacy'   => $record->pharmacy ? ($record->pharmacy->name ?? 'غير معروف') : 'غير معروف',
+                    'status'     => $record->reverted ? 'تم الإرجاع' : 'تم الصرف',
                 ];
             });
 

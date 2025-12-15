@@ -318,16 +318,16 @@ const maxDate = computed(() => {
                     <span class="text-sm text-[#4DA1A9]">سيتم إنشاء ملف جديد للمريض</span>
                 </p>
             </div>
-            <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+            <div class="flex justify-center bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
                 <button 
                     @click="closeConfirmationModal" 
-                    class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
+                    class=" px-15 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                 >
                     مراجعة
                 </button>
                 <button 
                     @click="confirmRegistration" 
-                    class="flex-1 px-4 py-2.5 rounded-xl bg-[#2E5077] text-white font-medium hover:bg-[#1a2f4d] transition-colors duration-200 shadow-lg shadow-[#2E5077]/20"
+                    class="px-15 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-1"
                 >
                     تأكيد وإنشاء
                 </button>

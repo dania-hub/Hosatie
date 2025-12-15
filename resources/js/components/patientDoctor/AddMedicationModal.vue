@@ -63,7 +63,7 @@
                                     :disabled="isLoadingDrugs"
                                 >
                                     <option value="">كل الفئات</option>
-                                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                                    <option v-for="(cat, index) in categories" :key="index" :value="cat">{{ cat }}</option>
                                 </select>
                                 <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                                     <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4" />
@@ -104,8 +104,8 @@
                                     >
                                         <div class="flex justify-between items-center">
                                             <span class="font-bold text-[#2E5077]">{{ drug.name }}</span>
-                                            <span class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
-                                                {{ getCategoryName(drug.categoryId) }}
+                                            <span v-if="drug.category" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
+                                                {{ drug.category }}
                                             </span>
                                         </div>
                                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
@@ -272,10 +272,28 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save']);
 
 // ------------ حقن الـ API من المكون الرئيسي ------------
-const api = inject('api', axios.create({
-    baseURL: 'https://api.your-domain.com',
-    timeout: 10000
-}));
+const api = axios.create({
+    baseURL: '/api/doctor',
+    timeout: 10000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائيًا
+api.interceptors.request.use(
+    config => {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    error => {
+        return Promise.reject(error);
+    }
+);
 
 // ------------ بيانات وثوابت الحدود القصوى ------------
 const MAX_PILL_QTY = 15;
@@ -303,8 +321,9 @@ const showConfirmationModal = ref(false);
 // جلب الفئات من الـ API
 const fetchCategories = async () => {
     try {
-        const response = await api.get('/api/drugs/categories');
-        categories.value = response.data;
+        const response = await api.get('/drug-categories');
+        // BaseApiController يُرجع البيانات في response.data.data
+        categories.value = response.data.data || response.data;
     } catch (err) {
         console.error('خطأ في جلب الفئات:', err);
         // استخدام فئات افتراضية في حالة الخطأ
@@ -318,14 +337,15 @@ const fetchDrugsData = async () => {
     try {
         const params = {};
         if (selectedCategory.value) {
-            params.categoryId = selectedCategory.value;
+            params.category = selectedCategory.value; // استخدام 'category' بدلاً من 'categoryId'
         }
         if (searchTermDrug.value) {
             params.search = searchTermDrug.value;
         }
         
-        const response = await api.get('/api/drugs', { params });
-        filteredDrugs.value = response.data;
+        const response = await api.get('/drugs', { params });
+        // BaseApiController يُرجع البيانات في response.data.data
+        filteredDrugs.value = response.data.data || response.data;
     } catch (err) {
         console.error('خطأ في جلب الأدوية:', err);
         filteredDrugs.value = [];
@@ -337,8 +357,9 @@ const fetchDrugsData = async () => {
 // جلب تفاصيل دواء محدد
 const fetchDrugDetails = async (drugId) => {
     try {
-        const response = await api.get(`/api/drugs/${drugId}`);
-        return response.data;
+        const response = await api.get(`/drugs/${drugId}`);
+        // BaseApiController يُرجع البيانات في response.data.data
+        return response.data.data || response.data;
     } catch (err) {
         console.error('خطأ في جلب تفاصيل الدواء:', err);
         return null;
@@ -399,9 +420,9 @@ const totalItemsToConfirm = computed(() => {
 });
 
 // ------------ وظائف المساعدة ------------
-const getCategoryName = (categoryId) => {
-    const category = categories.value.find(cat => cat.id === categoryId);
-    return category ? category.name : 'غير معروف';
+const getCategoryName = (categoryName) => {
+    // الفئات الآن عبارة عن نصوص بسيطة، نرجعها مباشرة
+    return categoryName || 'غير معروف';
 };
 
 const clearForm = () => {

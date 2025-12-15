@@ -13,6 +13,22 @@ Route::get('/set-password', function () { return Inertia::render('auth/SetPasswo
 // Profile
 Route::get('/profile', function () { return Inertia::render('profile'); });
 
+// Super Admin
+Route::prefix('superAdmin')->group(function () {
+    Route::get('/patients', function () { return Inertia::render('superAdmin/patientListd'); });
+    Route::get('/operations', function () { return Inertia::render('superAdmin/operationLog'); });
+    Route::get('/all-operations', function () { return Inertia::render('superAdmin/operationLogforall'); });
+    Route::get('/statistics', function () { return Inertia::render('superAdmin/statistics'); });
+    Route::get('/employees', function () { return Inertia::render('superAdmin/employeesList'); });
+    Route::get('/requests', function () { return Inertia::render('superAdmin/Requests'); });
+    Route::get('/hospital', function () { return Inertia::render('superAdmin/hospital'); });
+});
+
+// Super Admin (alias for super-admin)
+Route::prefix('super-admin')->group(function () {
+    Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
+});
+
 // Hospital Admin
 Route::prefix('admin')->group(function () {
     Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
@@ -25,6 +41,11 @@ Route::prefix('admin')->group(function () {
     Route::get('/supply-requests', function () { return Inertia::render('HospitalAdmin/SuRequests'); });
     Route::get('/transfer-requests', function () { return Inertia::render('HospitalAdmin/transRequests'); });
     Route::get('/complaints', function () { return Inertia::render('HospitalAdmin/complaints'); });
+});
+
+// Hospital Admin (alias for hospital-admin)
+Route::prefix('hospital-admin')->group(function () {
+    Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
 });
 
 // Pharmacist
@@ -56,6 +77,11 @@ Route::prefix('department')->group(function () {
     Route::get('/operations', function () { return Inertia::render('DepartmentMa/operationLogd'); });
     Route::get('/statistics', function () { return Inertia::render('DepartmentMa/statisticsd'); });
     Route::get('/requests', function () { return Inertia::render('DepartmentMa/SuRequests'); });
+});
+
+// Department Head (alias for department-head)
+Route::prefix('department-head')->group(function () {
+    Route::get('/patients', function () { return Inertia::render('DepartmentMa/patientListd'); });
 });
 
 // Storekeeper

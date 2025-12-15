@@ -43,17 +43,18 @@ const cancelDelete = () => {
 // فتح نافذة تعديل الدواء
 const handleEditMedication = (medIndex) => {
     editingIndex.value = medIndex;
-    // استخراج الرقم فقط من الجرعة (مثال: "2 حبة يومياً" ← "2")
+    // استخراج الرقم فقط من الجرعة (مثال: "2 حبة يومياً" أو "2.5 حبة يومياً" ← "2" أو "2.5")
     const dosageText = props.patient.medications[medIndex].dosage;
-    const dosageNumber = dosageText.match(/\d+/)?.[0] || '';
+    const dosageMatch = dosageText.match(/(\d+(?:\.\d+)?)/);
+    const dosageNumber = dosageMatch ? dosageMatch[1] : '';
     editingDosage.value = dosageNumber;
     showEditModal.value = true;
 };
 
 // حفظ التعديل
 const saveEdit = () => {
-    const newDosage = parseInt(editingDosage.value);
-    if (newDosage > 0) {
+    const newDosage = parseFloat(editingDosage.value);
+    if (!isNaN(newDosage) && newDosage > 0) {
         emit('edit-medication', editingIndex.value, newDosage);
         showEditModal.value = false;
         editingIndex.value = null;
@@ -72,8 +73,8 @@ const cancelEdit = () => {
 
 // حساب الكمية الشهرية المحدثة
 const updatedMonthlyQuantity = computed(() => {
-    const dosage = parseInt(editingDosage.value) || 0;
-    return dosage * 30;
+    const dosage = parseFloat(editingDosage.value) || 0;
+    return Math.round(dosage * 30);
 });
 </script>
 
@@ -167,9 +168,9 @@ const updatedMonthlyQuantity = computed(() => {
                                             {{ med.dosage }}
                                         </span>
                                     </td>
-                                    <td class="p-4 text-gray-600">{{ med.monthlyQuantity }}</td>
-                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate }}</td>
-                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy }}</td>
+                                    <td class="p-4 text-gray-600">{{ med.monthlyQuantity || '-' }}</td>
+                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate || '-' }}</td>
+                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy || '-' }}</td>
                                     <td class="p-4">
                                         <div class="flex justify-center gap-2">
                                             <button 

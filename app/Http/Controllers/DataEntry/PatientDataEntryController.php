@@ -111,43 +111,45 @@ class PatientDataEntryController extends BaseApiController
     }
 
     // 4. View Operations Log (سجل العمليات على المرضى)
- public function activityLog(Request $request)
-{
-    $logs = AuditLog::where('table_name', 'users')
-        ->latest()
-        ->get();
+    public function activityLog(Request $request)
+    {
+        $logs = AuditLog::where('table_name', 'users')
+            ->latest()
+            ->get();
 
-    $data = $logs->map(function ($log) {
-        $patient = User::find($log->record_id);
-        $old     = $log->old_values ? json_decode($log->old_values, true) : [];
-        $new     = $log->new_values ? json_decode($log->new_values, true) : [];
+        $data = $logs->map(function ($log) {
+            $patient = User::find($log->record_id);
+            $old     = $log->old_values ? json_decode($log->old_values, true) : [];
+            $new     = $log->new_values ? json_decode($log->new_values, true) : [];
 
-        // 1) نحاول من الموديل مباشرة
-        if ($patient) {
-            $fullName = $patient->full_name;
-        } else {
-            // 2) من new_values
-            $fullName = $new['full_name']
-                ?? ($old['full_name'] ?? 'غير معروف');
-        }
+            // 1) نحاول من الموديل مباشرة
+            if ($patient) {
+                $fullName = $patient->full_name;
+            } else {
+                // 2) من new_values
+                $fullName = $new['full_name']
+                    ?? ($old['full_name'] ?? 'غير معروف');
+            }
 
-        $operationType = match ($log->action) {
-            'create_patient' => 'إضافة',
-            'update_patient' => 'تعديل',
-            'delete_patient' => 'حذف',
-            default          => $log->action,
-        };
+            $operationType = match ($log->action) {
+                'create_patient' => 'إضافة',
+                'update_patient' => 'تعديل',
+                'delete_patient' => 'حذف',
+                default          => $log->action,
+            };
 
-        return [
-            'fileNumber'    => 'FILE-' . $log->record_id,
-            'fullName'      => $fullName,
-            'operationType' => $operationType,
-            'operationDate' => $log->created_at?->format('d-m-Y'),
-        ];
-    });
+            return [
+                'fileNumber'    => 'FILE-' . $log->record_id,
+                // نستخدم المفتاح name ليتطابق مع ما تتوقعه واجهة Vue (op.name)
+                'name'          => $fullName,
+                'operationType' => $operationType,
+                // تنسيق التاريخ بصيغة YYYY/MM/DD ليتوافق مع parseDate في الواجهة
+                'operationDate' => $log->created_at?->format('Y/m/d'),
+            ];
+        });
 
-    return response()->json($data);
-}
+        return response()->json($data);
+    }
 
 
 
@@ -178,7 +180,8 @@ class PatientDataEntryController extends BaseApiController
     public function index(Request $request)
     {
         $query = User::where('type', 'patient')
-            ->select('id', 'full_name', 'national_id', 'birth_date', 'phone', 'created_at');
+            // نرجع البريد الإلكتروني أيضاً حتى يظهر في نماذج العرض/التعديل في الواجهة
+            ->select('id', 'full_name', 'national_id', 'birth_date', 'phone', 'email', 'created_at');
 
         if ($request->has('search')) {
             $search = $request->search;

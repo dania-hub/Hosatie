@@ -97,38 +97,58 @@ class OrderController extends BaseApiController
         return response()->json(['success' => true, 'data' => $hospitals]);
     }
 
-    // 6.2 تفاصيل الطلب (يجب معرفة النوع من الـ ID أو تمرير النوع)
-    // الأفضل: تمرير النوع كـ Parameter، أو البحث في الجدولين.
-    // سنفترض هنا أن الـ ID المرسل هو "T-5" أو "C-3" كما أرسلناه في الـ index
+    // 6.2 تفاصيل الطلب
     public function show($mixedId)
     {
-        $type = $mixedId[0]; // 'T' or 'C'
-        $id = substr($mixedId, 2); // الرقم بعد الفاصلة
+        try {
+            $type = $mixedId[0]; // 'T' or 'C'
+            $id = substr($mixedId, 2); // الرقم بعد الفاصلة
 
-        if ($type === 'C') {
-            $order = Complaint::find($id);
-            $content = $order->message;
-            $reply = $order->reply_message;
-        } else {
-            $order = PatientTransferRequest::with('toHospital')->find($id);
-             // تحتاج علاقة toHospital
-            $content = "طلب نقل إلى: " . ($order->toHospital->name ?? 'مستشفى');
-            $reply = $order->rejection_reason;
+            if ($type === 'C') {
+                $order = Complaint::find($id);
+                if (!$order) {
+                    return response()->json(['success' => false, 'message' => 'الشكوى غير موجودة.'], 404);
+                }
+                
+                $content = $order->message;
+                $reply = $order->reply_message;
+            } else {
+                $order = PatientTransferRequest::with('toHospital')->find($id);
+                if (!$order) {
+                    return response()->json(['success' => false, 'message' => 'طلب النقل غير موجود.'], 404);
+                }
+                
+                // الحصول على اسم المستشفى
+                $hospitalName = $order->toHospital->name ?? 'مستشفى';
+                
+                // الحصول على نص الطلب من حقل reason
+                $requestReason = $order->reason ?? '';
+                
+                // بناء المحتوى الكامل
+                if (!empty(trim($requestReason))) {
+                    $content = "طلب نقل إلى: $hospitalName\n\nسبب الطلب:\n$requestReason";
+                } else {
+                    $content = "طلب نقل إلى: $hospitalName";
+                }
+                
+                $reply = $order->rejection_reason;
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id'      => $mixedId,
+                    'date'    => $order->created_at->format('Y-m-d'),
+                    'status'  => $order->status,
+                    'content' => $content,
+                    'reply'   => $reply ?? null,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ في جلب تفاصيل الطلب.'
+            ], 500);
         }
-
-        if (!$order) {
-             return response()->json(['success' => false, 'message' => 'الطلب غير موجود.'], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id'      => $mixedId,
-                'date'    => $order->created_at->format('Y-m-d'),
-                'status'  => $order->status,
-                'content' => $content,
-                'reply'   => $reply, // الرد (سبب الرفض أو رد الشكوى)
-            ]
-        ]);
     }
 }

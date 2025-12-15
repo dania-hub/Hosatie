@@ -1,4 +1,5 @@
 <?php
+use Illuminate\Support\Facades\Cache;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -384,4 +385,84 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('dashboard/stats', [DashboardStoreKeeperController::class, 'stats']);
     });
 
+    
+
+    // --------------------------------------------------------------------
+    // D. Admin Hospital Dashboard
+    // --------------------------------------------------------------------
+    Route::prefix('admin-hospital')->group(function () {
+        // Example Staff Management Routes
+        Route::get('staff', [StaffController::class, 'index']);
+        Route::post('staff', [StaffController::class, 'store']);
+
+  Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);
+    Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);
+    Route::put('/departments/{id}', [DepartmentHospitalAdminController::class, 'update']);
+    Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);
+
+    Route::get('/employees', [DepartmentHospitalAdminController::class, 'employees']);
+
+    Route::get('/operations', [OperationLogController::class, 'index']);
+
+   Route::get('/patients', [PatientHospitalAdminController::class, 'index']);
+    Route::get('/patients/{id}', [PatientHospitalAdminController::class, 'show']);
+    Route::put('/patients/{id}/medications', [PatientHospitalAdminController::class, 'updateMedications']);
+    Route::get('/patients/{id}/dispensation-history', [PatientHospitalAdminController::class, 'dispensationHistory']);
+
+    Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
+    Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
+    Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);
+    Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);
+        // Complaint Management Routes
+         Route::get('requests',              [ComplaintHospitalAdminController::class, 'index']);
+        Route::get('requests/{id}',         [ComplaintHospitalAdminController::class, 'show']);
+        Route::post('requests/{id}/respond',[ComplaintHospitalAdminController::class, 'respond']);
+        Route::post('requests/{id}/reject', [ComplaintHospitalAdminController::class, 'reject']);
+
+        Route::get( '/admin-hospital/stats',  [StatsAdminHospitalController::class, 'index']);
+         Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
+    Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
+
+    // للواجهة الأولى (المدير)
+    Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);
+    Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);
+
+    // للواجهة الثانية (القسم)
+    Route::put('/shipments/{id}/status',           [ExternalShipmentAdminHospitalController::class, 'updateStatus']);
+    Route::post('/shipments/{id}/confirm-delivery',[ExternalShipmentAdminHospitalController::class, 'confirmDelivery']);
+        // Patient Transfer Requests
+        Route::get('transfer-requests', [PatientTransferAdminHospitalController::class, 'index']);
+        
+Route::put('transfer-requests/{id}/status', [PatientTransferAdminHospitalController::class, 'updateStatus']);
+    });
+        
+ // ========================================================================
+    // E. Department Admin Dashboard
+    // ========================================================================
+    Route::prefix('department-admin')->group(function () {
+        
+        // 1. Categories & Drugs
+        Route::get('categories', [CategoryDepartmentAdminController::class, 'index']);
+        Route::get('drugs', [DrugDepartmentAdminController::class, 'index']);
+        Route::get('drugs/search', [DrugDepartmentAdminController::class, 'search']);
+
+        // 2. Shipments (Incoming)
+        Route::get('shipments', [ShipmentDepartmentAdminController::class, 'index']);
+        Route::get('shipments/{id}', [ShipmentDepartmentAdminController::class, 'show']);
+        Route::post('shipments/{id}/confirm', [ShipmentDepartmentAdminController::class, 'confirm']);
+
+        // 3. Supply Requests (Outgoing)
+        Route::post('supply-requests', [SupplyRequestControllerDepartmentAdmin::class, 'store']);
+
+        // 4. Dashboard Stats
+        Route::get('dashboard/stats', [DashboardDepartmentAdminController::class, 'stats']);
+    // Operations Log
+    Route::get('operations', [DashboardDepartmentAdminController::class, 'operations']);
+    // Patient Management (For View 2)
+    Route::get('patients', [PatientDepartmentAdminController::class, 'index']);
+    Route::get('patients/{id}', [PatientDepartmentAdminController::class, 'show']);
+    Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);
+    Route::get('patients/{id}/dispensation-history', [PatientDepartmentAdminController::class, 'dispensationHistory']);
+
+    });
 });

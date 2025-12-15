@@ -312,6 +312,26 @@ const loginToAPI = async (email, password) => {
     }
 };
 
+// دالة توجيه المستخدم حسب دوره
+const redirectByRole = (role) => {
+    const roleRoutes = {
+        'department_head': '/department-head/patients',
+        'data_entry': '/data-entry/patients',
+        'doctor': '/doctor/patients',
+        'pharmacist': '/pharmacist/patients',
+        'hospital_admin': '/hospital-admin/patients',
+        'super_admin': '/super-admin/patients'
+    };
+
+    const route = roleRoutes[role];
+    if (route) {
+        router.visit(route);
+    } else {
+        console.warn("دور غير معروف:", role);
+        router.visit('/');
+    }
+};
+
 // دالة الإرسال النهائية
 const handleLogin = async () => {
     // إعادة تعيين رسالة الخطأ
@@ -332,60 +352,42 @@ const handleLogin = async () => {
         // الاتصال بالـ API
         const result = await loginToAPI(email.value, password.value);
         
-        // Redirection Logic
+        // استخراج الدور من الاستجابة
         let role = null;
         
-        // Try to find user role in different common structures
+        // محاولة العثور على الدور في هياكل مختلفة
         if (result && result.user && result.user.type) {
             role = result.user.type;
         } else if (result && result.data && result.data.user && result.data.user.type) {
             role = result.data.user.type;
         } else if (result && result.role) {
             role = result.role;
+        } else if (result && result.data && result.data.role) {
+            role = result.data.role;
         }
 
-        // Store Token if present
-        if (result.token) {
+        // حفظ الـ token في localStorage
+        if (result && result.token) {
             localStorage.setItem('auth_token', result.token);
-        } else if (result.data && result.data.token) {
+        } else if (result && result.data && result.data.token) {
             localStorage.setItem('auth_token', result.data.token);
         }
-        
-        if (role) {
-            // Store user role in localStorage for Sidebar to use
-            localStorage.setItem('user_role', role);
 
-            switch (role) {
-                case 'hospital_admin':
-                    router.visit('/admin/statistics');
-                    break;
-                case 'pharmacist':
-                    router.visit('/pharmacist/statistics');
-                    break;
-                case 'doctor':
-                    router.visit('/doctor/statistics');
-                    break;
-                case 'data_entry':
-                    router.visit('/data-entry/statistics');
-                    break;
-                case 'department_head':
-                    router.visit('/department/statistics');
-                    break;
-                case 'warehouse_manager':
-                    router.visit('/storekeeper/statistics');
-                    break;
-                     case 'supplier_admin':
-                    router.visit('/Supplier/statistics');
-                    break;
-               
-                default:
-                    console.warn("Unknown role:", role);
-                    router.visit('/profile');
-            }
+        // حفظ معلومات المستخدم في localStorage
+        if (result && result.user) {
+            localStorage.setItem('user_data', JSON.stringify(result.user));
+        } else if (result && result.data && result.data.user) {
+            localStorage.setItem('user_data', JSON.stringify(result.data.user));
+        }
+        
+        // حفظ الدور في localStorage
+        if (role) {
+            localStorage.setItem('user_role', role);
+            // توجيه المستخدم حسب دوره
+            redirectByRole(role);
         } else {
-            console.error("User role not found in response", result);
-            // Fallback if structure is different, try to guess or just go to profile
-            router.visit('/profile');
+            console.error("لم يتم العثور على دور المستخدم في الاستجابة", result);
+            apiError.value = "حدث خطأ في تحديد دور المستخدم";
         }
         
         // إعادة تعيين النموذج

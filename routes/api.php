@@ -253,7 +253,7 @@ Route::prefix('doctor')->middleware(['auth:sanctum'])->group(function () {
     // ========================================================================
     // F. Pharmacist Dashboard
     // ========================================================================
- Route::prefix('pharmacist')->group(function () {
+
  Route::prefix('pharmacist')->group(function () {
     
     // Inventory Management

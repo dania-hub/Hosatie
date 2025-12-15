@@ -19,6 +19,19 @@ import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vu
 const API_URL = '/api/data-entry/patients';
 const patients = ref([]);
 
+// دالة لمعادلة شكل تاريخ الميلاد وإزالة وقت/منطقة الزمن (T...)
+const normalizeBirthDate = (value) => {
+    if (!value) return 'غير متوفر';
+    if (typeof value === 'string') {
+        // إذا كان التاريخ بصيغة ISO مثل 2025-12-07T00:00:00.000000Z نأخذ الجزء قبل T
+        if (value.includes('T')) {
+            return value.split('T')[0];
+        }
+        return value;
+    }
+    return String(value);
+};
+
 // Helper to get headers with token
 const getAuthHeaders = () => {
     const token = localStorage.getItem('auth_token');
@@ -44,9 +57,10 @@ const fetchPatients = async () => {
             fileNumber: p.file_number || `FILE-${p.id}`, // Generate if missing
             name: p.full_name || p.name, // Handle raw 'full_name' or Resource 'name'
             nationalId: p.national_id || p.nationalId,
-            birth: p.birth_date || p.birth || 'غير متوفر',
+            // توحيد صيغة تاريخ الميلاد وإزالة الجزء الزائد T...
+            birth: normalizeBirthDate(p.birth_date || p.birth),
             phone: p.phone,
-            email: p.email,
+            email: p.email, // سيأتي الآن من الـ index أيضاً
             lastUpdated: p.updated_at || new Date().toISOString()
         }));
     } catch (error) {
@@ -197,6 +211,7 @@ const addPatient = async (newPatient) => {
             nationalId: p.national_id, // Resource has this
             birth: p.birth, // Resource has this
             phone: p.phone,
+            email: p.email,
             lastUpdated: new Date().toISOString()
         });
 
@@ -244,6 +259,7 @@ const updatePatient = async (updatedPatient) => {
                 nationalId: p.national_id,
                 birth: p.birth,
                 phone: p.phone,
+                email: p.email,
                 lastUpdated: new Date().toISOString()
             };
         }
@@ -493,8 +509,11 @@ const printTable = () => {
                                 </tr>
                             </thead>
 
-                            <tbody>
-                                <tr
+                            <tbody> 
+                                  
+                                      
+                                    
+                                <tr 
                                     v-for="(patient, index) in filteredPatients"
                                     :key="index"
                                     class="hover:bg-gray-100 border border-gray-300"

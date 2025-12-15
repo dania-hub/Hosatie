@@ -7,6 +7,30 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
+// تكوين Axios للطبيب
+const API_BASE_URL = "/api/doctor";
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائيًا
+api.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);
 
 const operations = ref([]);
 const isLoading = ref(false);
@@ -15,15 +39,39 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/dashboard/activity-log');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        // BaseApiController يُرجع البيانات في response.data.data
+        const operationsData = response.data.data || response.data;
         
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
+        if (operationsData && Array.isArray(operationsData)) {
+            operations.value = operationsData;
+            showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
+        } else {
+            operations.value = [];
+            console.error('شكل البيانات غير متوقع:', response.data);
+            showSuccessAlert("⚠️ تم الاتصال بالخادم لكن البيانات بصيغة غير متوقعة");
+        }
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
+        
+        if (error.response) {
+            const status = error.response.status;
+            if (status === 401) {
+                showSuccessAlert("🔒 خطأ في المصادقة. يرجى تسجيل الدخول مرة أخرى");
+            } else if (status === 403) {
+                showSuccessAlert("🚫 ليس لديك صلاحية للوصول إلى هذه البيانات");
+            } else {
+                showSuccessAlert(`❌ فشل في تحميل البيانات: ${error.response.data?.message || 'خطأ غير معروف'}`);
+            }
+        } else if (error.request) {
+            showSuccessAlert("📡 لا يمكن الاتصال بالخادم. تحقق من اتصال الإنترنت");
+        } else {
+            showSuccessAlert("❌ فشل في تحميل البيانات.");
+        }
+        
+        operations.value = [];
     } finally {
         isLoading.value = false;
     }

@@ -52,7 +52,8 @@ class Prescription extends Model
     public function drugs()
     {
         return $this->belongsToMany(Drug::class, 'prescription_drug', 'prescription_id', 'drug_id')
-                    ->withPivot('monthly_quantity', 'note')
+                    // نضيف حقل id من جدول pivot حتى يصل للواجهة ويُستخدم كمعرّف للتعديل/الحذف
+                    ->withPivot('id', 'monthly_quantity', 'note')
                     ->withTimestamps();
     }
 }

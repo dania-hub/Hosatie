@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\UserResource;
+use Illuminate\Support\Facades\Validator;
+
 
 // --- Mobile Requests ---
 use App\Http\Requests\Mobile\MobileLoginRequest;
@@ -245,29 +247,46 @@ class AuthController extends BaseApiController
 //   **
 //      * 1. UPDATE MOBILE PROFILE (Patients)
 //      */
-    public function updateProfileMobile(UpdateMobileProfileRequest $request)
-    {
-        try {
-            $user = $request->user();
+   public function updateProfileMobile(Request $request) // <-- الخطوة 1: غيرنا UpdateMobileProfileRequest إلى Request
+{
+    try {
+        $user = $request->user();
 
-            if ($user->type !== 'patient') {
-                return $this->sendError('تم رفض الوصول. هذا الملف الشخصي مخصص للمرضى فقط.', [], 403);
-            }
-
-            // Using the generic Request here; consider creating App\Http\Requests\Mobile\UpdateMobileProfileRequest
-            // and importing it if you want automatic validation via $request->validated().
-            $data = $request->all();
-            
-            // Secure update
-            $user->fill($data);
-            $user->save();
-
-            return $this->sendSuccess(new UserResource($user), 'تم تحديث ملف تعريف المريض بنجاح.');
-
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'خطأ في تحديث ملف تعريف المريض');
+        if ($user->type !== 'patient') {
+            return response()->json(['success' => false, 'message' => 'تم رفض الوصول.'], 403);
         }
+
+        $raw_data = $request->getContent();
+        $data = json_decode($raw_data, true);
+
+        $validator = Validator::make($data, [
+            'full_name' => 'sometimes|required|string|max:255',
+            'phone' => 'sometimes|required|string|max:20|unique:users,phone,' . $user->id,
+            'national_id' => 'sometimes|required|string|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'بيانات غير صالحة', 'errors' => $validator->errors()], 422);
+        }
+
+        if (isset($data['full_name'])) {
+            $user->full_name = $data['full_name'];
+        }
+        if (isset($data['phone'])) {
+            $user->phone = $data['phone'];
+        }
+        if (isset($data['national_id'])) {
+            $user->national_id = $data['national_id'];
+        }
+
+        $user->save();
+
+        return $this->sendSuccess(new UserResource($user), 'تم تحديث ملف تعريف المريض بنجاح.');
+
+    } catch (\Exception $e) {
+        return $this->handleException($e, 'خطأ في تحديث ملف تعريف المريض');
     }
+}
 
     /**
      * 2. UPDATE DASHBOARD PROFILE (Staff)

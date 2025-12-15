@@ -11,7 +11,8 @@ return new class extends Migration
         Schema::create('otp_verifications', function (Blueprint $table) {
             $table->id();
             $table->string('phone', 20);
-            $table->string('otp', 10);
+            $table->string('otp', 255); 
+
             $table->timestamp('expires_at');
             $table->timestamps();
             

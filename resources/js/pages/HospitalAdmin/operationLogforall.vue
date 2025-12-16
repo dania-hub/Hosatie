@@ -75,6 +75,7 @@ const filteredOperations = computed(() => {
         const searchMatch = !search ||
                             op.fileNumber.toString().includes(search) ||
                             op.name.toLowerCase().includes(search) ||
+                            (op.patientName && op.patientName.toLowerCase().includes(search)) ||
                             op.operationType.includes(search);
 
         // تصفية حسب نوع العملية
@@ -91,6 +92,8 @@ const filteredOperations = computed(() => {
 
             if (sortKey.value === 'name') {
                 comparison = a.name.localeCompare(b.name, 'ar');
+            } else if (sortKey.value === 'patientName') {
+                comparison = (a.patientName || '').localeCompare((b.patientName || ''), 'ar');
             } else if (sortKey.value === 'fileNumber') {
                 comparison = a.fileNumber - b.fileNumber;
             } else if (sortKey.value === 'operationType') {
@@ -189,7 +192,8 @@ const printTable = () => {
             <thead>
                 <tr>
                     <th>رقم الملف</th>
-                    <th>الإسم الرباعي</th>
+                    <th>اسم الموظف</th>
+                    <th>اسم المريض</th>
                     <th>نوع العملية</th>
                     <th>تاريخ العملية</th>
                 </tr>
@@ -202,6 +206,7 @@ const printTable = () => {
             <tr>
                 <td>${op.fileNumber}</td>
                 <td>${op.name}</td>
+                <td>${op.patientName || 'غير محدد'}</td>
                 <td>${op.operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
@@ -231,144 +236,157 @@ const openViewModal = (op) => console.log('عرض العملية:', op);
 const openEditModal = (op) => console.log('تعديل العملية:', op);
 
 </script>
+
 <template>
- <DefaultLayout>
-            <main class="flex-1 p-4 sm:p-5 pt-3">
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
+    <DefaultLayout>
+        <main class="flex-1 p-4 sm:p-5 pt-3">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
+                
+                <div class="flex items-center gap-3 w-full sm:max-w-xl">
+                    <div class="relative w-full sm:max-w-xs">
+                        <search v-model="searchTerm" placeholder="ابحث برقم الملف، اسم الموظف أو اسم المريض" />
+                    </div>
                     
-                    <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                    <div class="dropdown dropdown-start">
+                        <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
+                            rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
+                            text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
+                            <Icon icon="lucide:filter" class="w-5 h-5 ml-2" />
+                            تصفية: {{ operationTypeFilter }}
                         </div>
-                        
-                        <div class="dropdown dropdown-start">
-                            <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
-                                rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
-                                text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
-                                <Icon icon="lucide:filter" class="w-5 h-5 ml-2" />
-                                تصفية: {{ operationTypeFilter }}
-                            </div>
-                            <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8]
-                                rounded-[35px] w-52 text-right">
-                                <li class="menu-title text-gray-700 font-bold text-sm">حسب نوع العملية:</li>
-                                <li v-for="type in operationTypes" :key="type">
-                                    <a @click="operationTypeFilter = type"
-                                        :class="{'font-bold text-[#4DA1A9]': operationTypeFilter === type}">
-                                        {{ type }}
-                                    </a>
-                                </li>
-                            </ul>
+                        <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8]
+                            rounded-[35px] w-52 text-right">
+                            <li class="menu-title text-gray-700 font-bold text-sm">حسب نوع العملية:</li>
+                            <li v-for="type in operationTypes" :key="type">
+                                <a @click="operationTypeFilter = type"
+                                    :class="{'font-bold text-[#4DA1A9]': operationTypeFilter === type}">
+                                    {{ type }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="dropdown dropdown-start">
+                        <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
+                            rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
+                            text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
+                            <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
+                            فرز
                         </div>
-                        
-                        <div class="dropdown dropdown-start">
-                            <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23
-                                rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
-                                text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
-                                <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
-                                فرز
-                            </div>
-                            <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] border-[#ffffff8d]
-                                rounded-[35px] w-52 text-right">
-                                
-                                <li class="menu-title text-gray-700 font-bold text-sm">حسب تاريخ العملية:</li>
-                                <li>
-                                    <a @click="sortOperations('operationDate', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'desc'}">
-                                        الأحدث أولاً (تنازلي)
-                                    </a>
-                                </li>
-                                <li>
-                                    <a @click="sortOperations('operationDate', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'asc'}">
-                                        الأقدم أولاً (تصاعدي)
-                                    </a>
-                                </li>
-                                
-                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الاسم:</li>
-                                <li>
-                                    <a @click="sortOperations('name', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
-                                        الاسم (أ - ي)
-                                    </a>
-                                </li>
-                                <li>
-                                    <a @click="sortOperations('name', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
-                                        الاسم (ي - أ)
-                                    </a>
-                                </li>
-                            </ul>
+                        <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] border-[#ffffff8d]
+                            rounded-[35px] w-52 text-right">
                             
-                        </div>
+                            <li class="menu-title text-gray-700 font-bold text-sm">حسب تاريخ العملية:</li>
+                            <li>
+                                <a @click="sortOperations('operationDate', 'desc')"
+                                    :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'desc'}">
+                                    الأحدث أولاً (تنازلي)
+                                </a>
+                            </li>
+                            <li>
+                                <a @click="sortOperations('operationDate', 'asc')"
+                                    :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'asc'}">
+                                    الأقدم أولاً (تصاعدي)
+                                </a>
+                            </li>
+                            
+                            <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب اسم الموظف:</li>
+                            <li>
+                                <a @click="sortOperations('name', 'asc')"
+                                    :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
+                                    الاسم (أ - ي)
+                                </a>
+                            </li>
+                            <li>
+                                <a @click="sortOperations('name', 'desc')"
+                                    :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
+                                    الاسم (ي - أ)
+                                </a>
+                            </li>
+
+                            <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب اسم المريض:</li>
+                            <li>
+                                <a @click="sortOperations('patientName', 'asc')"
+                                    :class="{'font-bold text-[#4DA1A9]': sortKey === 'patientName' && sortOrder === 'asc'}">
+                                    الاسم (أ - ي)
+                                </a>
+                            </li>
+                            <li>
+                                <a @click="sortOperations('patientName', 'desc')"
+                                    :class="{'font-bold text-[#4DA1A9]': sortKey === 'patientName' && sortOrder === 'desc'}">
+                                    الاسم (ي - أ)
+                                </a>
+                            </li>
+                        </ul>
                         
-                        <p class="text-sm font-semibold text-gray-600 self-end sm:self-center ">
-                            عدد النتائج :
-                            <span class="text-[#4DA1A9] text-lg font-bold">{{ filteredOperations.length }}</span>
-                        </p>
                     </div>
-
-
-                    <div class="flex items-center gap-5 w-full sm:w-auto justify-end">
                     
-                        
-                        <btnprint @click="printTable" />
-                    </div>
+                    <p class="text-sm font-semibold text-gray-600 self-end sm:self-center ">
+                        عدد النتائج :
+                        <span class="text-[#4DA1A9] text-lg font-bold">{{ filteredOperations.length }}</span>
+                    </p>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
-                    <div
-                        class="overflow-y-auto flex-1"
-                        style="
-                            scrollbar-width: auto;
-                            scrollbar-color: grey transparent;
-                            direction: ltr;
-                        "
-                    >
-                        <div class="overflow-x-auto h-full">
-                            <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
-                                <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
-                                    <tr>
-                                        <th class="file-number-col">رقم الملف</th>
-                                        <th class="name-col">اسم الوظف </th>
-                                        <th class="operation-type-col">نوع العملية</th>
-                                        <th class="operation-date-col">تاريخ العملية</th>
-                                        </tr>
-                                </thead>
+                <div class="flex items-center gap-5 w-full sm:w-auto justify-end">
+                    <btnprint @click="printTable" />
+                </div>
+            </div>
 
-                                <tbody>
-                                    <tr v-if="isLoading" class="border border-gray-300">
-                                        <td colspan="4" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                            جاري تحميل البيانات...
-                                        </td>
-                                    </tr>
+            <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
+                <div
+                    class="overflow-y-auto flex-1"
+                    style="
+                        scrollbar-width: auto;
+                        scrollbar-color: grey transparent;
+                        direction: ltr;
+                    "
+                >
+                    <div class="overflow-x-auto h-full">
+                        <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
+                            <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
+                                <tr>
+                                    <th class="file-number-col">رقم الملف</th>
+                                    <th class="name-col">اسم الموظف</th>
+                                    <th class="patient-name-col">اسم المريض</th>
+                                    <th class="operation-type-col">نوع العملية</th>
+                                    <th class="operation-date-col">تاريخ العملية</th>
+                                </tr>
+                            </thead>
 
-                                    <tr
-                                        v-else
-                                        v-for="(op, index) in filteredOperations"
-                                        :key="index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">{{ op.fileNumber }}</td>
-                                        <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
-                                        <td class="operation-date-col">{{ op.operationDate }}</td>
+                            <tbody>
+                                <tr v-if="isLoading" class="border border-gray-300">
+                                    <td colspan="5" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
+                                        جاري تحميل البيانات...
+                                    </td>
+                                </tr>
 
-                                        </tr>
-                                    <tr v-if="!isLoading && filteredOperations.length === 0">
-                                        <td colspan="4" class="p-6 text-center text-gray-500 text-lg">
-                                            ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات  لعرضها.
-                            </div>
+                                <tr
+                                    v-else
+                                    v-for="(op, index) in filteredOperations"
+                                    :key="index"
+                                    class="hover:bg-gray-100 border border-gray-300"
+                                >
+                                    <td class="file-number-col">{{ op.fileNumber }}</td>
+                                    <td class="name-col">{{ op.name }}</td>
+                                    <td class="patient-name-col">{{ op.patientName || 'غير محدد' }}</td>
+                                    <td class="operation-type-col">{{ op.operationType }}</td>
+                                    <td class="operation-date-col">{{ op.operationDate }}</td>
+                                </tr>
+                                <tr v-if="!isLoading && filteredOperations.length === 0">
+                                    <td colspan="5" class="p-6 text-center text-gray-500 text-lg">
+                                        ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
+                            ⚠️ لا توجد بيانات  لعرضها.
                         </div>
                     </div>
                 </div>
-            </main>
-        </DefaultLayout>
+            </div>
+        </main>
+    </DefaultLayout>
 
     <Transition
         enter-active-class="transition duration-300 ease-out transform"
@@ -386,11 +404,10 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
             {{ successMessage }}
         </div>
     </Transition>
-
 </template>
 
 <style>
-/* 14. تنسيقات شريط التمرير */
+/* تنسيقات شريط التمرير */
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -405,22 +422,25 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     background-color: #3a8c94;
 }
 
-/* 15. تنسيقات عرض أعمدة الجدول الجديدة والمعدلة */
-/* تم حذف تنسيق .actions-col */
+/* تنسيقات عرض أعمدة الجدول */
 .file-number-col {
-    width: 90px;
-    min-width: 90px;
-}
-.operation-type-col {
-    width: 120px;
-    min-width: 120px;
-}
-.operation-date-col {
-    width: 120px;
-    min-width: 120px;
+    width: 80px;
+    min-width: 80px;
 }
 .name-col {
-    width: 170px;
-    min-width: 150px;
+    width: 150px;
+    min-width: 130px;
+}
+.patient-name-col {
+    width: 150px;
+    min-width: 130px;
+}
+.operation-type-col {
+    width: 110px;
+    min-width: 110px;
+}
+.operation-date-col {
+    width: 110px;
+    min-width: 110px;
 }
 </style>

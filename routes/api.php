@@ -344,6 +344,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // F. Pharmacist  ✅ (تم إصلاحها)
     // =====================================================================
     Route::prefix('pharmacist')->group(function () {
+        
+ 
 
         Route::get('drugs', [DrugPharmacistController::class, 'index']);
         Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']);
@@ -472,21 +474,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);
         Route::get('patients/{id}/dispensation-history', [PatientDepartmentAdminController::class, 'dispensationHistory']);
     });
-<<<<<<< HEAD
     // ========================================================================
     // F. Pharmacist Dashboard
     // ========================================================================
-
- Route::prefix('pharmacist')->group(function () {
-    
-    // Inventory Management
-    Route::get('drugs', [DrugPharmacistController::class, 'index']); // List inventory
-    Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']); // Search global
-    Route::post('drugs', [DrugPharmacistController::class, 'store']); // Add to inventory
-    Route::put('drugs/{id}', [DrugPharmacistController::class, 'update']); // Update stock
-    Route::delete('drugs/{id}', [DrugPharmacistController::class, 'destroy']); // Remove
-=======
->>>>>>> 532b6ef3b71d558fa943c4aa1d0213cf3c6a7d6e
 
     // =====================================================================
     // Supplier APIs

@@ -133,7 +133,9 @@ const links = {
      super_admin: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/superAdmin/statistics" },
         { name: "قائمة المرضى", icon: "line-md:account", to: "/superAdmin/patients" },
-        { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/superAdmin/employees" },
+        { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/superAdmin/medications" },
+        { name: "المدراء و الموردين", icon: "clarity:employee-group-solid", to: "/superAdmin/employees" },
+         { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/superAdmin/AllemployeesList" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/superAdmin/operations" },
         { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/superAdmin/all-operations" },
         { name: "الطلبات", icon: "carbon:request-quote", to: "/superAdmin/requests" },
@@ -144,6 +146,7 @@ const links = {
     hospital_admin: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/admin/statistics" },
         { name: "قائمة المرضى", icon: "line-md:account", to: "/admin/patients" },
+         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/admin/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/admin/operations" },
         { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/admin/all-operations" },
         { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/admin/employees" },

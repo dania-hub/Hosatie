@@ -16,12 +16,17 @@ Route::get('/profile', function () { return Inertia::render('profile'); });
 // Super Admin
 Route::prefix('superAdmin')->group(function () {
     Route::get('/patients', function () { return Inertia::render('superAdmin/patientListd'); });
+    Route::get('/medications', function () { return Inertia::render('superAdmin/medicationsList'); });
     Route::get('/operations', function () { return Inertia::render('superAdmin/operationLog'); });
     Route::get('/all-operations', function () { return Inertia::render('superAdmin/operationLogforall'); });
     Route::get('/statistics', function () { return Inertia::render('superAdmin/statistics'); });
     Route::get('/employees', function () { return Inertia::render('superAdmin/employeesList'); });
+    Route::get('/AllemployeesList', function () { return Inertia::render('superAdmin/AllemployeesList'); });
     Route::get('/requests', function () { return Inertia::render('superAdmin/Requests'); });
     Route::get('/hospital', function () { return Inertia::render('superAdmin/hospital'); });
+   
+
+
 });
 
 // Super Admin (alias for super-admin)
@@ -32,6 +37,7 @@ Route::prefix('super-admin')->group(function () {
 // Hospital Admin
 Route::prefix('admin')->group(function () {
     Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
+        Route::get('/medications', function () { return Inertia::render('HospitalAdmin/medicationsList'); });
     Route::get('/operations', function () { return Inertia::render('HospitalAdmin/operationLog'); });
     Route::get('/all-operations', function () { return Inertia::render('HospitalAdmin/operationLogforall'); });
     Route::get('/statistics', function () { return Inertia::render('HospitalAdmin/statistics'); });

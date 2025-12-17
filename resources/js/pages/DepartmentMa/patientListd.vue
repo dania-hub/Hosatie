@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
 
@@ -17,26 +17,35 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 // ----------------------------------------------------
 // 1. تكوين Axios
 // ----------------------------------------------------
-const API_BASE_URL = "https://api.your-domain.com"; // استبدل بالرابط الفعلي
+const API_BASE_URL = "/api/department-admin";
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
+    'Accept': 'application/json'
   }
 });
 
 // إضافة interceptor لإضافة التوكن تلقائيًا
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
   error => {
+    return Promise.reject(error);
+  }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+  response => response,
+  error => {
+    console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
@@ -53,16 +62,26 @@ const errorMessage = ref("");
 // 3. دوال API
 // ----------------------------------------------------
 // جلب جميع المرضى
-const fetchPatients = async () => {
+const fetchPatients = async (search = '') => {
   isLoading.value = true;
   hasError.value = false;
   errorMessage.value = "";
   
   try {
-    const response = await api.get('/api/patients');
-    patients.value = response.data.map(patient => ({
+    const params = {};
+    if (search) {
+      params.search = search;
+    }
+    const response = await api.get('/patients', { params });
+    // BaseApiController يُرجع البيانات في response.data.data
+    const patientsData = response.data.data || response.data;
+    patients.value = patientsData.map(patient => ({
       ...patient,
-      lastUpdated: new Date(patient.lastUpdated).toISOString()
+      lastUpdated: patient.lastUpdated ? new Date(patient.lastUpdated).toISOString() : new Date().toISOString(),
+      // إضافة خصائص العرض للمكونات
+      nameDisplay: patient.name || patient.nameDisplay || 'غير متوفر',
+      nationalIdDisplay: patient.nationalId || patient.nationalIdDisplay || 'غير متوفر',
+      birthDisplay: patient.birth || patient.birthDisplay || 'غير متوفر'
     }));
   } catch (err) {
     hasError.value = true;
@@ -78,12 +97,52 @@ const fetchPatients = async () => {
 // جلب بيانات مريض محدد
 const fetchPatientDetails = async (patientId) => {
   try {
-    const response = await api.get(`/api/patients/${patientId}`);
-    return response.data;
+    const response = await api.get(`/patients/${patientId}`);
+    // BaseApiController يُرجع البيانات في response.data.data
+    const patientData = response.data.data || response.data;
+    
+    // تحويل البيانات لتتوافق مع ما يتوقعه المكون
+    return {
+      ...patientData,
+      // الحفاظ على رقم الملف
+      fileNumber: patientData.fileNumber || patientData.file_number || patientData.id || patientId,
+      // إضافة خصائص العرض (الـ API يعيد name, nationalId, birth)
+      nameDisplay: patientData.name || patientData.nameDisplay || 'غير متوفر',
+      nationalIdDisplay: patientData.nationalId || patientData.nationalIdDisplay || patientData.national_id || 'غير متوفر',
+      birthDisplay: patientData.birth || patientData.birthDisplay || patientData.birth_date || 'غير متوفر',
+      // التأكد من وجود مصفوفة الأدوية مع معالجة البيانات
+      medications: (patientData.medications || []).map(med => {
+        // الحصول على وحدة القياس من API أو استخدام "حبة" كافتراضي
+        const unit = med.unit || 'حبة';
+        
+        // التأكد من أن dosage و monthlyQuantity في التنسيق الصحيح
+        // إذا كانت monthlyQuantity رقم، نحولها إلى نص منسق مع الوحدة الصحيحة
+        if (typeof med.monthlyQuantity === 'number') {
+          med.monthlyQuantity = med.monthlyQuantity > 0 ? med.monthlyQuantity + ' ' + unit : 'غير محدد';
+        }
+        // إذا كانت dosage غير موجودة أو "غير محدد" ولكن monthlyQuantityNum موجودة
+        if ((!med.dosage || med.dosage === 'غير محدد') && med.monthlyQuantityNum) {
+          const dailyQty = med.monthlyQuantityNum > 0 ? Math.round((med.monthlyQuantityNum / 30) * 10) / 10 : 0;
+          if (dailyQty > 0) {
+            med.dosage = (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' ' + unit + ' يومياً';
+          }
+        }
+        // التأكد من وجود وحدة القياس في الكائن
+        if (!med.unit) {
+          med.unit = unit;
+        }
+        return med;
+      })
+    };
   } catch (err) {
+    console.error('خطأ في جلب بيانات المريض:', err);
     // لا نعرض خطأ، نرجع بيانات افتراضية
     return {
       ...selectedPatient.value,
+      fileNumber: selectedPatient.value?.fileNumber || selectedPatient.value?.file_number || selectedPatient.value?.id || patientId,
+      nameDisplay: selectedPatient.value?.name || selectedPatient.value?.nameDisplay || 'غير متوفر',
+      nationalIdDisplay: selectedPatient.value?.nationalId || selectedPatient.value?.nationalIdDisplay || selectedPatient.value?.national_id || 'غير متوفر',
+      birthDisplay: selectedPatient.value?.birth || selectedPatient.value?.birthDisplay || selectedPatient.value?.birth_date || 'غير متوفر',
       medications: []
     };
   }
@@ -92,17 +151,58 @@ const fetchPatientDetails = async (patientId) => {
 // تحديث بيانات المريض (بعد إضافة/تعديل/حذف دواء)
 const updatePatientMedications = async (patientId, medications) => {
   try {
-    const response = await api.put(`/api/patients/${patientId}/medications`, {
-      medications
+    // تحويل الأدوية إلى التنسيق الذي يتوقعه الـ API
+    const medicationsPayload = medications.map(med => {
+      let monthlyQuantity = 0;
+      
+      // إذا كانت monthlyQuantity موجودة كرقم
+      if (typeof med.monthlyQuantity === 'number') {
+        monthlyQuantity = med.monthlyQuantity;
+      } 
+      // إذا كانت monthlyQuantity نصية مثل "30 حبة"
+      else if (typeof med.monthlyQuantity === 'string') {
+        const match = med.monthlyQuantity.match(/(\d+)/);
+        monthlyQuantity = match ? parseInt(match[1]) : 0;
+      }
+      // إذا كان dosage موجوداً، احسب منه
+      else if (med.dosage) {
+        const match = med.dosage.match(/(\d+(?:\.\d+)?)/);
+        if (match) {
+          const dailyQty = parseFloat(match[1]);
+          monthlyQuantity = Math.round(dailyQty * 30);
+        }
+      }
+      
+      // التأكد من وجود قيمة صالحة
+      if (monthlyQuantity <= 0) {
+        monthlyQuantity = 30; // قيمة افتراضية
+      }
+      
+      return {
+        drugId: med.id || med.drugId || null,
+        drugName: med.drugName || med.name || '',
+        dosage: med.dosage || `${monthlyQuantity / 30} حبة يومياً`,
+        monthlyQuantity: monthlyQuantity,
+        note: med.note || null
+      };
     });
-    return response.data;
-  } catch (err) {
-    // في حالة الخطأ، نرجع البيانات المحلية المحدثة
-    const patientIndex = patients.value.findIndex(p => p.fileNumber === patientId);
-    if (patientIndex !== -1) {
-      patients.value[patientIndex].medications = medications;
-      return patients.value[patientIndex];
+    
+    const response = await api.put(`/patients/${patientId}/medications`, {
+      medications: medicationsPayload
+    });
+    
+    // BaseApiController يُرجع البيانات في response.data.data
+    const updatedData = response.data.data || response.data;
+    
+    // إعادة جلب البيانات المحدثة من API
+    if (updatedData && updatedData.medications) {
+      return updatedData;
     }
+    
+    // إذا لم تكن البيانات كاملة، إعادة الجلب
+    return await fetchPatientDetails(patientId);
+  } catch (err) {
+    console.error('خطأ في تحديث أدوية المريض:', err);
     throw err;
   }
 };
@@ -110,9 +210,11 @@ const updatePatientMedications = async (patientId, medications) => {
 // جلب سجل الصرف
 const fetchDispensationHistory = async (patientId) => {
   try {
-    const response = await api.get(`/api/patients/${patientId}/dispensation-history`);
-    return response.data;
+    const response = await api.get(`/patients/${patientId}/dispensation-history`);
+    // BaseApiController يُرجع البيانات في response.data.data
+    return response.data.data || response.data || [];
   } catch (err) {
+    console.error('خطأ في جلب سجل الصرف:', err);
     // في حالة الخطأ، نرجع مصفوفة فارغة
     return [];
   }
@@ -147,18 +249,10 @@ const sortPatients = (key, order) => {
 };
 
 const filteredPatients = computed(() => {
-    let list = patients.value;
-    if (searchTerm.value) {
-        const search = searchTerm.value.toLowerCase();
-        list = list.filter(patient =>
-            patient.fileNumber.toString().includes(search) ||
-            patient.name.toLowerCase().includes(search) ||
-            patient.nationalId.includes(search) ||
-            patient.birth.includes(search) ||
-            patient.phone.includes(search)
-        );
-    }
+    // البحث يتم الآن عبر API (server-side)، لذلك نستخدم البيانات كما هي
+    let list = [...patients.value];
 
+    // فقط الفرز يتم على العميل (client-side)
     if (sortKey.value) {
         list.sort((a, b) => {
             let comparison = 0;
@@ -232,16 +326,39 @@ const dispensationHistory = ref([]);
 // 7. دوال فتح وإغلاق الـ Modals
 // ----------------------------------------------------
 const openViewModal = async (patient) => {
+  // استخدام fileNumber أو id كمعرف المريض
+  const patientId = patient.fileNumber || patient.id || patient.file_number;
+  
   try {
-    // جلب البيانات المحدثة للمريض من API
-    const patientData = await fetchPatientDetails(patient.fileNumber);
-    if (patientData) {
-      selectedPatient.value = patientData;
+    if (patientId) {
+      // جلب البيانات المحدثة للمريض من API
+      const patientData = await fetchPatientDetails(patientId);
+      if (patientData) {
+        selectedPatient.value = patientData;
+        isViewModalOpen.value = true;
+      }
+    } else {
+      // إذا لم يكن هناك معرف، نستخدم البيانات المحلية فقط
+      selectedPatient.value = {
+        ...patient,
+        fileNumber: patient.fileNumber || patient.file_number || patient.id,
+        nameDisplay: patient.name || patient.nameDisplay || 'غير متوفر',
+        nationalIdDisplay: patient.nationalId || patient.nationalIdDisplay || patient.national_id || 'غير متوفر',
+        birthDisplay: patient.birth || patient.birthDisplay || patient.birth_date || 'غير متوفر',
+        medications: patient.medications || []
+      };
       isViewModalOpen.value = true;
     }
   } catch (err) {
-    // في حالة الخطأ، نستخدم البيانات المحلية
-    selectedPatient.value = patient;
+    // في حالة الخطأ، نستخدم البيانات المحلية مع إضافة خصائص العرض
+    selectedPatient.value = {
+      ...patient,
+      fileNumber: patient.fileNumber || patient.file_number || patient.id || patientId,
+      nameDisplay: patient.name || patient.nameDisplay || 'غير متوفر',
+      nationalIdDisplay: patient.nationalId || patient.nationalIdDisplay || patient.national_id || 'غير متوفر',
+      birthDisplay: patient.birth || patient.birthDisplay || patient.birth_date || 'غير متوفر',
+      medications: patient.medications || []
+    };
     isViewModalOpen.value = true;
   }
 };
@@ -284,60 +401,83 @@ const closeDispensationModal = () => {
 // ----------------------------------------------------
 // 8. دوال إدارة الأدوية (محدثة للتعامل مع API)
 // ----------------------------------------------------
-const addMedicationToPatient = async (medicationsData) => {
+// دالة لجلب اسم المستخدم الحالي
+const getCurrentUserName = () => {
   try {
-    const newMedications = medicationsData.map(med => ({
-      drugName: med.name,
-      dosage: `${med.quantity} ${med.unit} يومياً`,
-      monthlyQuantity: `${med.quantity * 30} ${med.unit === 'حبة/قرص' ? 'حبة' : med.unit}`,
-      assignmentDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-      expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '/'),
-      assignedBy: 'د. المستخدم الحالي'
-    }));
-
-    try {
-      // محاولة تحديث الأدوية في الـ API
-      const updatedPatient = await updatePatientMedications(
-        selectedPatient.value.fileNumber,
-        [...selectedPatient.value.medications, ...newMedications]
-      );
-
-      // تحديث البيانات المحلية
-      const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-      if (patientIndex !== -1) {
-        patients.value[patientIndex].medications = updatedPatient.medications;
-        selectedPatient.value = patients.value[patientIndex];
-      }
-
-      showSuccessAlert(`✅ تم إضافة ${newMedications.length} دواء بنجاح للمريض ${selectedPatient.value.nameDisplay}`);
-    } catch (apiError) {
-      // في حالة فشل الاتصال بالـ API، نحدث البيانات محليًا فقط
-      const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-      if (patientIndex !== -1) {
-        if (!patients.value[patientIndex].medications) {
-          patients.value[patientIndex].medications = [];
-        }
-        patients.value[patientIndex].medications = [
-          ...patients.value[patientIndex].medications,
-          ...newMedications
-        ];
-        selectedPatient.value = patients.value[patientIndex];
-      }
-      
-      showInfoAlert(`تم إضافة الأدوية محليًا (غير متصل بالخادم)`);
+    const userDataStr = localStorage.getItem('user_data');
+    if (userDataStr) {
+      const userData = JSON.parse(userDataStr);
+      return userData.full_name || userData.name || 'غير محدد';
     }
   } catch (err) {
-    showInfoAlert('تم إضافة الأدوية محليًا');
+    console.error('خطأ في جلب بيانات المستخدم:', err);
+  }
+  return 'غير محدد';
+};
+
+const addMedicationToPatient = async (medicationsData) => {
+  try {
+    // تحويل البيانات إلى التنسيق الذي يتوقعه الـ API
+    const medicationsPayload = medicationsData.map(med => {
+      // حساب الكمية الشهرية من الجرعة اليومية
+      const dailyQty = med.quantity || med.dailyQuantity || 0;
+      const monthlyQuantity = Math.round(dailyQty * 30);
+      
+      return {
+        drugId: med.drugId || med.id || null,
+        drugName: med.name || med.drugName || '',
+        dosage: `${dailyQty} ${med.unit || 'حبة'} يومياً`,
+        monthlyQuantity: monthlyQuantity,
+        note: med.note || med.notes || null
+      };
+    });
+
+    try {
+      // إرسال الأدوية إلى API
+      const updatedPatient = await updatePatientMedications(
+        selectedPatient.value.fileNumber,
+        [...(selectedPatient.value.medications || []), ...medicationsPayload]
+      );
+
+      // إعادة جلب بيانات المريض المحدثة من API
+      const freshPatientData = await fetchPatientDetails(selectedPatient.value.fileNumber);
+      if (freshPatientData) {
+        selectedPatient.value = freshPatientData;
+        
+        // تحديث البيانات المحلية
+        const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
+        if (patientIndex !== -1) {
+          patients.value[patientIndex] = freshPatientData;
+        }
+      }
+
+      showSuccessAlert(`✅ تم إضافة ${medicationsData.length} دواء بنجاح للمريض ${selectedPatient.value.nameDisplay || selectedPatient.value.name}`);
+    } catch (apiError) {
+      console.error('خطأ في إضافة الأدوية:', apiError);
+      const errorMessage = apiError.response?.data?.message || apiError.message || 'حدث خطأ غير معروف';
+      showInfoAlert(`❌ فشل في إضافة الأدوية: ${errorMessage}`);
+    }
+  } catch (err) {
+    console.error('خطأ في إضافة الأدوية:', err);
+    showInfoAlert('❌ حدث خطأ في إضافة الأدوية');
   }
 };
 
 const handleEditMedication = async (medIndex, newDosage) => {
   try {
     const updatedMedications = [...selectedPatient.value.medications];
+    const medication = updatedMedications[medIndex];
+    
+    // حساب الكمية الشهرية من الجرعة اليومية الجديدة
+    const monthlyQuantity = Math.round(newDosage * 30);
+    
     updatedMedications[medIndex] = {
-      ...updatedMedications[medIndex],
-      dosage: newDosage.toString(),
-      monthlyQuantity: `${newDosage * 30} حبة`
+      ...medication,
+      drugId: medication.id || medication.drugId,
+      drugName: medication.drugName || medication.name,
+      dosage: `${newDosage} حبة يومياً`,
+      monthlyQuantity: monthlyQuantity,
+      note: medication.note || null
     };
 
     try {
@@ -347,33 +487,34 @@ const handleEditMedication = async (medIndex, newDosage) => {
         updatedMedications
       );
 
-      // تحديث البيانات المحلية
-      const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-      if (patientIndex !== -1) {
-        patients.value[patientIndex].medications = updatedPatient.medications;
-        selectedPatient.value = patients.value[patientIndex];
+      // إعادة جلب البيانات المحدثة من API
+      const freshPatientData = await fetchPatientDetails(selectedPatient.value.fileNumber);
+      if (freshPatientData) {
+        selectedPatient.value = freshPatientData;
+        
+        // تحديث البيانات المحلية
+        const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
+        if (patientIndex !== -1) {
+          patients.value[patientIndex] = freshPatientData;
+        }
       }
 
       showSuccessAlert(`✅ تم تعديل الجرعة الدوائية بنجاح`);
     } catch (apiError) {
-      // في حالة فشل الاتصال، نحدث البيانات محليًا
-      const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-      if (patientIndex !== -1) {
-        patients.value[patientIndex].medications = updatedMedications;
-        selectedPatient.value = patients.value[patientIndex];
-      }
-      
-      showInfoAlert(`تم التعديل محليًا (غير متصل بالخادم)`);
+      console.error('خطأ في تعديل الدواء:', apiError);
+      const errorMessage = apiError.response?.data?.message || apiError.message || 'حدث خطأ غير معروف';
+      showInfoAlert(`❌ فشل في تعديل الدواء: ${errorMessage}`);
     }
   } catch (err) {
-    showInfoAlert('تم التعديل محليًا');
+    console.error('خطأ في تعديل الدواء:', err);
+    showInfoAlert('❌ حدث خطأ في تعديل الدواء');
   }
 };
 
 const handleDeleteMedication = async (medIndex) => {
   try {
     const updatedMedications = [...selectedPatient.value.medications];
-    const medicationName = updatedMedications[medIndex].drugName;
+    const medicationName = updatedMedications[medIndex].drugName || updatedMedications[medIndex].name;
     updatedMedications.splice(medIndex, 1);
 
     try {
@@ -383,26 +524,27 @@ const handleDeleteMedication = async (medIndex) => {
         updatedMedications
       );
 
-      // تحديث البيانات المحلية
-      const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-      if (patientIndex !== -1) {
-        patients.value[patientIndex].medications = updatedPatient.medications;
-        selectedPatient.value = patients.value[patientIndex];
+      // إعادة جلب البيانات المحدثة من API
+      const freshPatientData = await fetchPatientDetails(selectedPatient.value.fileNumber);
+      if (freshPatientData) {
+        selectedPatient.value = freshPatientData;
+        
+        // تحديث البيانات المحلية
+        const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
+        if (patientIndex !== -1) {
+          patients.value[patientIndex] = freshPatientData;
+        }
       }
 
       showSuccessAlert(`🗑️ تم حذف الدواء ${medicationName} بنجاح`);
     } catch (apiError) {
-      // في حالة فشل الاتصال، نحدث البيانات محليًا
-      const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
-      if (patientIndex !== -1) {
-        patients.value[patientIndex].medications = updatedMedications;
-        selectedPatient.value = patients.value[patientIndex];
-      }
-      
-      showInfoAlert(`تم الحذف محليًا (غير متصل بالخادم)`);
+      console.error('خطأ في حذف الدواء:', apiError);
+      const errorMessage = apiError.response?.data?.message || apiError.message || 'حدث خطأ غير معروف';
+      showInfoAlert(`❌ فشل في حذف الدواء: ${errorMessage}`);
     }
   } catch (err) {
-    showInfoAlert('تم الحذف محليًا');
+    console.error('خطأ في حذف الدواء:', err);
+    showInfoAlert('❌ حدث خطأ في حذف الدواء');
   }
 };
 
@@ -494,13 +636,25 @@ const printTable = () => {
 // ----------------------------------------------------
 // 10. دورة حياة المكون
 // ----------------------------------------------------
+// دعم البحث مع API (debounced)
+let searchTimeout = null;
+watch(searchTerm, (newValue) => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  // انتظار 500ms بعد توقف المستخدم عن الكتابة قبل استدعاء API
+  searchTimeout = setTimeout(() => {
+    fetchPatients(newValue);
+  }, 500);
+});
+
 onMounted(() => {
   fetchPatients();
 });
 
 // إعادة تحميل البيانات عند الحاجة
 const reloadData = () => {
-  fetchPatients();
+  fetchPatients(searchTerm.value);
 };
 </script>
 

@@ -19,7 +19,7 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
@@ -55,7 +55,7 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
@@ -87,7 +87,7 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 

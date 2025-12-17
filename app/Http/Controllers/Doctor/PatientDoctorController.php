@@ -106,12 +106,29 @@ class PatientDoctorController extends BaseApiController
                 // اسم الطبيب الذي قام بالإسناد
                 $assignedBy = $activePrescription->doctor ? $activePrescription->doctor->full_name : null;
                 
+                // الحصول على الكمية الشهرية
+                $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                
+                // تحديد وحدة القياس من بيانات الدواء
+                $unit = $this->getDrugUnit($drug);
+                
+                // تحويل الجرعة الشهرية إلى جرعة يومية نصية
+                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                $dosageText = $dailyQty > 0 
+                    ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                    : 'غير محدد';
+                
+                // تنسيق الكمية الشهرية كنص مع الوحدة الصحيحة
+                $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
+                
                 return [
                     'id'       => $drug->id,
                     'pivot_id' => $drug->pivot->id,
                     'drugName' => $drug->name,
-                    'dosage'   => $drug->pivot->monthly_quantity,
-                    'monthlyQuantity' => $drug->pivot->monthly_quantity,
+                    'dosage'   => $dosageText, // الجرعة اليومية: "2 مل يومياً" أو "2 حبة يومياً"
+                    'monthlyQuantity' => $monthlyQuantityText, // الكمية الشهرية: "60 مل" أو "60 حبة"
+                    'monthlyQuantityNum' => $monthlyQty, // الكمية الشهرية كرقم للعمليات الحسابية
+                    'unit' => $unit, // وحدة القياس
                     'assignmentDate' => $assignmentDate,
                     'assignedBy' => $assignedBy,
                     'note'     => $drug->pivot->note
@@ -120,5 +137,79 @@ class PatientDoctorController extends BaseApiController
         ];
 
         return $this->sendSuccess($data, 'تم جلب بيانات المريض بنجاح.');
+    }
+
+    /**
+     * تحديد وحدة القياس بناءً على نوع الدواء
+     */
+    private function getDrugUnit($drug)
+    {
+        // أولاً: استخدام وحدة القياس المباشرة من جدول الدواء
+        if (!empty($drug->unit)) {
+            $unit = strtolower(trim($drug->unit));
+            
+            // تحويل الوحدات الشائعة إلى التنسيق المطلوب
+            // للأدوية الصلبة (حبوب/أقراص)
+            if (in_array($unit, ['قرص', 'حبة', 'tablet', 'capsule', 'pill', 'tab', 'cap'])) {
+                return 'حبة';
+            }
+            // للأدوية السائلة
+            if (in_array($unit, ['مل', 'ml', 'milliliter', 'millilitre', 'ملل', 'ملليلتر'])) {
+                return 'مل';
+            }
+            // للحقن
+            if (in_array($unit, ['أمبول', 'ampoule', 'ampule', 'vial', 'حقنة', 'amp'])) {
+                return 'أمبول';
+            }
+            // للمراهم والكريمات
+            if (in_array($unit, ['جرام', 'gram', 'gm', 'g', 'غرام'])) {
+                return 'جرام';
+            }
+            // إذا كانت الوحدة موجودة ولكن غير معروفة، نستخدمها كما هي
+            return $drug->unit;
+        }
+        
+        // ثانياً: استخدام form لتحديد الوحدة
+        if (!empty($drug->form)) {
+            $form = strtolower(trim($drug->form));
+            
+            // للأدوية الصلبة
+            if (in_array($form, ['tablet', 'capsule', 'pill', 'tab', 'cap', 'قرص', 'حبة', 'كبسولة'])) {
+                return 'حبة';
+            }
+            // للأدوية السائلة
+            if (in_array($form, ['liquid', 'syrup', 'suspension', 'solution', 'elixir', 'drops', 'قطرة', 'سائل', 'شراب', 'معلق', 'محلول'])) {
+                return 'مل';
+            }
+            // للحقن
+            if (in_array($form, ['injection', 'ampoule', 'ampule', 'vial', 'amp', 'حقن', 'أمبول', 'حقنة'])) {
+                return 'أمبول';
+            }
+            // للمراهم والكريمات
+            if (in_array($form, ['ointment', 'cream', 'gel', 'lotion', 'مرهم', 'كريم', 'جل', 'لوشن'])) {
+                return 'جرام';
+            }
+        }
+        
+        // ثالثاً: البحث في اسم الدواء عن إشارات للنوع
+        if (!empty($drug->name)) {
+            $name = strtolower($drug->name);
+            
+            // البحث عن كلمات تشير إلى سائل
+            if (preg_match('/\b(syrup|suspension|solution|liquid|drops|شراب|معلق|محلول|قطرة|سائل|شرب)\b/i', $name)) {
+                return 'مل';
+            }
+            // البحث عن كلمات تشير إلى حقن
+            if (preg_match('/\b(injection|ampoule|vial|amp|حقن|أمبول|حقنة)\b/i', $name)) {
+                return 'أمبول';
+            }
+            // البحث عن كلمات تشير إلى مرهم
+            if (preg_match('/\b(ointment|cream|gel|lotion|مرهم|كريم|جل|لوشن)\b/i', $name)) {
+                return 'جرام';
+            }
+        }
+        
+        // افتراضياً: حبة (للأدوية الصلبة)
+        return 'حبة';
     }
 }

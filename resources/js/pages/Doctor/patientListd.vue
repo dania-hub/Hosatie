@@ -144,23 +144,39 @@ const fetchPatientDetails = async (patientId) => {
       birthDisplay: patientData.birth || patientData.birthDisplay || 'غير متوفر',
       // تحويل بيانات الأدوية لتتوافق مع ما يتوقعه المكون
       medications: (patientData.medications || []).map(med => {
-        // الـ API يعيد dosage كرقم (monthly_quantity)، نحوله إلى نص منسق
-        const monthlyQty = med.dosage || med.monthlyQuantity || 0;
+        // الحصول على وحدة القياس من API أو استخدام "حبة" كافتراضي
+        const unit = med.unit || 'حبة';
+        
+        // الـ API يعيد dosage كنص منسق أو monthlyQuantityNum كرقم
+        const monthlyQty = med.monthlyQuantityNum || med.monthlyQuantity || 0;
+        
+        // إذا كان dosage موجوداً من API، نستخدمه مباشرة
+        if (med.dosage && typeof med.dosage === 'string') {
+          return {
+            ...med,
+            dosage: med.dosage, // استخدام dosage من API (يحتوي على الوحدة الصحيحة)
+            monthlyQuantity: med.monthlyQuantity || (monthlyQty > 0 ? monthlyQty + ' ' + unit : 'غير محدد'),
+            monthlyQuantityNum: monthlyQty,
+            unit: unit,
+            assignmentDate: med.assignmentDate || null,
+            assignedBy: med.assignedBy || null
+          };
+        }
+        
+        // إذا لم يكن dosage موجوداً، نحسبه من monthlyQuantity
         const dailyQty = monthlyQty > 0 ? Math.round((monthlyQty / 30) * 10) / 10 : 0;
         const dosageText = dailyQty > 0 
-          ? (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' حبة يومياً'
+          ? (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' ' + unit + ' يومياً'
           : 'غير محدد';
-        
-        // استخدام البيانات من API مباشرة
-        const assignmentDate = med.assignmentDate || null;
-        const assignedBy = med.assignedBy || null;
         
         return {
           ...med,
-          dosage: dosageText, // تحويل من رقم إلى نص منسق
-          monthlyQuantity: monthlyQty, // الكمية الشهرية من API
-          assignmentDate: assignmentDate, // تاريخ الإسناد من API
-          assignedBy: assignedBy // اسم الطبيب من API
+          dosage: dosageText, // تحويل من رقم إلى نص منسق مع الوحدة الصحيحة
+          monthlyQuantity: med.monthlyQuantity || (monthlyQty > 0 ? monthlyQty + ' ' + unit : 'غير محدد'),
+          monthlyQuantityNum: monthlyQty,
+          unit: unit,
+          assignmentDate: med.assignmentDate || null,
+          assignedBy: med.assignedBy || null
         };
       })
     };
@@ -362,22 +378,30 @@ const openViewModal = async (patient) => {
         birthDisplay: patientData.birth || patientData.birthDisplay || 'غير متوفر',
         // تحويل الأدوية إلى الشكل المتوقع
         medications: (patientData.medications || []).map(med => {
-          // الـ API يعيد dosage كرقم (monthly_quantity)، نحوله إلى نص منسق
-          const monthlyQty = med.dosage || med.monthlyQuantity || 0;
-          const dailyQty = monthlyQty > 0 ? Math.round((monthlyQty / 30) * 10) / 10 : 0;
-          const dosageText = dailyQty > 0 
-            ? (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' حبة يومياً'
-            : 'غير محدد';
+          // الحصول على وحدة القياس من API أو استخدام "حبة" كافتراضي
+          const unit = med.unit || 'حبة';
+          const monthlyQty = med.monthlyQuantityNum || med.monthlyQuantity || 0;
+          
+          // إذا كان dosage موجوداً من API، نستخدمه مباشرة
+          let dosageText = med.dosage;
+          if (!dosageText || typeof dosageText === 'number') {
+            const dailyQty = monthlyQty > 0 ? Math.round((monthlyQty / 30) * 10) / 10 : 0;
+            dosageText = dailyQty > 0 
+              ? (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' ' + unit + ' يومياً'
+              : 'غير محدد';
+          }
           
           return {
             ...med,
             // إضافة الحقول المطلوبة للمكون
-            monthlyQuantity: monthlyQty, // الكمية الشهرية من API
+            monthlyQuantity: med.monthlyQuantity || (monthlyQty > 0 ? monthlyQty + ' ' + unit : 'غير محدد'),
+            monthlyQuantityNum: monthlyQty,
+            unit: unit,
             assignmentDate: med.assignmentDate || new Date().toISOString().split('T')[0].replace(/-/g, '/'),
             assignedBy: med.assignedBy || 'غير محدد',
             // التأكد من وجود الحقول الأساسية
             drugName: med.drugName || med.name || 'غير محدد',
-            dosage: dosageText, // تحويل من رقم إلى نص منسق
+            dosage: dosageText, // نص منسق مع الوحدة الصحيحة
             note: med.note || med.notes || ''
           };
         })

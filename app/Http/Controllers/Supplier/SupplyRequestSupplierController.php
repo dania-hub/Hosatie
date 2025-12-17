@@ -20,8 +20,8 @@ class SupplyRequestSupplierController extends BaseApiController
     {
         try {
             $user = $request->user();
-            
-            if ($user->type !== 'supplier') {
+
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
@@ -30,23 +30,22 @@ class SupplyRequestSupplierController extends BaseApiController
                 'requester:id,full_name',
                 'items.drug:id,name,code'
             ])
-            ->where('supplier_id', $user->supplier_id)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($request) {
-                return [
-                    'id' => $request->id,
-                    'hospitalName' => $request->hospital->name ?? 'غير محدد',
-                    'hospitalCode' => $request->hospital->code ?? '',
-                    'status' => $this->translateStatus($request->status),
-                    'statusOriginal' => $request->status,
-                    'itemsCount' => $request->items->count(),
-                    'createdAt' => $request->created_at->format('Y/m/d'),
-                ];
-            });
+                ->where('supplier_id', $user->supplier_id)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($request) {
+                    return [
+                        'id' => $request->id,
+                        'hospitalName' => $request->hospital->name ?? 'غير محدد',
+                        'hospitalCode' => $request->hospital->code ?? '',
+                        'status' => $this->translateStatus($request->status),
+                        'statusOriginal' => $request->status,
+                        'itemsCount' => $request->items->count(),
+                        'createdAt' => $request->created_at->format('Y/m/d'),
+                    ];
+                });
 
             return $this->sendSuccess($requests, 'تم جلب طلبات التوريد بنجاح');
-
         } catch (\Exception $e) {
             return $this->handleException($e, 'Supplier Supply Requests Index Error');
         }
@@ -60,19 +59,18 @@ class SupplyRequestSupplierController extends BaseApiController
     {
         try {
             $user = $request->user();
-            
-            if ($user->type !== 'supplier') {
+
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             $supplyRequest = ExternalSupplyRequest::with([
                 'hospital:id,name,code,city,address,phone',
                 'requester:id,full_name,email,phone',
-                'items.drug:id,name,code',
-                'items.drug.category:id,name'
+                'items.drug:id,name,code,category',
             ])
-            ->where('supplier_id', $user->supplier_id)
-            ->findOrFail($id);
+                ->where('supplier_id', $user->supplier_id)
+                ->findOrFail($id);
 
             $data = [
                 'id' => $supplyRequest->id,
@@ -97,7 +95,11 @@ class SupplyRequestSupplierController extends BaseApiController
                         'drugId' => $item->drug_id,
                         'drugName' => $item->drug->name ?? 'غير محدد',
                         'drugCode' => $item->drug->code ?? '',
-                        'category' => $item->drug->category->name ?? 'غير محدد',
+                        'category' => $item->drug
+                            ? (is_object($item->drug->category)
+                                ? ($item->drug->category->name ?? $item->drug->category)
+                                : ($item->drug->category ?? 'غير محدد'))
+                            : 'غير محدد',
                         'requestedQuantity' => $item->requested_quantity,
                         'approvedQuantity' => $item->approved_quantity,
                     ];
@@ -106,7 +108,6 @@ class SupplyRequestSupplierController extends BaseApiController
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الطلب بنجاح');
-
         } catch (\Exception $e) {
             return $this->handleException($e, 'Supplier Supply Request Show Error');
         }
@@ -121,8 +122,8 @@ class SupplyRequestSupplierController extends BaseApiController
         DB::beginTransaction();
         try {
             $user = $request->user();
-            
-            if ($user->type !== 'supplier') {
+
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
@@ -155,7 +156,6 @@ class SupplyRequestSupplierController extends BaseApiController
                 'id' => $supplyRequest->id,
                 'status' => $this->translateStatus($supplyRequest->status),
             ], 'تم إنشاء طلب التوريد بنجاح', 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->handleException($e, 'Supplier Create Supply Request Error');
@@ -170,16 +170,16 @@ class SupplyRequestSupplierController extends BaseApiController
     {
         try {
             $user = $request->user();
-            
-            if ($user->type !== 'supplier') {
+
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             // جلب المستشفيات التابعة لهذا المورد أو جميع المستشفيات النشطة
             $hospitals = Hospital::where('status', 'active')
-                ->where(function($query) use ($user) {
+                ->where(function ($query) use ($user) {
                     $query->where('supplier_id', $user->supplier_id)
-                          ->orWhereNull('supplier_id');
+                        ->orWhereNull('supplier_id');
                 })
                 ->orderBy('name')
                 ->get()
@@ -194,7 +194,6 @@ class SupplyRequestSupplierController extends BaseApiController
                 });
 
             return $this->sendSuccess($hospitals, 'تم جلب قائمة المستشفيات بنجاح');
-
         } catch (\Exception $e) {
             return $this->handleException($e, 'Supplier Hospitals Error');
         }

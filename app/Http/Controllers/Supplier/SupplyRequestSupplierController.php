@@ -26,9 +26,9 @@ class SupplyRequestSupplierController extends BaseApiController
             }
 
             $requests = ExternalSupplyRequest::with([
-                'hospital:id,name,code,city',
+                'hospital:id,name,city',
                 'requester:id,full_name',
-                'items.drug:id,name,code'
+                'items.drug:id,name'
             ])
                 ->where('supplier_id', $user->supplier_id)
                 ->orderBy('created_at', 'desc')
@@ -65,9 +65,9 @@ class SupplyRequestSupplierController extends BaseApiController
             }
 
             $supplyRequest = ExternalSupplyRequest::with([
-                'hospital:id,name,code,city,address,phone',
+                'hospital:id,name,city,address,phone',
                 'requester:id,full_name,email,phone',
-                'items.drug:id,name,code,category',
+                'items.drug:id,name,category',
             ])
                 ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
@@ -77,7 +77,6 @@ class SupplyRequestSupplierController extends BaseApiController
                 'hospital' => [
                     'id' => $supplyRequest->hospital->id,
                     'name' => $supplyRequest->hospital->name,
-                    'code' => $supplyRequest->hospital->code,
                     'city' => $supplyRequest->hospital->city,
                     'address' => $supplyRequest->hospital->address,
                     'phone' => $supplyRequest->hospital->phone,
@@ -94,7 +93,6 @@ class SupplyRequestSupplierController extends BaseApiController
                         'id' => $item->id,
                         'drugId' => $item->drug_id,
                         'drugName' => $item->drug->name ?? 'غير محدد',
-                        'drugCode' => $item->drug->code ?? '',
                         'category' => $item->drug
                             ? (is_object($item->drug->category)
                                 ? ($item->drug->category->name ?? $item->drug->category)
@@ -142,11 +140,26 @@ class SupplyRequestSupplierController extends BaseApiController
 
             // إضافة الأدوية المطلوبة
             $items = $request->input('items', []);
+
+            // تجميع البنود حسب `drug_id` وجمع الكميات لتجنب إدخالات مكررة
+            $grouped = [];
             foreach ($items as $item) {
+                $drugId = $item['drug_id'] ?? null;
+                $qty = isset($item['quantity']) ? (int) $item['quantity'] : 0;
+                if (!$drugId || $qty <= 0) {
+                    continue;
+                }
+                if (!isset($grouped[$drugId])) {
+                    $grouped[$drugId] = 0;
+                }
+                $grouped[$drugId] += $qty;
+            }
+
+            foreach ($grouped as $drugId => $totalQty) {
                 ExternalSupplyRequestItem::create([
-                    'external_supply_request_id' => $supplyRequest->id,
-                    'drug_id' => $item['drug_id'],
-                    'requested_quantity' => $item['quantity'],
+                    'request_id' => $supplyRequest->id,
+                    'drug_id' => $drugId,
+                    'requested_qty' => $totalQty,
                 ]);
             }
 

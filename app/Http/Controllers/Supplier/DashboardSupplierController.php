@@ -59,17 +59,43 @@ class DashboardSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
+            // Filter logs for this supplier more precisely:
+            // - logs created by this user
+            // - or logs where `new_values`/`old_values` JSON includes the current supplier_id
+            // - or logs related to tables mentioning supplier
+            $supplierId = $user->supplier_id;
+
             $operations = AuditLog::with('user:id,full_name')
-                ->where('user_id', $user->id)
-                ->orWhere('description', 'like', '%supplier%')
+                ->where(function ($q) use ($user, $supplierId) {
+                    $q->where('user_id', $user->id)
+                        ->orWhere('table_name', 'like', '%supplier%')
+                        ->orWhere('new_values', 'like', '%"supplier_id":' . ($supplierId ?? 'NULL') . '%')
+                        ->orWhere('old_values', 'like', '%"supplier_id":' . ($supplierId ?? 'NULL') . '%');
+                })
                 ->orderBy('created_at', 'desc')
                 ->limit(50)
                 ->get()
                 ->map(function ($log) {
+                    $desc = $log->table_name ? ($log->action . ' on ' . $log->table_name) : $log->action;
+
+                    // If new_values contains useful JSON, try to extract a readable summary
+                    if (!empty($log->new_values)) {
+                        $decoded = json_decode($log->new_values, true);
+                        if (is_array($decoded)) {
+                            if (isset($decoded['name'])) {
+                                $desc = $log->action . ' ' . $decoded['name'];
+                            } elseif (isset($decoded['id'])) {
+                                $desc = $log->action . ' #' . $decoded['id'];
+                            }
+                        } elseif (is_string($log->new_values) && empty($desc)) {
+                            $desc = substr($log->new_values, 0, 200);
+                        }
+                    }
+
                     return [
                         'id' => $log->id,
                         'operationType' => $this->translateOperationType($log->action),
-                        'description' => $log->description,
+                        'description' => $desc,
                         'userName' => $log->user->full_name ?? 'النظام',
                         'operationDate' => $log->created_at->format('Y/m/d'),
                         'operationTime' => $log->created_at->format('H:i'),

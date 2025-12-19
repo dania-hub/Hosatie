@@ -65,6 +65,17 @@ use App\Http\Controllers\Supplier\SupplyRequestSupplierController;
 use App\Http\Controllers\Supplier\DashboardSupplierController;
 
 
+// --- Super Admin Controllers ---
+
+use App\Http\Controllers\SuperAdmin\HospitalSuperController;
+use App\Http\Controllers\SuperAdmin\DrugSuperController;
+use App\Http\Controllers\SuperAdmin\UserSuperController;
+use App\Http\Controllers\SuperAdmin\SupplierSuperController;
+use App\Http\Controllers\SuperAdmin\DashboardSuperController;
+
+
+
+
 
 
 
@@ -344,8 +355,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // F. Pharmacist  ✅ (تم إصلاحها)
     // =====================================================================
     Route::prefix('pharmacist')->group(function () {
-        
- 
+
+
 
         Route::get('drugs', [DrugPharmacistController::class, 'index']);
         Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']);
@@ -505,5 +516,48 @@ Route::middleware('auth:sanctum')->group(function () {
         // 5. Dashboard & Statistics (لوحة التحكم والإحصائيات)
         Route::get('dashboard/stats', [DashboardSupplierController::class, 'stats']);
         Route::get('operations', [DashboardSupplierController::class, 'operations']);
+    });
+
+    // Super Admin Routes
+    // Super Admin Routes
+    Route::prefix('super-admin')->group(function () {
+
+        // Hospitals (FR-85 to FR-89)
+        Route::get('hospitals', [HospitalSuperController::class, 'index']);
+        Route::post('hospitals', [HospitalSuperController::class, 'store']);
+        Route::put('hospitals/{id}', [HospitalSuperController::class, 'update']);
+        Route::patch('hospitals/{id}/deactivate', [HospitalSuperController::class, 'deactivate']);
+        Route::patch('hospitals/{id}/activate', [HospitalSuperController::class, 'activate']);
+
+        // Drugs (FR-90 to FR-92)
+        Route::get('drugs', [DrugSuperController::class, 'index']);
+        Route::post('drugs', [DrugSuperController::class, 'store']);
+        Route::put('drugs/{id}', [DrugSuperController::class, 'update']);
+        Route::patch('drugs/{id}/discontinue', [DrugSuperController::class, 'discontinue']);
+        Route::patch('drugs/{id}/reactivate', [DrugSuperController::class, 'reactivate']);
+
+        // Users - Hospital Admins & Supplier Admins (FR-93 to FR-97)
+        Route::get('users', [UserSuperController::class, 'index']);
+        Route::get('users/{id}', [UserSuperController::class, 'show']);
+        Route::post('users', [UserSuperController::class, 'store']);
+        Route::put('users/{id}', [UserSuperController::class, 'update']);
+        Route::patch('users/{id}/deactivate', [UserSuperController::class, 'deactivate']);
+        Route::patch('users/{id}/activate', [UserSuperController::class, 'activate']);
+        Route::post('users/{id}/reset-password', [UserSuperController::class, 'resetPassword']);
+
+        // Suppliers
+        Route::get('suppliers', [SupplierSuperController::class, 'index']);
+        Route::post('suppliers', [SupplierSuperController::class, 'store']);
+        Route::put('suppliers/{id}', [SupplierSuperController::class, 'update']);
+        Route::patch('suppliers/{id}/deactivate', [SupplierSuperController::class, 'deactivate']);
+        Route::patch('suppliers/{id}/activate', [SupplierSuperController::class, 'activate']);
+
+        // ===== Dashboard & Reports (FR-98 to FR-103) =====
+        Route::get('dashboard/stats', [DashboardSuperController::class, 'stats']);
+        Route::get('reports/hospitals', [DashboardSuperController::class, 'hospitalsReport']);
+        Route::get('reports/drugs', [DashboardSuperController::class, 'drugsReport']);
+        Route::get('reports/users', [DashboardSuperController::class, 'usersReport']);
+        Route::get('reports/requests-monthly', [DashboardSuperController::class, 'requestsMonthlyReport']);
+        Route::get('reports/activities', [DashboardSuperController::class, 'activitiesReport']);
     });
 });

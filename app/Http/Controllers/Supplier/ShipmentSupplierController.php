@@ -21,16 +21,16 @@ class ShipmentSupplierController extends BaseApiController
             $user = $request->user();
 
             // التأكد من أن المستخدم مورد
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             // جلب الشحنات الخاصة بهذا المورد
             $shipments = ExternalSupplyRequest::with([
-                'hospital:id,name,code,city',
+                'hospital:id,name,city',
                 'requester:id,full_name',
                 'approver:id,full_name',
-                'items.drug:id,name,code'
+                'items.drug:id,name'
             ])
                 ->where('supplier_id', $user->supplier_id)
                 ->orderBy('created_at', 'desc')
@@ -65,16 +65,16 @@ class ShipmentSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             $shipment = ExternalSupplyRequest::with([
-                'hospital:id,name,code,city,address,phone',
+                'hospital:id,name,city,address,phone',
                 'requester:id,full_name,email,phone',
                 'approver:id,full_name',
-                'items.drug:id,name,code,category_id',
-                'items.drug.category:id,name'
+                // `category` is stored as a string on `drug` table in this project.
+                'items.drug:id,name,category',
             ])
                 ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
@@ -103,7 +103,11 @@ class ShipmentSupplierController extends BaseApiController
                         'drugId' => $item->drug_id,
                         'drugName' => $item->drug->name ?? 'غير محدد',
                         'drugCode' => $item->drug->code ?? '',
-                        'category' => $item->drug->category->name ?? 'غير محدد',
+                        'category' => $item->drug
+                            ? (is_object($item->drug->category)
+                                ? ($item->drug->category->name ?? $item->drug->category)
+                                : ($item->drug->category ?? 'غير محدد'))
+                            : 'غير محدد',
                         'requestedQuantity' => $item->requested_quantity,
                         'approvedQuantity' => $item->approved_quantity,
                     ];
@@ -128,7 +132,7 @@ class ShipmentSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
@@ -167,7 +171,7 @@ class ShipmentSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 

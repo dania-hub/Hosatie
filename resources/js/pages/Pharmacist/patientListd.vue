@@ -235,6 +235,10 @@ const fetchPatientDetails = async (fileNumber) => {
                             .replace(/-/g, "/"),
                     eligibilityStatus: med.eligibilityStatus || "مستحق",
                     dispensedQuantity: med.dispensedQuantity || 0,
+                    // معلومات الصرف الشهري
+                    totalDispensedThisMonth: med.totalDispensedThisMonth || 0,
+                    remainingQuantity: med.remainingQuantity !== undefined ? med.remainingQuantity : (monthlyQty - (med.totalDispensedThisMonth || 0)),
+                    remainingQuantityText: med.remainingQuantityText || "",
                 };
             }),
         };

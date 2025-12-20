@@ -17,24 +17,50 @@ class PatientPharmacistController extends BaseApiController
 {
     /**
      * GET /api/pharmacist/patients
-     * قائمة المرضى (للقراءة فقط - لا تغيير في المنطق).
+     * قائمة المرضى مرتبة حسب آخر صرف (الأحدث أولاً).
      */
     public function index(Request $request)
     {
+        // جلب جميع المرضى مع آخر تاريخ صرف لكل مريض
         $patients = User::where('type', 'patient')
             ->get()
             ->map(function ($p) {
+                // جلب آخر عملية صرف لهذا المريض
+                $lastDispensing = Dispensing::where('patient_id', $p->id)
+                    ->latest('created_at')
+                    ->first();
+                
+                // حساب تاريخ آخر تحديث (أولوية: آخر صرف > updated_at من users)
+                $lastUpdateDate = null;
+                if ($lastDispensing && $lastDispensing->created_at) {
+                    $lastUpdateDate = Carbon::parse($lastDispensing->created_at);
+                } elseif ($p->updated_at) {
+                    $lastUpdateDate = Carbon::parse($p->updated_at);
+                } else {
+                    $lastUpdateDate = Carbon::parse($p->created_at);
+                }
+                
                 return [
                     'fileNumber' => $p->id,
                     'name' => $p->full_name ?? $p->name,
                     'nationalId' => $p->national_id,
-                    'birthDate' => $p->birth_date,
+                    'birthDate' => $p->birth_date ? Carbon::parse($p->birth_date)->format('Y/m/d') : null,
                     'phone' => $p->phone,
-                    'lastUpdated' => $p->updated_at,
+                    'lastUpdated' => $lastUpdateDate ? $lastUpdateDate->format('Y/m/d H:i') : null,
                     'medications' => [],
-                    'dispensationHistory' => []
+                    'dispensationHistory' => [],
+                    // حقل مؤقت للترتيب
+                    '_lastUpdateTimestamp' => $lastUpdateDate->timestamp,
                 ];
-            });
+            })
+            ->sortByDesc('_lastUpdateTimestamp')
+            ->map(function ($p) {
+                // إزالة الحقل المؤقت بعد الترتيب
+                unset($p['_lastUpdateTimestamp']);
+                return $p;
+            })
+            ->values()
+            ->toArray();
 
         return $this->sendSuccess($patients, 'تم تحديث قائمة المرضى بنجاح.');
     }
@@ -69,6 +95,20 @@ class PatientPharmacistController extends BaseApiController
 
         $medications = [];
 
+        // تحديد الصيدلية للتحقق من المخزون
+        $pharmacist = $request->user();
+        $pharmacyId = null;
+        
+        if ($pharmacist->pharmacy_id) {
+            $pharmacyId = $pharmacist->pharmacy_id;
+        } elseif ($patient->hospital_id) {
+            $pharmacy = Pharmacy::where('hospital_id', $patient->hospital_id)->first();
+            $pharmacyId = $pharmacy ? $pharmacy->id : null;
+        }
+        
+        // حل مؤقت للتجربة
+        if (!$pharmacyId) $pharmacyId = 1;
+
         if ($activePrescription) {
             foreach ($activePrescription->drugs as $drug) {
                 $pivot = $drug->pivot;
@@ -76,28 +116,91 @@ class PatientPharmacistController extends BaseApiController
                 $monthlyQty = (int)($pivot->monthly_quantity ?? 0);
                 $unit = $this->getDrugUnit($drug);
 
-                // آخر عملية صرف لهذا الدواء (لتحديد أخر إستلام وحالة الاستحقاق)
+                // آخر عملية صرف لهذا الدواء (لتحديد أخر إستلام)
                 $lastDispense = Dispensing::where('patient_id', $patient->id)
                     ->where('drug_id', $drug->id)
                     ->latest('created_at')
                     ->first();
 
                 $assignmentDate = $pivot->created_at
-                    ? $pivot->created_at->format('Y-m-d')
-                    : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
+                    ? Carbon::parse($pivot->created_at)->format('Y/m/d')
+                    : ($activePrescription->start_date ? Carbon::parse($activePrescription->start_date)->format('Y/m/d') : null);
 
                 $lastDispenseDate = $lastDispense && $lastDispense->created_at
-                    ? $lastDispense->created_at->format('Y-m-d')
+                    ? Carbon::parse($lastDispense->created_at)->format('Y/m/d')
                     : null;
 
                 // نعرض للمستخدم تاريخ "آخر إستلام" إن وجد، وإلا تاريخ الإسناد
                 $displayDate = $lastDispenseDate ?? $assignmentDate;
+                
+                // تاريخ آخر تعديل للترتيب (أولوية: آخر صرف > آخر تحديث في pivot > تاريخ الإسناد)
+                $lastUpdateDate = null;
+                // استخدام created_at من Dispensing إذا كان موجوداً
+                if ($lastDispense) {
+                    // محاولة استخدام created_at أولاً
+                    if ($lastDispense->created_at) {
+                        $lastUpdateDate = Carbon::parse($lastDispense->created_at);
+                    } 
+                    // إذا لم يكن موجوداً، استخدم dispense_month
+                    elseif ($lastDispense->dispense_month) {
+                        $lastUpdateDate = Carbon::parse($lastDispense->dispense_month);
+                    }
+                }
+                
+                // إذا لم يكن هناك صرف، استخدم updated_at من pivot
+                if (!$lastUpdateDate && $pivot->updated_at) {
+                    $lastUpdateDate = Carbon::parse($pivot->updated_at);
+                }
+                
+                // إذا لم يكن هناك updated_at، استخدم created_at من pivot
+                if (!$lastUpdateDate && $pivot->created_at) {
+                    $lastUpdateDate = Carbon::parse($pivot->created_at);
+                }
+                
+                // إذا لم يكن هناك created_at، استخدم start_date من الوصفة
+                if (!$lastUpdateDate && $activePrescription->start_date) {
+                    $lastUpdateDate = Carbon::parse($activePrescription->start_date);
+                }
+                
+                // إذا لم يكن هناك أي تاريخ، استخدم التاريخ الحالي
+                if (!$lastUpdateDate) {
+                    $lastUpdateDate = Carbon::now();
+                }
 
-                // تحديد حالة الاستحقاق بناءً على آخر صرف (هنا افتراض 30 يوم بين كل صرف)
+                // ============================================================
+                // تحديد حالة الاستحقاق بناءً على:
+                // 1. توفر الدواء في المخزون (أولوية أولى)
+                // 2. الكمية المصروفة الشهرية (يجب أن تكون أقل من الكمية الشهرية)
+                // ============================================================
+                
+                // 1. التحقق من توفر الدواء في المخزون
+                $inventory = null;
+                if ($pharmacyId) {
+                    $inventory = Inventory::where('drug_id', $drug->id)
+                        ->where('pharmacy_id', $pharmacyId)
+                        ->first();
+                }
+                
                 $eligibilityStatus = 'مستحق';
-                if ($lastDispense && $lastDispense->created_at) {
-                    $daysSinceLast = $lastDispense->created_at->diffInDays(now());
-                    if ($daysSinceLast < 30) {
+                
+                // حساب الكمية المصروفة في الشهر الحالي (يتم حسابها دائماً لعرضها)
+                $startOfMonth = Carbon::now()->startOfMonth();
+                $endOfMonth = Carbon::now()->endOfMonth();
+                
+                $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $patient->id)
+                    ->where('drug_id', $drug->id)
+                    ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                    ->sum('quantity_dispensed');
+                
+                // حساب الكمية المتبقية
+                $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
+                
+                // إذا لم يكن الدواء متوفراً في المخزون (غير موجود أو الكمية = 0)
+                if (!$inventory || $inventory->current_quantity <= 0) {
+                    $eligibilityStatus = 'غير متوفر';
+                } else {
+                    // إذا تم صرف الكمية الشهرية كاملة أو أكثر، يصبح غير مستحق
+                    if ($monthlyQty > 0 && $totalDispensedThisMonth >= $monthlyQty) {
                         $eligibilityStatus = 'غير مستحق';
                     }
                 }
@@ -110,6 +213,14 @@ class PatientPharmacistController extends BaseApiController
 
                 // تنسيق الكمية الشهرية كنص مع الوحدة الصحيحة
                 $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
+
+                // تنسيق الكمية المتبقية كنص
+                $remainingQuantityText = '';
+                if ($monthlyQty > 0 && $totalDispensedThisMonth > 0) {
+                    $remainingQuantityText = $remainingQuantity > 0 
+                        ? $remainingQuantity . ' ' . $unit . ' متبقية'
+                        : 'تم صرف الكمية الشهرية كاملة';
+                }
 
                 // اسم من قام بالإسناد (لمن يحتاجه مستقبلاً)
                 $assignedBy = $activePrescription->doctor
@@ -127,10 +238,46 @@ class PatientPharmacistController extends BaseApiController
                     'assignmentDate' => $displayDate,
                     'assignedBy' => $assignedBy,
                     'eligibilityStatus' => $eligibilityStatus,
+                    // معلومات الصرف الشهري
+                    'totalDispensedThisMonth' => $totalDispensedThisMonth,
+                    'remainingQuantity' => $remainingQuantity,
+                    'remainingQuantityText' => $remainingQuantityText,
                     // ستتغير من الواجهة عند إدخال كمية الصرف
                     'dispensedQuantity' => 0,
                     'note' => $pivot->note,
+                    // تاريخ آخر تعديل للترتيب
+                    '_lastUpdateTimestamp' => $lastUpdateDate->timestamp,
                 ];
+            }
+            
+            // ترتيب الأدوية حسب آخر تعديل (الأحدث أولاً)
+            if (count($medications) > 1) {
+                // استخدام usort للترتيب بشكل مباشر
+                usort($medications, function($a, $b) {
+                    $timestampA = isset($a['_lastUpdateTimestamp']) ? (int)$a['_lastUpdateTimestamp'] : 0;
+                    $timestampB = isset($b['_lastUpdateTimestamp']) ? (int)$b['_lastUpdateTimestamp'] : 0;
+                    
+                    // ترتيب تنازلي: الأحدث أولاً (الأكبر أولاً)
+                    // إذا كانت القيم متساوية، نرتب حسب اسم الدواء
+                    if ($timestampB === $timestampA) {
+                        return strcmp($a['drugName'] ?? '', $b['drugName'] ?? '');
+                    }
+                    
+                    return $timestampB - $timestampA;
+                });
+                
+                // إزالة الحقل المؤقت بعد الترتيب
+                foreach ($medications as &$med) {
+                    if (isset($med['_lastUpdateTimestamp'])) {
+                        unset($med['_lastUpdateTimestamp']);
+                    }
+                }
+                unset($med); // إزالة المرجع الأخير
+            } elseif (count($medications) === 1) {
+                // إذا كان هناك دواء واحد فقط، أزل الحقل المؤقت
+                if (isset($medications[0]['_lastUpdateTimestamp'])) {
+                    unset($medications[0]['_lastUpdateTimestamp']);
+                }
             }
         }
 
@@ -140,7 +287,7 @@ class PatientPharmacistController extends BaseApiController
             'nationalId' => $patient->national_id,
             'birth' => $birthFormatted ?? 'غير محدد',
             'phone' => $patient->phone,
-            'lastUpdated' => $patient->updated_at ? $patient->updated_at->toIso8601String() : null,
+            'lastUpdated' => $patient->updated_at ? Carbon::parse($patient->updated_at)->format('Y/m/d H:i') : null,
             'medications' => $medications,
         ];
 
@@ -227,15 +374,33 @@ class PatientPharmacistController extends BaseApiController
                 $inventory->current_quantity -= $item['quantity'];
                 $inventory->save();
 
-                Dispensing::create([
-                    'prescription_id' => $prescription->id,
-                    'patient_id' => $patient->id,
-                    'drug_id' => $drug->id,
-                    'pharmacist_id' => $pharmacist->id,
-                    'pharmacy_id' => $pharmacyId,
-                    'dispense_month' => now()->format('Y-m-d'),
-                    'quantity_dispensed' => $item['quantity'],
-                ]);
+                // هـ. إنشاء أو تحديث سجل الصرف
+                // إذا كان هناك سجل موجود لنفس الدواء في نفس الشهر، نضيف الكمية الجديدة
+                $dispenseMonth = Carbon::now()->startOfMonth()->format('Y-m-d');
+                
+                $existingDispensing = Dispensing::where('prescription_id', $prescription->id)
+                    ->where('drug_id', $drug->id)
+                    ->where('dispense_month', $dispenseMonth)
+                    ->first();
+                
+                if ($existingDispensing) {
+                    // تحديث الكمية المصروفة بإضافة الكمية الجديدة
+                    $existingDispensing->quantity_dispensed += $item['quantity'];
+                    $existingDispensing->pharmacist_id = $pharmacist->id;
+                    $existingDispensing->pharmacy_id = $pharmacyId;
+                    $existingDispensing->save();
+                } else {
+                    // إنشاء سجل جديد
+                    Dispensing::create([
+                        'prescription_id' => $prescription->id,
+                        'patient_id' => $patient->id,
+                        'drug_id' => $drug->id,
+                        'pharmacist_id' => $pharmacist->id,
+                        'pharmacy_id' => $pharmacyId,
+                        'dispense_month' => $dispenseMonth,
+                        'quantity_dispensed' => $item['quantity'],
+                    ]);
+                }
             }
 
             DB::commit();

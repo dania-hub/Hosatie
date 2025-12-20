@@ -89,7 +89,7 @@ const cancelConfirmation = () => {
     <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="!showConfirmationModal && $emit('close')">
         <div 
             v-if="!showConfirmationModal"
-            class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden transform transition-all scale-100 max-h-[95vh] overflow-y-auto"
+            class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[95vh] overflow-y-auto"
         >
             
             <!-- Header -->
@@ -168,7 +168,22 @@ const cancelConfirmation = () => {
                                             {{ formatDosage(med.dosage) }}
                                         </span>
                                     </td>
-                                    <td class="p-4 text-gray-600">{{ med.monthlyQuantity }}</td>
+                                    <td class="p-4 text-gray-600">
+                                        <div class="space-y-1">
+                                            <div class="font-medium">{{ med.monthlyQuantity }}</div>
+                                            <div v-if="med.totalDispensedThisMonth > 0" class="text-xs space-y-0.5">
+                                                <div class="text-orange-600">
+                                                    مصروف: {{ med.totalDispensedThisMonth }} {{ med.unit || 'حبة' }}
+                                                </div>
+                                                <div v-if="med.remainingQuantity > 0" class="text-green-600 font-semibold">
+                                                    متبقي: {{ med.remainingQuantity }} {{ med.unit || 'حبة' }}
+                                                </div>
+                                                <div v-else-if="med.remainingQuantity === 0 && med.monthlyQuantityNum > 0" class="text-gray-500">
+                                                    تم صرف الكمية الشهرية كاملة
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate }}</td>
                                     <td class="p-4">
                                         <div 
@@ -195,11 +210,14 @@ const cancelConfirmation = () => {
                                                 v-model.number="med.dispensedQuantity"
                                                 type="number"
                                                 min="1"
-                                                :max="parseInt(med.monthlyQuantity)"
+                                                :max="med.remainingQuantity > 0 ? med.remainingQuantity : med.monthlyQuantityNum"
                                                 class="w-full h-9 text-center rounded-lg border border-gray-300 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all"
                                                 placeholder="الكمية"
                                                 @click.stop 
                                             />
+                                            <div v-if="med.remainingQuantity > 0" class="mt-2 text-xs text-gray-500 text-center">
+                                                الحد الأقصى: {{ med.remainingQuantity }} {{ med.unit || 'حبة' }}
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>

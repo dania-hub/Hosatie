@@ -7,6 +7,27 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
+// تهيئة axios مع interceptor لإضافة التوكن تلقائياً
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 10000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
 
 const operations = ref([]);
 const isLoading = ref(false);
@@ -15,9 +36,10 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/pharmacist/operations');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        // Laravel Resources wrap collections in a 'data' property
+        operations.value = response.data.data || response.data; // 👈 تحديث البيانات المجلوبة
         
         showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
@@ -198,11 +220,16 @@ const printTable = () => {
     `;
 
     filteredOperations.value.forEach(op => {
+        let operationType = op.operationType;
+        if (op.drugName && op.quantity) {
+            operationType = `${op.operationType} - الدواء: ${op.drugName} (الكمية: ${op.quantity})`;
+        }
+        
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
                 <td>${op.name}</td>
-                <td>${op.operationType}</td>
+                <td>${operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
         `;
@@ -350,7 +377,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                     >
                                         <td class="file-number-col">{{ op.fileNumber }}</td>
                                         <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
+                                        <td class="operation-type-col">
+                                            <div class="font-semibold">{{ op.operationType }}</div>
+                                            <div v-if="op.drugName && op.quantity" class="text-sm text-gray-600 mt-1">
+                                                الدواء: {{ op.drugName }} - الكمية: {{ op.quantity }}
+                                            </div>
+                                        </td>
                                         <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
@@ -412,8 +444,8 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     min-width: 90px;
 }
 .operation-type-col {
-    width: 120px;
-    min-width: 120px;
+    width: 250px;
+    min-width: 250px;
 }
 .operation-date-col {
     width: 120px;

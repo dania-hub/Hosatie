@@ -54,7 +54,55 @@ class ShipmentPharmacistController extends BaseApiController
         return $this->sendSuccess($shipments, 'تم جلب الشحنات بنجاح.');
     }
 
-    // ... (دالة show تبقى كما هي تقريباً) ...
+    /**
+     * GET /api/pharmacist/shipments/{id}
+     * عرض تفاصيل شحنة واحدة.
+     */
+    public function show(Request $request, $id)
+    {
+        $user = $request->user();
+        
+        $shipment = InternalSupplyRequest::with('items.drug')
+            ->where('id', $id)
+            ->first();
+
+        if (!$shipment) {
+            return $this->sendError('الشحنة غير موجودة.', [], 404);
+        }
+
+        // التحقق من أن الشحنة تخص صيدلية المستخدم
+        if ($user->pharmacy_id && $shipment->pharmacy_id !== $user->pharmacy_id) {
+            // يمكن تفعيل هذا الشرط للأمان
+            // return $this->sendError('هذه الشحنة لا تخص صيدليتك.', [], 403);
+        }
+
+        $data = [
+            'id' => $shipment->id,
+            'shipmentNumber' => 'SHP-' . $shipment->id,
+            'requestDate' => Carbon::parse($shipment->created_at)->format('Y/m/d'),
+            'status' => $this->translateStatus($shipment->status),
+            'received' => $shipment->status === 'fulfilled',
+            'items' => $shipment->items->map(function($item) {
+                return [
+                    'id' => $item->id,
+                    'drugId' => $item->drug_id,
+                    'name' => $item->drug->name ?? 'Unknown',
+                    'genericName' => $item->drug->generic_name ?? null,
+                    'strength' => $item->drug->strength ?? null,
+                    'quantity' => $item->requested_qty,
+                    'approvedQty' => $item->approved_qty ?? null,
+                    'fulfilledQty' => $item->fulfilled_qty ?? null,
+                    'unit' => $item->drug->unit ?? 'علبة'
+                ];
+            }),
+            'notes' => $shipment->notes,
+            'confirmationDetails' => $shipment->status === 'fulfilled' ? [
+                'confirmedAt' => $shipment->updated_at->format('Y/m/d H:i')
+            ] : null
+        ];
+
+        return $this->sendSuccess($data, 'تم جلب تفاصيل الشحنة بنجاح.');
+    }
 
     /**
      * POST /api/pharmacist/shipments/{id}/confirm
@@ -79,7 +127,7 @@ class ShipmentPharmacistController extends BaseApiController
             }
 
             // 3) تغيير الحالة إلى fulfilled (استلام نهائي)
-            $shipment->status = 'approved';
+            $shipment->status = 'fulfilled';
             $shipment->save();
 
             // 4) إضافة الأدوية لمخزون الصيدلية

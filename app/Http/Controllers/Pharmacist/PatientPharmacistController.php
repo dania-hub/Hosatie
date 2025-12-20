@@ -11,6 +11,7 @@ use App\Models\Drug;
 use App\Models\Prescription;
 use App\Models\Pharmacy;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PatientPharmacistController extends BaseApiController
 {
@@ -36,6 +37,114 @@ class PatientPharmacistController extends BaseApiController
             });
 
         return $this->sendSuccess($patients, 'تم تحديث قائمة المرضى بنجاح.');
+    }
+
+    /**
+     * GET /api/pharmacist/patients/{fileNumber}
+     * تفاصيل مريض واحد + الأدوية الموصوفة له (لواجهة الصيدلي).
+     */
+    public function show(Request $request, $fileNumber)
+    {
+        $hospitalId = $request->user()->hospital_id;
+
+        $patient = User::where('type', 'patient')
+            ->where('id', $fileNumber)
+            ->first();
+
+        if (!$patient) {
+            return $this->sendError('المريض غير موجود.', [], 404);
+        }
+
+        // الوصفة النشطة للمريض في هذا المستشفى
+        $activePrescription = Prescription::with(['drugs', 'doctor'])
+            ->where('patient_id', $patient->id)
+            ->where('hospital_id', $hospitalId)
+            ->where('status', 'active')
+            ->first();
+
+        // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
+        $birthFormatted = $patient->birth_date
+            ? Carbon::parse($patient->birth_date)->format('Y/m/d')
+            : null;
+
+        $medications = [];
+
+        if ($activePrescription) {
+            foreach ($activePrescription->drugs as $drug) {
+                $pivot = $drug->pivot;
+
+                $monthlyQty = (int)($pivot->monthly_quantity ?? 0);
+                $unit = $this->getDrugUnit($drug);
+
+                // آخر عملية صرف لهذا الدواء (لتحديد أخر إستلام وحالة الاستحقاق)
+                $lastDispense = Dispensing::where('patient_id', $patient->id)
+                    ->where('drug_id', $drug->id)
+                    ->latest('created_at')
+                    ->first();
+
+                $assignmentDate = $pivot->created_at
+                    ? $pivot->created_at->format('Y-m-d')
+                    : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
+
+                $lastDispenseDate = $lastDispense && $lastDispense->created_at
+                    ? $lastDispense->created_at->format('Y-m-d')
+                    : null;
+
+                // نعرض للمستخدم تاريخ "آخر إستلام" إن وجد، وإلا تاريخ الإسناد
+                $displayDate = $lastDispenseDate ?? $assignmentDate;
+
+                // تحديد حالة الاستحقاق بناءً على آخر صرف (هنا افتراض 30 يوم بين كل صرف)
+                $eligibilityStatus = 'مستحق';
+                if ($lastDispense && $lastDispense->created_at) {
+                    $daysSinceLast = $lastDispense->created_at->diffInDays(now());
+                    if ($daysSinceLast < 30) {
+                        $eligibilityStatus = 'غير مستحق';
+                    }
+                }
+
+                // تحويل الجرعة الشهرية إلى جرعة يومية نصية
+                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                $dosageText = $dailyQty > 0
+                    ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                    : 'غير محدد';
+
+                // تنسيق الكمية الشهرية كنص مع الوحدة الصحيحة
+                $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
+
+                // اسم من قام بالإسناد (لمن يحتاجه مستقبلاً)
+                $assignedBy = $activePrescription->doctor
+                    ? ($activePrescription->doctor->full_name ?? $activePrescription->doctor->name)
+                    : 'غير محدد';
+
+                $medications[] = [
+                    'id' => $drug->id,
+                    'pivot_id' => $pivot->id,
+                    'drugName' => $drug->name,
+                    'dosage' => $dosageText,
+                    'monthlyQuantity' => $monthlyQuantityText,
+                    'monthlyQuantityNum' => $monthlyQty,
+                    'unit' => $unit,
+                    'assignmentDate' => $displayDate,
+                    'assignedBy' => $assignedBy,
+                    'eligibilityStatus' => $eligibilityStatus,
+                    // ستتغير من الواجهة عند إدخال كمية الصرف
+                    'dispensedQuantity' => 0,
+                    'note' => $pivot->note,
+                ];
+            }
+        }
+
+        $data = [
+            'fileNumber' => $patient->id,
+            'name' => $patient->full_name ?? $patient->name,
+            'nationalId' => $patient->national_id,
+            'birth' => $birthFormatted ?? 'غير محدد',
+            'phone' => $patient->phone,
+            'lastUpdated' => $patient->updated_at ? $patient->updated_at->toIso8601String() : null,
+            'medications' => $medications,
+        ];
+
+        return $this->sendSuccess($data, 'تم جلب بيانات المريض بنجاح.');
     }
 
     /**
@@ -177,5 +286,79 @@ class PatientPharmacistController extends BaseApiController
             ],
             'dispensations' => $formattedHistory
         ], 'تم جلب سجل المريض بنجاح.');
+    }
+
+    /**
+     * تحديد وحدة القياس بناءً على نوع الدواء (منسوخ من منطق الطبيب ليتوافق مع الواجهة).
+     */
+    private function getDrugUnit($drug)
+    {
+        // أولاً: استخدام وحدة القياس المباشرة من جدول الدواء
+        if (!empty($drug->unit)) {
+            $unit = strtolower(trim($drug->unit));
+            
+            // تحويل الوحدات الشائعة إلى التنسيق المطلوب
+            // للأدوية الصلبة (حبوب/أقراص)
+            if (in_array($unit, ['قرص', 'حبة', 'tablet', 'capsule', 'pill', 'tab', 'cap'])) {
+                return 'حبة';
+            }
+            // للأدوية السائلة
+            if (in_array($unit, ['مل', 'ml', 'milliliter', 'millilitre', 'ملل', 'ملليلتر'])) {
+                return 'مل';
+            }
+            // للحقن
+            if (in_array($unit, ['أمبول', 'ampoule', 'ampule', 'vial', 'حقنة', 'amp'])) {
+                return 'أمبول';
+            }
+            // للمراهم والكريمات
+            if (in_array($unit, ['جرام', 'gram', 'gm', 'g', 'غرام'])) {
+                return 'جرام';
+            }
+            // إذا كانت الوحدة موجودة ولكن غير معروفة، نستخدمها كما هي
+            return $drug->unit;
+        }
+        
+        // ثانياً: استخدام form لتحديد الوحدة
+        if (!empty($drug->form)) {
+            $form = strtolower(trim($drug->form));
+            
+            // للأدوية الصلبة
+            if (in_array($form, ['tablet', 'capsule', 'pill', 'tab', 'cap', 'قرص', 'حبة', 'كبسولة'])) {
+                return 'حبة';
+            }
+            // للأدوية السائلة
+            if (in_array($form, ['liquid', 'syrup', 'suspension', 'solution', 'elixir', 'drops', 'قطرة', 'سائل', 'شراب', 'معلق', 'محلول'])) {
+                return 'مل';
+            }
+            // للحقن
+            if (in_array($form, ['injection', 'ampoule', 'ampule', 'vial', 'amp', 'حقن', 'أمبول', 'حقنة'])) {
+                return 'أمبول';
+            }
+            // للمراهم والكريمات
+            if (in_array($form, ['ointment', 'cream', 'gel', 'lotion', 'مرهم', 'كريم', 'جل', 'لوشن'])) {
+                return 'جرام';
+            }
+        }
+        
+        // ثالثاً: البحث في اسم الدواء عن إشارات للنوع
+        if (!empty($drug->name)) {
+            $name = strtolower($drug->name);
+            
+            // البحث عن كلمات تشير إلى سائل
+            if (preg_match('/\b(syrup|suspension|solution|liquid|drops|شراب|معلق|محلول|قطرة|سائل|شرب)\b/i', $name)) {
+                return 'مل';
+            }
+            // البحث عن كلمات تشير إلى حقن
+            if (preg_match('/\b(injection|ampoule|vial|amp|حقن|أمبول|حقنة)\b/i', $name)) {
+                return 'أمبول';
+            }
+            // البحث عن كلمات تشير إلى مرهم
+            if (preg_match('/\b(ointment|cream|gel|lotion|مرهم|كريم|جل|لوشن)\b/i', $name)) {
+                return 'جرام';
+            }
+        }
+        
+        // افتراضياً: حبة (للأدوية الصلبة)
+        return 'حبة';
     }
 }

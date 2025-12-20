@@ -73,8 +73,17 @@ class PatientDepartmentAdminController extends BaseApiController
                     ? $drug->pivot->created_at->format('Y-m-d')
                     : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
                 
-                // اسم الطبيب الذي قام بالإسناد من العلاقة doctor
-                $assignedBy = $activePrescription->doctor ? $activePrescription->doctor->full_name : 'غير محدد';
+                // اسم المستخدم الذي قام بآخر عملية على هذا الدواء (من audit_log)
+                $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                    ->where('record_id', $drug->pivot->id)
+                    ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
+                    ->with('user')
+                    ->latest()
+                    ->first();
+                
+                $assignedBy = $latestLog && $latestLog->user 
+                    ? $latestLog->user->full_name 
+                    : ($activePrescription->doctor ? $activePrescription->doctor->full_name : 'غير محدد');
                 
                 // الحصول على الكمية الشهرية من قاعدة البيانات
                 $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
@@ -270,6 +279,58 @@ class PatientDepartmentAdminController extends BaseApiController
             DB::rollBack();
             return $this->sendError('حدث خطأ أثناء حفظ البيانات.', ['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * PUT /api/department-admin/patients/{id}/medications/{pivotId}
+     * Update single medication quantity
+     */
+    public function update(Request $request, $patientId, $pivotId)
+    {
+        $request->validate(['dosage' => 'required|integer|min:1']);
+        $hospitalId = $request->user()->hospital_id;
+
+        $item = PrescriptionDrug::where('id', $pivotId)->first();
+        if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
+
+        // Security: Ensure same hospital
+        $prescription = Prescription::find($item->prescription_id);
+        if ($prescription->hospital_id !== $hospitalId) {
+             return $this->sendError('غير مصرح لك بتعديل هذا السجل (مستشفى مختلف).', [], 403);
+        }
+
+        $item->monthly_quantity = $request->dosage;
+        $item->save();
+
+        return $this->sendSuccess($item, 'تم تحديث جرعة الدواء بنجاح.');
+    }
+
+    /**
+     * DELETE /api/department-admin/patients/{id}/medications/{pivotId}
+     * Delete single medication
+     */
+    public function destroy(Request $request, $patientId, $pivotId)
+    {
+        $hospitalId = $request->user()->hospital_id;
+
+        $item = PrescriptionDrug::where('id', $pivotId)->first();
+        if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
+
+        // Security: Ensure same hospital
+        $prescription = Prescription::find($item->prescription_id);
+        if ($prescription->hospital_id !== $hospitalId) {
+             return $this->sendError('غير مصرح لك بحذف هذا السجل (مستشفى مختلف).', [], 403);
+        }
+
+        // حذف الدواء (سيتم استدعاء observer تلقائياً)
+        $item->delete();
+
+        // التحقق من أن الروشتة ليست فارغة، وإذا كانت فارغة يمكن حذفها
+        if ($prescription->drugs()->count() == 0) {
+            $prescription->delete();
+        }
+
+        return $this->sendSuccess([], 'تم حذف الدواء بنجاح.');
     }
 
     /**

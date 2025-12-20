@@ -471,8 +471,14 @@ const addNewDrug = () => {
             return dName.toLowerCase() === selectedDrugName.value.toLowerCase();
         });
         
+        if (!drugInfo || !drugInfo.id) {
+            emit('show-alert', `❌ فشل: لم يتم العثور على معرف الدواء ${selectedDrugName.value}`);
+            return;
+        }
+        
         dailyDosageList.value.push({
-            drugId: drugInfo?.id || null,
+            drugId: drugInfo.id,
+            id: drugInfo.id,
             name: selectedDrugName.value,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
@@ -505,13 +511,16 @@ const confirmAddition = () => {
             return dName.toLowerCase() === selectedDrugName.value.toLowerCase();
         });
         
-        dailyDosageList.value.push({
-            drugId: drugInfo?.id || null,
-            name: selectedDrugName.value,
-            quantity: dailyQuantity.value,
-            unit: quantityUnit.value,
-            type: selectedDrugType.value,
-        });
+        if (drugInfo && drugInfo.id) {
+            dailyDosageList.value.push({
+                drugId: drugInfo.id,
+                id: drugInfo.id,
+                name: selectedDrugName.value,
+                quantity: dailyQuantity.value,
+                unit: quantityUnit.value,
+                type: selectedDrugType.value,
+            });
+        }
         
         searchTermDrug.value = "";
         selectedCategory.value = "";
@@ -528,6 +537,8 @@ const confirmAddition = () => {
     isSubmitting.value = true;
     
     try {
+        console.log('Confirming with items:', dailyDosageList.value); // للتصحيح
+        
         const confirmationData = {
             items: dailyDosageList.value,
             notes: requestNotes.value.trim(),
@@ -574,14 +585,22 @@ watch(() => props.isOpen, (isOpen) => {
                     const drugInfo = props.allDrugsData.find(d => 
                         (d.name === drug.drugName) || 
                         (d.drugName === drug.drugName) ||
+                        (d.id === drug.drugCode) ||
                         (drug.drugName && drug.drugName.includes((d.name || d.drugName || '').split(' ')[0]))
                     );
                     
-                    const drugType = drugInfo ? (drugInfo.type || 'Tablet') : 'Tablet';
+                    // التأكد من أن drugInfo يحتوي على id
+                    if (!drugInfo || !drugInfo.id) {
+                        console.warn(`Drug ID not found for: ${drug.drugName}`);
+                        return; // تخطي هذا الدواء
+                    }
+                    
+                    const drugType = drugInfo.type || 'Tablet';
                     const unit = getDrugUnit({ type: drugType });
                     
                     drugsNeedingSupply.push({
-                        drugId: drug.id,
+                        drugId: drugInfo.id, // استخدام ID من allDrugsData وليس من inventories
+                        id: drugInfo.id,
                         drugCode: drug.drugCode,
                         name: drug.drugName,
                         currentQuantity: drug.quantity,
@@ -595,16 +614,23 @@ watch(() => props.isOpen, (isOpen) => {
             });
             
             if (drugsNeedingSupply.length > 0) {
-                dailyDosageList.value = drugsNeedingSupply;
+                // التأكد من وجود drugId لكل عنصر
+                const validDrugs = drugsNeedingSupply.filter(drug => drug.drugId);
                 
-                requestNotes.value = `توريد تلقائي للأدوية الناقصة - ${new Date().toLocaleDateString('ar-EG')}`;
-                
-                const totalItems = drugsNeedingSupply.length;
-                const totalQuantity = drugsNeedingSupply.reduce((sum, drug) => sum + drug.quantity, 0);
-                
-                emit('show-alert', 
-                    `📋 تم إدراج ${totalItems} دواء ناقص تلقائياً (إجمالي ${totalQuantity} وحدة)`
-                );
+                if (validDrugs.length > 0) {
+                    dailyDosageList.value = validDrugs;
+                    
+                    requestNotes.value = `توريد تلقائي للأدوية الناقصة - ${new Date().toLocaleDateString('ar-EG')}`;
+                    
+                    const totalItems = validDrugs.length;
+                    const totalQuantity = validDrugs.reduce((sum, drug) => sum + drug.quantity, 0);
+                    
+                    emit('show-alert', 
+                        `📋 تم إدراج ${totalItems} دواء ناقص تلقائياً (إجمالي ${totalQuantity} وحدة)`
+                    );
+                } else {
+                    emit('show-alert', "⚠️ لم يتم العثور على أدوية صالحة للتوريد");
+                }
             } else {
                 emit('show-alert', "✅ جميع الأدوية متوفرة بالكميات المطلوبة حالياً");
             }

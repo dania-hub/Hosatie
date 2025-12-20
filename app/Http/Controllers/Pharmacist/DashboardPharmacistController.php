@@ -7,6 +7,10 @@ use Illuminate\Http\Request;
 use App\Models\Dispensing;
 use App\Models\Inventory;
 use App\Models\Pharmacy;
+use App\Models\AuditLog;
+use App\Models\User;
+use App\Models\PrescriptionDrug;
+use App\Models\InternalSupplyRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -33,37 +37,195 @@ class DashboardPharmacistController extends BaseApiController
 
     /**
      * GET /api/pharmacist/operations
-     * سجل عمليات الصيدلاني (داخل صيدليته فقط).
+     * سجل جميع عمليات الصيدلاني:
+     * - صرف وصفة طبية (من Dispensing)
+     * - إنشاء طلب توريد (من AuditLog)
+     * - استلام شحنة (من AuditLog)
+     * - إسناد دواء للمريض (من AuditLog)
      */
     public function operations(Request $request)
     {
         $user = $request->user();
         $pharmacyId = $this->getPharmacistPharmacyId($user);
 
-        // بناء الاستعلام
-        $query = Dispensing::with('patient')
-            ->orderBy('created_at', 'desc');
+        $operations = collect();
 
-        // تصفية حسب الصيدلية (إذا وجدت)
+        // 1. جلب عمليات الصرف من جدول Dispensing
+        $dispensingQuery = Dispensing::with(['patient', 'drug'])
+            ->where('pharmacist_id', $user->id)
+            ->orderBy('created_at', 'desc');
+        
         if ($pharmacyId) {
-            $query->where('pharmacy_id', $pharmacyId);
-        } else {
-            // إذا لم نجد صيدلية، نعرض عمليات الصيدلاني نفسه فقط كحل بديل
-            $query->where('pharmacist_id', $user->id);
+            $dispensingQuery->where('pharmacy_id', $pharmacyId);
         }
 
-        $operations = $query->limit(20)
-            ->get()
-            ->map(function ($dispense) {
-                return [
-                    'fileNumber' => $dispense->patient_id,
-                    'name' => $dispense->patient ? ($dispense->patient->full_name ?? $dispense->patient->name) : 'مريض غير معروف',
-                    'operationType' => 'صرف وصفة طبية',
-                    'operationDate' => Carbon::parse($dispense->created_at)->format('Y/m/d'),
-                ];
-            });
+        $dispensingOperations = $dispensingQuery->get()->map(function ($dispense) {
+            $drugName = $dispense->drug ? ($dispense->drug->name ?? 'غير محدد') : 'غير محدد';
+            $quantity = $dispense->quantity_dispensed ?? 0;
+            
+            return [
+                'fileNumber' => $dispense->patient_id,
+                'name' => $dispense->patient ? ($dispense->patient->full_name ?? $dispense->patient->name) : 'مريض غير معروف',
+                'operationType' => 'صرف وصفة طبية',
+                'operationDate' => Carbon::parse($dispense->created_at)->format('Y/m/d'),
+                'operationDateTime' => Carbon::parse($dispense->created_at)->format('Y/m/d H:i'),
+                'drugName' => $drugName,
+                'quantity' => $quantity,
+                'details' => "صرف {$quantity} من {$drugName}",
+                'created_at' => $dispense->created_at,
+            ];
+        });
 
-        return $this->sendSuccess($operations, 'تم تحميل سجل العمليات بنجاح.');
+        $operations = $operations->merge($dispensingOperations);
+
+        // 2. جلب جميع العمليات من AuditLog للصيدلي
+        // نستخدم orWhere بشكل منفصل لضمان التقاط جميع السجلات
+        $auditLogs = AuditLog::where('user_id', $user->id)
+            ->where(function($query) {
+                // طلبات التوريد
+                $query->where(function($q) {
+                    $q->where('table_name', 'internal_supply_request')
+                      ->orWhere('action', 'إنشاء طلب توريد')
+                      ->orWhere('action', 'like', '%طلب%')
+                      ->orWhere('action', 'like', '%توريد%');
+                })
+                // استلام الشحنات
+                ->orWhere(function($q) {
+                    $q->where('action', 'pharmacist_confirm_internal_receipt')
+                      ->orWhere('action', 'استلام شحنة')
+                      ->orWhere('action', 'like', '%استلام%')
+                      ->orWhere('action', 'like', '%confirm%');
+                })
+                // إسناد الأدوية
+                ->orWhere('table_name', 'prescription_drug');
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $auditOperations = $auditLogs->map(function ($log) {
+            $operationData = [
+                'operationType' => $this->translateAction($log->action),
+                'operationDate' => $log->created_at->format('Y/m/d'),
+                'operationDateTime' => $log->created_at->format('Y/m/d H:i'),
+                'created_at' => $log->created_at,
+            ];
+
+            // معالجة إنشاء طلب توريد واستلام الشحنة
+            $isSupplyRequest = $log->table_name === 'internal_supply_request';
+            $actionContainsRequest = strpos($log->action, 'طلب') !== false || strpos($log->action, 'توريد') !== false;
+            $actionContainsReceive = strpos($log->action, 'استلام') !== false || strpos($log->action, 'confirm') !== false;
+            
+            if ($isSupplyRequest || 
+                $log->action === 'إنشاء طلب توريد' || 
+                $log->action === 'pharmacist_confirm_internal_receipt' ||
+                $actionContainsRequest ||
+                $actionContainsReceive) {
+                
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                $requestId = $newValues['request_id'] ?? $log->record_id ?? null;
+                
+                $operationData['fileNumber'] = $requestId ? 'REQ-' . $requestId : 'N/A';
+                
+                // تحديد نوع العملية
+                if ($log->action === 'إنشاء طلب توريد' || 
+                    $actionContainsRequest ||
+                    ($isSupplyRequest && !$actionContainsReceive)) {
+                    $itemCount = $newValues['item_count'] ?? 0;
+                    $operationData['name'] = "طلب توريد ({$itemCount} عنصر)";
+                    $operationData['operationType'] = 'إنشاء طلب توريد';
+                } elseif ($log->action === 'pharmacist_confirm_internal_receipt' || 
+                          $log->action === 'استلام شحنة' ||
+                          $actionContainsReceive) {
+                    $operationData['name'] = "استلام شحنة #{$requestId}";
+                    $operationData['operationType'] = 'استلام شحنة';
+                } else {
+                    $operationData['name'] = 'طلب توريد';
+                }
+            }
+            // معالجة إسناد دواء للمريض
+            elseif ($log->table_name === 'prescription_drug') {
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                $patientInfo = $newValues['patient_info'] ?? null;
+                
+                // محاولة جلب معلومات المريض من new_values
+                if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
+                    $operationData['fileNumber'] = $patientInfo['id'];
+                    $operationData['name'] = $patientInfo['full_name'];
+                } else {
+                    // محاولة جلب معلومات المريض من prescription_drug
+                    try {
+                        $prescriptionDrug = PrescriptionDrug::with('prescription.patient')
+                            ->find($log->record_id);
+                        if ($prescriptionDrug && $prescriptionDrug->prescription && $prescriptionDrug->prescription->patient) {
+                            $patient = $prescriptionDrug->prescription->patient;
+                            $operationData['fileNumber'] = $patient->id;
+                            $operationData['name'] = $patient->full_name ?? $patient->name;
+                        } else {
+                            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+                            if ($oldValues && isset($oldValues['prescription_id'])) {
+                                $prescription = \App\Models\Prescription::with('patient')->find($oldValues['prescription_id']);
+                                if ($prescription && $prescription->patient) {
+                                    $operationData['fileNumber'] = $prescription->patient->id;
+                                    $operationData['name'] = $prescription->patient->full_name ?? $prescription->patient->name;
+                                } else {
+                                    $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                                    $operationData['name'] = 'غير محدد';
+                                }
+                            } else {
+                                $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                                $operationData['name'] = 'غير محدد';
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                        $operationData['name'] = 'غير محدد';
+                    }
+                }
+            }
+            // في حالة عدم تطابق أي نوع
+            else {
+                $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                $operationData['name'] = 'غير محدد';
+            }
+
+            return $operationData;
+        });
+
+        $operations = $operations->merge($auditOperations);
+
+        // دمج وفرز جميع العمليات حسب التاريخ
+        $allOperations = $operations->sortByDesc('created_at')
+            ->values()
+            ->map(function ($op) {
+                unset($op['created_at']); // إزالة created_at من النتيجة النهائية
+                return $op;
+            })
+            ->take(100) // حد أقصى 100 عملية
+            ->toArray();
+
+        return $this->sendSuccess($allOperations, 'تم تحميل سجل العمليات بنجاح.');
+    }
+
+    /**
+     * ترجمة نوع العملية إلى نص عربي واضح
+     */
+    private function translateAction($action)
+    {
+        $translations = [
+            'إنشاء طلب توريد' => 'إنشاء طلب توريد',
+            'pharmacist_confirm_internal_receipt' => 'استلام شحنة',
+            'استلام شحنة' => 'استلام شحنة',
+            'إضافة دواء' => 'إسناد دواء للمريض',
+            'تعديل دواء' => 'تعديل دواء للمريض',
+            'حذف دواء' => 'حذف دواء من المريض',
+            'create' => 'إضافة',
+            'update' => 'تعديل',
+            'delete' => 'حذف',
+            'assign' => 'إسناد دواء',
+            'dispense' => 'صرف وصفة طبية',
+        ];
+
+        return $translations[$action] ?? $action;
     }
 
     /**

@@ -54,40 +54,63 @@ class DashboardDoctorController extends BaseApiController
             ->take(50)
             ->get()
             ->map(function ($log) {
-                // Get patient name from record_id if table_name is 'users' or 'prescription'
+                // Get patient name from record_id based on table_name
                 $patientName = 'غير محدد';
                 $fileNumber = $log->record_id ?? 'N/A';
+                $patient = null;
                 
-                // If the log is related to a patient (table_name = 'users' and record_id is a patient)
+                // Try to find patient based on table_name
                 if ($log->table_name === 'users' && $log->record_id) {
+                    // If the log is related to a patient directly
                     $patient = \App\Models\User::where('id', $log->record_id)
                         ->where('type', 'patient')
                         ->first();
-                    if ($patient) {
-                        $patientName = $patient->full_name ?? 'غير محدد';
-                        $fileNumber = $patient->id;
+                        
+                    // إذا لم يوجد المريض، حاول استخراج معلوماته من new_values أو old_values
+                    if (!$patient) {
+                        $values = json_decode($log->new_values ?? $log->old_values, true);
+                        if (is_array($values) && isset($values['full_name'])) {
+                            $patientName = $values['full_name'];
+                            $fileNumber = $log->record_id;
+                        }
                     }
                 } elseif ($log->table_name === 'prescription' && $log->record_id) {
                     // If it's a prescription log, get patient from prescription
-                    $prescription = \App\Models\Prescription::find($log->record_id);
-                    if ($prescription && $prescription->patient) {
-                        $patientName = $prescription->patient->full_name ?? 'غير محدد';
-                        $fileNumber = $prescription->patient->id;
+                    $prescription = \App\Models\Prescription::with('patient')->find($log->record_id);
+                    if ($prescription) {
+                        $patient = $prescription->patient;
+                    }
+                } elseif ($log->table_name === 'prescription_drug' && $log->record_id) {
+                    // If it's a prescription drug log, get patient from prescription_drug -> prescription -> patient
+                    $prescriptionDrug = \App\Models\PrescriptionDrug::with('prescription.patient')->find($log->record_id);
+                    if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                        $patient = $prescriptionDrug->prescription->patient;
+                    }
+                    
+                    // إذا لم يوجد السجل (محذوف)، حاول جلب معلومات المريض من JSON
+                    if (!$patient) {
+                        $values = json_decode($log->new_values ?? $log->old_values, true);
+                        if (is_array($values)) {
+                            // أولاً: تحقق من وجود patient_info (الطريقة الجديدة)
+                            if (isset($values['patient_info']) && isset($values['patient_info']['full_name'])) {
+                                $patientName = $values['patient_info']['full_name'];
+                                $fileNumber = $values['patient_info']['id'] ?? $log->record_id;
+                            }
+                            // ثانياً: حاول جلب المريض من prescription_id (الطريقة القديمة)
+                            elseif (isset($values['prescription_id'])) {
+                                $prescription = \App\Models\Prescription::with('patient')->find($values['prescription_id']);
+                                if ($prescription) {
+                                    $patient = $prescription->patient;
+                                }
+                            }
+                        }
                     }
                 }
-
-                // Fallbacks:
-                // 1) لو لم نجد مريضاً مرتبطاً، استخدم اسم المستخدم الذي نفذ العملية (الطبيب)
-                if ($patientName === 'غير محدد' && $log->user) {
-                    $patientName = $log->user->full_name ?? $log->user->name ?? 'غير محدد';
-                }
-
-                // 2) لو تحتوي new_values على الاسم الرباعي (JSON)، حاول استخراجه
-                if ($patientName === 'غير محدد' && $log->new_values) {
-                    $newValues = json_decode($log->new_values, true);
-                    if (is_array($newValues)) {
-                        $patientName = $newValues['full_name'] ?? $newValues['name'] ?? $patientName;
-                    }
+                
+                // إذا وجدنا المريض، استخرج معلوماته
+                if ($patient) {
+                    $patientName = $patient->full_name ?? 'غير محدد';
+                    $fileNumber = $patient->id;
                 }
                 
                 return [

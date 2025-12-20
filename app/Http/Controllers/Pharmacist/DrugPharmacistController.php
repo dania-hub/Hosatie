@@ -28,48 +28,100 @@ class DrugPharmacistController extends BaseApiController
 
     /**
      * GET /api/pharmacist/drugs
-     * عرض الأدوية الموجودة حالياً في "مخزن الصيدلية" فقط.
+     * عرض جميع الأدوية من قاعدة البيانات مع معلومات المخزون إن وجدت.
      */
     public function index(Request $request)
     {
         $user = $request->user();
         $pharmacyId = $this->getPharmacistPharmacyId($user);
 
-        if (!$pharmacyId) {
-            return $this->sendError('لم يتم العثور على صيدلية مرتبطة بهذا المستخدم.');
+        // جلب جميع الأدوية من جدول drugs
+        $drugs = Drug::orderBy('name')->get();
+
+        // جلب المخزون المرتبط بهذه الصيدلية (إن وجدت)
+        $inventoryMap = [];
+        if ($pharmacyId) {
+            $inventories = Inventory::where('pharmacy_id', $pharmacyId)
+                ->get()
+                ->keyBy('drug_id');
+            foreach ($inventories as $drugId => $inventory) {
+                $inventoryMap[$drugId] = [
+                    'id' => $inventory->id,
+                    'current_quantity' => $inventory->current_quantity,
+                    'minimum_level' => $inventory->minimum_level,
+                ];
+            }
         }
 
-        // جلب المخزون المرتبط بهذه الصيدلية فقط
-        $inventory = Inventory::with('drug')
-            ->where('pharmacy_id', $pharmacyId) // <--- التصفية حسب الصيدلية
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'drugCode' => $item->drug->id,
-                    'drugName' => $item->drug->name,
-                    'quantity' => $item->current_quantity,
-                    'neededQuantity' => $item->minimum_level,
-                    'expiryDate' => $item->drug->expiry_date,
-                    'categoryId' => $item->drug->category,
-                    'description' => $item->drug->description ?? '',
-                    'type' => $item->drug->form ?? 'Tablet'
-                ];
-            });
+        // دمج بيانات الأدوية مع معلومات المخزون
+        $result = $drugs->map(function ($drug) use ($inventoryMap) {
+            $inventory = $inventoryMap[$drug->id] ?? null;
+            
+            return [
+                'id' => $inventory ? $inventory['id'] : null, // ID المخزون إن وجد
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'categoryId' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'quantity' => $inventory ? $inventory['current_quantity'] : 0, // الكمية في المخزون
+                'neededQuantity' => $inventory ? $inventory['minimum_level'] : 0, // الحد الأدنى المطلوب
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'description' => $drug->description ?? '',
+                'type' => $drug->form ?? 'Tablet'
+            ];
+        });
 
-        return $this->sendSuccess($inventory, 'تم تحميل قائمة أدوية الصيدلية بنجاح.');
+        return $this->sendSuccess($result, 'تم تحميل قائمة الأدوية بنجاح.');
     }
 
     /**
      * GET /api/pharmacist/drugs/all
-     * البحث في قاعدة بيانات الأدوية العامة (لإضافتها لمخزون الصيدلية).
-     * (لم يتغير هذا الجزء لأنه يبحث في جدول drug العام)
+     * جلب جميع الأدوية من قاعدة البيانات (لإضافتها لمخزون الصيدلية).
      */
     public function searchAll(Request $request)
     {
-        $drugs = Drug::select('id', 'name as drugName', 'category')
-            ->limit(20)
-            ->get();
+        $drugs = Drug::select(
+            'id',
+            'name',
+            'generic_name',
+            'strength',
+            'form',
+            'category',
+            'unit',
+            'max_monthly_dose',
+            'status',
+            'manufacturer',
+            'country',
+            'utilization_type'
+        )
+            ->orderBy('name')
+            ->get()
+            ->map(function ($drug) {
+                return [
+                    'id' => $drug->id,
+                    'drugName' => $drug->name,
+                    'name' => $drug->name,
+                    'genericName' => $drug->generic_name,
+                    'strength' => $drug->strength,
+                    'form' => $drug->form,
+                    'category' => $drug->category,
+                    'unit' => $drug->unit,
+                    'maxMonthlyDose' => $drug->max_monthly_dose,
+                    'status' => $drug->status,
+                    'manufacturer' => $drug->manufacturer,
+                    'country' => $drug->country,
+                    'utilizationType' => $drug->utilization_type,
+                ];
+            });
             
         return $this->sendSuccess($drugs, 'تم جلب قائمة الأدوية العامة.');
     }
@@ -182,10 +234,14 @@ class DrugPharmacistController extends BaseApiController
             ->map(function ($item) {
                 return [
                     'id' => $item->id,
+                    'drugCode' => $item->drug->id,
                     'drugName' => $item->drug->name,
                     'quantity' => $item->current_quantity,
                     'neededQuantity' => $item->minimum_level,
-                    'expiryDate' => $item->drug->expiry_date
+                    'expiryDate' => $item->drug->expiry_date,
+                    'categoryId' => $item->drug->category,
+                    'description' => $item->drug->description ?? '',
+                    'type' => $item->drug->form ?? 'Tablet',
                 ];
             });
 
@@ -194,7 +250,7 @@ class DrugPharmacistController extends BaseApiController
 
     /**
      * GET /api/pharmacist/drugs/search
-     * البحث داخل مخزون الصيدلية.
+     * البحث في جميع الأدوية من قاعدة البيانات.
      */
     public function search(Request $request)
     {
@@ -204,19 +260,65 @@ class DrugPharmacistController extends BaseApiController
         $query = $request->query('search');
         $catName = $request->query('categoryId');
 
-        $inventory = Inventory::with('drug')
-            ->where('pharmacy_id', $pharmacyId) // <--- البحث داخل الصيدلية فقط
-            ->whereHas('drug', function($q) use ($query, $catName) {
-                if ($query) {
-                    $q->where('name', 'like', "%{$query}%");
-                }
-                if ($catName) {
-                    $q->where('category', $catName);
-                }
-            })
-            ->get();
+        // بناء استعلام البحث في جدول drugs
+        $drugsQuery = Drug::query();
+        
+        if ($query) {
+            $drugsQuery->where(function($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                  ->orWhere('generic_name', 'like', "%{$query}%");
+            });
+        }
+        
+        if ($catName) {
+            $drugsQuery->where('category', $catName);
+        }
+        
+        $drugs = $drugsQuery->orderBy('name')->get();
 
-        return $this->sendSuccess($inventory, 'تم البحث بنجاح.');
+        // جلب المخزون المرتبط بهذه الصيدلية (إن وجدت)
+        $inventoryMap = [];
+        if ($pharmacyId) {
+            $inventories = Inventory::where('pharmacy_id', $pharmacyId)
+                ->get()
+                ->keyBy('drug_id');
+            foreach ($inventories as $drugId => $inventory) {
+                $inventoryMap[$drugId] = [
+                    'id' => $inventory->id,
+                    'current_quantity' => $inventory->current_quantity,
+                    'minimum_level' => $inventory->minimum_level,
+                ];
+            }
+        }
+
+        // دمج بيانات الأدوية مع معلومات المخزون
+        $result = $drugs->map(function ($drug) use ($inventoryMap) {
+            $inventory = $inventoryMap[$drug->id] ?? null;
+            
+            return [
+                'id' => $inventory ? $inventory['id'] : null,
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'categoryId' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'quantity' => $inventory ? $inventory['current_quantity'] : 0,
+                'neededQuantity' => $inventory ? $inventory['minimum_level'] : 0,
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'description' => $drug->description ?? '',
+                'type' => $drug->form ?? 'Tablet',
+            ];
+        });
+
+        return $this->sendSuccess($result, 'تم البحث بنجاح.');
     }
     
 }

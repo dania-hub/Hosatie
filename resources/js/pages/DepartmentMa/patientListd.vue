@@ -148,6 +148,16 @@ const fetchPatientDetails = async (patientId) => {
   }
 };
 
+// تحديث دواء موجود (دواء واحد فقط)
+const updateMedicationAPI = async (patientId, pivotId, medicationData) => {
+  try {
+    const response = await api.put(`/patients/${patientId}/medications/${pivotId}`, medicationData);
+    return response.data;
+  } catch (err) {
+    throw err;
+  }
+};
+
 // تحديث بيانات المريض (بعد إضافة/تعديل/حذف دواء)
 const updatePatientMedications = async (patientId, medications) => {
   try {
@@ -465,74 +475,81 @@ const addMedicationToPatient = async (medicationsData) => {
 
 const handleEditMedication = async (medIndex, newDosage) => {
   try {
-    const updatedMedications = [...selectedPatient.value.medications];
-    const medication = updatedMedications[medIndex];
-    
-    // حساب الكمية الشهرية من الجرعة اليومية الجديدة
+    const medication = selectedPatient.value.medications[medIndex];
+    const pivotId = medication.pivot_id || medication.id;
+
+    if (!pivotId) {
+      showInfoAlert('خطأ: لا يمكن تحديد معرف الدواء للتعديل');
+      return;
+    }
+
+    // تحويل الجرعة اليومية إلى شهرية (الـ API يتوقع monthly_quantity)
     const monthlyQuantity = Math.round(newDosage * 30);
-    
-    updatedMedications[medIndex] = {
-      ...medication,
-      drugId: medication.id || medication.drugId,
-      drugName: medication.drugName || medication.name,
-      dosage: `${newDosage} حبة يومياً`,
-      monthlyQuantity: monthlyQuantity,
-      note: medication.note || null
+
+    if (monthlyQuantity <= 0) {
+      showInfoAlert('خطأ: الكمية الشهرية يجب أن تكون أكبر من الصفر');
+      return;
+    }
+
+    const medicationPayload = {
+      dosage: monthlyQuantity // API يتوقع integer
     };
 
     try {
       // محاولة التحديث في الـ API
-      const updatedPatient = await updatePatientMedications(
+      await updateMedicationAPI(
         selectedPatient.value.fileNumber,
-        updatedMedications
+        pivotId,
+        medicationPayload
       );
 
-      // إعادة جلب البيانات المحدثة من API
-      const freshPatientData = await fetchPatientDetails(selectedPatient.value.fileNumber);
-      if (freshPatientData) {
-        selectedPatient.value = freshPatientData;
+      // إعادة جلب بيانات المريض المحدثة
+      const updatedPatient = await fetchPatientDetails(selectedPatient.value.fileNumber);
+      if (updatedPatient) {
+        selectedPatient.value = updatedPatient;
         
         // تحديث البيانات المحلية
         const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
         if (patientIndex !== -1) {
-          patients.value[patientIndex] = freshPatientData;
+          patients.value[patientIndex] = updatedPatient;
         }
       }
 
       showSuccessAlert(`✅ تم تعديل الجرعة الدوائية بنجاح`);
     } catch (apiError) {
       console.error('خطأ في تعديل الدواء:', apiError);
-      const errorMessage = apiError.response?.data?.message || apiError.message || 'حدث خطأ غير معروف';
-      showInfoAlert(`❌ فشل في تعديل الدواء: ${errorMessage}`);
+      showInfoAlert(`فشل في تعديل الدواء: ${apiError.response?.data?.message || apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في تعديل الدواء:', err);
-    showInfoAlert('❌ حدث خطأ في تعديل الدواء');
+    showInfoAlert('حدث خطأ في تعديل الدواء');
   }
 };
 
 const handleDeleteMedication = async (medIndex) => {
   try {
-    const updatedMedications = [...selectedPatient.value.medications];
-    const medicationName = updatedMedications[medIndex].drugName || updatedMedications[medIndex].name;
-    updatedMedications.splice(medIndex, 1);
+    const medication = selectedPatient.value.medications[medIndex];
+    const medicationName = medication.drugName || medication.name;
+    const pivotId = medication.pivot_id || medication.id;
+
+    if (!pivotId) {
+      showInfoAlert('خطأ: لا يمكن تحديد معرف الدواء للحذف');
+      return;
+    }
 
     try {
-      // محاولة التحديث في الـ API
-      const updatedPatient = await updatePatientMedications(
-        selectedPatient.value.fileNumber,
-        updatedMedications
-      );
+      // حذف الدواء مباشرة من API
+      await api.delete(`/patients/${selectedPatient.value.fileNumber}/medications/${pivotId}`);
 
-      // إعادة جلب البيانات المحدثة من API
-      const freshPatientData = await fetchPatientDetails(selectedPatient.value.fileNumber);
-      if (freshPatientData) {
-        selectedPatient.value = freshPatientData;
+      // إعادة جلب بيانات المريض المحدثة
+      const updatedPatient = await fetchPatientDetails(selectedPatient.value.fileNumber);
+      if (updatedPatient) {
+        selectedPatient.value = updatedPatient;
         
         // تحديث البيانات المحلية
         const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
         if (patientIndex !== -1) {
-          patients.value[patientIndex] = freshPatientData;
+          patients.value[patientIndex] = updatedPatient;
         }
       }
 

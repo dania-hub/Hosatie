@@ -6,7 +6,7 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
-const API_URL = '/api/dashboard/stats';
+const API_URL = '/api/department-admin/dashboard/stats';
 
 // متغير لتخزين الإحصائيات
 const stats = ref({
@@ -24,13 +24,23 @@ const fetchStats = async () => {
     // 💡 تم حذف السطر stats.value.isLoading = true;
     // لتجنب ظهور رسالة التحميل حتى لفترة وجيزة
 
+    stats.value.isLoading = true;
+
     try {
-        const response = await axios.get(API_URL);
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+
+        const response = await axios.get(API_URL, {
+            headers: {
+                'Accept': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+        });
+        const data = response.data.data || response.data;
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
-        stats.value.totalRegistered = response.data.totalRegistered;
-        stats.value.todayRegistered = response.data.todayRegistered;
-        stats.value.weekRegistered = response.data.weekRegistered;
+        stats.value.totalRegistered = data.totalRegistered ?? 0;
+        stats.value.todayRegistered = data.todayRegistered ?? 0;
+        stats.value.weekRegistered = data.weekRegistered ?? 0;
         
     } catch (error) {
         console.error("Error fetching dashboard statistics:", error);

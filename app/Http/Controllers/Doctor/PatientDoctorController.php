@@ -103,8 +103,17 @@ class PatientDoctorController extends BaseApiController
                     ? $drug->pivot->created_at->format('Y-m-d')
                     : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
                 
-                // اسم الطبيب الذي قام بالإسناد
-                $assignedBy = $activePrescription->doctor ? $activePrescription->doctor->full_name : null;
+                // اسم المستخدم الذي قام بآخر عملية على هذا الدواء (من audit_log)
+                $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                    ->where('record_id', $drug->pivot->id)
+                    ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
+                    ->with('user')
+                    ->latest()
+                    ->first();
+                
+                $assignedBy = $latestLog && $latestLog->user 
+                    ? $latestLog->user->full_name 
+                    : ($activePrescription->doctor ? $activePrescription->doctor->full_name : 'غير محدد');
                 
                 // الحصول على الكمية الشهرية
                 $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);

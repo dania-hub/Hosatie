@@ -6,7 +6,7 @@
         @click.self="closeModal"
     >
         <div
-            class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
             dir="rtl"
             role="dialog"
             aria-modal="true"

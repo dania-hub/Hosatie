@@ -301,7 +301,7 @@ import ConfirmationModal from "@/components/fordepartment/ConfirmationModal.vue"
 // 1. إعدادات axios
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // تعديل حسب رابط الـ API الخاص بك
+  baseURL: '/api/pharmacist',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -309,9 +309,21 @@ const api = axios.create({
   }
 });
 
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => response,
   (error) => {
     console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
@@ -323,8 +335,6 @@ const endpoints = {
   shipments: {
     getAll: () => api.get('/shipments'),
     getById: (id) => api.get(`/shipments/${id}`),
-    create: (data) => api.post('/shipments', data),
-    update: (id, data) => api.put(`/shipments/${id}`, data),
     confirm: (id, data) => api.post(`/shipments/${id}/confirm`, data)
   },
   categories: {
@@ -332,6 +342,7 @@ const endpoints = {
   },
   drugs: {
     getAll: () => api.get('/drugs'),
+    getAllForSupply: () => api.get('/drugs/all'),
     search: (params) => api.get('/drugs/search', { params })
   },
   supplyRequests: {
@@ -375,15 +386,19 @@ const fetchAllData = async () => {
 const fetchShipments = async () => {
     try {
         const response = await endpoints.shipments.getAll();
-        shipmentsData.value = response.map(shipment => ({
+        // Laravel Resources wrap collections in a 'data' property
+        const data = response.data?.data ?? response.data;
+        const shipments = Array.isArray(data) ? data : [];
+        
+        shipmentsData.value = shipments.map(shipment => ({
             id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `S-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.createdAt,
-            requestStatus: shipment.status || shipment.requestStatus,
-            received: shipment.received || (shipment.status === 'تم الإستلام'),
+            shipmentNumber: shipment.shipmentNumber || `SHP-${shipment.id}`,
+            requestDate: shipment.requestDate || shipment.created_at,
+            requestStatus: shipment.status || 'قيد الانتظار',
+            received: shipment.received || (shipment.status === 'تم الإستلام' || shipment.status === 'fulfilled'),
             details: {
                 id: shipment.id,
-                date: shipment.requestDate,
+                date: shipment.requestDate || shipment.created_at,
                 status: shipment.status,
                 items: shipment.items || [],
                 notes: shipment.notes || '',
@@ -401,9 +416,13 @@ const fetchShipments = async () => {
 const fetchCategories = async () => {
     try {
         const response = await endpoints.categories.getAll();
-        categories.value = response.map(cat => ({
-            id: cat.id,
-            name: cat.name
+        // Laravel Resources wrap collections in a 'data' property
+        const data = response.data?.data ?? response.data;
+        const cats = Array.isArray(data) ? data : [];
+        
+        categories.value = cats.map(cat => ({
+            id: cat.id || cat,
+            name: typeof cat === 'string' ? cat : (cat.name || cat)
         }));
     } catch (err) {
         console.error('Error fetching categories:', err);
@@ -413,13 +432,29 @@ const fetchCategories = async () => {
 
 const fetchDrugs = async () => {
     try {
-        const response = await endpoints.drugs.getAll();
-        allDrugsData.value = response.map(drug => ({
+        // استخدام /drugs/all للحصول على جميع الأدوية المتاحة لإضافتها للطلب
+        const response = await endpoints.drugs.getAllForSupply();
+        // Laravel Resources wrap collections in a 'data' property
+        const data = response.data?.data ?? response.data;
+        const drugs = Array.isArray(data) ? data : [];
+        
+        allDrugsData.value = drugs.map(drug => ({
             id: drug.id,
-            name: drug.name,
-            categoryId: drug.categoryId,
-            dosage: drug.dosage || drug.strength,
-            type: drug.type || 'Tablet'
+            drugId: drug.id,
+            name: drug.drugName || drug.name,
+            genericName: drug.genericName || drug.generic_name,
+            strength: drug.strength,
+            form: drug.form,
+            category: drug.category,
+            categoryId: drug.category,
+            unit: drug.unit,
+            maxMonthlyDose: drug.maxMonthlyDose || drug.max_monthly_dose,
+            status: drug.status,
+            manufacturer: drug.manufacturer,
+            country: drug.country,
+            utilizationType: drug.utilizationType || drug.utilization_type,
+            dosage: drug.strength,
+            type: drug.form || 'Tablet'
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);
@@ -510,33 +545,56 @@ const handleSupplyConfirm = async (data) => {
     try {
         const requestData = {
             items: data.items.map(item => ({
-                drugId: item.drugId || null,
-                drugName: item.name,
-                quantity: item.quantity,
-                unit: item.unit,
-                type: item.type
+                drugId: item.drugId || item.id,
+                quantity: item.quantity
             })),
-            notes: data.notes || '',
-            departmentId: 1, // استبدل بقسم المستخدم الحالي
-            priority: data.priority || 'normal'
+            notes: data.notes || ''
         };
         
         const response = await endpoints.supplyRequests.create(requestData);
+        // Laravel Resources wrap collections in a 'data' property
+        const responseData = response.data?.data ?? response.data;
         
-        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${response.requestNumber} بنجاح!`);
+        const requestNumber = responseData?.requestNumber || responseData?.id || 'N/A';
+        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${requestNumber} بنجاح!`);
         closeSupplyRequestModal();
         
+        // إعادة تحميل الشحنات بعد إنشاء الطلب
         await fetchShipments();
         
     } catch (err) {
-        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${err.response?.data?.message || err.message}`);
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
+        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
 };
 
-const openRequestViewModal = (shipment) => {
-    if (shipment.requestStatus === 'تم الإستلام') {
+const openRequestViewModal = async (shipment) => {
+    // إذا لم تكن التفاصيل كاملة، نجلبها من API
+    if (!shipment.details.items || shipment.details.items.length === 0) {
+        try {
+            const response = await endpoints.shipments.getById(shipment.id);
+            const data = response.data?.data ?? response.data;
+            
+            if (data) {
+                shipment.details = {
+                    id: data.id,
+                    date: data.requestDate || data.created_at,
+                    status: data.status,
+                    items: data.items || [],
+                    notes: data.notes || '',
+                    ...(data.confirmationDetails && {
+                        confirmationDetails: data.confirmationDetails
+                    })
+                };
+            }
+        } catch (err) {
+            console.error('Error fetching shipment details:', err);
+        }
+    }
+    
+    if (shipment.requestStatus === 'تم الإستلام' || shipment.received) {
         selectedRequestDetails.value = {
             ...shipment.details,
             confirmation: shipment.details.confirmationDetails
@@ -567,23 +625,32 @@ const handleConfirmation = async (confirmationData) => {
     const shipmentId = selectedShipmentForConfirmation.value.id;
     
     try {
-        const response = await endpoints.shipments.confirm(shipmentId, confirmationData);
+        // إرسال بيانات التأكيد (يمكن أن تكون فارغة أو تحتوي على ملاحظات)
+        const response = await endpoints.shipments.confirm(shipmentId, confirmationData || {});
+        // Laravel Resources wrap collections in a 'data' property
+        const responseData = response.data?.data ?? response.data;
         
         const shipmentIndex = shipmentsData.value.findIndex(
             s => s.id === shipmentId
         );
         
         if (shipmentIndex !== -1) {
-            shipmentsData.value[shipmentIndex].requestStatus = 'تم الإستلام';
+            shipmentsData.value[shipmentIndex].requestStatus = responseData?.status || 'تم الإستلام';
             shipmentsData.value[shipmentIndex].received = true;
-            shipmentsData.value[shipmentIndex].details.confirmationDetails = response.confirmationDetails;
+            if (responseData?.confirmationDetails) {
+                shipmentsData.value[shipmentIndex].details.confirmationDetails = responseData.confirmationDetails;
+            }
         }
         
         showSuccessAlert(`✅ تم تأكيد استلام الشحنة بنجاح!`);
         closeConfirmationModal();
         
+        // إعادة تحميل الشحنات لتحديث البيانات
+        await fetchShipments();
+        
     } catch (err) {
-        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${err.response?.data?.message || err.message}`);
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
+        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
-import axios from "axios"; // 👈 تم استيراد Axios
+import axios from "axios";
 
 import Navbar from "@/components/Navbar.vue";
 import Sidebar from "@/components/Sidebar.vue";
@@ -15,7 +15,30 @@ import DispensationModal from "@/components/patientDoctor/DispensationModal.vue"
 // ----------------------------------------------------
 // 0. تهيئة API و حالة التحميل
 // ----------------------------------------------------
-const API_BASE_URL = "https://your-api-domain.com/api"; // 🚨 يرجى تغيير هذا العنوان
+// نستخدم الـ API الخاص بالصيدلي
+const API_BASE_URL = "/api/pharmacist";
+
+// تهيئة نسخة خاصة من Axios مع الـ baseURL والتوكن
+const api = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 10000,
+    headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    },
+});
+
+// إضافة التوكن تلقائياً من localStorage (نفس أسلوب ملف الدكتور)
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem("auth_token");
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
 
 const patients = ref([]); // قائمة المرضى ستُملأ من الـ API
 const isLoading = ref(true); // حالة التحميل
@@ -26,27 +49,47 @@ const isLoading = ref(true); // حالة التحميل
 const fetchPatients = async () => {
     isLoading.value = true;
     try {
-        // جلب البيانات من نقطة النهاية (Endpoint)
-        const response = await axios.get(`${API_BASE_URL}/patients`);
-        
-        // **ملاحظة هامة:** يجب تعديل طريقة معالجة البيانات هنا 
-        // لتتناسب مع الهيكل الذي يعيده الـ API الخاص بك
-        patients.value = response.data.map(p => ({
-            ...p,
-            lastUpdated: new Date(p.lastUpdated || Date.now()).toISOString(),
-            // افتراض أن الـ API يوفر هذه الحقول، وإلا يجب حسابها/تنسيقها
-            nameDisplay: p.name || 'غير متوفر',
-            nationalIdDisplay: p.nationalId || 'غير متوفر',
-            birthDisplay: p.birthDate || 'غير متوفر',
-            medications: p.medications || [],
-            dispensationHistory: p.dispensationHistory || [],
-        }));
-        
-        showSuccessAlert("✅ تم تحديث قائمة المرضى بنجاح.");
+        // جلب البيانات من الـ API:
+        // GET /api/pharmacist/patients  ➜  PatientPharmacistController@index
+        const response = await api.get("/patients");
 
+        // BaseApiController يُرجع البيانات بداخل data
+        const responseData = response.data?.data ?? response.data;
+
+        if (Array.isArray(responseData)) {
+            patients.value = responseData.map((p) => {
+                const fileNumber = p.fileNumber ?? p.id;
+                const name = p.name || p.nameDisplay || "غير متوفر";
+                const nationalId = p.nationalId || p.nationalIdDisplay || "غير متوفر";
+                const birth = p.birthDate || p.birth || "غير متوفر";
+                const phone = p.phone || "غير متوفر";
+                const lastUpdatedRaw = p.lastUpdated || p.updated_at || new Date().toISOString();
+
+                return {
+                    fileNumber,
+                    name,
+                    nationalId,
+                    birth,
+                    phone,
+                    lastUpdated: new Date(lastUpdatedRaw).toISOString(),
+                    // خصائص مهيأة للعرض في المودالات
+                    nameDisplay: name,
+                    nationalIdDisplay: nationalId,
+                    birthDisplay: birth,
+                    // سيجلب لاحقاً من API أخرى عند الحاجة
+                    medications: p.medications || [],
+                    dispensationHistory: [],
+                };
+            });
+
+            showSuccessAlert(response.data?.message || "✅ تم تحديث قائمة المرضى بنجاح.");
+        } else {
+            patients.value = [];
+            showSuccessAlert("⚠️ تم الاتصال بالخادم لكن لم يتم العثور على بيانات مرضى.");
+        }
     } catch (error) {
         console.error("خطأ في جلب بيانات المرضى:", error);
-        showSuccessAlert(`❌ فشل جلب البيانات: ${error.message}`);
+        showSuccessAlert(`❌ فشل جلب البيانات: ${error.response?.data?.message || error.message}`);
     } finally {
         isLoading.value = false;
     }
@@ -62,33 +105,149 @@ onMounted(() => {
 // 2. منطق تأكيد الصرف الفعلي (محدث لاستدعاء الـ API)
 // ----------------------------------------------------
 // تستقبل بيانات المريض وقائمة الأدوية المصروفة فعلياً
+// POST /api/pharmacist/dispense  ➜  PatientPharmacistController@dispense
 const handleConfirmation = async (patientData, dispensedMedications) => {
-    
     // بناء حمولة الإرسال (Payload) للـ API
     const payload = {
         patientFileNumber: patientData.fileNumber,
-        pharmacistId: 101, // مثال
+        pharmacistId: 101, // يمكن جلبه لاحقاً من المستخدم المسجل
         dispensationDate: new Date().toISOString(),
-        dispensedItems: dispensedMedications.map(med => ({
+        dispensedItems: dispensedMedications.map((med) => ({
             drugName: med.drugName,
             quantity: med.dispensedQuantity,
-            // يمكنك إضافة drugId أو batchId هنا
-        }))
+            // يمكن إضافة drugId أو batchId هنا عند توفره
+        })),
     };
-    
+
     try {
-        // إرسال البيانات إلى نقطة نهاية الصرف (Dispense Endpoint)
-        await axios.post(`${API_BASE_URL}/dispense`, payload);
+        await api.post("/dispense", payload);
 
         // تحديث البيانات في الواجهة عن طريق إعادة جلب القائمة
-        await fetchPatients(); 
-        
+        await fetchPatients();
+
         // إظهار رسالة نجاح
         showSuccessAlert(`✅ تم صرف الأدوية بنجاح للمريض ${patientData.nameDisplay}`);
-
     } catch (error) {
-        console.error('خطأ في عملية صرف الأدوية:', error);
+        console.error("خطأ في عملية صرف الأدوية:", error);
         showSuccessAlert(`❌ فشل في صرف الأدوية: ${error.response?.data?.message || error.message}`);
+    }
+};
+
+// ----------------------------------------------------
+// 2.1 جلب سجل الصرف من الـ API للمريض المحدد
+// ----------------------------------------------------
+// GET /api/pharmacist/patients/{fileNumber}/dispensations  ➜  history
+const fetchDispensationHistory = async (fileNumber) => {
+    try {
+        const response = await api.get(`/patients/${fileNumber}/dispensations`);
+        const data = response.data?.data ?? response.data;
+
+        const dispensations = data?.dispensations || [];
+
+        // تحويل هيكلة الـ API إلى ما يحتاجه `DispensationModal`
+        const historyItems = [];
+
+        dispensations.forEach((disp) => {
+            const dateString = disp.date
+                ? new Date(disp.date).toLocaleDateString("ar-SA")
+                : disp.date;
+
+            (disp.items || []).forEach((item) => {
+                historyItems.push({
+                    drugName: item.drugName,
+                    quantity: item.quantity,
+                    date: dateString,
+                    assignedBy: disp.pharmacistName,
+                });
+            });
+        });
+
+        showSuccessAlert(response.data?.message || "✅ تم جلب سجل المريض بنجاح.");
+
+        return historyItems;
+    } catch (error) {
+        console.error("خطأ في جلب سجل الصرف:", error);
+        showSuccessAlert(`❌ فشل في جلب سجل الصرف: ${error.response?.data?.message || error.message}`);
+        return [];
+    }
+};
+
+// ----------------------------------------------------
+// 2.2 جلب تفاصيل مريض واحد (مع الأدوية) من الـ API
+// ----------------------------------------------------
+const fetchPatientDetails = async (fileNumber) => {
+    try {
+        const response = await api.get(`/patients/${fileNumber}`);
+        const patientData = response.data?.data ?? response.data;
+
+        return {
+            ...patientData,
+            fileNumber: patientData.fileNumber ?? fileNumber,
+            // خصائص العرض
+            nameDisplay: patientData.name ?? patientData.nameDisplay ?? "غير متوفر",
+            nationalIdDisplay:
+                patientData.nationalId ??
+                patientData.nationalIdDisplay ??
+                patientData.national_id ??
+                "غير متوفر",
+            birthDisplay:
+                patientData.birth ??
+                patientData.birthDisplay ??
+                patientData.birth_date ??
+                "غير متوفر",
+            // التأكد من أن الأدوية في الشكل المتوقع للمودال
+            medications: (patientData.medications || []).map((med) => {
+                const unit = med.unit || "حبة";
+                const monthlyQty = med.monthlyQuantityNum || med.monthlyQuantity || 0;
+
+                let monthlyQuantityText = med.monthlyQuantity;
+                if (!monthlyQuantityText) {
+                    monthlyQuantityText =
+                        monthlyQty > 0 ? `${monthlyQty} ${unit}` : "غير محدد";
+                }
+
+                let dosageText = med.dosage;
+                if (!dosageText || typeof dosageText === "number") {
+                    const dailyQty =
+                        monthlyQty > 0
+                            ? Math.round((monthlyQty / 30) * 10) / 10
+                            : 0;
+                    dosageText =
+                        dailyQty > 0
+                            ? `${
+                                  dailyQty % 1 === 0
+                                      ? dailyQty.toString()
+                                      : dailyQty.toFixed(1)
+                              } ${unit} يومياً`
+                            : "غير محدد";
+                }
+
+                return {
+                    ...med,
+                    drugName: med.drugName || med.name || "",
+                    dosage: dosageText,
+                    monthlyQuantity: monthlyQuantityText,
+                    assignmentDate:
+                        med.assignmentDate ||
+                        new Date()
+                            .toISOString()
+                            .split("T")[0]
+                            .replace(/-/g, "/"),
+                    eligibilityStatus: med.eligibilityStatus || "مستحق",
+                    dispensedQuantity: med.dispensedQuantity || 0,
+                };
+            }),
+        };
+    } catch (error) {
+        console.error("خطأ في جلب بيانات المريض:", error);
+        // في حالة الفشل نرجع بيانات أساسية بدون أدوية
+        return {
+            fileNumber,
+            nameDisplay: "غير متوفر",
+            nationalIdDisplay: "غير متوفر",
+            birthDisplay: "غير متوفر",
+            medications: [],
+        };
     }
 };
 
@@ -184,8 +343,23 @@ const isViewModalOpen = ref(false);
 const isDispensationModalOpen = ref(false);
 const selectedPatient = ref({});
 
-const openViewModal = (patient) => {
-    selectedPatient.value = patient;
+const openViewModal = async (patient) => {
+    try {
+        const patientData = await fetchPatientDetails(patient.fileNumber);
+        selectedPatient.value = patientData;
+    } catch (error) {
+        console.error("خطأ في فتح ملف المريض للصيدلي:", error);
+        // fallback: استخدام بيانات الصف فقط
+        selectedPatient.value = {
+            ...patient,
+            nameDisplay: patient.name || patient.nameDisplay || "غير متوفر",
+            nationalIdDisplay:
+                patient.nationalId || patient.nationalIdDisplay || "غير متوفر",
+            birthDisplay:
+                patient.birth || patient.birthDisplay || "غير متوفر",
+            medications: patient.medications || [],
+        };
+    }
     isViewModalOpen.value = true;
 };
 
@@ -194,7 +368,18 @@ const closeViewModal = () => {
     selectedPatient.value = {};
 };
 
-const openDispensationModal = () => {
+const openDispensationModal = async () => {
+    if (!selectedPatient.value || !selectedPatient.value.fileNumber) {
+        return;
+    }
+
+    // جلب سجل الصرف من الـ API وتخزينه داخل المريض المحدد
+    const history = await fetchDispensationHistory(selectedPatient.value.fileNumber);
+    selectedPatient.value = {
+        ...selectedPatient.value,
+        dispensationHistory: history,
+    };
+
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
 };

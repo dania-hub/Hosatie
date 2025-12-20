@@ -38,13 +38,25 @@ class PrescriptionDrugObserver
     {
         Log::info('Observer Deleted Triggered', ['id' => $prescriptionDrug->id]);
         
-        $this->logAction('حذف دواء', $prescriptionDrug);
+        // عند الحذف، يجب حفظ معلومات المريض قبل أن يتم حذف السجل
+        $patientInfo = null;
+        if ($prescriptionDrug->prescription_id) {
+            $prescription = \App\Models\Prescription::with('patient')->find($prescriptionDrug->prescription_id);
+            if ($prescription && $prescription->patient) {
+                $patientInfo = [
+                    'id' => $prescription->patient->id,
+                    'full_name' => $prescription->patient->full_name,
+                ];
+            }
+        }
+        
+        $this->logAction('حذف دواء', $prescriptionDrug, null, $patientInfo);
     }
 
     /**
      * Helper to save the log
      */
-    protected function logAction($action, $record, $oldValues = null)
+    protected function logAction($action, $record, $oldValues = null, $patientInfo = null)
     {
         // 1. Try getting user from Auth Facade
         $userId = Auth::id();
@@ -56,13 +68,40 @@ class PrescriptionDrugObserver
 
         // 3. If User ID found, Create Log
         if ($userId) {
+            // إضافة معلومات المريض إلى new_values لتسهيل العرض لاحقاً
+            $newValuesArray = [];
+            
+            // محاولة جلب معلومات المريض
+            if ($patientInfo) {
+                // إذا تم تمرير معلومات المريض مباشرة (في حالة الحذف)
+                $newValuesArray['patient_info'] = $patientInfo;
+            } elseif ($record->prescription_id) {
+                // محاولة جلب معلومات المريض من الروشتة
+                $prescription = \App\Models\Prescription::with('patient')->find($record->prescription_id);
+                if ($prescription && $prescription->patient) {
+                    $newValuesArray['patient_info'] = [
+                        'id' => $prescription->patient->id,
+                        'full_name' => $prescription->patient->full_name,
+                    ];
+                }
+            }
+            
+            // إضافة بيانات السجل إذا كان متاحاً
+            try {
+                $recordArray = $record->toArray();
+                $newValuesArray = array_merge($recordArray, $newValuesArray);
+            } catch (\Exception $e) {
+                // في حالة الحذف، قد لا تكون البيانات متاحة
+                Log::info('Could not get record array, using patient info only', ['error' => $e->getMessage()]);
+            }
+            
             AuditLog::create([
                 'user_id'    => $userId,
                 'action'     => $action,
                 'table_name' => 'prescription_drug',
                 'record_id'  => $record->id,
                 'old_values' => $oldValues ? json_encode($oldValues) : null,
-                'new_values' => json_encode($record->toArray()),
+                'new_values' => json_encode($newValuesArray),
                 'ip_address' => request()->ip(),
             ]);
         } else {

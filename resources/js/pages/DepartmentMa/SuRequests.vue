@@ -300,8 +300,9 @@ import ConfirmationModal from "@/components/fordepartment/ConfirmationModal.vue"
 // ----------------------------------------------------
 // 1. إعدادات axios
 // ----------------------------------------------------
+const API_BASE_URL = "/api/department-admin";
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // تعديل حسب رابط الـ API الخاص بك
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -309,11 +310,16 @@ const api = axios.create({
   }
 });
 
-// إضافة interceptor للتعامل مع الأخطاء
-api.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+// إضافة interceptor لإضافة التوكن تلقائيًا
+api.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
     return Promise.reject(error);
   }
 );
@@ -375,25 +381,49 @@ const fetchAllData = async () => {
 const fetchShipments = async () => {
     try {
         const response = await endpoints.shipments.getAll();
-        shipmentsData.value = response.map(shipment => ({
-            id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `S-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.createdAt,
-            requestStatus: shipment.status || shipment.requestStatus,
-            received: shipment.received || (shipment.status === 'تم الإستلام'),
-            details: {
-                id: shipment.id,
-                date: shipment.requestDate,
-                status: shipment.status,
-                items: shipment.items || [],
-                notes: shipment.notes || '',
-                ...(shipment.confirmationDetails && {
-                    confirmationDetails: shipment.confirmationDetails
-                })
+        // BaseApiController يُرجع البيانات في response.data.data
+        const shipmentsDataRaw = response.data?.data || response.data || response;
+        const shipmentsList = Array.isArray(shipmentsDataRaw) ? shipmentsDataRaw : [];
+        
+        shipmentsData.value = shipmentsList.map(shipment => {
+            // معالجة التاريخ
+            let requestDate = shipment.requestDate || shipment.request_date || shipment.created_at || shipment.createdAt;
+            if (requestDate && typeof requestDate === 'string') {
+                // تحويل ISO string إلى تنسيق قابل للقراءة
+                try {
+                    const date = new Date(requestDate);
+                    requestDate = date.toISOString();
+                } catch (e) {
+                    // إذا فشل التحويل، نستخدم القيمة كما هي
+                }
             }
-        }));
+            
+            // معالجة الحالة
+            const status = shipment.status || shipment.requestStatus || shipment.request_status || 'غير محدد';
+            const received = shipment.received || (status === 'تم الإستلام') || (status === 'fulfilled');
+            
+            return {
+                id: shipment.id,
+                shipmentNumber: shipment.shipmentNumber || shipment.shipment_number || `REQ-${shipment.id}`,
+                requestDate: requestDate,
+                requestStatus: status,
+                received: received,
+                details: {
+                    id: shipment.id,
+                    shipmentNumber: shipment.shipmentNumber || shipment.shipment_number || `REQ-${shipment.id}`,
+                    date: requestDate,
+                    status: status,
+                    items: shipment.items || [],
+                    notes: shipment.notes || '',
+                    ...(shipment.confirmationDetails && {
+                        confirmationDetails: shipment.confirmationDetails
+                    })
+                }
+            };
+        });
     } catch (err) {
         console.error('Error fetching shipments:', err);
+        shipmentsData.value = [];
         throw err;
     }
 };
@@ -401,7 +431,11 @@ const fetchShipments = async () => {
 const fetchCategories = async () => {
     try {
         const response = await endpoints.categories.getAll();
-        categories.value = response.map(cat => ({
+        // BaseApiController يُرجع البيانات في response.data.data
+        const categoriesDataRaw = response.data?.data || response.data || response;
+        const categoriesList = Array.isArray(categoriesDataRaw) ? categoriesDataRaw : [];
+        
+        categories.value = categoriesList.map(cat => ({
             id: cat.id,
             name: cat.name
         }));
@@ -414,7 +448,14 @@ const fetchCategories = async () => {
 const fetchDrugs = async () => {
     try {
         const response = await endpoints.drugs.getAll();
-        allDrugsData.value = response.map(drug => ({
+        // BaseApiController يُرجع البيانات في response.data.data
+        const drugsDataRaw = response.data?.data || response.data || response;
+        // في حالة كون الاستجابة كائن مُرقّم (Laravel paginator)، نأخذ الحقل data
+        const drugs = Array.isArray(drugsDataRaw)
+            ? drugsDataRaw
+            : (drugsDataRaw.data || []);
+
+        allDrugsData.value = drugs.map(drug => ({
             id: drug.id,
             name: drug.name,
             categoryId: drug.categoryId,
@@ -508,41 +549,86 @@ const closeSupplyRequestModal = () => {
 const handleSupplyConfirm = async (data) => {
     isSubmittingSupply.value = true;
     try {
-        const requestData = {
-            items: data.items.map(item => ({
-                drugId: item.drugId || null,
+        // التحقق من أن جميع الأدوية لديها drugId
+        const itemsWithDrugId = data.items.map(item => {
+            let drugId = item.drugId;
+            
+            // إذا لم يكن drugId موجوداً، البحث عنه في allDrugsData
+            if (!drugId && item.name) {
+                const drugInfo = allDrugsData.value.find(d => 
+                    d.name === item.name || 
+                    d.name?.toLowerCase() === item.name?.toLowerCase()
+                );
+                drugId = drugInfo?.id || null;
+            }
+            
+            if (!drugId) {
+                throw new Error(`لا يمكن العثور على معرف الدواء للدواء: ${item.name}`);
+            }
+            
+            return {
+                drugId: drugId,
                 drugName: item.name,
                 quantity: item.quantity,
                 unit: item.unit,
                 type: item.type
-            })),
+            };
+        });
+        
+        const requestData = {
+            items: itemsWithDrugId,
             notes: data.notes || '',
             departmentId: 1, // استبدل بقسم المستخدم الحالي
             priority: data.priority || 'normal'
         };
         
         const response = await endpoints.supplyRequests.create(requestData);
+        // BaseApiController يُرجع البيانات في response.data.data
+        const responseData = response.data?.data || response.data || response;
         
-        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${response.requestNumber} بنجاح!`);
+        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${responseData.requestNumber || responseData.id} بنجاح!`);
         closeSupplyRequestModal();
         
         await fetchShipments();
         
     } catch (err) {
-        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${err.response?.data?.message || err.message}`);
+        console.error('خطأ في إنشاء طلب التوريد:', err);
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
+        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
 };
 
-const openRequestViewModal = (shipment) => {
-    if (shipment.requestStatus === 'تم الإستلام') {
+const openRequestViewModal = async (shipment) => {
+    try {
+        // جلب تفاصيل الشحنة من API
+        const response = await endpoints.shipments.getById(shipment.id);
+        // BaseApiController يُرجع البيانات في response.data.data
+        const shipmentDetails = response.data?.data || response.data || response;
+        
         selectedRequestDetails.value = {
-            ...shipment.details,
-            confirmation: shipment.details.confirmationDetails
+            id: shipmentDetails.id || shipment.id,
+            shipmentNumber: shipmentDetails.shipmentNumber || shipment.shipmentNumber,
+            date: shipmentDetails.requestDate || shipment.requestDate || shipmentDetails.created_at,
+            status: shipmentDetails.status || shipment.requestStatus,
+            items: shipmentDetails.items || shipment.details?.items || [],
+            notes: shipmentDetails.notes || '',
+            ...(shipmentDetails.confirmationDetails && {
+                confirmation: shipmentDetails.confirmationDetails
+            })
         };
-    } else {
-        selectedRequestDetails.value = shipment.details;
+    } catch (err) {
+        console.error('خطأ في جلب تفاصيل الشحنة:', err);
+        // في حالة الخطأ، نستخدم البيانات المحلية
+        if (shipment.requestStatus === 'تم الإستلام') {
+            selectedRequestDetails.value = {
+                ...shipment.details,
+                confirmation: shipment.details.confirmationDetails
+            };
+        } else {
+            selectedRequestDetails.value = shipment.details;
+        }
     }
     isRequestViewModalOpen.value = true;
 };
@@ -568,6 +654,8 @@ const handleConfirmation = async (confirmationData) => {
     
     try {
         const response = await endpoints.shipments.confirm(shipmentId, confirmationData);
+        // BaseApiController يُرجع البيانات في response.data.data
+        const responseData = response.data?.data || response.data || response;
         
         const shipmentIndex = shipmentsData.value.findIndex(
             s => s.id === shipmentId
@@ -576,14 +664,21 @@ const handleConfirmation = async (confirmationData) => {
         if (shipmentIndex !== -1) {
             shipmentsData.value[shipmentIndex].requestStatus = 'تم الإستلام';
             shipmentsData.value[shipmentIndex].received = true;
-            shipmentsData.value[shipmentIndex].details.confirmationDetails = response.confirmationDetails;
+            if (responseData.confirmationDetails) {
+                shipmentsData.value[shipmentIndex].details.confirmationDetails = responseData.confirmationDetails;
+            }
         }
         
         showSuccessAlert(`✅ تم تأكيد استلام الشحنة بنجاح!`);
         closeConfirmationModal();
         
+        // إعادة جلب البيانات المحدثة
+        await fetchShipments();
+        
     } catch (err) {
-        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${err.response?.data?.message || err.message}`);
+        console.error('خطأ في تأكيد الاستلام:', err);
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
+        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }

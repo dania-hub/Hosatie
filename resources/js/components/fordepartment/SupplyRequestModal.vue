@@ -415,7 +415,14 @@ const showAllDrugsOnFocus = () => {
 
 const addNewDrug = () => {
     if (isCurrentDrugValid.value) {
+        // البحث عن معلومات الدواء الكاملة للحصول على drugId
+        const drugInfo = props.allDrugsData.find(d => 
+            d.name === selectedDrugName.value || 
+            d.name?.toLowerCase() === selectedDrugName.value.toLowerCase()
+        );
+        
         dailyDosageList.value.push({
+            drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
@@ -448,7 +455,14 @@ const removeItem = (index) => {
 
 const confirmAddition = () => {
     if (isCurrentDrugValid.value) {
+        // البحث عن معلومات الدواء الكاملة للحصول على drugId
+        const drugInfo = props.allDrugsData.find(d => 
+            d.name === selectedDrugName.value || 
+            d.name?.toLowerCase() === selectedDrugName.value.toLowerCase()
+        );
+        
         dailyDosageList.value.push({
+            drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
@@ -499,8 +513,15 @@ watch(() => props.isOpen, (isOpen) => {
                 const quantityNeeded = TARGET_QUANTITY - drug.quantity;
                 const drugType = getDrugType(drug.drugName);
                 const unit = drugType === 'Liquid' ? 'مل' : 'حبة/قرص';
+                
+                // البحث عن معلومات الدواء الكاملة للحصول على drugId
+                const drugInfo = props.allDrugsData.find(d => 
+                    d.name === drug.drugName || 
+                    d.name?.toLowerCase() === drug.drugName?.toLowerCase()
+                );
 
                 return {
+                    drugId: drugInfo?.id || drug.id || null,
                     name: drug.drugName,
                     quantity: quantityNeeded > 0 ? quantityNeeded : 0,
                     unit: unit,

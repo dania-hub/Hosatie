@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\InternalSupplyRequest;
 use App\Models\InternalSupplyRequestItem;
 use App\Models\Pharmacy; // <--- إضافة موديل الصيدلية
+use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 
 class SupplyRequestPharmacistController extends BaseApiController
@@ -62,6 +63,28 @@ class SupplyRequestPharmacistController extends BaseApiController
             }
 
             DB::commit();
+
+            // تسجيل العملية في AuditLog
+            try {
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $user->hospital_id,
+                    'action' => 'إنشاء طلب توريد',
+                    'table_name' => 'internal_supply_request',
+                    'record_id' => $supplyRequest->id,
+                    'old_values' => null,
+                    'new_values' => json_encode([
+                        'request_id' => $supplyRequest->id,
+                        'pharmacy_id' => $pharmacyId,
+                        'item_count' => count($request->items),
+                        'notes' => $request->notes,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                // في حالة فشل الـ logging، نستمر (لا نريد أن نفشل العملية بسبب الـ logging)
+                \Log::error('Failed to log supply request creation', ['error' => $e->getMessage()]);
+            }
 
             return $this->sendSuccess(
                 ['requestNumber' => 'REQ-' . $supplyRequest->id], 

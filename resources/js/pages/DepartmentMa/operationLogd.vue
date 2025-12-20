@@ -4,6 +4,26 @@ import { Icon } from "@iconify/vue";
 import axios from 'axios'; 
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
+// إعداد interceptor لـ axios لتحويل طلب /api/operations
+// إلى /api/department-admin/operations مع إضافة التوكن
+axios.interceptors.request.use(
+    (config) => {
+        if (config.url === '/api/operations') {
+            const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+
+            config.url = '/api/department-admin/operations';
+            config.headers = config.headers || {};
+            config.headers['Accept'] = 'application/json';
+
+            if (token) {
+                config.headers['Authorization'] = `Bearer ${token}`;
+            }
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
@@ -17,12 +37,15 @@ const fetchOperations = async () => {
     try {
         const response = await axios.get('/api/operations');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        // BaseApiController يُرجع البيانات في response.data.data
+        const operationsData = response.data?.data || response.data || [];
+        operations.value = Array.isArray(operationsData) ? operationsData : [];
         
         showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
+        operations.value = [];
         showSuccessAlert("❌ فشل في تحميل البيانات.");
     } finally {
         isLoading.value = false;

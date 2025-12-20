@@ -345,8 +345,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // =====================================================================
     Route::prefix('pharmacist')->group(function () {
         
- 
-
         Route::get('drugs', [DrugPharmacistController::class, 'index']);
         Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']);
         Route::post('drugs', [DrugPharmacistController::class, 'store']);
@@ -358,6 +356,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('operations', [DashboardPharmacistController::class, 'operations']);
         Route::get('patients', [PatientPharmacistController::class, 'index']);
+        Route::get('patients/{fileNumber}', [PatientPharmacistController::class, 'show']);
         Route::post('dispense', [PatientPharmacistController::class, 'dispense']);
 
         Route::get('dashboard/stats', [DashboardPharmacistController::class, 'stats']);
@@ -472,6 +471,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('patients', [PatientDepartmentAdminController::class, 'index']);
         Route::get('patients/{id}', [PatientDepartmentAdminController::class, 'show']);
         Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);
+        Route::put('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'update']);
+        Route::delete('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'destroy']);
         Route::get('patients/{id}/dispensation-history', [PatientDepartmentAdminController::class, 'dispensationHistory']);
     });
     // ========================================================================

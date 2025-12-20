@@ -3,37 +3,67 @@ import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
+
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
-const API_URL = '/api/dashboard/stats';
+const API_BASE_URL = '/api/pharmacist';
+
+// تهيئة نسخة خاصة من Axios مع الـ baseURL والتوكن
+const api = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 10000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    },
+});
+
+// إضافة التوكن تلقائياً من localStorage
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
 
 // متغير لتخزين الإحصائيات
 const stats = ref({
     totalRegistered: 0,
     todayRegistered: 0,
     weekRegistered: 0,
-    // 💡 تم تغيير القيمة الافتراضية إلى false
-    isLoading: false, 
+    isLoading: true, 
 });
 
 // ----------------------------------------------------
 // 2. دالة جلب البيانات باستخدام Axios
 // ----------------------------------------------------
 const fetchStats = async () => {
-    // 💡 تم حذف السطر stats.value.isLoading = true;
-    // لتجنب ظهور رسالة التحميل حتى لفترة وجيزة
+    stats.value.isLoading = true;
 
     try {
-        const response = await axios.get(API_URL);
+        const response = await api.get('/dashboard/stats');
+        
+        // BaseApiController يُرجع البيانات بداخل data
+        const responseData = response.data?.data ?? response.data;
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
-        stats.value.totalRegistered = response.data.totalRegistered;
-        stats.value.todayRegistered = response.data.todayRegistered;
-        stats.value.weekRegistered = response.data.weekRegistered;
+        if (responseData) {
+            stats.value.totalRegistered = responseData.totalRegistered ?? 0;
+            stats.value.todayRegistered = responseData.todayRegistered ?? 0;
+            stats.value.weekRegistered = responseData.weekRegistered ?? 0;
+        }
         
     } catch (error) {
         console.error("Error fetching dashboard statistics:", error);
+        // في حالة الخطأ، نعرض القيم الافتراضية (0)
+        stats.value.totalRegistered = 0;
+        stats.value.todayRegistered = 0;
+        stats.value.weekRegistered = 0;
     } finally {
         stats.value.isLoading = false;
     }

@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\PrescriptionDrug;
 use App\Models\InternalSupplyRequest;
+use App\Models\InternalSupplyRequestItem;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -78,7 +79,37 @@ class DashboardPharmacistController extends BaseApiController
 
         $operations = $operations->merge($dispensingOperations);
 
-        // 2. جلب جميع العمليات من AuditLog للصيدلي
+        // 2. جلب طلبات التوريد مباشرة من جدول InternalSupplyRequest
+        $supplyRequestQuery = InternalSupplyRequest::where('requested_by', $user->id)
+            ->orderBy('created_at', 'desc');
+        
+        if ($pharmacyId) {
+            $supplyRequestQuery->where('pharmacy_id', $pharmacyId);
+        }
+
+        $supplyRequestOperations = $supplyRequestQuery->get()->map(function ($request) {
+            $itemCount = InternalSupplyRequestItem::where('request_id', $request->id)->count();
+            
+            // التأكد من أن created_at موجود وصحيح
+            $createdAt = $request->created_at;
+            if (!$createdAt) {
+                $createdAt = $request->updated_at ?? Carbon::now();
+            }
+            
+            return [
+                'fileNumber' => 'REQ-' . $request->id,
+                'name' => "طلب توريد ({$itemCount} عنصر)",
+                'operationType' => 'إنشاء طلب توريد',
+                'operationDate' => Carbon::parse($createdAt)->format('Y/m/d'),
+                'operationDateTime' => Carbon::parse($createdAt)->format('Y/m/d H:i'),
+                'details' => "طلب توريد يحتوي على {$itemCount} عنصر",
+                'created_at' => $createdAt,
+            ];
+        });
+
+        $operations = $operations->merge($supplyRequestOperations);
+
+        // 3. جلب جميع العمليات من AuditLog للصيدلي
         // نستخدم orWhere بشكل منفصل لضمان التقاط جميع السجلات
         $auditLogs = AuditLog::where('user_id', $user->id)
             ->where(function($query) {
@@ -193,11 +224,51 @@ class DashboardPharmacistController extends BaseApiController
 
         $operations = $operations->merge($auditOperations);
 
-        // دمج وفرز جميع العمليات حسب التاريخ
-        $allOperations = $operations->sortByDesc('created_at')
+        // دمج وفرز جميع العمليات حسب التاريخ والوقت الدقيق (الأحدث أولاً)
+        $allOperations = $operations
+            ->filter(function ($op) {
+                // التأكد من وجود created_at للترتيب
+                return isset($op['created_at']) && $op['created_at'] !== null;
+            })
+            ->map(function ($op) {
+                // تحويل created_at إلى Carbon object ثم timestamp للترتيب الدقيق
+                $carbonDate = null;
+                try {
+                    if (is_string($op['created_at'])) {
+                        $carbonDate = Carbon::parse($op['created_at']);
+                    } elseif (is_object($op['created_at'])) {
+                        // إذا كان Carbon object مباشرة
+                        if ($op['created_at'] instanceof \Carbon\Carbon) {
+                            $carbonDate = $op['created_at'];
+                        } elseif (method_exists($op['created_at'], 'timestamp')) {
+                            $carbonDate = $op['created_at'];
+                        } elseif (method_exists($op['created_at'], '__toString')) {
+                            $carbonDate = Carbon::parse($op['created_at']->__toString());
+                        } else {
+                            $carbonDate = Carbon::parse((string)$op['created_at']);
+                        }
+                    } else {
+                        $carbonDate = Carbon::now();
+                    }
+                } catch (\Exception $e) {
+                    $carbonDate = Carbon::now();
+                }
+                
+                // استخدام timestamp + microseconds للحصول على قيمة ترتيب دقيقة
+                // نستخدم getTimestamp() للحصول على timestamp الدقيق
+                $timestamp = $carbonDate->getTimestamp();
+                // إضافة microseconds كجزء عشري
+                $microseconds = $carbonDate->micro ?? 0;
+                // دمج timestamp و microseconds في قيمة عائمة للترتيب الدقيق
+                $op['_sortValue'] = (float)$timestamp + ((float)$microseconds / 1000000);
+                return $op;
+            })
+            ->sortByDesc('_sortValue')
             ->values()
             ->map(function ($op) {
-                unset($op['created_at']); // إزالة created_at من النتيجة النهائية
+                // إزالة الحقول المؤقتة
+                unset($op['created_at']);
+                unset($op['_sortValue']);
                 return $op;
             })
             ->take(100) // حد أقصى 100 عملية

@@ -986,7 +986,7 @@ onMounted(async () => {
                                     </tbody>
                                 </table>
                                 
-                                <!-- رسالة عند عدم وجود بيانات -->
+                                <!-- -رسالة عند عدم وجود بيلانات -->
                                 <div v-if="!isLoading && filteredDrugss.length === 0" class="text-center py-12">
                                     <div class="flex flex-col items-center">
                                         <Icon icon="tabler:package-off" class="w-20 h-20 text-gray-300 mb-4" />

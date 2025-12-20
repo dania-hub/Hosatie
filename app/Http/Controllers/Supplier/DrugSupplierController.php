@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Supplier;
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\Drug;
-use App\Models\Category;
 use App\Models\Inventory;
 use Illuminate\Http\Request;
 
@@ -19,12 +18,12 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             // جلب الأدوية من مخزون المورد
-            $drugs = Inventory::with(['drug.category'])
+            $drugs = Inventory::with(['drug'])
                 ->where('supplier_id', $user->supplier_id)
                 ->whereHas('drug')
                 ->get()
@@ -36,7 +35,11 @@ class DrugSupplierController extends BaseApiController
                         'quantity' => $inventory->current_quantity,
                         'neededQuantity' => $inventory->minimum_level,
                         'expiryDate' => $inventory->drug->expiry_date ?? 'غير محدد',
-                        'category' => $inventory->drug->category->name ?? 'غير مصنف',
+                        'category' => $inventory->drug
+                            ? (is_object($inventory->drug->category)
+                                ? ($inventory->drug->category->name ?? $inventory->drug->category)
+                                : ($inventory->drug->category ?? 'غير مصنف'))
+                            : 'غير مصنف',
                     ];
                 });
 
@@ -55,20 +58,21 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $drugs = Drug::with('category')
-                ->where('status', 'active')
+            $drugs = Drug::select('id', 'name', 'category')
+                ->where('status', 'متوفر')
                 ->get()
                 ->map(function ($drug) {
                     return [
                         'id' => $drug->id,
-                        'code' => $drug->code,
                         'name' => $drug->name,
-                        'category' => $drug->category->name ?? 'غير مصنف',
-                        'categoryId' => $drug->category_id,
+                        'category' => is_object($drug->category)
+                            ? ($drug->category->name ?? 'غير مصنف')
+                            : ($drug->category ?? 'غير مصنف'),
+                        'categoryId' => null,
                     ];
                 });
 
@@ -87,26 +91,27 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier') {
+            if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             $searchTerm = $request->input('query', '');
 
-            $drugs = Drug::with('category')
-                ->where('status', 'active')
+            $drugs = Drug::select('id', 'name', 'category')
+                ->where('status', 'متوفر')
                 ->where(function ($query) use ($searchTerm) {
                     $query->where('name', 'like', "%{$searchTerm}%")
-                        ->orWhere('code', 'like', "%{$searchTerm}%");
+                        ->orWhere('category', 'like', "%{$searchTerm}%");
                 })
                 ->limit(20)
                 ->get()
                 ->map(function ($drug) {
                     return [
                         'id' => $drug->id,
-                        'code' => $drug->code,
                         'name' => $drug->name,
-                        'category' => $drug->drug->category->name ?? 'غير مصنف',
+                        'category' => is_object($drug->category)
+                            ? ($drug->category->name ?? 'غير مصنف')
+                            : ($drug->category ?? 'غير مصنف'),
                     ];
                 });
 
@@ -116,32 +121,40 @@ class DrugSupplierController extends BaseApiController
         }
     }
 
+
     /**
-     * جلب الفئات
+     * جلب الفئات من الأدوية الموجودة
      * GET /api/supplier/categories
      */
-//     public function categories(Request $request)
-//     {
-//         try {
-//             $user = $request->user();
+    public function categories(Request $request)
+    {
+        try {
+            $user = $request->user();
 
-//             if ($user->type !== 'supplier') {
-//                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
-//             }
+            // التحقق من نوع المستخدم
+            if ($user->type !== 'supplier_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
 
-//             $categories = Category::where('status', 'active')
-//                 ->orderBy('name')
-//                 ->get()
-//                 ->map(function ($category) {
-//                     return [
-//                         'id' => $category->id,
-//                         'name' => $category->name,
-//                     ];
-//                 });
+            // جلب الفئات المميزة من عمود category في جدول drug
+            $categories = \DB::table('drug')
+                ->select('category')
+                ->whereNotNull('category')
+                ->where('category', '!=', '')
+                ->distinct()
+                ->orderBy('category')
+                ->get()
+                ->map(function ($item, $index) {
+                    return [
+                        'id' => $index + 1,
+                        'name' => $item->category,
+                    ];
+                })
+                ->values(); // إعادة ترتيب المفاتيح
 
-//             return $this->sendSuccess($categories, 'تم جلب الفئات بنجاح');
-//         } catch (\Exception $e) {
-//             return $this->handleException($e, 'Supplier Categories Error');
-//         }
-//     }
- }
+            return $this->sendSuccess($categories, 'تم جلب الفئات بنجاح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Supplier Categories Error');
+        }
+    }
+}

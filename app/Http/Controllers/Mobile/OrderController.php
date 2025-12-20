@@ -91,11 +91,22 @@ class OrderController extends BaseApiController
     }
 
     // 4.3 جلب قائمة المستشفيات
-    public function hospitals()
-    {
-        $hospitals = Hospital::where('status', 'active')->select('id', 'name')->get();
-        return response()->json(['success' => true, 'data' => $hospitals]);
+    public function hospitals(Request $request)
+{
+    $user = $request->user();
+    $currentHospitalId = $user->hospital_id; // hospital_id موجود في model User (patient)
+
+    $query = Hospital::where('status', 'active')->select('id', 'name');
+
+    // إذا كان المريض مسجل في مستشفى، نستثنيه
+    if ($currentHospitalId) {
+        $query->where('id', '!=', $currentHospitalId);
     }
+
+    $hospitals = $query->get();
+
+    return response()->json(['success' => true, 'data' => $hospitals]);
+}
 
     // 6.2 تفاصيل الطلب
     public function show($mixedId)

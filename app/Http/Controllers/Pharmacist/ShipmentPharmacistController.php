@@ -89,9 +89,11 @@ class ShipmentPharmacistController extends BaseApiController
                     'name' => $item->drug->name ?? 'Unknown',
                     'genericName' => $item->drug->generic_name ?? null,
                     'strength' => $item->drug->strength ?? null,
-                    'quantity' => $item->requested_qty,
-                    'approvedQty' => $item->approved_qty ?? null,
-                    'fulfilledQty' => $item->fulfilled_qty ?? null,
+                    'quantity' => $item->requested_qty, // الكمية المطلوبة
+                    'requestedQty' => $item->requested_qty, // الكمية المطلوبة (اسم بديل)
+                    'approvedQty' => $item->approved_qty ?? null, // الكمية المعتمدة
+                    'fulfilledQty' => $item->fulfilled_qty ?? null, // الكمية المستلمة
+                    'receivedQuantity' => $item->fulfilled_qty ?? $item->approved_qty ?? null, // الكمية المستلمة (للتوافق مع الواجهة)
                     'unit' => $item->drug->unit ?? 'علبة'
                 ];
             }),
@@ -119,7 +121,13 @@ class ShipmentPharmacistController extends BaseApiController
                 return $this->sendError('تم استلام هذه الشحنة مسبقاً.');
             }
 
-            // 2) تحقق أن الشحنة تخص صيدلية هذا المستخدم (أمان)
+            // 2) التحقق من أن الشحنة تم قبولها (approved) قبل السماح بتأكيد الاستلام
+            if ($shipment->status !== 'approved') {
+                $statusText = $this->translateStatus($shipment->status);
+                return $this->sendError("لا يمكن تأكيد الاستلام. يجب قبول الشحنة أولاً. الحالة الحالية: {$statusText}");
+            }
+
+            // 3) تحقق أن الشحنة تخص صيدلية هذا المستخدم (أمان)
             $user = $request->user();
             if ($user->pharmacy_id && $shipment->pharmacy_id !== $user->pharmacy_id) {
                 // يمكن تفعيل هذا الشرط لو أردت
@@ -160,12 +168,15 @@ class ShipmentPharmacistController extends BaseApiController
                 $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $qtyToAdd;
                 $inventory->save();
 
-                // (اختياري) يمكنك هنا أيضاً تحديث fulfilled_qty في item:
+                // تحديث fulfilled_qty في item:
                 $item->fulfilled_qty = $qtyToAdd;
                 $item->save();
             }
 
             DB::commit();
+
+            // إعادة تحميل البيانات المحدثة من قاعدة البيانات
+            $shipment = InternalSupplyRequest::with('items.drug')->findOrFail($id);
 
 AuditLog::create([
     'user_id'    => $user->id,
@@ -185,12 +196,26 @@ AuditLog::create([
     ]),
     'ip_address' => $request->ip(),
 ]);
+            
             return $this->sendSuccess([
                 'id' => $id,
                 'status' => 'تم الإستلام',
                 'confirmationDetails' => [
                     'confirmedAt' => now()->format('Y/m/d H:i')
-                ]
+                ],
+                'items' => $shipment->items->map(function($item) {
+                    return [
+                        'id' => $item->id,
+                        'drugId' => $item->drug_id,
+                        'name' => $item->drug->name ?? 'Unknown',
+                        'quantity' => $item->requested_qty,
+                        'requestedQty' => $item->requested_qty,
+                        'approvedQty' => $item->approved_qty ?? null,
+                        'fulfilledQty' => $item->fulfilled_qty ?? null,
+                        'receivedQuantity' => $item->fulfilled_qty ?? $item->approved_qty ?? null,
+                        'unit' => $item->drug->unit ?? 'علبة'
+                    ];
+                })
             ], 'تم تأكيد استلام الشحنة وإضافتها لمخزون الصيدلية.');
 
         } catch (\Exception $e) {

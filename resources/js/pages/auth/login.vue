@@ -321,8 +321,10 @@ const redirectByRole = (role) => {
         'pharmacist': '/pharmacist/patients',
         'hospital_admin': '/hospital-admin/patients',
         'super_admin': '/super-admin/patients',
-        'storekeeper':'storekeeper/medicationsList',
-        'Supplier':'Supplier/medicationsList'
+        'warehouse_manager': '/storekeeper/medications',
+        'storekeeper': '/storekeeper/medications',
+        'supplier_admin': '/Supplier/operations',
+        'Supplier': '/Supplier/operations'
     };
 
     const route = roleRoutes[role];

@@ -66,38 +66,80 @@ class DashboardDepartmentAdminController extends BaseApiController
                     $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
                     $patientInfo = $newValues['patient_info'] ?? null;
                     
-                    // محاولة جلب معلومات المريض من new_values (الأولوية)
-                    if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
-                        $operationData['fileNumber'] = $patientInfo['id'];
-                        $operationData['name'] = $patientInfo['full_name'];
-                    } else {
-                        // محاولة جلب معلومات المريض من prescription_drug (إذا كان السجل موجوداً)
-                        try {
-                            $prescriptionDrug = \App\Models\PrescriptionDrug::with('prescription.patient')
-                                ->find($log->record_id);
-                            if ($prescriptionDrug && $prescriptionDrug->prescription && $prescriptionDrug->prescription->patient) {
+                    // محاولة جلب معلومات الدواء
+                    $drugName = null;
+                    $quantity = null;
+                    
+                    try {
+                        $prescriptionDrug = \App\Models\PrescriptionDrug::with(['prescription.patient', 'drug'])
+                            ->find($log->record_id);
+                        
+                        if ($prescriptionDrug) {
+                            // جلب معلومات الدواء
+                            if ($prescriptionDrug->drug) {
+                                $drugName = $prescriptionDrug->drug->name ?? null;
+                            }
+                            $quantity = $prescriptionDrug->monthly_quantity ?? null;
+                            
+                            // جلب معلومات المريض
+                            if ($prescriptionDrug->prescription && $prescriptionDrug->prescription->patient) {
                                 $patient = $prescriptionDrug->prescription->patient;
                                 $operationData['fileNumber'] = $patient->id;
                                 $operationData['name'] = $patient->full_name;
-                            } else {
-                                // في حالة الحذف، قد لا يكون السجل موجوداً، نستخدم old_values
-                                $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
-                                if ($oldValues && isset($oldValues['prescription_id'])) {
-                                    $prescription = \App\Models\Prescription::with('patient')->find($oldValues['prescription_id']);
-                                    if ($prescription && $prescription->patient) {
-                                        $operationData['fileNumber'] = $prescription->patient->id;
-                                        $operationData['name'] = $prescription->patient->full_name;
-                                    } else {
-                                        $operationData['fileNumber'] = $log->record_id ?? 'N/A';
-                                        $operationData['name'] = 'غير محدد';
-                                    }
-                                } else {
-                                    $operationData['fileNumber'] = $log->record_id ?? 'N/A';
-                                    $operationData['name'] = 'غير محدد';
+                            }
+                        } else {
+                            // في حالة الحذف، محاولة جلب المعلومات من old_values أو new_values
+                            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+                            
+                            // محاولة جلب معلومات الدواء من new_values أو old_values
+                            if ($newValues && isset($newValues['drug_id'])) {
+                                $drug = \App\Models\Drug::find($newValues['drug_id']);
+                                if ($drug) {
+                                    $drugName = $drug->name;
+                                }
+                                $quantity = $newValues['monthly_quantity'] ?? null;
+                            } elseif ($oldValues && isset($oldValues['drug_id'])) {
+                                $drug = \App\Models\Drug::find($oldValues['drug_id']);
+                                if ($drug) {
+                                    $drugName = $drug->name;
+                                }
+                                $quantity = $oldValues['monthly_quantity'] ?? null;
+                            }
+                            
+                            // محاولة جلب معلومات المريض
+                            if ($oldValues && isset($oldValues['prescription_id'])) {
+                                $prescription = \App\Models\Prescription::with('patient')->find($oldValues['prescription_id']);
+                                if ($prescription && $prescription->patient) {
+                                    $operationData['fileNumber'] = $prescription->patient->id;
+                                    $operationData['name'] = $prescription->patient->full_name;
                                 }
                             }
-                        } catch (\Exception $e) {
-                            // في حالة الخطأ، نستخدم القيم الافتراضية
+                        }
+                    } catch (\Exception $e) {
+                        // في حالة الخطأ، نحاول جلب معلومات المريض من patient_info
+                        if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
+                            $operationData['fileNumber'] = $patientInfo['id'];
+                            $operationData['name'] = $patientInfo['full_name'];
+                        } else {
+                            $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                            $operationData['name'] = 'غير محدد';
+                        }
+                    }
+                    
+                    // إضافة معلومات الدواء إذا كانت متوفرة
+                    if ($drugName) {
+                        $operationData['drugName'] = $drugName;
+                    }
+                    if ($quantity !== null) {
+                        $operationData['quantity'] = $quantity;
+                    }
+                    
+                    // إذا لم يتم تعيين معلومات المريض بعد، نحاول من patient_info
+                    if (!isset($operationData['fileNumber']) || $operationData['fileNumber'] === 'N/A') {
+                        if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
+                            $operationData['fileNumber'] = $patientInfo['id'];
+                            $operationData['name'] = $patientInfo['full_name'];
+                        } else {
                             $operationData['fileNumber'] = $log->record_id ?? 'N/A';
                             $operationData['name'] = 'غير محدد';
                         }

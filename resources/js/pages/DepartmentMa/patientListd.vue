@@ -237,9 +237,49 @@ const searchTerm = ref("");
 const sortKey = ref('lastUpdated');
 const sortOrder = ref('desc');
 
+// دالة لتنسيق التاريخ
+const formatDate = (dateString) => {
+    if (!dateString) return 'غير محدد';
+    
+    // إذا كان التاريخ بصيغة ISO string (مثل 2021-10-17T00:00:00.000000Z)
+    if (dateString.includes('T')) {
+        try {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}/${month}/${day}`;
+        } catch (e) {
+            return dateString;
+        }
+    }
+    
+    // إذا كان التاريخ بصيغة Y/m/d أو Y-m-d
+    if (dateString.includes('/') || dateString.includes('-')) {
+        return dateString;
+    }
+    
+    return dateString;
+};
+
 const calculateAge = (birthDateString) => {
     if (!birthDateString) return 0;
-    const parts = birthDateString.split('/');
+    
+    // معالجة صيغة ISO string
+    let dateStr = birthDateString;
+    if (birthDateString.includes('T')) {
+        try {
+            const date = new Date(birthDateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            dateStr = `${year}/${month}/${day}`;
+        } catch (e) {
+            return 0;
+        }
+    }
+    
+    const parts = dateStr.split('/');
     if (parts.length !== 3) return 0;
 
     const birthDate = new Date(parts[0], parts[1] - 1, parts[2]);
@@ -783,7 +823,7 @@ const reloadData = () => {
                                             <td class="file-number-col">{{ patient.fileNumber }}</td>
                                             <td class="name-col">{{ patient.name }}</td>
                                             <td class="national-id-col">{{ patient.nationalId }}</td>
-                                            <td class="birth-date-col">{{ patient.birth }}</td>
+                                            <td class="birth-date-col">{{ formatDate(patient.birth) }}</td>
                                             <td class="phone-col">{{ patient.phone }}</td>
 
                                             <td class="actions-col">

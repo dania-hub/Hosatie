@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
 
@@ -11,10 +11,10 @@ import DrugPreviewModal from "@/components/forpharmacist/DrugPreviewModal.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
 
 // ----------------------------------------------------
-// 1. تهيئة axios مع base URL
+// 1. تهيئة axios مع base URL الخاص بمدير المخزن
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: "http://localhost:3000/api", // تغيير هذا حسب عنوان API الخاص بك
+  baseURL: "/api/storekeeper",
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
@@ -22,12 +22,23 @@ const api = axios.create({
   }
 });
 
-// إضافة interceptor لمعالجة الأخطاء
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// إضافة interceptor لمعالجة الأخطاء (بدون إظهار تنبيهات تلقائية)
 api.interceptors.response.use(
-  response => response,
-  error => {
+  (response) => response,
+  (error) => {
     console.error("API Error:", error.response?.data || error.message);
-    // إزالة showErrorAlert من هنا لتجنب ظهور رسائل الخطأ
     return Promise.reject(error);
   }
 );
@@ -35,315 +46,9 @@ api.interceptors.response.use(
 // ----------------------------------------------------
 // 2. بيانات الأدوية (سيتم تحميلها من API)
 // ----------------------------------------------------
-const drugsData = ref([
-  {
-    "id": 1,
-    "drugCode": "ASP001",
-    "drugName": "أسبرين",
-    "quantity": 5,
-    "neededQuantity": 100,
-    "expiryDate": "2024/06/15"
-  },
-  {
-    "id": 2,
-    "drugCode": "PAR002",
-    "drugName": "باراسيتامول",
-    "quantity": 30,
-    "neededQuantity": 100,
-    "expiryDate": "2024/08/20"
-  },
-  {
-    "id": 3,
-    "drugCode": "IBU003",
-    "drugName": "إيبوبروفين",
-    "quantity": 80,
-    "neededQuantity": 100,
-    "expiryDate": "2025/01/10"
-  },
-  {
-    "id": 4,
-    "drugCode": "AMX004",
-    "drugName": "أموكسيسيلين",
-    "quantity": 2,
-    "neededQuantity": 50,
-    "expiryDate": "2024/05/05"
-  },
-  {
-    "id": 5,
-    "drugCode": "OME005",
-    "drugName": "أوميبرازول",
-    "quantity": 25,
-    "neededQuantity": 50,
-    "expiryDate": "2024/09/30"
-  },
-  {
-    "id": 6,
-    "drugCode": "MET006",
-    "drugName": "ميتوفورمين",
-    "quantity": 60,
-    "neededQuantity": 100,
-    "expiryDate": "2025/03/15"
-  },
-  {
-    "id": 7,
-    "drugCode": "LOR007",
-    "drugName": "لوراتادين",
-    "quantity": 1,
-    "neededQuantity": 20,
-    "expiryDate": "2024/04/10"
-  },
-  {
-    "id": 8,
-    "drugCode": "SIM008",
-    "drugName": "سيمفاستاتين",
-    "quantity": 15,
-    "neededQuantity": 50,
-    "expiryDate": "2024/11/25"
-  },
-  {
-    "id": 9,
-    "drugCode": "DIP009",
-    "drugName": "ديبيريدامول",
-    "quantity": 90,
-    "neededQuantity": 100,
-    "expiryDate": "2025/07/20"
-  },
-  {
-    "id": 10,
-    "drugCode": "FLU010",
-    "drugName": "فلوكونازول",
-    "quantity": 0,
-    "neededQuantity": 30,
-    "expiryDate": "2024/03/01"
-  },
-  {
-    "id": 11,
-    "drugCode": "WAR011",
-    "drugName": "وارفارين",
-    "quantity": 45,
-    "neededQuantity": 100,
-    "expiryDate": "2024/12/31"
-  },
-  {
-    "id": 12,
-    "drugCode": "CLO012",
-    "drugName": "كلونازيبام",
-    "quantity": 10,
-    "neededQuantity": 40,
-    "expiryDate": "2025/02/14"
-  },
-  {
-    "id": 13,
-    "drugCode": "RAN013",
-    "drugName": "رانيتيدين",
-    "quantity": 70,
-    "neededQuantity": 100,
-    "expiryDate": "2025/05/05"
-  },
-  {
-    "id": 14,
-    "drugCode": "HYD014",
-    "drugName": "هيدروكلوروثيازيد",
-    "quantity": 3,
-    "neededQuantity": 25,
-    "expiryDate": "2024/07/07"
-  },
-  {
-    "id": 15,
-    "drugCode": "LEV015",
-    "drugName": "ليفوثيروكسين",
-    "quantity": 100,
-    "neededQuantity": 100,
-    "expiryDate": "2025/10/10"
-  }
-]);
-const categories = ref([
-  {
-    "id": 1,
-    "name": "مسكنات"
-  },
-  {
-    "id": 2,
-    "name": "مضادات حيوية"
-  },
-  {
-    "id": 3,
-    "name": "مضادات الالتهاب"
-  },
-  {
-    "id": 4,
-    "name": "أدوية القلب"
-  },
-  {
-    "id": 5,
-    "name": "أدوية الجهاز الهضمي"
-  },
-  {
-    "id": 6,
-    "name": "أدوية الجهاز التنفسي"
-  },
-  {
-    "id": 7,
-    "name": "أدوية الغدد الصماء"
-  },
-  {
-    "id": 8,
-    "name": "أدوية أخرى"
-  }
-]
-);
-const allDrugsData = ref([
-  {
-    "id": 1,
-    "drugCode": "ASP001",
-    "name": "أسبرين",
-    "categoryId": 1
-  },
-  {
-    "id": 2,
-    "drugCode": "PAR002",
-    "name": "باراسيتامول",
-    "categoryId": 1
-  },
-  {
-    "id": 3,
-    "drugCode": "IBU003",
-    "name": "إيبوبروفين",
-    "categoryId": 3
-  },
-  {
-    "id": 4,
-    "drugCode": "AMX004",
-    "name": "أموكسيسيلين",
-    "categoryId": 2
-  },
-  {
-    "id": 5,
-    "drugCode": "OME005",
-    "name": "أوميبرازول",
-    "categoryId": 5
-  },
-  {
-    "id": 6,
-    "drugCode": "MET006",
-    "name": "ميتوفورمين",
-    "categoryId": 7
-  },
-  {
-    "id": 7,
-    "drugCode": "LOR007",
-    "name": "لوراتادين",
-    "categoryId": 6
-  },
-  {
-    "id": 8,
-    "drugCode": "SIM008",
-    "name": "سيمفاستاتين",
-    "categoryId": 4
-  },
-  {
-    "id": 9,
-    "drugCode": "DIP009",
-    "name": "ديبيريدامول",
-    "categoryId": 4
-  },
-  {
-    "id": 10,
-    "drugCode": "FLU010",
-    "name": "فلوكونازول",
-    "categoryId": 2
-  },
-  {
-    "id": 11,
-    "drugCode": "WAR011",
-    "name": "وارفارين",
-    "categoryId": 4
-  },
-  {
-    "id": 12,
-    "drugCode": "CLO012",
-    "name": "كلونازيبام",
-    "categoryId": 8
-  },
-  {
-    "id": 13,
-    "drugCode": "RAN013",
-    "name": "رانيتيدين",
-    "categoryId": 5
-  },
-  {
-    "id": 14,
-    "drugCode": "HYD014",
-    "name": "هيدروكلوروثيازيد",
-    "categoryId": 4
-  },
-  {
-    "id": 15,
-    "drugCode": "LEV015",
-    "name": "ليفوثيروكسين",
-    "categoryId": 7
-  },
-  {
-    "id": 16,
-    "drugCode": "DIC016",
-    "name": "ديكلوفيناك",
-    "categoryId": 3
-  },
-  {
-    "id": 17,
-    "drugCode": "CIP017",
-    "name": "سيبروفلوكساسين",
-    "categoryId": 2
-  },
-  {
-    "id": 18,
-    "drugCode": "LOS018",
-    "name": "لوسارتان",
-    "categoryId": 4
-  },
-  {
-    "id": 19,
-    "drugCode": "PRED019",
-    "name": "بريدنيزون",
-    "categoryId": 3
-  },
-  {
-    "id": 20,
-    "drugCode": "SAL020",
-    "name": "سالبوتامول",
-    "categoryId": 6
-  },
-  {
-    "id": 21,
-    "drugCode": "INS021",
-    "name": "إنسولين",
-    "categoryId": 7
-  },
-  {
-    "id": 22,
-    "drugCode": "FUR022",
-    "name": "فوروسيميد",
-    "categoryId": 4
-  },
-  {
-    "id": 23,
-    "drugCode": "AZI023",
-    "name": "أزيثروميسين",
-    "categoryId": 2
-  },
-  {
-    "id": 24,
-    "drugCode": "OME024",
-    "name": "أوميبرازول (جرعة أخرى)",
-    "categoryId": 5
-  },
-  {
-    "id": 25,
-    "drugCode": "VIT025",
-    "name": "فيتامين C",
-    "categoryId": 8
-  }
-]);
+const drugsData = ref([]);
+const categories = ref([]);
+const allDrugsData = ref([]);
 
 // ----------------------------------------------------
 // 3. حالة المكونات المنبثقة
@@ -373,26 +78,21 @@ const sortDrugs = (key, order) => {
 const filteredDrugss = computed(() => {
   if (!drugsData.value.length) return [];
 
-  // 1. التصفية
-  let list = drugsData.value;
-  if (searchTerm.value) {
-    const search = searchTerm.value.toLowerCase();
-    list = list.filter(
-      (drug) =>
-        (drug.drugCode && drug.drugCode.toLowerCase().includes(search)) ||
-        (drug.drugName && drug.drugName.toLowerCase().includes(search))
-    );
-  }
+  // هنا يتم فقط الفرز على البيانات القادمة من الخادم
+  let list = [...drugsData.value];
 
-  // 2. الفرز
   if (sortKey.value) {
     list.sort((a, b) => {
       let comparison = 0;
 
       if (sortKey.value === "drugName") {
-        comparison = (a.drugName || "").localeCompare(b.drugName || "", "ar");
+        comparison = (a.drugName || a.name || "").localeCompare(b.drugName || b.name || "", "ar");
       } else if (sortKey.value === "quantity") {
         comparison = (a.quantity || 0) - (b.quantity || 0);
+      } else if (sortKey.value === "category") {
+        comparison = (a.category || "").localeCompare(b.category || "", "ar");
+      } else if (sortKey.value === "status") {
+        comparison = (a.status || "").localeCompare(b.status || "", "ar");
       } else if (sortKey.value === "expiryDate") {
         const dateA = a.expiryDate ? new Date(a.expiryDate.replace(/\//g, "-")) : new Date();
         const dateB = b.expiryDate ? new Date(b.expiryDate.replace(/\//g, "-")) : new Date();
@@ -410,56 +110,88 @@ const filteredDrugss = computed(() => {
 // 6. وظائف API
 // ----------------------------------------------------
 
-// جلب جميع الأدوية
+// جلب جميع الأدوية من مخزون المستودع
 const fetchDrugs = async () => {
   isLoading.value = true;
-  
+
   try {
+    // GET /api/storekeeper/drugs  -> WarehouseInventoryController@index
     const response = await api.get("/drugs");
-    drugsData.value = response.data;
-    hasData.value = response.data.length > 0;
-    if (response.data.length > 0) {
-      showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
+    const data = response.data?.data ?? response.data;
+
+    drugsData.value = Array.isArray(data) ? data : [];
+    hasData.value = drugsData.value.length > 0;
+
+    if (hasData.value) {
+      showSuccessAlert("✅ تم تحميل قائمة الأدوية في المستودع بنجاح");
     }
   } catch (error) {
-    // لا نعرض رسالة خطأ، فقط نترك الجدول فارغًا
-    console.warn("Warning: Could not fetch drugs data from API");
+    console.warn("Warning: Could not fetch drugs data from API", error);
+    drugsData.value = [];
     hasData.value = false;
   } finally {
     isLoading.value = false;
   }
 };
 
-// جلب الفئات
+// جلب الفئات (تصنيفات الأدوية)
 const fetchCategories = async () => {
   try {
+    // GET /api/storekeeper/categories  -> CategoryStoreKeeperController@index
     const response = await api.get("/categories");
-    categories.value = response.data;
+    const data = response.data?.data ?? response.data;
+    categories.value = Array.isArray(data) ? data : [];
   } catch (error) {
     console.warn("Warning: Could not fetch categories from API");
+    categories.value = [];
   }
 };
 
 // جلب جميع بيانات الأدوية للبحث
 const fetchAllDrugsData = async () => {
   try {
+    // GET /api/storekeeper/drugs/all  -> WarehouseInventoryController@allDrugs
     const response = await api.get("/drugs/all");
-    allDrugsData.value = response.data;
+    const data = response.data?.data ?? response.data;
+    const drugs = Array.isArray(data) ? data : [];
+    
+    // التأكد من أن كل دواء له id
+    allDrugsData.value = drugs.map(drug => ({
+      id: drug.id,
+      drugId: drug.id,
+      name: drug.drugName || drug.name,
+      drugName: drug.drugName || drug.name,
+      genericName: drug.genericName,
+      strength: drug.strength,
+      form: drug.form,
+      category: drug.category,
+      categoryId: drug.category,
+      unit: drug.unit,
+      maxMonthlyDose: drug.maxMonthlyDose,
+      status: drug.status,
+      manufacturer: drug.manufacturer,
+      country: drug.country,
+      utilizationType: drug.utilizationType,
+      type: drug.form || 'Tablet'
+    }));
+    
+    console.log('All Drugs Data loaded:', allDrugsData.value.length, 'drugs');
   } catch (error) {
-    console.warn("Warning: Could not fetch all drugs data from API");
+    console.error("Error fetching all drugs data from API:", error);
+    allDrugsData.value = [];
   }
 };
 
 // تحديث دواء
 const updateDrug = async (drugId, updatedData) => {
   try {
-    const response = await api.put(`/drugs/${drugId}`, updatedData);
-    const index = drugsData.value.findIndex(drug => drug.id === drugId);
-    if (index !== -1) {
-      drugsData.value[index] = { ...drugsData.value[index], ...response.data };
-    }
+    // PUT /api/storekeeper/drugs/{id}  -> تحديث سجل المخزون
+    await api.put(`/drugs/${drugId}`, updatedData);
+
+    // بعد التحديث، نعيد تحميل القائمة لضمان تزامن البيانات
+    await fetchDrugs();
+
     showSuccessAlert("✅ تم تحديث بيانات الدواء بنجاح");
-    return response.data;
   } catch (error) {
     showErrorAlert("❌ فشل في تحديث بيانات الدواء");
     throw error;
@@ -469,9 +201,12 @@ const updateDrug = async (drugId, updatedData) => {
 // حذف دواء
 const deleteDrug = async (drugId) => {
   try {
+    // DELETE /api/storekeeper/drugs/{id}
     await api.delete(`/drugs/${drugId}`);
-    drugsData.value = drugsData.value.filter(drug => drug.id !== drugId);
-    hasData.value = drugsData.value.length > 0;
+
+    // إعادة تحميل القائمة بعد الحذف
+    await fetchDrugs();
+
     showSuccessAlert("✅ تم حذف الدواء بنجاح");
   } catch (error) {
     showErrorAlert("❌ فشل في حذف الدواء");
@@ -482,11 +217,14 @@ const deleteDrug = async (drugId) => {
 // إضافة دواء جديد
 const addDrug = async (newDrug) => {
   try {
-    const response = await api.post("/drugs", newDrug);
-    drugsData.value.push(response.data);
-    hasData.value = true;
+    // POST /api/storekeeper/drugs
+    await api.post("/drugs", newDrug);
+
+    // إعادة تحميل الجدول لعرض الدواء المضاف
+    await fetchDrugs();
+    hasData.value = drugsData.value.length > 0;
+
     showSuccessAlert("✅ تم إضافة الدواء الجديد بنجاح");
-    return response.data;
   } catch (error) {
     showErrorAlert("❌ فشل في إضافة الدواء");
     throw error;
@@ -496,15 +234,38 @@ const addDrug = async (newDrug) => {
 // إرسال طلب توريد
 const submitSupplyRequest = async (requestData) => {
   try {
-    const response = await api.post("/supply-requests", requestData);
-    showSuccessAlert("✅ تم إرسال طلب التوريد بنجاح");
+    console.log('Request Data:', requestData); // للتصحيح
+    
+    // تجهيز الحمولة لتتوافق مع ExternalSupplyRequestController@store
+    const payload = {
+      items: (requestData.items || []).map(item => ({
+        drugId: item.drugId || item.id,
+        quantity: item.quantity
+      })),
+      notes: requestData.notes || null
+    };
+
+    console.log('Payload:', payload); // للتصحيح
+
+    // POST /api/storekeeper/supply-requests
+    const response = await api.post("/supply-requests", payload);
+    
+    console.log('Response:', response); // للتصحيح
+
+    // Laravel Resources wrap collections in a 'data' property
+    const responseData = response.data?.data ?? response.data;
+    const requestNumber = responseData?.requestNumber || 'N/A';
+
+    showSuccessAlert(`✅ تم إرسال طلب التوريد رقم ${requestNumber} بنجاح`);
     
     // تحديث كميات الأدوية بعد الطلب
     await fetchDrugs();
     
     return response.data;
   } catch (error) {
-    showErrorAlert("❌ فشل في إرسال طلب التوريد");
+    console.error("Error submitting supply request:", error);
+    const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ غير متوقع';
+    showErrorAlert(`❌ فشل في إرسال طلب التوريد: ${errorMessage}`);
     throw error;
   }
 };
@@ -601,8 +362,12 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 <table>
 <thead>
  <tr>
- <th>رمز الدواء</th>
+
  <th>اسم الدواء</th>
+ <th>الاسم العلمي</th>
+ <th>التركيز</th>
+ <th>الفئة</th>
+ 
  <th>الكمية المتوفرة</th>
  <th>الكمية المحتاجة</th>
  <th>تاريخ إنتهاء الصلاحية</th>
@@ -614,11 +379,17 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     filteredDrugss.value.forEach((drug) => {
       tableHtml += `
 <tr>
- <td>${drug.drugCode || ''}</td>
- <td>${drug.drugName || ''}</td>
+
+ <td>${drug.drugName || drug.name || ''}</td>
+ <td>${drug.genericName || '-'}</td>
+ <td>${drug.strength || '-'}</td>
+
+ <td>${drug.category || '-'}</td>
+
+
  <td>${drug.quantity || 0}</td>
  <td>${drug.neededQuantity || 0}</td>
- <td>${drug.expiryDate || ''}</td>
+ <td>${drug.expiryDate || '-'}</td>
 </tr>
 `;
     });
@@ -716,10 +487,14 @@ onMounted(async () => {
             <Navbar />
 
             <main class="flex-1 p-4 sm:p-5 pt-3">
-               
+                <!-- رسالة تحميل -->
+                <div v-if="isLoading" class="text-center py-8">
+                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] mx-auto mb-4" />
+                    <p class="text-gray-600">جاري تحميل البيانات...</p>
+                </div>
 
                 <!-- المحتوى الرئيسي -->
-                <div >
+                <div v-else>
                     <div
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
@@ -807,6 +582,66 @@ onMounted(async () => {
                                     <li
                                         class="menu-title text-gray-700 font-bold text-sm mt-2"
                                     >
+                                        حسب الفئة:
+                                    </li>
+                                    <li>
+                                        <a
+                                            @click="sortDrugs('category', 'asc')"
+                                            :class="{
+                                                'font-bold text-[#4DA1A9]':
+                                                    sortKey === 'category' &&
+                                                    sortOrder === 'asc',
+                                            }"
+                                        >
+                                            الفئة (أ - ي)
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a
+                                            @click="sortDrugs('category', 'desc')"
+                                            :class="{
+                                                'font-bold text-[#4DA1A9]':
+                                                    sortKey === 'category' &&
+                                                    sortOrder === 'desc',
+                                            }"
+                                        >
+                                            الفئة (ي - أ)
+                                        </a>
+                                    </li>
+
+                                    <li
+                                        class="menu-title text-gray-700 font-bold text-sm mt-2"
+                                    >
+                                        حسب الحالة:
+                                    </li>
+                                    <li>
+                                        <a
+                                            @click="sortDrugs('status', 'asc')"
+                                            :class="{
+                                                'font-bold text-[#4DA1A9]':
+                                                    sortKey === 'status' &&
+                                                    sortOrder === 'asc',
+                                            }"
+                                        >
+                                            الحالة (أ - ي)
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a
+                                            @click="sortDrugs('status', 'desc')"
+                                            :class="{
+                                                'font-bold text-[#4DA1A9]':
+                                                    sortKey === 'status' &&
+                                                    sortOrder === 'desc',
+                                            }"
+                                        >
+                                            الحالة (ي - أ)
+                                        </a>
+                                    </li>
+
+                                    <li
+                                        class="menu-title text-gray-700 font-bold text-sm mt-2"
+                                    >
                                         حسب تاريخ الإنتهاء:
                                     </li>
                                     <li>
@@ -872,28 +707,20 @@ onMounted(async () => {
                             <div class="overflow-x-auto h-full">
                                 <table
                                     dir="rtl"
-                                    class="table w-full text-right min-w-[700px] border-collapse"
+                                    class="table w-full text-right min-w-[1400px] border-collapse"
                                     v-if="filteredDrugss.length > 0"
                                 >
                                     <thead
                                         class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                                     >
                                         <tr>
-                                            <th class="drug-code-col">
-                                                رمز الدواء
-                                            </th>
-                                            <th class="drug-name-col">
-                                                اسم الدواء
-                                            </th>
-                                            <th class="quantity-col">
-                                                الكمية المتوفرة
-                                            </th>
-                                            <th class="needed-quantity-col">
-                                                الكمية المحتاجة
-                                            </th>
-                                            <th class="expiry-date-col">
-                                                تاريخ إنتهاء الصلاحية
-                                            </th>
+                                          
+                                            <th class="name-col">اسم الدواء</th>
+                                            <th class="generic-name-col">الاسم العلمي</th>
+                                            <th class="strength-col">التركيز</th>
+                                            <th class="quantity-col">الكمية المتوفرة</th>
+                                            <th class="needed-quantity-col">الكمية المحتاجة</th>
+                                            <th class="expiry-date-col">تاريخ إنتهاء الصلاحية</th>
                                             <th class="actions-col">الإجراءات</th>
                                         </tr>
                                     </thead>
@@ -910,6 +737,7 @@ onMounted(async () => {
                                                 ),
                                             ]"
                                         >
+                                           
                                             <td
                                                 :class="
                                                     getTextColorClass(
@@ -918,7 +746,7 @@ onMounted(async () => {
                                                     )
                                                 "
                                             >
-                                                {{ drug.drugCode }}
+                                                {{ drug.drugName || drug.name }}
                                             </td>
                                             <td
                                                 :class="
@@ -928,8 +756,21 @@ onMounted(async () => {
                                                     )
                                                 "
                                             >
-                                                {{ drug.drugName }}
+                                                {{ drug.genericName || '-' }}
                                             </td>
+                                            <td
+                                                :class="
+                                                    getTextColorClass(
+                                                        drug.quantity,
+                                                        drug.neededQuantity
+                                                    )
+                                                "
+                                            >
+                                                {{ drug.strength || '-' }}
+                                            </td>
+                                          
+                                          
+                                          
                                             <td
                                                 :class="
                                                     getTextColorClass(
@@ -939,7 +780,7 @@ onMounted(async () => {
                                                 "
                                             >
                                                 <span class="font-bold">{{
-                                                    drug.quantity
+                                                    drug.quantity || 0
                                                 }}</span>
                                             </td>
                                             <td
@@ -951,7 +792,7 @@ onMounted(async () => {
                                                 "
                                             >
                                                 <span class="font-bold">{{
-                                                    drug.neededQuantity
+                                                    drug.neededQuantity || 0
                                                 }}</span>
                                             </td>
                                             <td
@@ -962,7 +803,7 @@ onMounted(async () => {
                                                     )
                                                 "
                                             >
-                                                {{ drug.expiryDate }}
+                                                {{ drug.expiryDate || '-' }}
                                             </td>
                                             <td class="actions-col">
                                                 <div
@@ -1085,34 +926,40 @@ onMounted(async () => {
 }
 
 .actions-col {
-    width: 120px;
-    min-width: 120px;
-    max-width: 120px;
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
     text-align: center;
     padding-left: 0.5rem;
     padding-right: 0.5rem;
 }
-.drug-code-col {
+
+.name-col {
+    width: 80px;
+    min-width: 80px;
+}
+.generic-name-col {
     width: 120px;
     min-width: 120px;
 }
+.strength-col {
+    width: 100px;
+    min-width: 100px;
+}
+
 .quantity-col {
-    width: 120px; 
-    min-width: 120px;
+    width: 70px; 
+    min-width: 70px;
 }
 .needed-quantity-col {
-    width: 150px; 
-    min-width: 150px;
+    width: 70px; 
+    min-width: 70px;
 }
 .expiry-date-col {
-    width: 150px;
-    min-width: 150px;
+    width: 80px;
+    min-width: 80px;
 }
-.drug-name-col {
-    width: auto;
-    min-width: 170px;
-}
-.min-w-\[700px\] {
-    min-width: 700px;
+.min-w-\[1400px\] {
+    min-width: 100px;
 }
 </style>

@@ -36,6 +36,8 @@ const stats = ref({
     totalRegistered: 0,
     todayRegistered: 0,
     weekRegistered: 0,
+    supplyRequestsCount: 0,
+    receivedRequestsCount: 0,
     isLoading: true, 
 });
 
@@ -56,6 +58,8 @@ const fetchStats = async () => {
             stats.value.totalRegistered = responseData.totalRegistered ?? 0;
             stats.value.todayRegistered = responseData.todayRegistered ?? 0;
             stats.value.weekRegistered = responseData.weekRegistered ?? 0;
+            stats.value.supplyRequestsCount = responseData.supplyRequestsCount ?? 0;
+            stats.value.receivedRequestsCount = responseData.receivedRequestsCount ?? 0;
         }
         
     } catch (error) {
@@ -64,6 +68,8 @@ const fetchStats = async () => {
         stats.value.totalRegistered = 0;
         stats.value.todayRegistered = 0;
         stats.value.weekRegistered = 0;
+        stats.value.supplyRequestsCount = 0;
+        stats.value.receivedRequestsCount = 0;
     } finally {
         stats.value.isLoading = false;
     }
@@ -89,7 +95,7 @@ onMounted(() => {
             <Icon icon="svg-spinners:ring-resize" class="w-6 h-6 mr-2" />
         </div>
 
-        <div v-else class="cards flex flex-col md:flex-row md:justify-between items-center mb-6 group gap-4">
+        <div v-else class="cards flex flex-col md:flex-row md:flex-wrap md:justify-between items-center mb-6 group gap-4">
 
             <div class="card bg-[#A0B0BF] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#2E5077] flex flex-col justify-between transition duration-300 ease-in-out
                 group-hover:blur-xs
@@ -119,6 +125,26 @@ onMounted(() => {
                     <p class="text text-xl font-bold text-[#2E5077]"> عدد المرضى الذين تم خدمتهم هذا الأسبوع</p>
                 </div>
                 <p class="number text-4xl font-bold text-left text-white">{{ stats.weekRegistered }}</p>
+            </div>
+
+            <div class="card bg-[#E8D5B7] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#D4A574] flex flex-col justify-between transition duration-300 ease-in-out
+                group-hover:blur-xs
+                hover:!blur-none">
+                <div class="content flex items-center gap-2 justify-end">
+                    <Icon icon="solar:document-text-bold-duotone" class="icon w-10 h-10 text-[#D4A574]" />
+                    <p class="text text-xl font-bold text-[#2E5077]">عدد طلبات التوريد</p>
+                </div>
+                <p class="number text-4xl font-bold text-left text-white">{{ stats.supplyRequestsCount }}</p>
+            </div>
+
+            <div class="card bg-[#F0E6D2] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#E5C9A1] flex flex-col justify-between transition duration-300 ease-in-out
+                group-hover:blur-xs
+                hover:!blur-none">
+                <div class="content flex items-center gap-2 justify-end">
+                    <Icon icon="solar:box-check-bold-duotone" class="icon w-10 h-10 text-[#E5C9A1]" />
+                    <p class="text text-xl font-bold text-[#2E5077]">عدد عمليات استلام طلبات التوريد</p>
+                </div>
+                <p class="number text-4xl font-bold text-left text-white">{{ stats.receivedRequestsCount }}</p>
             </div>
         </div>
     </main>

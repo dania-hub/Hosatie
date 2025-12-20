@@ -10,6 +10,7 @@ use App\Models\PrescriptionDrug;
 use App\Models\Drug;
 use App\Models\Dispensing;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PatientDepartmentAdminController extends BaseApiController
 {
@@ -32,11 +33,16 @@ class PatientDepartmentAdminController extends BaseApiController
         }
 
         $patients = $query->get()->map(function ($patient) {
+            // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
+            $birthFormatted = $patient->birth_date
+                ? Carbon::parse($patient->birth_date)->format('Y/m/d')
+                : null;
+            
             return [
                 'fileNumber' => $patient->id,
                 'name'       => $patient->full_name,
                 'nationalId' => $patient->national_id,
-                'birth'      => $patient->birth_date,
+                'birth'      => $birthFormatted,
                 'phone'      => $patient->phone,
                 'lastUpdated'=> $patient->updated_at->toIso8601String(),
             ];
@@ -338,8 +344,20 @@ class PatientDepartmentAdminController extends BaseApiController
      */
     public function dispensationHistory($id)
     {
-        $history = Dispensing::where('patient_id', $id)->get();
-        // Map to match frontend expectation if needed
+        $history = Dispensing::with(['drug', 'pharmacist'])
+            ->where('patient_id', $id)
+            ->latest('created_at')
+            ->get()
+            ->map(function ($record) {
+                return [
+                    'id' => $record->id,
+                    'drugName' => $record->drug ? $record->drug->name : 'غير معروف',
+                    'quantity' => $record->quantity_dispensed ?? 0,
+                    'date' => $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('Y/m/d') : '-',
+                    'assignedBy' => $record->pharmacist ? ($record->pharmacist->full_name ?? 'غير معروف') : 'غير معروف',
+                ];
+            });
+
         return $this->sendSuccess($history, 'تم جلب سجل الصرف.');
     }
 

@@ -75,7 +75,7 @@ onMounted(() => {
                 hover:!blur-none">
                 <div class="content flex items-center gap-2 justify-end">
                     <Icon icon="lucide:users" class="icon w-10 h-10 text-[#2E5077]" />
-                    <p class="text text-xl font-bold text-[#2E5077]"> عدد المرضى اليوم </p>
+                    <p class="text text-xl font-bold text-[#2E5077]"> إجمالي عدد المرضى </p>
                 </div>
                 <p class="number text-4xl font-bold text-left text-white">{{ stats.totalRegistered }}</p>
             </div>

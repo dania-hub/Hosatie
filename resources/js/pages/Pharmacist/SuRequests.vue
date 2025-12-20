@@ -219,8 +219,8 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else>
-                                                <!-- إذا لم تكن مستلمة وغير مرفوضة، تظهر زر تأكيد الاستلام -->
+                                            <template v-else-if="shipment.requestStatus === 'قيد التجهيز'">
+                                                <!-- يظهر زر تأكيد الاستلام فقط عندما تكون الحالة "قيد التجهيز" (approved) -->
                                                 <button
                                                     @click="openConfirmationModal(shipment)" 
                                                     class="tooltip"
@@ -228,6 +228,16 @@
                                                     <Icon
                                                         icon="tabler:truck-delivery"
                                                         class="w-5 h-5 text-red-500 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </template>
+                                            
+                                            <template v-else>
+                                                <!-- للحالات الأخرى (مثل "قيد الانتظار") لا يظهر زر تأكيد الاستلام -->
+                                                <button class="tooltip" data-tip="في انتظار القبول">
+                                                    <Icon
+                                                        icon="solar:clock-circle-bold-duotone"
+                                                        class="w-5 h-5 text-gray-400"
                                                     />
                                                 </button>
                                             </template>
@@ -571,37 +581,44 @@ const handleSupplyConfirm = async (data) => {
 };
 
 const openRequestViewModal = async (shipment) => {
-    // إذا لم تكن التفاصيل كاملة، نجلبها من API
-    if (!shipment.details.items || shipment.details.items.length === 0) {
-        try {
-            const response = await endpoints.shipments.getById(shipment.id);
-            const data = response.data?.data ?? response.data;
-            
-            if (data) {
-                shipment.details = {
-                    id: data.id,
-                    date: data.requestDate || data.created_at,
-                    status: data.status,
-                    items: data.items || [],
-                    notes: data.notes || '',
-                    ...(data.confirmationDetails && {
-                        confirmationDetails: data.confirmationDetails
-                    })
-                };
-            }
-        } catch (err) {
-            console.error('Error fetching shipment details:', err);
+    let fetchedData = null;
+    // دائماً نجلب البيانات من API لضمان الحصول على أحدث البيانات
+    try {
+        const response = await endpoints.shipments.getById(shipment.id);
+        fetchedData = response.data?.data ?? response.data;
+        
+        if (fetchedData) {
+            shipment.details = {
+                id: fetchedData.id,
+                date: fetchedData.requestDate || fetchedData.created_at,
+                status: fetchedData.status,
+                items: fetchedData.items || [],
+                notes: fetchedData.notes || '',
+                ...(fetchedData.confirmationDetails && {
+                    confirmationDetails: fetchedData.confirmationDetails
+                })
+            };
         }
+    } catch (err) {
+        console.error('Error fetching shipment details:', err);
     }
     
-    if (shipment.requestStatus === 'تم الإستلام' || shipment.received) {
-        selectedRequestDetails.value = {
-            ...shipment.details,
-            confirmation: shipment.details.confirmationDetails
-        };
-    } else {
-        selectedRequestDetails.value = shipment.details;
-    }
+    // تحديث البيانات مع التأكد من وجود الكميات المستلمة
+    selectedRequestDetails.value = {
+        ...shipment.details,
+        items: (shipment.details.items || []).map(item => ({
+            ...item,
+            // التأكد من وجود الكمية المستلمة - أولوية fulfilledQty
+            fulfilledQty: item.fulfilledQty ?? item.fulfilled_qty ?? null,
+            receivedQuantity: item.receivedQuantity ?? item.fulfilledQty ?? item.fulfilled_qty ?? null,
+            // الكمية المطلوبة
+            quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+            requestedQty: item.requestedQty ?? item.requested_qty ?? item.quantity ?? 0,
+        })),
+        confirmation: shipment.details.confirmationDetails || (shipment.requestStatus === 'تم الإستلام' || shipment.received || fetchedData?.status === 'تم الإستلام' ? {
+            confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString()
+        } : null)
+    };
     isRequestViewModalOpen.value = true;
 };
 
@@ -637,8 +654,19 @@ const handleConfirmation = async (confirmationData) => {
         if (shipmentIndex !== -1) {
             shipmentsData.value[shipmentIndex].requestStatus = responseData?.status || 'تم الإستلام';
             shipmentsData.value[shipmentIndex].received = true;
+            
+            // تحديث تفاصيل الشحنة مع البيانات المحدثة
             if (responseData?.confirmationDetails) {
                 shipmentsData.value[shipmentIndex].details.confirmationDetails = responseData.confirmationDetails;
+            }
+            
+            // تحديث عناصر الشحنة بالكميات المستلمة
+            if (responseData?.items && Array.isArray(responseData.items)) {
+                shipmentsData.value[shipmentIndex].details.items = responseData.items.map(item => ({
+                    ...item,
+                    receivedQuantity: item.receivedQuantity ?? item.fulfilledQty ?? item.fulfilled_qty ?? null,
+                    quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+                }));
             }
         }
         

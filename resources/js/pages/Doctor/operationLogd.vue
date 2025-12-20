@@ -246,11 +246,16 @@ const printTable = () => {
     `;
 
     filteredOperations.value.forEach(op => {
+        let operationType = op.operationType;
+        if (op.drugName && op.quantity) {
+            operationType = `${op.operationType} - الدواء: ${op.drugName} (الكمية: ${op.quantity})`;
+        }
+        
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
                 <td>${op.name}</td>
-                <td>${op.operationType}</td>
+                <td>${operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
         `;
@@ -398,7 +403,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                     >
                                         <td class="file-number-col">{{ op.fileNumber }}</td>
                                         <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
+                                        <td class="operation-type-col">
+                                            <div class="font-semibold">{{ op.operationType }}</div>
+                                            <div v-if="op.drugName && op.quantity" class="text-sm text-gray-600 mt-1">
+                                                الدواء: {{ op.drugName }} - الكمية: {{ op.quantity }}
+                                            </div>
+                                        </td>
                                         <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
@@ -460,8 +470,8 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     min-width: 90px;
 }
 .operation-type-col {
-    width: 120px;
-    min-width: 120px;
+    width: 250px;
+    min-width: 250px;
 }
 .operation-date-col {
     width: 120px;

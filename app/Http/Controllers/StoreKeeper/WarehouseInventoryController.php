@@ -29,11 +29,16 @@ class WarehouseInventoryController extends BaseApiController
         $data = $items->map(function ($item) {
             return [
                 'id'             => $item->id,
-                'drugCode'       => $item->drug->code ?? null,
+                'drugCode'       => $item->drug->id ?? null, // استخدام ID كرمز مؤقت
                 'drugName'       => $item->drug->name ?? null,
+                'name'           => $item->drug->name ?? null, // للتوافق مع pharmacist
+                'genericName'    => $item->drug->generic_name ?? null,
+                'strength'       => $item->drug->strength ?? null,
+                'category'       => $item->drug->category ?? null,
+                'status'         => $item->drug->status ?? null,
                 'quantity'       => $item->current_quantity,  // الكمية المتوفرة في المخزن
                 'neededQuantity' => $item->minimum_level,     // الحد الأدنى/المستهدف
-                'expiryDate'     => null, // جدول inventory الحالي لا يحتوي expiry_date
+                'expiryDate'     => $item->drug->expiry_date ? date('Y/m/d', strtotime($item->drug->expiry_date)) : null,
             ];
         });
 
@@ -50,7 +55,7 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
-        $drugs = Drug::select('id', 'code as drugCode', 'name as drugName')
+        $drugs = Drug::select('id', 'id as drugCode', 'name as drugName', 'generic_name as genericName', 'strength', 'category', 'form', 'unit', 'max_monthly_dose as maxMonthlyDose', 'status', 'manufacturer', 'country', 'utilization_type as utilizationType')
             ->orderBy('name')
             ->get();
 
@@ -114,11 +119,16 @@ class WarehouseInventoryController extends BaseApiController
 
         return response()->json([
             'id'             => $item->id,
-            'drugCode'       => $item->drug->code ?? null,
+            'drugCode'       => $item->drug->id ?? null, // استخدام ID كرمز مؤقت
             'drugName'       => $item->drug->name ?? null,
+            'name'           => $item->drug->name ?? null,
+            'genericName'    => $item->drug->generic_name ?? null,
+            'strength'       => $item->drug->strength ?? null,
+            'category'       => $item->drug->category ?? null,
+            'status'         => $item->drug->status ?? null,
             'quantity'       => $item->current_quantity,
             'neededQuantity' => $item->minimum_level,
-            'expiryDate'     => null,
+            'expiryDate'     => $item->drug->expiry_date ? date('Y/m/d', strtotime($item->drug->expiry_date)) : null,
         ]);
     }
 

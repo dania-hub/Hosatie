@@ -7,6 +7,47 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
+// إعداد axios مع base URL و interceptor للتوكن
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+    (response) => {
+        return response.data;
+    },
+    (error) => {
+        console.error('API Error:', error.response?.data || error.message);
+        if (error.response?.status === 401) {
+            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+        } else if (error.response?.status === 403) {
+            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+        } else if (!error.response) {
+            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+        }
+        return Promise.reject(error);
+    }
+);
 
 const operations = ref([]);
 const isLoading = ref(false);
@@ -15,15 +56,17 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/storekeeper/operations');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        operations.value = response || []; // 👈 تحديث البيانات المجلوبة
         
         showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
+        if (!error.response || error.response.status !== 401 && error.response.status !== 403) {
+            showSuccessAlert("❌ فشل في تحميل البيانات.");
+        }
     } finally {
         isLoading.value = false;
     }
@@ -74,8 +117,8 @@ const filteredOperations = computed(() => {
         // تصفية حسب نص البحث
         const searchMatch = !search ||
                             op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            op.operationType.includes(search);
+                            op.operationType.toLowerCase().includes(search.toLowerCase()) ||
+                            op.operationDate.includes(search);
 
         // تصفية حسب نوع العملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
@@ -89,9 +132,7 @@ const filteredOperations = computed(() => {
         list.sort((a, b) => {
             let comparison = 0;
 
-            if (sortKey.value === 'name') {
-                comparison = a.name.localeCompare(b.name, 'ar');
-            } else if (sortKey.value === 'fileNumber') {
+            if (sortKey.value === 'fileNumber') {
                 comparison = a.fileNumber - b.fileNumber;
             } else if (sortKey.value === 'operationType') {
                 comparison = a.operationType.localeCompare(b.operationType, 'ar');
@@ -188,8 +229,7 @@ const printTable = () => {
         <table>
             <thead>
                 <tr>
-                    <th>رقم الملف</th>
-                    <th>الإسم الرباعي</th>
+                    <th>معرف العملية</th>
                     <th>نوع العملية</th>
                     <th>تاريخ العملية</th>
                 </tr>
@@ -201,7 +241,6 @@ const printTable = () => {
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
                 <td>${op.operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
@@ -236,7 +275,7 @@ const printTable = () => {
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم العملية أو نوع العملية أو التاريخ" />
                         </div>
                         
                         <div class="dropdown dropdown-start">
@@ -282,17 +321,30 @@ const printTable = () => {
                                     </a>
                                 </li>
                                 
-                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الاسم:</li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب نوع العملية:</li>
                                 <li>
-                                    <a @click="sortOperations('name', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
-                                        الاسم (أ - ي)
+                                    <a @click="sortOperations('operationType', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationType' && sortOrder === 'asc'}">
+                                        نوع العملية (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('name', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
-                                        الاسم (ي - أ)
+                                    <a @click="sortOperations('operationType', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationType' && sortOrder === 'desc'}">
+                                        نوع العملية (ي - أ)
+                                    </a>
+                                </li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب رقم العملية:</li>
+                                <li>
+                                    <a @click="sortOperations('fileNumber', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'fileNumber' && sortOrder === 'asc'}">
+                                        رقم العملية (صغير - كبير)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a @click="sortOperations('fileNumber', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'fileNumber' && sortOrder === 'desc'}">
+                                        رقم العملية (كبير - صغير)
                                     </a>
                                 </li>
                             </ul>
@@ -323,18 +375,18 @@ const printTable = () => {
                         "
                     >
                         <div class="overflow-x-auto h-full">
-                            <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
+                            <table dir="rtl" class="table w-full text-right min-w-[500px] border-collapse">
                                 <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
                                     <tr>
                                         <th class="file-number-col">معرف العملية</th>
                                         <th class="operation-type-col">نوع العملية</th>
                                         <th class="operation-date-col">تاريخ العملية</th>
-                                        </tr>
+                                    </tr>
                                 </thead>
 
                                 <tbody>
                                     <tr v-if="isLoading" class="border border-gray-300">
-                                        <td colspan="4" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
+                                        <td colspan="3" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
                                             جاري تحميل البيانات...
                                         </td>
                                     </tr>
@@ -348,10 +400,9 @@ const printTable = () => {
                                         <td class="file-number-col">{{ op.fileNumber }}</td>
                                         <td class="operation-type-col">{{ op.operationType }}</td>
                                         <td class="operation-date-col">{{ op.operationDate }}</td>
-
-                                        </tr>
+                                    </tr>
                                     <tr v-if="!isLoading && filteredOperations.length === 0">
-                                        <td colspan="4" class="p-6 text-center text-gray-500 text-lg">
+                                        <td colspan="3" class="p-6 text-center text-gray-500 text-lg">
                                             ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
                                         </td>
                                     </tr>

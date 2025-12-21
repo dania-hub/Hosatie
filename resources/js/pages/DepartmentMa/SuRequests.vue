@@ -178,7 +178,7 @@
                                                 'تم الإستلام',
                                             'text-yellow-600 font-semibold':
                                                 shipment.requestStatus ===
-                                                'قيد التجهيز',
+                                                'قيد الاستلام',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}
@@ -207,20 +207,17 @@
                                             </template>
                                             
                                             <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
-                                                <!-- إذا كانت تم الاستلام، تظهر زر مراجعة التفاصيل -->
-                                                <button 
-                                                    @click="openReviewModal(shipment)"
-                                                    class="tooltip" 
-                                                    data-tip="مراجعة تفاصيل الاستلام">
+                                                <!-- علامة الصح عندما تكون الحالة "تم الإستلام" -->
+                                                <button class="tooltip" data-tip="تم الإستلام">
                                                     <Icon
-                                                        icon="healthicons:yes-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        icon="solar:check-circle-bold"
+                                                        class="w-5 h-5 text-green-600"
                                                     />
                                                 </button>
                                             </template>
                                             
-                                            <template v-else>
-                                                <!-- إذا لم تكن مستلمة وغير مرفوضة، تظهر زر تأكيد الاستلام -->
+                                            <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
+                                                <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
                                                 <button
                                                     @click="openConfirmationModal(shipment)" 
                                                     class="tooltip"
@@ -228,6 +225,16 @@
                                                     <Icon
                                                         icon="tabler:truck-delivery"
                                                         class="w-5 h-5 text-red-500 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </template>
+                                            
+                                            <template v-else>
+                                                <!-- زر في انتظار القبول للحالات الأخرى (مثل "قيد الانتظار") -->
+                                                <button class="tooltip" data-tip="في انتظار القبول">
+                                                    <Icon
+                                                        icon="solar:clock-circle-bold-duotone"
+                                                        class="w-5 h-5 text-gray-400"
                                                     />
                                                 </button>
                                             </template>
@@ -601,35 +608,67 @@ const handleSupplyConfirm = async (data) => {
 };
 
 const openRequestViewModal = async (shipment) => {
+    let fetchedData = null;
+    // دائماً نجلب البيانات من API لضمان الحصول على أحدث البيانات
     try {
-        // جلب تفاصيل الشحنة من API
         const response = await endpoints.shipments.getById(shipment.id);
-        // BaseApiController يُرجع البيانات في response.data.data
-        const shipmentDetails = response.data?.data || response.data || response;
+        fetchedData = response.data?.data ?? response.data;
         
-        selectedRequestDetails.value = {
-            id: shipmentDetails.id || shipment.id,
-            shipmentNumber: shipmentDetails.shipmentNumber || shipment.shipmentNumber,
-            date: shipmentDetails.requestDate || shipment.requestDate || shipmentDetails.created_at,
-            status: shipmentDetails.status || shipment.requestStatus,
-            items: shipmentDetails.items || shipment.details?.items || [],
-            notes: shipmentDetails.notes || '',
-            ...(shipmentDetails.confirmationDetails && {
-                confirmation: shipmentDetails.confirmationDetails
-            })
-        };
-    } catch (err) {
-        console.error('خطأ في جلب تفاصيل الشحنة:', err);
-        // في حالة الخطأ، نستخدم البيانات المحلية
-        if (shipment.requestStatus === 'تم الإستلام') {
-            selectedRequestDetails.value = {
-                ...shipment.details,
-                confirmation: shipment.details.confirmationDetails
+        if (fetchedData) {
+            shipment.details = {
+                id: fetchedData.id,
+                date: fetchedData.requestDate || fetchedData.created_at,
+                status: fetchedData.status,
+                items: fetchedData.items || [],
+                notes: fetchedData.notes || '',
+                ...(fetchedData.confirmationDetails && {
+                    confirmationDetails: fetchedData.confirmationDetails
+                })
             };
-        } else {
-            selectedRequestDetails.value = shipment.details;
         }
+    } catch (err) {
+        console.error('Error fetching shipment details:', err);
     }
+    
+    // تحديث البيانات مع التأكد من وجود الكميات المطلوبة والمرسلة والمستلمة
+    selectedRequestDetails.value = {
+        ...shipment.details,
+        items: (shipment.details.items || []).map(item => ({
+            ...item,
+            // الكمية المطلوبة
+            quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+            requestedQty: item.requestedQty ?? item.requested_qty ?? item.quantity ?? 0,
+            requested_qty: item.requested_qty ?? item.requestedQty ?? item.quantity ?? 0,
+            // الكمية المرسلة (المعتمدة)
+            approvedQty: item.approvedQty ?? item.approved_qty ?? null,
+            approved_qty: item.approved_qty ?? item.approvedQty ?? null,
+            sentQuantity: item.sentQuantity ?? item.approvedQty ?? item.approved_qty ?? null,
+            // الكمية المستلمة - فقط fulfilled_qty، لا نستخدم approved_qty كبديل
+            fulfilledQty: item.fulfilledQty ?? item.fulfilled_qty ?? null,
+            fulfilled_qty: item.fulfilled_qty ?? item.fulfilledQty ?? null,
+            // التحقق من أن receivedQuantity ليس هو نفس approved_qty
+            receivedQuantity: (() => {
+                const fulfilled = item.fulfilled_qty ?? item.fulfilledQty ?? null;
+                if (fulfilled !== null && fulfilled !== undefined) {
+                    return fulfilled;
+                }
+                // إذا كان receivedQuantity موجوداً وليس نفس approved_qty، نستخدمه
+                const approved = item.approved_qty ?? item.approvedQty ?? null;
+                const received = item.receivedQuantity;
+                if (received !== null && received !== undefined && received !== approved) {
+                    return received;
+                }
+                return null;
+            })(),
+            // معلومات إضافية
+            unit: item.unit || 'وحدة',
+            dosage: item.dosage || item.strength || '',
+            type: item.type || item.form || ''
+        })),
+        confirmation: shipment.details.confirmationDetails || (shipment.requestStatus === 'تم الإستلام' || shipment.received || fetchedData?.status === 'تم الإستلام' ? {
+            confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString()
+        } : null)
+    };
     isRequestViewModalOpen.value = true;
 };
 
@@ -638,7 +677,60 @@ const closeRequestViewModal = () => {
     selectedRequestDetails.value = { id: null, date: '', status: '', items: [] }; 
 };
 
-const openConfirmationModal = (shipment) => {
+const openConfirmationModal = async (shipment) => {
+    let fetchedData = null;
+    // جلب البيانات من API لضمان الحصول على أحدث البيانات بما فيها الكمية المرسلة
+    try {
+        const response = await endpoints.shipments.getById(shipment.id);
+        fetchedData = response.data?.data ?? response.data;
+        
+        if (fetchedData) {
+            shipment.details = {
+                id: fetchedData.id,
+                date: fetchedData.requestDate || fetchedData.created_at,
+                status: fetchedData.status,
+                items: (fetchedData.items || []).map(item => ({
+                    ...item,
+                    // الكمية المطلوبة
+                    quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+                    requestedQty: item.requestedQty ?? item.requested_qty ?? item.quantity ?? 0,
+                    requested_qty: item.requested_qty ?? item.requestedQty ?? item.quantity ?? 0,
+                    // الكمية المرسلة (المعتمدة)
+                    approvedQty: item.approvedQty ?? item.approved_qty ?? null,
+                    approved_qty: item.approved_qty ?? item.approvedQty ?? null,
+                    sentQuantity: item.sentQuantity ?? item.approvedQty ?? item.approved_qty ?? null,
+                    // الكمية المستلمة - فقط fulfilled_qty، لا نستخدم approved_qty كبديل
+                    fulfilledQty: item.fulfilledQty ?? item.fulfilled_qty ?? null,
+                    fulfilled_qty: item.fulfilled_qty ?? item.fulfilledQty ?? null,
+                    // التحقق من أن receivedQuantity ليس هو نفس approved_qty
+                    receivedQuantity: (() => {
+                        const fulfilled = item.fulfilled_qty ?? item.fulfilledQty ?? null;
+                        if (fulfilled !== null && fulfilled !== undefined) {
+                            return fulfilled;
+                        }
+                        // إذا كان receivedQuantity موجوداً وليس نفس approved_qty، نستخدمه
+                        const approved = item.approved_qty ?? item.approvedQty ?? null;
+                        const received = item.receivedQuantity;
+                        if (received !== null && received !== undefined && received !== approved) {
+                            return received;
+                        }
+                        return null;
+                    })(),
+                    // معلومات إضافية
+                    unit: item.unit || 'وحدة',
+                    dosage: item.dosage || item.strength || '',
+                    type: item.type || item.form || ''
+                })),
+                notes: fetchedData.notes || '',
+                ...(fetchedData.confirmationDetails && {
+                    confirmationDetails: fetchedData.confirmationDetails
+                })
+            };
+        }
+    } catch (err) {
+        console.error('Error fetching shipment details:', err);
+    }
+    
     selectedShipmentForConfirmation.value = shipment.details; 
     isConfirmationModalOpen.value = true;
 };
@@ -653,31 +745,42 @@ const handleConfirmation = async (confirmationData) => {
     const shipmentId = selectedShipmentForConfirmation.value.id;
     
     try {
-        const response = await endpoints.shipments.confirm(shipmentId, confirmationData);
+        // إرسال بيانات التأكيد (يمكن أن تكون فارغة أو تحتوي على ملاحظات)
+        const response = await endpoints.shipments.confirm(shipmentId, confirmationData || {});
         // BaseApiController يُرجع البيانات في response.data.data
-        const responseData = response.data?.data || response.data || response;
+        const responseData = response.data?.data ?? response.data;
         
         const shipmentIndex = shipmentsData.value.findIndex(
             s => s.id === shipmentId
         );
         
         if (shipmentIndex !== -1) {
-            shipmentsData.value[shipmentIndex].requestStatus = 'تم الإستلام';
+            shipmentsData.value[shipmentIndex].requestStatus = responseData?.status || 'تم الإستلام';
             shipmentsData.value[shipmentIndex].received = true;
-            if (responseData.confirmationDetails) {
+            
+            // تحديث تفاصيل الشحنة مع البيانات المحدثة
+            if (responseData?.confirmationDetails) {
                 shipmentsData.value[shipmentIndex].details.confirmationDetails = responseData.confirmationDetails;
+            }
+            
+            // تحديث عناصر الشحنة بالكميات المستلمة
+            if (responseData?.items && Array.isArray(responseData.items)) {
+                shipmentsData.value[shipmentIndex].details.items = responseData.items.map(item => ({
+                    ...item,
+                    receivedQuantity: item.receivedQuantity ?? item.fulfilledQty ?? item.fulfilled_qty ?? null,
+                    quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+                }));
             }
         }
         
         showSuccessAlert(`✅ تم تأكيد استلام الشحنة بنجاح!`);
         closeConfirmationModal();
         
-        // إعادة جلب البيانات المحدثة
+        // إعادة تحميل الشحنات لتحديث البيانات
         await fetchShipments();
         
     } catch (err) {
-        console.error('خطأ في تأكيد الاستلام:', err);
-        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
         showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;

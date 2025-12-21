@@ -73,8 +73,9 @@
                                 >
                                     <div class="flex-1 w-full md:w-auto">
                                         <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
-                                        <div class="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                                        <div class="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
                                             <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">مطلوب: {{ item.originalQuantity }} {{ item.unit }}</span>
+                                            <span v-if="item.sentQuantity !== null && item.sentQuantity !== undefined && !isNaN(item.sentQuantity)" class="bg-green-50 text-green-600 px-2 py-0.5 rounded-md font-medium">مرسل: {{ item.sentQuantity }} {{ item.unit }}</span>
                                         </div>
                                     </div>
                                     
@@ -84,15 +85,15 @@
                                             <input
                                                 type="number"
                                                 v-model.number="item.receivedQuantity"
-                                                :max="item.originalQuantity"
+                                                :max="item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity"
                                                 min="0"
                                                 class="w-20 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
                                                 :class="{
-                                                    'text-green-600': item.receivedQuantity === item.originalQuantity,
-                                                    'text-amber-600': item.receivedQuantity < item.originalQuantity && item.receivedQuantity > 0,
+                                                    'text-green-600': item.receivedQuantity === (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
+                                                    'text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
                                                     'text-red-600': item.receivedQuantity === 0
                                                 }"
-                                                @input="validateQuantity(index, item.originalQuantity)"
+                                                @input="validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)"
                                                 :disabled="props.isLoading || isConfirming"
                                             />
                                         </div>
@@ -100,12 +101,12 @@
                                         <div 
                                             class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
                                             :class="{
-                                                'bg-green-100 text-green-600': item.receivedQuantity >= item.originalQuantity,
-                                                'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.originalQuantity,
+                                                'bg-green-100 text-green-600': item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
+                                                'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
                                                 'bg-red-100 text-red-600': item.receivedQuantity === 0
                                             }"
                                         >
-                                            <Icon v-if="item.receivedQuantity >= item.originalQuantity" icon="solar:check-circle-bold" class="w-6 h-6" />
+                                            <Icon v-if="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)" icon="solar:check-circle-bold" class="w-6 h-6" />
                                             <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
                                             <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
                                         </div>
@@ -204,13 +205,98 @@ const formatDate = (dateString) => {
 // تهيئة receivedItems
 watch(() => props.requestData.items, (newItems) => {
     if (newItems && newItems.length > 0) {
-        receivedItems.value = newItems.map(item => ({
-            id: item.id || item.drugId,
-            name: item.name || item.drugName,
-            originalQuantity: Number(item.quantity || item.requestedQuantity),
-            receivedQuantity: Number(item.quantity || item.requestedQuantity),
-            unit: item.unit || 'وحدة'
-        }));
+        receivedItems.value = newItems.map(item => {
+            // الحصول على الكمية المطلوبة
+            const requestedQty = Number(item.requested_qty || item.requestedQty || item.quantity || 0);
+            
+            // الحصول على الكمية المرسلة (المعتمدة) - تحقق من جميع الأسماء المحتملة
+            let sentQty = null;
+            
+            // التحقق من approved_qty (snake_case) - أولوية عالية
+            if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
+                const val = Number(item.approved_qty);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // التحقق من approvedQty (camelCase)
+            else if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
+                const val = Number(item.approvedQty);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // التحقق من sentQuantity
+            else if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
+                const val = Number(item.sentQuantity);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // التحقق من sent
+            else if (item.sent !== null && item.sent !== undefined && item.sent !== '') {
+                const val = Number(item.sent);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // التحقق من approved
+            else if (item.approved !== null && item.approved !== undefined && item.approved !== '') {
+                const val = Number(item.approved);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            
+            // الحصول على الكمية المستلمة الفعلية - فقط fulfilled_qty، لا نستخدم approved_qty كبديل
+            let receivedQty = null;
+            
+            // التحقق من fulfilled_qty أولاً (الكمية المستلمة الفعلية)
+            if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
+                const val = Number(item.fulfilled_qty);
+                if (!isNaN(val) && val >= 0) {
+                    receivedQty = val;
+                }
+            }
+            // التحقق من fulfilledQty
+            else if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
+                const val = Number(item.fulfilledQty);
+                if (!isNaN(val) && val >= 0) {
+                    receivedQty = val;
+                }
+            }
+            // التحقق من fulfilled
+            else if (item.fulfilled !== null && item.fulfilled !== undefined && item.fulfilled !== '') {
+                const val = Number(item.fulfilled);
+                if (!isNaN(val) && val >= 0) {
+                    receivedQty = val;
+                }
+            }
+            // التحقق من receivedQuantity فقط إذا لم يكن نفس approved_qty
+            else if (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity !== '') {
+                const approved = item.approved_qty ?? item.approvedQty ?? null;
+                // إذا كان receivedQuantity مختلف عن approved_qty، نستخدمه
+                if (approved === null || Number(item.receivedQuantity) !== Number(approved)) {
+                    const val = Number(item.receivedQuantity);
+                    if (!isNaN(val) && val >= 0) {
+                        receivedQty = val;
+                    }
+                }
+            }
+            
+            // إذا لم توجد كمية مستلمة فعلية، نستخدم الكمية المرسلة كقيمة افتراضية للعرض فقط
+            // لكن المستخدم يمكنه تعديلها
+            const defaultReceivedQty = receivedQty !== null ? receivedQty : (sentQty !== null && sentQty !== undefined ? sentQty : 0);
+            
+            return {
+                id: item.id || item.drugId,
+                name: item.name || item.drugName || 'دواء غير محدد',
+                originalQuantity: requestedQty,
+                sentQuantity: sentQty,
+                receivedQuantity: defaultReceivedQty,
+                unit: item.unit || 'وحدة'
+            };
+        });
         notes.value = '';
     }
 }, { immediate: true, deep: true });

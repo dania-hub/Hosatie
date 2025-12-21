@@ -89,12 +89,18 @@ class ShipmentPharmacistController extends BaseApiController
                     'name' => $item->drug->name ?? 'Unknown',
                     'genericName' => $item->drug->generic_name ?? null,
                     'strength' => $item->drug->strength ?? null,
+                    'dosage' => $item->drug->strength ?? null, // للتوافق مع الواجهة
                     'quantity' => $item->requested_qty, // الكمية المطلوبة
                     'requestedQty' => $item->requested_qty, // الكمية المطلوبة (اسم بديل)
+                    'requested_qty' => $item->requested_qty, // للتوافق مع الواجهة
                     'approvedQty' => $item->approved_qty ?? null, // الكمية المعتمدة
+                    'approved_qty' => $item->approved_qty ?? null, // للتوافق مع الواجهة
                     'fulfilledQty' => $item->fulfilled_qty ?? null, // الكمية المستلمة
-                    'receivedQuantity' => $item->fulfilled_qty ?? $item->approved_qty ?? null, // الكمية المستلمة (للتوافق مع الواجهة)
-                    'unit' => $item->drug->unit ?? 'علبة'
+                    'fulfilled_qty' => $item->fulfilled_qty ?? null, // للتوافق مع الواجهة
+                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
+                    'unit' => $item->drug->unit ?? 'علبة',
+                    'form' => $item->drug->form ?? null,
+                    'type' => $item->drug->form ?? null // للتوافق مع الواجهة
                 ];
             }),
             'notes' => $shipment->notes,
@@ -145,10 +151,32 @@ class ShipmentPharmacistController extends BaseApiController
                 return $this->sendError('لا يوجد صيدلية مرتبطة بهذا الطلب أو بالمستخدم.');
             }
 
+            // الحصول على الكميات المستلمة من الطلب
+            $receivedItems = $request->input('receivedItems', []);
+            $receivedItemsMap = [];
+            foreach ($receivedItems as $receivedItem) {
+                $itemId = $receivedItem['id'] ?? null;
+                $receivedQty = $receivedItem['receivedQuantity'] ?? null;
+                if ($itemId !== null && $receivedQty !== null) {
+                    // تحويل ID إلى integer للتأكد من المطابقة الصحيحة
+                    $receivedItemsMap[(int)$itemId] = (float)$receivedQty;
+                }
+            }
+
             foreach ($shipment->items as $item) {
                 // الكمية التي ستضاف للصيدلية:
-                // الأفضل استخدام approved_qty أو fulfilled_qty إن حدّثتها في خطوة المخزن
-                $qtyToAdd = $item->approved_qty ?? $item->requested_qty ?? 0;
+                // أولوية: الكمية المستلمة من الطلب > approved_qty > requested_qty
+                $qtyToAdd = null;
+                
+                // التحقق من الكمية المستلمة المرسلة من الواجهة
+                // البحث باستخدام ID كـ integer
+                if (isset($receivedItemsMap[(int)$item->id])) {
+                    $qtyToAdd = $receivedItemsMap[(int)$item->id];
+                }
+                // إذا لم توجد كمية مستلمة في الطلب، نستخدم approved_qty
+                else {
+                    $qtyToAdd = $item->approved_qty ?? $item->requested_qty ?? 0;
+                }
 
                 if ($qtyToAdd <= 0) {
                     continue;
@@ -168,7 +196,7 @@ class ShipmentPharmacistController extends BaseApiController
                 $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $qtyToAdd;
                 $inventory->save();
 
-                // تحديث fulfilled_qty في item:
+                // تحديث fulfilled_qty في item بالكمية المستلمة الفعلية:
                 $item->fulfilled_qty = $qtyToAdd;
                 $item->save();
             }
@@ -212,7 +240,7 @@ AuditLog::create([
                         'requestedQty' => $item->requested_qty,
                         'approvedQty' => $item->approved_qty ?? null,
                         'fulfilledQty' => $item->fulfilled_qty ?? null,
-                        'receivedQuantity' => $item->fulfilled_qty ?? $item->approved_qty ?? null,
+                        'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
                         'unit' => $item->drug->unit ?? 'علبة'
                     ];
                 })
@@ -227,7 +255,7 @@ AuditLog::create([
     {
         return match($status) {
             'pending' => 'قيد الانتظار',
-            'approved' => 'قيد التجهيز', // أو 'تمت الموافقة'
+            'approved' => 'قيد الاستلام', // أو 'تمت الموافقة'
             'shipped' => 'تم الشحن',
             'fulfilled' => 'تم الإستلام', // Correct DB value translation
             'rejected' => 'مرفوضة',

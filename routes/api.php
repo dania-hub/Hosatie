@@ -397,6 +397,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('drugs/{id}', [WarehouseInventoryController::class, 'destroy']);
 
         Route::get('categories', [CategoryStoreKeeperController::class, 'index']);
+        Route::get('supply-requests', [ExternalSupplyRequestController::class, 'index']);
         Route::post('supply-requests', [ExternalSupplyRequestController::class, 'store']);
 
         Route::get('operations', [AuditLogStoreKeeperController::class, 'index']);

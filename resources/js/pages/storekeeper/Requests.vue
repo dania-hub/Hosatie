@@ -125,17 +125,7 @@
                 <p class="text-gray-600 mt-4">جاري تحميل البيانات...</p>
             </div>
 
-            <!-- حالة الخطأ -->
-            <div v-else-if="error" class="text-center py-10">
-                <div class="text-red-600 text-4xl mb-4">⚠️</div>
-                <p class="text-red-600 font-semibold mb-4">{{ error }}</p>
-                <button 
-                    @click="fetchAllData" 
-                    class="px-6 py-2 bg-[#4DA1A9] text-white rounded-lg hover:bg-[#3a8c94] transition-colors"
-                >
-                    حاول مرة أخرى
-                </button>
-            </div>
+
 
             <!-- جدول البيانات -->
             <div
@@ -209,7 +199,7 @@
                                                 'تم الإستلام',
                                             'text-yellow-600 font-semibold':
                                                 shipment.requestStatus ===
-                                                'قيد التجهيز' || shipment.requestStatus === 'جديد' || shipment.requestStatus === 'قيد الإستلام',
+                                                'قيد الاستلام' || shipment.requestStatus === 'جديد' || shipment.requestStatus === 'قيد الإستلام',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}
@@ -243,6 +233,17 @@
                                                     <Icon
                                                         icon="healthicons:yes-outline"
                                                         class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </template>
+                                            
+                                            <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
+                                                <button 
+                                                    class="tooltip" 
+                                                    data-tip="الطلب قيد الاستلام - لا يمكن التعديل">
+                                                    <Icon
+                                                        icon="solar:clock-circle-bold"
+                                                        class="w-5 h-5 text-yellow-600"
                                                     />
                                                 </button>
                                             </template>
@@ -281,7 +282,8 @@
             :is-open="isConfirmationModalOpen"
             :request-data="selectedShipmentForConfirmation"
             @close="closeConfirmationModal"
-            @confirm="handleConfirmation"
+            @send="handleConfirmation"
+            @reject="handleConfirmation"
             :is-loading="isConfirming"
         />
 
@@ -319,34 +321,32 @@ import ConfirmationModal from "@/components/forstorekeeper/ConfirmationModal.vue
 // ----------------------------------------------------
 // 1. إعدادات axios ونقاط النهاية API
 // ----------------------------------------------------
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-
 const api = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 10000,
+    baseURL: '/api',
+    timeout: 30000, // زيادة الـ timeout إلى 30 ثانية للعمليات الطويلة
     headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        'Accept': 'application/json'
     }
 });
 
 // تعريف نقاط النهاية API
 const API_ENDPOINTS = {
     shipments: {
-        getAll: () => api.get('/shipments'),
-        getById: (id) => api.get(`/shipments/${id}`),
-        update: (id, data) => api.put(`/shipments/${id}`, data),
-        confirm: (id, data) => api.post(`/shipments/${id}/confirm`, data),
-        reject: (id, data) => api.post(`/shipments/${id}/reject`, data),
-        receive: (id, data) => api.post(`/shipments/${id}/receive`, data)
+        getAll: () => api.get('/storekeeper/shipments'),
+        getById: (id) => api.get(`/storekeeper/shipments/${id}`),
+        update: (id, data) => api.put(`/storekeeper/shipments/${id}`, data),
+        confirm: (id, data) => api.post(`/storekeeper/shipments/${id}/confirm`, data),
+        reject: (id, data) => api.post(`/storekeeper/shipments/${id}/reject`, data),
+        receive: (id, data) => api.post(`/storekeeper/shipments/${id}/receive`, data)
     },
     categories: {
-        getAll: () => api.get('/categories')
+        getAll: () => api.get('/storekeeper/categories')
     },
     drugs: {
-        getAll: () => api.get('/drugs'),
-        getByCategory: (categoryId) => api.get(`/drugs?categoryId=${categoryId}`)
+        getAll: () => api.get('/storekeeper/drugs'),
+        getAllDrugs: () => api.get('/storekeeper/drugs/all'),
+        getByCategory: (categoryId) => api.get(`/storekeeper/drugs?categoryId=${categoryId}`)
     },
     departments: {
         getAll: () => api.get('/departments')
@@ -355,22 +355,36 @@ const API_ENDPOINTS = {
 
 // إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
-    (response) => response.data,
+    (response) => {
+        // Laravel يعيد البيانات مباشرة في response.data
+        return response.data;
+    },
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
+        console.error('Error Status:', error.response?.status);
+        console.error('Token exists:', !!localStorage.getItem('auth_token') || !!localStorage.getItem('token'));
         
         if (error.response?.status === 401) {
             // إذا كان خطأ في المصادقة
-            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            if (!token) {
+                showSuccessAlert('❌ لم يتم العثور على رمز المصادقة. يرجى تسجيل الدخول مرة أخرى.');
+            } else {
+                showSuccessAlert('❌ انتهت جلسة العمل أو رمز المصادقة غير صحيح. يرجى تسجيل الدخول مرة أخرى.');
+            }
             // يمكن إضافة إعادة توجيه لصفحة تسجيل الدخول هنا
         } else if (error.response?.status === 403) {
             showSuccessAlert('❌ ليس لديك الصلاحية للقيام بهذا الإجراء.');
         } else if (error.response?.status === 404) {
             showSuccessAlert('❌ المورد المطلوب غير موجود.');
         } else if (error.code === 'ECONNABORTED') {
-            showSuccessAlert('❌ انتهت مهلة الاتصال بالخادم.');
+            showSuccessAlert('❌ انتهت مهلة الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
         } else if (!error.response) {
             showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+        } else {
+            // معالجة أخطاء أخرى
+            const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ غير معروف';
+            showSuccessAlert(`❌ ${errorMessage}`);
         }
         
         return Promise.reject(error);
@@ -380,7 +394,8 @@ api.interceptors.response.use(
 // إضافة interceptor لإضافة التوكن تلقائياً
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        // البحث عن التوكن في كلا المفاتيح (auth_token و token) للتوافق
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -428,19 +443,22 @@ const fetchShipments = async () => {
     try {
         const response = await API_ENDPOINTS.shipments.getAll();
         
-        shipmentsData.value = response.map(shipment => ({
+        // التأكد من أن response هو array
+        const shipmentsArray = Array.isArray(response) ? response : [];
+        
+        shipmentsData.value = shipmentsArray.map(shipment => ({
             id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `S-${shipment.id}`,
+            shipmentNumber: shipment.shipmentNumber || `INT-${shipment.id}`,
             requestDate: shipment.requestDate || shipment.createdAt,
-            requestStatus: shipment.status || shipment.requestStatus,
-            requestingDepartment: shipment.department?.name || shipment.requestingDepartment || 'قسم غير محدد',
-            received: shipment.received || (shipment.status === 'تم الإستلام'),
+            requestStatus: shipment.requestStatus || shipment.status || 'جديد',
+            requestingDepartment: shipment.requestingDepartment || shipment.department?.name || 'قسم غير محدد',
+            received: shipment.received || (shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled'),
             details: {
                 id: shipment.id,
                 shipmentNumber: shipment.shipmentNumber,
-                department: shipment.department?.name || shipment.requestingDepartment,
-                date: shipment.requestDate,
-                status: shipment.status,
+                department: shipment.requestingDepartment || shipment.department?.name,
+                date: shipment.requestDate || shipment.createdAt,
+                status: shipment.requestStatus || shipment.status,
                 items: shipment.items || [],
                 notes: shipment.notes || '',
                 createdAt: shipment.createdAt,
@@ -498,7 +516,7 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
@@ -584,10 +602,37 @@ const openRequestViewModal = async (shipment) => {
     try {
         // جلب التفاصيل الكاملة من API
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        
+        // تحويل البيانات لتتوافق مع ما يتوقعه مكون المعاينة
         selectedRequestDetails.value = {
-            ...response,
-            items: response.items || [],
-            confirmationDetails: response.confirmationDetails
+            id: response.id,
+            shipmentNumber: response.shipmentNumber || `INT-${response.id}`,
+            department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
+            date: response.date || response.requestDate || response.createdAt,
+            status: response.status || shipment.requestStatus,
+            items: (response.items || []).map(item => ({
+                id: item.id,
+                drug_id: item.drug_id,
+                name: item.drug_name || item.name || 'دواء غير محدد',
+                quantity: item.requested_qty || item.quantity || 0,
+                requested_qty: item.requested_qty || 0,
+                approved_qty: item.approved_qty || 0,
+                fulfilled_qty: item.fulfilled_qty || 0,
+                sentQuantity: item.approved_qty || item.sentQuantity || 0,
+                receivedQuantity: item.fulfilled_qty || item.receivedQuantity || 0,
+                unit: item.unit || 'وحدة',
+                dosage: item.dosage || item.strength || '',
+                type: item.type || item.form || ''
+            })),
+            notes: response.notes || '',
+            confirmationDetails: response.confirmationDetails || null,
+            confirmation: response.confirmationDetails ? {
+                confirmedBy: response.confirmationDetails.confirmedBy,
+                confirmedAt: response.confirmationDetails.confirmedAt,
+                notes: response.confirmationDetails.notes,
+                items: response.items || []
+            } : null,
+            rejectionReason: response.rejectionReason || null
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
@@ -609,12 +654,44 @@ const closeRequestViewModal = () => {
 };
 
 const openConfirmationModal = async (shipment) => {
+    // التحقق من حالة الطلب - منع التعديل إذا كان في حالة "قيد الاستلام"
+    if (shipment.requestStatus === 'قيد الاستلام' || shipment.requestStatus === 'approved') {
+        showSuccessAlert('⚠️ هذا الطلب قيد الاستلام ولا يمكن تعديله');
+        return;
+    }
+    
     try {
         // جلب التفاصيل الكاملة من API
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        
+        // التحقق مرة أخرى من حالة الطلب بعد جلب البيانات
+        const currentStatus = response.status || shipment.requestStatus;
+        if (currentStatus === 'قيد الاستلام' || currentStatus === 'approved') {
+            showSuccessAlert('⚠️ هذا الطلب قيد الاستلام ولا يمكن تعديله');
+            return;
+        }
+        
+        // تحويل البيانات لتتوافق مع ما يتوقعه مكون التأكيد
         selectedShipmentForConfirmation.value = {
-            ...response,
-            items: response.items || []
+            id: response.id,
+            shipmentNumber: response.shipmentNumber || `INT-${response.id}`,
+            department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
+            date: response.date || response.requestDate || response.createdAt,
+            status: response.status || shipment.requestStatus,
+            items: (response.items || []).map(item => ({
+                id: item.id, // هذا هو ID من internal_supply_request_item
+                drug_id: item.drug_id,
+                name: item.drug_name || item.name || 'دواء غير محدد',
+                quantity: item.requested_qty || item.quantity || 0,
+                requestedQuantity: item.requested_qty || 0,
+                originalQuantity: item.requested_qty || 0,
+                availableQuantity: 0, // سيتم تحديثه من المخزون
+                sentQuantity: item.approved_qty || 0,
+                unit: item.unit || 'وحدة',
+                dosage: item.dosage || item.strength || '',
+                type: item.type || item.form || ''
+            })),
+            notes: response.notes || ''
         };
         isConfirmationModalOpen.value = true;
     } catch (err) {
@@ -660,23 +737,32 @@ const handleConfirmation = async (confirmationData) => {
             
         } else if (confirmationData.itemsToSend) {
             // 🟢 معالجة إرسال الشحنة
+            console.log('Sending confirmation data:', confirmationData);
+            
             const itemsToUpdate = confirmationData.itemsToSend.map(item => ({
                 id: item.id,
                 sentQuantity: item.sentQuantity,
                 receivedQuantity: item.sentQuantity
             }));
             
-            await API_ENDPOINTS.shipments.confirm(shipmentId, {
+            console.log('Items to update:', itemsToUpdate);
+            console.log('Shipment ID:', shipmentId);
+            
+            const requestData = {
                 items: itemsToUpdate,
                 notes: confirmationData.notes || '',
                 confirmedBy: 'أمين المخزن' // يجب أن يكون هذا من بيانات المستخدم
-            });
+            };
+            
+            console.log('Request data:', requestData);
+            
+            await API_ENDPOINTS.shipments.confirm(shipmentId, requestData);
             
             // تحديث البيانات محلياً
             const shipmentIndex = shipmentsData.value.findIndex(s => s.id === shipmentId);
             if (shipmentIndex !== -1) {
-                shipmentsData.value[shipmentIndex].requestStatus = 'تم الإستلام';
-                shipmentsData.value[shipmentIndex].details.status = 'تم الإستلام';
+                shipmentsData.value[shipmentIndex].requestStatus = 'قيد الاستلام';
+                shipmentsData.value[shipmentIndex].details.status = 'قيد الاستلام';
                 shipmentsData.value[shipmentIndex].details.confirmationDetails = {
                     confirmedAt: new Date().toISOString(),
                     confirmedBy: 'أمين المخزن',
@@ -689,7 +775,7 @@ const handleConfirmation = async (confirmationData) => {
                         shipmentsData.value[shipmentIndex].details.items.map(item => {
                             const sentItem = confirmationData.itemsToSend.find(s => s.id === item.id);
                             if (sentItem) {
-                                return { ...item, sentQuantity: sentItem.sentQuantity };
+                                return { ...item, approved_qty: sentItem.sentQuantity, sentQuantity: sentItem.sentQuantity };
                             }
                             return item;
                         });
@@ -697,7 +783,7 @@ const handleConfirmation = async (confirmationData) => {
             }
             
             const totalSent = itemsToUpdate.reduce((sum, item) => sum + (item.sentQuantity || 0), 0);
-            showSuccessAlert(`✅ تم تأكيد استلام الشحنة رقم ${shipmentNumber} بنجاح! (${totalSent} وحدة)`);
+            showSuccessAlert(`✅ تم تأكيد تجهيز الشحنة رقم ${shipmentNumber} بنجاح! (${totalSent} وحدة)`);
         }
         
         closeConfirmationModal();
@@ -705,14 +791,21 @@ const handleConfirmation = async (confirmationData) => {
     } catch (err) {
         console.error('Error in handleConfirmation:', err);
         
-        if (err.response?.status === 404) {
+        if (err.code === 'ECONNABORTED') {
+            showSuccessAlert('❌ انتهت مهلة الاتصال. العملية تستغرق وقتاً طويلاً. يرجى التحقق من حالة الطلب.');
+        } else if (err.response?.status === 404) {
             showSuccessAlert(`❌ الشحنة غير موجودة أو تم حذفها`);
         } else if (err.response?.status === 400) {
             showSuccessAlert(`❌ بيانات غير صالحة: ${err.response.data?.message || ''}`);
         } else if (err.response?.status === 409) {
             showSuccessAlert(`❌ تعارض في البيانات: ${err.response.data?.message || ''}`);
+        } else if (err.response?.status === 500) {
+            showSuccessAlert(`❌ خطأ في الخادم: ${err.response.data?.message || 'يرجى المحاولة مرة أخرى'}`);
+        } else if (!err.response) {
+            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         } else {
-            showSuccessAlert(`❌ فشل في العملية: ${err.message || 'حدث خطأ غير معروف'}`);
+            const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
+            showSuccessAlert(`❌ فشل في العملية: ${errorMessage}`);
         }
     } finally {
         isConfirming.value = false;
@@ -723,10 +816,37 @@ const openReviewModal = async (shipment) => {
     try {
         // جلب التفاصيل الكاملة من API
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        
+        // تحويل البيانات لتتوافق مع ما يتوقعه مكون المعاينة
         selectedRequestDetails.value = {
-            ...response,
-            items: response.items || [],
-            confirmationDetails: response.confirmationDetails
+            id: response.id,
+            shipmentNumber: response.shipmentNumber || `INT-${response.id}`,
+            department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
+            date: response.date || response.requestDate || response.createdAt,
+            status: response.status || shipment.requestStatus,
+            items: (response.items || []).map(item => ({
+                id: item.id,
+                drug_id: item.drug_id,
+                name: item.drug_name || item.name || 'دواء غير محدد',
+                quantity: item.requested_qty || item.quantity || 0,
+                requested_qty: item.requested_qty || 0,
+                approved_qty: item.approved_qty || 0,
+                fulfilled_qty: item.fulfilled_qty || 0,
+                sentQuantity: item.approved_qty || item.sentQuantity || 0,
+                receivedQuantity: item.fulfilled_qty || item.receivedQuantity || 0,
+                unit: item.unit || 'وحدة',
+                dosage: item.dosage || item.strength || '',
+                type: item.type || item.form || ''
+            })),
+            notes: response.notes || '',
+            confirmationDetails: response.confirmationDetails || null,
+            confirmation: response.confirmationDetails ? {
+                confirmedBy: response.confirmationDetails.confirmedBy,
+                confirmedAt: response.confirmationDetails.confirmedAt,
+                notes: response.confirmationDetails.notes,
+                items: response.items || []
+            } : null,
+            rejectionReason: response.rejectionReason || null
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {

@@ -239,8 +239,8 @@ const submitSupplyRequest = async (requestData) => {
     // تجهيز الحمولة لتتوافق مع ExternalSupplyRequestController@store
     const payload = {
       items: (requestData.items || []).map(item => ({
-        drugId: item.drugId || item.id,
-        quantity: item.quantity
+        drug_id: item.drugId || item.id,
+        requested_qty: item.quantity
       })),
       notes: requestData.notes || null
     };
@@ -264,7 +264,24 @@ const submitSupplyRequest = async (requestData) => {
     return response.data;
   } catch (error) {
     console.error("Error submitting supply request:", error);
-    const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ غير متوقع';
+    console.error("Error response:", error.response?.data);
+    
+    // عرض رسالة الخطأ التفصيلية
+    let errorMessage = 'حدث خطأ غير متوقع';
+    if (error.response?.data) {
+      if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response.data.errors) {
+        // معالجة أخطاء التحقق
+        const errors = Object.values(error.response.data.errors).flat();
+        errorMessage = errors.join(', ');
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     showErrorAlert(`❌ فشل في إرسال طلب التوريد: ${errorMessage}`);
     throw error;
   }

@@ -179,8 +179,8 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
     private function mapStatusToArabic(string $status): string
     {
         return match ($status) {
-            'pending'   => 'قيد التجهيز',
-            'approved'  => 'تمت الموافقة',
+            'pending'   => 'قيد الانتظار',
+            'approved'  => 'قيد التجهيز',
             'fulfilled' => 'تم الإستلام',
             'rejected'  => 'مرفوضة',
             default     => $status,

@@ -58,7 +58,7 @@
                         <div>
                             <p class="text-sm text-gray-500 font-medium mb-1">الحالة</p>
                             <span class="inline-block px-3 py-1 rounded-lg text-sm font-bold bg-orange-100 text-orange-600">
-                                {{ requestData.status || "قيد التجهيز" }}
+                                {{ requestData.status || "قيد الاستلام" }}
                             </span>
                         </div>
                         <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
@@ -126,10 +126,11 @@
                                             :class="{
                                                 'border-red-300 focus:border-red-500': item.sentQuantity > item.availableQuantity,
                                                 'border-green-300 focus:border-green-500': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0,
-                                                'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0
+                                                'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0,
+                                                'bg-gray-100 cursor-not-allowed': isProcessing
                                             }"
                                             @input="validateQuantity(index, item.availableQuantity)"
-                                            :disabled="props.isLoading || isConfirming"
+                                            :disabled="props.isLoading || isConfirming || isProcessing"
                                         />
                                     </div>
                                 </div>
@@ -154,14 +155,19 @@
                             يرجى كتابة سبب الرفض (إلزامي) <span class="text-red-600">*</span>
                         </label>
                         
-                        <textarea
-                            v-model="rejectionNote"
-                            placeholder="مثال: نقص في المخزون - طلب غير مطابق للسياسات - بيانات ناقصة..."
-                            rows="3"
-                            class="w-full p-4 border-2 rounded-xl bg-white text-gray-800 transition-all duration-200 resize-none focus:outline-none focus:ring-4 focus:ring-red-500/10"
-                            :class="rejectionError ? 'border-red-500 focus:border-red-500' : 'border-red-200 focus:border-red-400'"
-                            @input="rejectionError = false"
-                        ></textarea>
+                    <textarea
+                        v-model="rejectionNote"
+                        placeholder="مثال: نقص في المخزون - طلب غير مطابق للسياسات - بيانات ناقصة..."
+                        rows="3"
+                        class="w-full p-4 border-2 rounded-xl bg-white text-gray-800 transition-all duration-200 resize-none focus:outline-none focus:ring-4 focus:ring-red-500/10"
+                        :class="{
+                            'border-red-500 focus:border-red-500': rejectionError,
+                            'border-red-200 focus:border-red-400': !rejectionError,
+                            'bg-gray-100 cursor-not-allowed': isProcessing
+                        }"
+                        @input="rejectionError = false"
+                        :disabled="isProcessing"
+                    ></textarea>
                         
                         <div v-if="rejectionError" class="text-red-600 text-sm flex items-center gap-1 font-medium">
                             <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
@@ -181,6 +187,8 @@
                         placeholder="أضف أي ملاحظات حول الشحنة..."
                         rows="2"
                         class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
+                        :class="{ 'bg-gray-100 cursor-not-allowed': isProcessing }"
+                        :disabled="isProcessing"
                     ></textarea>
                 </div>
             </div>
@@ -219,24 +227,32 @@
 
                     <!-- Normal Actions -->
                     <template v-else>
-                        <button
-                            @click="initiateRejection"
-                            class="px-6 py-2.5 rounded-xl text-red-500 bg-red-50 border border-red-100 font-medium hover:bg-red-100 transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
-                            :disabled="props.isLoading || isConfirming"
-                        >
-                            <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
-                            رفض الطلب
-                        </button>
+                        <div v-if="isProcessing" class="w-full text-center py-4 px-6 bg-yellow-50 border border-yellow-200 rounded-xl">
+                            <p class="text-yellow-700 font-semibold flex items-center justify-center gap-2">
+                                <Icon icon="solar:clock-circle-bold" class="w-5 h-5" />
+                                هذا الطلب قيد الاستلام ولا يمكن تعديله
+                            </p>
+                        </div>
+                        <template v-else>
+                            <button
+                                @click="initiateRejection"
+                                class="px-6 py-2.5 rounded-xl text-red-500 bg-red-50 border border-red-100 font-medium hover:bg-red-100 transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
+                                :disabled="props.isLoading || isConfirming"
+                            >
+                                <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
+                                رفض الطلب
+                            </button>
 
-                        <button
-                            @click="sendShipment"
-                            class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
-                            :disabled="props.isLoading || isConfirming"
-                        >
-                            <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
-                            <Icon v-else icon="solar:plain-bold" class="w-5 h-5" />
-                            {{ isConfirming ? "جاري الإرسال..." : "إرسال الشحنة" }}
-                        </button>
+                            <button
+                                @click="sendShipment"
+                                class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
+                                :disabled="props.isLoading || isConfirming"
+                            >
+                                <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                                <Icon v-else icon="solar:plain-bold" class="w-5 h-5" />
+                                {{ isConfirming ? "جاري الإرسال..." : "إرسال الشحنة" }}
+                            </button>
+                        </template>
                     </template>
                 </div>
             </div>
@@ -245,7 +261,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { Icon } from "@iconify/vue";
 
 const props = defineProps({
@@ -260,7 +276,7 @@ const props = defineProps({
             shipmentNumber: "",
             date: "",
             department: "",
-            status: "قيد التجهيز",
+            status: "قيد الاستلام",
             items: [],
         }),
     },
@@ -279,6 +295,12 @@ const showRejectionNote = ref(false);
 const rejectionNote = ref("");
 const rejectionError = ref(false);
 const additionalNotes = ref("");
+
+// التحقق من حالة الطلب - منع التعديل إذا كان في حالة "قيد الاستلام"
+const isProcessing = computed(() => {
+    const status = props.requestData.status || "";
+    return status === "قيد الاستلام" || status === "approved";
+});
 
 // تهيئة receivedItems
 watch(
@@ -312,6 +334,16 @@ watch(
         }
     },
     { immediate: true, deep: true }
+);
+
+// إعادة تعيين isConfirming عند انتهاء التحميل
+watch(
+    () => props.isLoading,
+    (newValue) => {
+        if (!newValue) {
+            isConfirming.value = false;
+        }
+    }
 );
 
 // دالة تنسيق التاريخ
@@ -427,6 +459,7 @@ const sendShipment = async () => {
     } catch (error) {
         console.error("Error preparing shipment data:", error);
         alert("حدث خطأ أثناء تحضير بيانات الشحنة.");
+        isConfirming.value = false;
     }
 };
 

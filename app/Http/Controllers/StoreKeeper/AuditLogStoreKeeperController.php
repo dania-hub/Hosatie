@@ -26,9 +26,17 @@ class AuditLogStoreKeeperController extends BaseApiController
 
         // تحويلها إلى الفورمات الذي تتوقعه الواجهة
         $data = $logs->map(function ($log) {
+            $translatedAction = $this->translateAction($log->action);
+            $shipmentNumber = $this->getShipmentNumber($log->table_name, $log->record_id);
+            
+            // دمج نوع العملية مع رقم الشحنة إن وجد
+            $operationType = $shipmentNumber 
+                ? $translatedAction . ' - ' . $shipmentNumber
+                : $translatedAction;
+            
             return [
                 'fileNumber'    => $log->id,          // معرف العملية
-                'operationType' => $log->action,      // نوع العملية (مثلاً create_external_request)
+                'operationType' => $operationType,    // نوع العملية مع رقم الشحنة
                 'operationDate' => $log->created_at   // تاريخ العملية بصيغة YYYY/MM/DD
                     ? $log->created_at->format('Y/m/d')
                     : '',
@@ -36,5 +44,44 @@ class AuditLogStoreKeeperController extends BaseApiController
         });
 
         return response()->json($data);
+    }
+
+    /**
+     * ترجمة نوع العملية إلى العربية
+     */
+    private function translateAction($action)
+    {
+        $translations = [
+            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            'storekeeper_confirm_internal_request' => 'تأكيد طلب توريد داخلي',
+            'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية',
+       
+            'إنشاء طلب توريد' => 'إنشاء طلب توريد',
+            'استلام شحنة' => 'استلام شحنة',
+            'إضافة دواء' => 'إضافة دواء',
+            'تعديل دواء' => 'تعديل دواء',
+            'حذف دواء' => 'حذف دواء',
+        ];
+
+        return $translations[$action] ?? $action;
+    }
+
+    /**
+     * استخراج رقم الشحنة من اسم الجدول ومعرف السجل
+     */
+    private function getShipmentNumber($tableName, $recordId)
+    {
+        if (!$tableName || !$recordId) {
+            return null;
+        }
+
+        // تحديد رقم الشحنة حسب نوع الجدول
+        if ($tableName === 'internal_supply_request') {
+            return 'INT-' . $recordId;
+        } elseif ($tableName === 'external_supply_request') {
+            return 'EXT-' . $recordId;
+        }
+
+        return null;
     }
 }

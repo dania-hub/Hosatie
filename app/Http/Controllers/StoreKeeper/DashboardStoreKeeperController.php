@@ -38,11 +38,11 @@ class DashboardStoreKeeperController extends BaseApiController
             ->whereColumn('current_quantity', '<=', 'minimum_level')
             ->count();
 
-        // 3) عدد طلبات قيد التجهيز (internal)
+        // 3) عدد طلبات قيد الاستلام (internal)
         $preparingRequests = InternalSupplyRequest::whereHas('pharmacy', function ($q) use ($hospitalId) {
                 $q->where('hospital_id', $hospitalId);
             })
-            ->whereIn('status', ['approved', 'pending']) // اعتبرتها "قيد التجهيز"
+            ->whereIn('status', ['approved', 'pending']) // اعتبرتها "قيد الاستلام"
             ->count();
 
         return response()->json([

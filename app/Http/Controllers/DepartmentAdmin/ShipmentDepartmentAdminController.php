@@ -65,8 +65,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
     private function translateStatus($status)
     {
         $translations = [
-            'pending' => 'قيد المراجعة',
-            'approved' => 'موافق عليه',
+            'pending' => 'قيد الإنتظار',
+            'approved' =>  'قيد الاستلام',
             'rejected' => 'مرفوضة',
             'fulfilled' => 'تم الإستلام',
             'cancelled' => 'ملغاة',
@@ -96,11 +96,23 @@ class ShipmentDepartmentAdminController extends BaseApiController
             'items' => $shipment->items->map(function($item) {
                 return [
                     'id' => $item->id,
+                    'drugId' => $item->drug_id,
+                    'name' => $item->drug->name ?? 'غير محدد',
                     'drugName' => $item->drug->name ?? 'غير محدد',
                     'quantity' => $item->requested_qty,
+                    'requestedQty' => $item->requested_qty,
+                    'requested_qty' => $item->requested_qty,
+                    'approvedQty' => $item->approved_qty ?? null,
+                    'approved_qty' => $item->approved_qty ?? null,
+                    'fulfilledQty' => $item->fulfilled_qty ?? null,
+                    'fulfilled_qty' => $item->fulfilled_qty ?? null,
+                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
                     'unit' => $item->drug->unit ?? 'وحدة',
-                    'approved_qty' => $item->approved_qty,
-                    'fulfilled_qty' => $item->fulfilled_qty,
+                    'genericName' => $item->drug->generic_name ?? null,
+                    'strength' => $item->drug->strength ?? null,
+                    'dosage' => $item->drug->strength ?? null,
+                    'form' => $item->drug->form ?? null,
+                    'type' => $item->drug->form ?? null
                 ];
             }),
             'notes' => $shipment->notes,
@@ -133,6 +145,37 @@ class ShipmentDepartmentAdminController extends BaseApiController
         $shipment->status = 'fulfilled';
         $shipment->save();
         
+        // الحصول على الكميات المستلمة من الطلب وتحديث fulfilled_qty
+        $receivedItems = $request->input('receivedItems', []);
+        $receivedItemsMap = [];
+        foreach ($receivedItems as $receivedItem) {
+            $itemId = $receivedItem['id'] ?? null;
+            $receivedQty = $receivedItem['receivedQuantity'] ?? null;
+            if ($itemId !== null && $receivedQty !== null) {
+                // تحويل ID إلى integer للتأكد من المطابقة الصحيحة
+                $receivedItemsMap[(int)$itemId] = (float)$receivedQty;
+            }
+        }
+        
+        // تحديث fulfilled_qty لكل عنصر
+        foreach ($shipment->items as $item) {
+            // أولوية: الكمية المستلمة من الطلب > approved_qty > requested_qty
+            $qtyToSet = null;
+            
+            // التحقق من الكمية المستلمة المرسلة من الواجهة
+            if (isset($receivedItemsMap[(int)$item->id])) {
+                $qtyToSet = $receivedItemsMap[(int)$item->id];
+            }
+            // إذا لم توجد كمية مستلمة في الطلب، نستخدم approved_qty
+            else {
+                $qtyToSet = $item->approved_qty ?? $item->requested_qty ?? 0;
+            }
+            
+            // تحديث fulfilled_qty بالكمية المستلمة الفعلية
+            $item->fulfilled_qty = $qtyToSet;
+            $item->save();
+        }
+        
         // تسجيل العملية في audit_log
         $user = $request->user();
         AuditLog::create([
@@ -151,12 +194,31 @@ class ShipmentDepartmentAdminController extends BaseApiController
         
         // يمكن إضافة منطق تحديث المخزون هنا لاحقاً
         
+        // إعادة تحميل البيانات المحدثة من قاعدة البيانات
+        $shipment = InternalSupplyRequest::with('items.drug')->findOrFail($id);
+        
         return $this->sendSuccess([
             'id' => $shipment->id,
             'status' => $this->translateStatus($shipment->status),
             'confirmationDetails' => [
                 'confirmedAt' => $shipment->updated_at->format('Y-m-d H:i')
-            ]
+            ],
+            'items' => $shipment->items->map(function($item) {
+                return [
+                    'id' => $item->id,
+                    'drugId' => $item->drug_id,
+                    'name' => $item->drug->name ?? 'Unknown',
+                    'quantity' => $item->requested_qty,
+                    'requestedQty' => $item->requested_qty,
+                    'requested_qty' => $item->requested_qty,
+                    'approvedQty' => $item->approved_qty ?? null,
+                    'approved_qty' => $item->approved_qty ?? null,
+                    'fulfilledQty' => $item->fulfilled_qty ?? null,
+                    'fulfilled_qty' => $item->fulfilled_qty ?? null,
+                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
+                    'unit' => $item->drug->unit ?? 'علبة'
+                ];
+            })
         ], 'تم تأكيد استلام الشحنة بنجاح.');
     }
 }

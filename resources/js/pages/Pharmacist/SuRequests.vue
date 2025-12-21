@@ -178,7 +178,7 @@
                                                 'تم الإستلام',
                                             'text-yellow-600 font-semibold':
                                                 shipment.requestStatus ===
-                                                'قيد التجهيز',
+                                                'قيد الاستلام',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}
@@ -207,20 +207,17 @@
                                             </template>
                                             
                                             <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
-                                                <!-- إذا كانت تم الاستلام، تظهر زر مراجعة التفاصيل -->
-                                                <button 
-                                                    @click="openReviewModal(shipment)"
-                                                    class="tooltip" 
-                                                    data-tip="مراجعة تفاصيل الاستلام">
+                                                <!-- علامة الصح عندما تكون الحالة "تم الإستلام" -->
+                                                <button class="tooltip" data-tip="تم الإستلام">
                                                     <Icon
-                                                        icon="healthicons:yes-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        icon="solar:check-circle-bold"
+                                                        class="w-5 h-5 text-green-600"
                                                     />
                                                 </button>
                                             </template>
                                             
-                                            <template v-else-if="shipment.requestStatus === 'قيد التجهيز'">
-                                                <!-- يظهر زر تأكيد الاستلام فقط عندما تكون الحالة "قيد التجهيز" (approved) -->
+                                            <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
+                                                <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
                                                 <button
                                                     @click="openConfirmationModal(shipment)" 
                                                     class="tooltip"
@@ -233,7 +230,7 @@
                                             </template>
                                             
                                             <template v-else>
-                                                <!-- للحالات الأخرى (مثل "قيد الانتظار") لا يظهر زر تأكيد الاستلام -->
+                                                <!-- زر في انتظار القبول للحالات الأخرى (مثل "قيد الانتظار") -->
                                                 <button class="tooltip" data-tip="في انتظار القبول">
                                                     <Icon
                                                         icon="solar:clock-circle-bold-duotone"
@@ -603,17 +600,41 @@ const openRequestViewModal = async (shipment) => {
         console.error('Error fetching shipment details:', err);
     }
     
-    // تحديث البيانات مع التأكد من وجود الكميات المستلمة
+    // تحديث البيانات مع التأكد من وجود الكميات المطلوبة والمرسلة والمستلمة
     selectedRequestDetails.value = {
         ...shipment.details,
         items: (shipment.details.items || []).map(item => ({
             ...item,
-            // التأكد من وجود الكمية المستلمة - أولوية fulfilledQty
-            fulfilledQty: item.fulfilledQty ?? item.fulfilled_qty ?? null,
-            receivedQuantity: item.receivedQuantity ?? item.fulfilledQty ?? item.fulfilled_qty ?? null,
             // الكمية المطلوبة
             quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
             requestedQty: item.requestedQty ?? item.requested_qty ?? item.quantity ?? 0,
+            requested_qty: item.requested_qty ?? item.requestedQty ?? item.quantity ?? 0,
+            // الكمية المرسلة (المعتمدة)
+            approvedQty: item.approvedQty ?? item.approved_qty ?? null,
+            approved_qty: item.approved_qty ?? item.approvedQty ?? null,
+            sentQuantity: item.sentQuantity ?? item.approvedQty ?? item.approved_qty ?? null,
+            // الكمية المستلمة - فقط fulfilled_qty، لا نستخدم approved_qty كبديل
+            // أولوية: fulfilled_qty > fulfilledQty > receivedQuantity (فقط إذا لم يكن approved_qty)
+            fulfilledQty: item.fulfilledQty ?? item.fulfilled_qty ?? null,
+            fulfilled_qty: item.fulfilled_qty ?? item.fulfilledQty ?? null,
+            // التحقق من أن receivedQuantity ليس هو نفس approved_qty
+            receivedQuantity: (() => {
+                const fulfilled = item.fulfilled_qty ?? item.fulfilledQty ?? null;
+                if (fulfilled !== null && fulfilled !== undefined) {
+                    return fulfilled;
+                }
+                // إذا كان receivedQuantity موجوداً وليس نفس approved_qty، نستخدمه
+                const approved = item.approved_qty ?? item.approvedQty ?? null;
+                const received = item.receivedQuantity;
+                if (received !== null && received !== undefined && received !== approved) {
+                    return received;
+                }
+                return null;
+            })(),
+            // معلومات إضافية
+            unit: item.unit || 'وحدة',
+            dosage: item.dosage || item.strength || '',
+            type: item.type || item.form || ''
         })),
         confirmation: shipment.details.confirmationDetails || (shipment.requestStatus === 'تم الإستلام' || shipment.received || fetchedData?.status === 'تم الإستلام' ? {
             confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString()
@@ -627,7 +648,29 @@ const closeRequestViewModal = () => {
     selectedRequestDetails.value = { id: null, date: '', status: '', items: [] }; 
 };
 
-const openConfirmationModal = (shipment) => {
+const openConfirmationModal = async (shipment) => {
+    let fetchedData = null;
+    // جلب البيانات من API لضمان الحصول على أحدث البيانات بما فيها الكمية المرسلة
+    try {
+        const response = await endpoints.shipments.getById(shipment.id);
+        fetchedData = response.data?.data ?? response.data;
+        
+        if (fetchedData) {
+            shipment.details = {
+                id: fetchedData.id,
+                date: fetchedData.requestDate || fetchedData.created_at,
+                status: fetchedData.status,
+                items: fetchedData.items || [],
+                notes: fetchedData.notes || '',
+                ...(fetchedData.confirmationDetails && {
+                    confirmationDetails: fetchedData.confirmationDetails
+                })
+            };
+        }
+    } catch (err) {
+        console.error('Error fetching shipment details:', err);
+    }
+    
     selectedShipmentForConfirmation.value = shipment.details; 
     isConfirmationModalOpen.value = true;
 };

@@ -178,7 +178,7 @@
                                                 'تم الإستلام',
                                             'text-yellow-600 font-semibold':
                                                 shipment.requestStatus ===
-                                                'قيد التجهيز',
+                                                'قيد الاستلام',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}
@@ -298,22 +298,66 @@ import RequestViewModal from "@/components/fordepartment/RequestViewModal.vue";
 import ConfirmationModal from "@/components/fordepartment/ConfirmationModal.vue"; 
 
 // ----------------------------------------------------
+// 0. نظام التنبيهات - يجب تعريفه قبل الاستخدام
+// ----------------------------------------------------
+const isSuccessAlertVisible = ref(false);
+const successMessage = ref("");
+let alertTimeout = null;
+
+const showSuccessAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+
+    successMessage.value = message;
+    isSuccessAlertVisible.value = true;
+
+    alertTimeout = setTimeout(() => {
+        isSuccessAlertVisible.value = false;
+        successMessage.value = "";
+    }, 4000);
+};
+
+// ----------------------------------------------------
 // 1. إعدادات axios
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // تعديل حسب رابط الـ API الخاص بك
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    return response.data;
+  },
   (error) => {
     console.error('API Error:', error.response?.data || error.message);
+    if (error.response?.status === 401) {
+      showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+    } else if (error.response?.status === 403) {
+      showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+    } else if (!error.response) {
+      showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+    }
     return Promise.reject(error);
   }
 );
@@ -321,21 +365,22 @@ api.interceptors.response.use(
 // تعريف جميع الـ endpoints
 const endpoints = {
   shipments: {
-    getAll: () => api.get('/shipments'),
-    getById: (id) => api.get(`/shipments/${id}`),
-    create: (data) => api.post('/shipments', data),
-    update: (id, data) => api.put(`/shipments/${id}`, data),
-    confirm: (id, data) => api.post(`/shipments/${id}/confirm`, data)
+    getAll: () => api.get('/storekeeper/shipments'),
+    getById: (id) => api.get(`/storekeeper/shipments/${id}`),
+    create: (data) => api.post('/storekeeper/shipments', data),
+    update: (id, data) => api.put(`/storekeeper/shipments/${id}`, data),
+    confirm: (id, data) => api.post(`/storekeeper/shipments/${id}/confirm`, data)
   },
   categories: {
-    getAll: () => api.get('/categories')
+    getAll: () => api.get('/storekeeper/categories')
   },
   drugs: {
-    getAll: () => api.get('/drugs'),
-    search: (params) => api.get('/drugs/search', { params })
+    getAll: () => api.get('/storekeeper/drugs/all'),
+    search: (params) => api.get('/storekeeper/drugs/search', { params })
   },
   supplyRequests: {
-    create: (data) => api.post('/supply-requests', data)
+    getAll: () => api.get('/storekeeper/supply-requests'),
+    create: (data) => api.post('/storekeeper/supply-requests', data)
   }
 };
 
@@ -374,26 +419,27 @@ const fetchAllData = async () => {
 
 const fetchShipments = async () => {
     try {
-        const response = await endpoints.shipments.getAll();
+        const response = await endpoints.supplyRequests.getAll();
         shipmentsData.value = response.map(shipment => ({
             id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `S-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.createdAt,
-            requestStatus: shipment.status || shipment.requestStatus,
-            received: shipment.received || (shipment.status === 'تم الإستلام'),
+            shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+            requestDate: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
+            requestStatus: shipment.requestStatus || shipment.status,
+            received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
             details: {
                 id: shipment.id,
-                date: shipment.requestDate,
-                status: shipment.status,
+                date: shipment.requestDate || shipment.requestDateFull,
+                status: shipment.requestStatus || shipment.status,
                 items: shipment.items || [],
                 notes: shipment.notes || '',
+                department: shipment.requestingDepartment || shipment.department?.name,
                 ...(shipment.confirmationDetails && {
                     confirmationDetails: shipment.confirmationDetails
                 })
             }
         }));
     } catch (err) {
-        console.error('Error fetching shipments:', err);
+        console.error('Error fetching supply requests:', err);
         throw err;
     }
 };
@@ -402,11 +448,13 @@ const fetchCategories = async () => {
     try {
         const response = await endpoints.categories.getAll();
         categories.value = response.map(cat => ({
-            id: cat.id,
-            name: cat.name
+            id: cat.id || cat.name,
+            name: cat.name || cat.id
         }));
+        console.log(`✅ تم تحميل ${categories.value.length} تصنيف بنجاح`);
     } catch (err) {
         console.error('Error fetching categories:', err);
+        showSuccessAlert('❌ فشل في تحميل التصنيفات.');
         categories.value = [];
     }
 };
@@ -414,15 +462,29 @@ const fetchCategories = async () => {
 const fetchDrugs = async () => {
     try {
         const response = await endpoints.drugs.getAll();
-        allDrugsData.value = response.map(drug => ({
-            id: drug.id,
-            name: drug.name,
-            categoryId: drug.categoryId,
-            dosage: drug.dosage || drug.strength,
-            type: drug.type || 'Tablet'
-        }));
+        allDrugsData.value = response.map(drug => {
+            const drugName = drug.drugName || drug.name || '';
+            return {
+                id: drug.id,
+                drugId: drug.id,
+                name: drugName,
+                drugName: drugName,
+                genericName: drug.genericName || drug.generic_name || '',
+                categoryId: drug.category || '',
+                category: drug.category || '',
+                dosage: drug.strength || '',
+                strength: drug.strength || '',
+                type: drug.form || drug.type || 'Tablet',
+                form: drug.form || '',
+                unit: drug.unit || '',
+                drugCode: drug.drugCode || drug.id
+            };
+        });
+        
+        console.log(`✅ تم تحميل ${allDrugsData.value.length} دواء بنجاح`);
     } catch (err) {
         console.error('Error fetching drugs:', err);
+        showSuccessAlert('❌ فشل في تحميل الأدوية.');
         allDrugsData.value = [];
     }
 };
@@ -508,28 +570,48 @@ const closeSupplyRequestModal = () => {
 const handleSupplyConfirm = async (data) => {
     isSubmittingSupply.value = true;
     try {
+        // التحقق من أن جميع الأدوية لديها drugId صحيح
+        const itemsWithDrugId = data.items.map(item => {
+            let drugId = item.drugId || item.id;
+            
+            // إذا لم يكن drugId موجوداً، البحث عنه في allDrugsData
+            if (!drugId && item.name) {
+                const drugInfo = allDrugsData.value.find(d => 
+                    d.id === item.id ||
+                    d.name === item.name || 
+                    d.drugName === item.name ||
+                    (d.name && item.name && d.name.toLowerCase() === item.name.toLowerCase()) ||
+                    (d.drugName && item.name && d.drugName.toLowerCase() === item.name.toLowerCase())
+                );
+                drugId = drugInfo?.id || drugInfo?.drugId || null;
+            }
+            
+            if (!drugId) {
+                throw new Error(`لا يمكن العثور على معرف الدواء للدواء: ${item.name || 'غير معروف'}`);
+            }
+            
+            return {
+                drug_id: drugId,
+                requested_qty: item.quantity || item.requested_qty || 1,
+            };
+        });
+        
         const requestData = {
-            items: data.items.map(item => ({
-                drugId: item.drugId || null,
-                drugName: item.name,
-                quantity: item.quantity,
-                unit: item.unit,
-                type: item.type
-            })),
-            notes: data.notes || '',
-            departmentId: 1, // استبدل بقسم المستخدم الحالي
-            priority: data.priority || 'normal'
+            items: itemsWithDrugId,
+            supplier_id: data.supplierId || null,
         };
         
         const response = await endpoints.supplyRequests.create(requestData);
         
-        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${response.requestNumber} بنجاح!`);
+        const requestNumber = response.data?.requestNumber || response.requestNumber || `EXT-${response.data?.id || response.id}`;
+        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${requestNumber} بنجاح!`);
         closeSupplyRequestModal();
         
         await fetchShipments();
         
     } catch (err) {
-        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${err.response?.data?.message || err.message}`);
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير متوقع';
+        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
@@ -667,28 +749,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 };
 
 // ----------------------------------------------------
-// 9. نظام التنبيهات
-// ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
-let alertTimeout = null;
-
-const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
-};
-
-// ----------------------------------------------------
-// 10. دورة الحياة
+// 9. دورة الحياة
 // ----------------------------------------------------
 onMounted(() => {
     fetchAllData();

@@ -10,8 +10,8 @@ class CreatePatientTransferRequestTable extends Migration
         Schema::create('patient_transfer_request', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('patient_id');
-            $table->unsignedBigInteger('from_hospital_id');
-            $table->unsignedBigInteger('to_hospital_id');
+            $table->unsignedBigInteger('from_hospital_id'); // ✅ بدون FK مباشر
+            $table->unsignedBigInteger('to_hospital_id'); // ✅ يبقى FK لأنه user input
             $table->unsignedBigInteger('requested_by');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('reason')->nullable();
@@ -22,12 +22,15 @@ class CreatePatientTransferRequestTable extends Migration
             $table->text('rejection_reason')->nullable();
             $table->timestamps();
 
+            // Foreign Keys
             $table->foreign('patient_id')->references('id')->on('users');
-            $table->foreign('from_hospital_id')->references('id')->on('hospital');
-            $table->foreign('to_hospital_id')->references('id')->on('hospital');
+            $table->foreign('to_hospital_id')->references('id')->on('hospital'); // ✅ يبقى
             $table->foreign('requested_by')->references('id')->on('users');
             $table->foreign('approved_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('rejected_by')->references('id')->on('users')->onDelete('set null');
+            
+            // Index للأداء
+            $table->index('from_hospital_id');
         });
     }
 

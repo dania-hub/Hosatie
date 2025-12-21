@@ -1,13 +1,13 @@
 <?php
 
 namespace App\Http\Controllers\AdminHospital;
-
+use App\Services\PatientNotificationService;
 use App\Http\Controllers\BaseApiController;
 use App\Models\PatientTransferRequest;
 use Illuminate\Http\Request;
 
 class PatientTransferAdminHospitalController extends BaseApiController
-{
+{ public function __construct(private PatientNotificationService $notifications) {}
     // قائمة طلبات النقل
     public function index(Request $request)
     {
@@ -57,14 +57,16 @@ class PatientTransferAdminHospitalController extends BaseApiController
 
         $r->status          = $data['status'];
         // لو عندك أعمدة approved_by / rejected_by / rejection_reason يمكنك تفعيلها هنا:
-        // if ($data['status'] === 'approved') {
-        //     $r->approved_by = $request->user()->id;
-        //     $r->approved_at = now();
-        // } else {
-        //     $r->rejected_by     = $request->user()->id;
-        //     $r->rejected_at     = now();
-        //     $r->rejection_reason= $data['rejectionReason'] ?? null;
-        // }
+        if ($data['status'] === 'approved') {
+            $r->approved_by = $request->user()->id;
+            $r->approved_at = now();
+              $this->notifications->notifyTransferApproved($r->patient, $r);
+     } else {
+            $r->rejected_by     = $request->user()->id;
+           $r->rejected_at     = now();
+            $r->rejection_reason= $data['rejectionReason'] ?? null;
+              $this->notifications->notifyTransferRejected($r->patient, $r);
+        }
 
         $r->save();
 

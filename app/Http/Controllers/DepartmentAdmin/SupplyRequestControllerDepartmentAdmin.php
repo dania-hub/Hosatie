@@ -114,8 +114,8 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
     private function translateStatus($status)
     {
         $translations = [
-            'pending' => 'قيد المراجعة',
-            'approved' => 'موافق عليه',
+            'pending' => 'قيد الانتظار',
+            'approved' => 'قيد الاستلام',
             'rejected' => 'مرفوضة',
             'fulfilled' => 'تم الإستلام',
             'cancelled' => 'ملغاة',

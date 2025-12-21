@@ -188,7 +188,7 @@
                                                 'تم الإستلام',
                                             'text-yellow-600 font-semibold':
                                                 shipment.requestStatus ===
-                                                'قيد التجهيز' || shipment.requestStatus === 'جديد' || shipment.requestStatus === 'قيد الإستلام',
+                                                'قيد الإستلام' || shipment.requestStatus === 'جديد' || shipment.requestStatus === 'قيد الإستلام',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}

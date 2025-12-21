@@ -15,12 +15,14 @@ class UserObserver
     {
         // Only log if a logged-in user creates a 'patient'
         if (Auth::check() && $user->type === 'patient') {
+            $currentUser = Auth::user();
             AuditLog::create([
-                'user_id'    => Auth::id(), // The Data Entry Clerk
-                'action'     => 'إضافة',    // The Action Name (Matches Image)
+                'user_id'    => $currentUser->id, // The Data Entry Clerk
+                'hospital_id' => $currentUser->hospital_id ?? null,
+                'action'     => 'create_patient',    // The Action Name
                 'table_name' => 'users',
                 'record_id'  => $user->id,  // File Number
-                'new_values' => json_encode($user->only(['full_name', 'national_id'])),
+                'new_values' => json_encode($user->only(['full_name', 'national_id', 'birth_date', 'phone', 'email'])),
                 'ip_address' => request()->ip(),
             ]);
         }
@@ -33,13 +35,36 @@ class UserObserver
     {
         // Only log if a logged-in user updates a 'patient'
         if (Auth::check() && $user->type === 'patient') {
+            $currentUser = Auth::user();
             AuditLog::create([
-                'user_id'    => Auth::id(),
-                'action'     => 'تعديل',    // The Action Name (Matches Image)
+                'user_id'    => $currentUser->id,
+                'hospital_id' => $currentUser->hospital_id ?? null,
+                'action'     => 'update_patient',    // The Action Name
                 'table_name' => 'users',
                 'record_id'  => $user->id,
                 'old_values' => json_encode($user->getOriginal()),
                 'new_values' => json_encode($user->getChanges()),
+                'ip_address' => request()->ip(),
+            ]);
+        }
+    }
+
+    /**
+     * Handle the User "deleting" event.
+     */
+    public function deleting(User $user)
+    {
+        // Only log if a logged-in user deletes a 'patient'
+        if (Auth::check() && $user->type === 'patient') {
+            $currentUser = Auth::user();
+            AuditLog::create([
+                'user_id'    => $currentUser->id,
+                'hospital_id' => $currentUser->hospital_id ?? null,
+                'action'     => 'delete_patient',    // The Action Name
+                'table_name' => 'users',
+                'record_id'  => $user->id,
+                'old_values' => json_encode($user->only(['full_name', 'national_id', 'birth_date', 'phone', 'email'])),
+                'new_values' => null,
                 'ip_address' => request()->ip(),
             ]);
         }

@@ -12,27 +12,78 @@ import DispensationModal from "@/components/forhospitaladmin/DispensationModal.v
 import DefaultLayout from "@/components/DefaultLayout.vue";
 
 // ----------------------------------------------------
+// 0. نظام التنبيهات - يجب تعريفه قبل الاستخدام
+// ----------------------------------------------------
+const isSuccessAlertVisible = ref(false);
+const isInfoAlertVisible = ref(false);
+const successMessage = ref("");
+const infoMessage = ref("");
+let alertTimeout = null;
+
+const showSuccessAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+    successMessage.value = message;
+    isSuccessAlertVisible.value = true;
+    alertTimeout = setTimeout(() => {
+        isSuccessAlertVisible.value = false;
+        successMessage.value = "";
+    }, 4000);
+};
+
+const showInfoAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+    infoMessage.value = message;
+    isInfoAlertVisible.value = true;
+    alertTimeout = setTimeout(() => {
+        isInfoAlertVisible.value = false;
+        infoMessage.value = "";
+    }, 4000);
+};
+
+// ----------------------------------------------------
 // 1. تكوين Axios
 // ----------------------------------------------------
-const API_BASE_URL = "https://api.your-domain.com"; // استبدل بالرابط الفعلي لـ API
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
+    'Accept': 'application/json'
   }
 });
 
 // إضافة interceptor لإضافة التوكن تلقائيًا
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
   error => {
+    return Promise.reject(error);
+  }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+  (response) => {
+    return response.data;
+  },
+  (error) => {
+    console.error('API Error:', error.response?.data || error.message);
+    if (error.response?.status === 401) {
+      showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+    } else if (error.response?.status === 403) {
+      showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+    } else if (!error.response) {
+      showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+    }
     return Promise.reject(error);
   }
 );
@@ -55,15 +106,16 @@ const fetchPatients = async () => {
   errorMessage.value = "";
   
   try {
-    const response = await api.get('/api/patients');
-    patients.value = response.data.map(patient => ({
+    const response = await api.get('/admin-hospital/patients');
+    patients.value = (response.data || response || []).map(patient => ({
       ...patient,
-      lastUpdated: new Date(patient.lastUpdated).toISOString(),
+      lastUpdated: patient.lastUpdated || new Date().toISOString(),
       // إضافة خصائص العرض إذا لم تكن موجودة
       nameDisplay: patient.name || '',
       nationalIdDisplay: patient.nationalId || '',
       birthDisplay: patient.birth ? formatDateForDisplay(patient.birth) : ''
     }));
+    showSuccessAlert(`✅ تم تحميل ${patients.value.length} مريض بنجاح`);
   } catch (err) {
     hasError.value = true;
     if (err.response) {
@@ -88,6 +140,9 @@ const fetchPatients = async () => {
       showInfoAlert('لا يمكن الاتصال بالخادم. سيتم عرض الجدول فارغًا.');
     } else {
       errorMessage.value = "حدث خطأ غير متوقع.";
+    }
+    if (!err.response || (err.response.status !== 401 && err.response.status !== 403)) {
+      showSuccessAlert(`❌ فشل في تحميل المرضى: ${errorMessage.value}`);
     }
   } finally {
     isLoading.value = false;
@@ -114,8 +169,8 @@ const formatDateForDisplay = (dateString) => {
 // جلب بيانات مريض محدد
 const fetchPatientDetails = async (patientId) => {
   try {
-    const response = await api.get(`/api/patients/${patientId}`);
-    const patientData = response.data;
+    const response = await api.get(`/admin-hospital/patients/${patientId}`);
+    const patientData = response.data || response;
     
     // تنسيق البيانات للعرض
     return {
@@ -134,10 +189,10 @@ const fetchPatientDetails = async (patientId) => {
 // تحديث بيانات المريض (بعد إضافة/تعديل/حذف دواء)
 const updatePatientMedications = async (patientId, medications) => {
   try {
-    const response = await api.put(`/api/patients/${patientId}/medications`, {
+    const response = await api.put(`/admin-hospital/patients/${patientId}/medications`, {
       medications
     });
-    return response.data;
+    return response.data || response;
   } catch (err) {
     console.error('فشل تحديث الأدوية:', err);
     throw err;
@@ -147,8 +202,8 @@ const updatePatientMedications = async (patientId, medications) => {
 // جلب سجل الصرف
 const fetchDispensationHistory = async (patientId) => {
   try {
-    const response = await api.get(`/api/patients/${patientId}/dispensation-history`);
-    return response.data || [];
+    const response = await api.get(`/admin-hospital/patients/${patientId}/dispensation-history`);
+    return response.data || response || [];
   } catch (err) {
     console.error('فشل جلب سجل الصرف:', err);
     throw err;
@@ -223,41 +278,8 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 5. منطق الرسائل التنبيهية
+// 5. منطق الرسائل التنبيهية (تم نقله للأعلى)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isInfoAlertVisible = ref(false);
-const successMessage = ref("");
-const infoMessage = ref("");
-let alertTimeout = null;
-
-const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
-};
-
-const showInfoAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    infoMessage.value = message;
-    isInfoAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isInfoAlertVisible.value = false;
-        infoMessage.value = "";
-    }, 4000);
-};
 
 // ----------------------------------------------------
 // 6. حالة الـ Modals
@@ -317,10 +339,13 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const updatedMedications = [...selectedPatient.value.medications];
     const medicationName = updatedMedications[medIndex].drugName;
     
+    // التأكد من وجود الحقول المطلوبة
     updatedMedications[medIndex] = {
-      ...updatedMedications[medIndex],
+      drugId: updatedMedications[medIndex].drugId || null,
+      drugName: updatedMedications[medIndex].drugName || medicationName,
       dosage: newDosage.toString(),
-      monthlyQuantity: `${parseInt(newDosage) * 30} حبة`
+      monthlyQuantity: `${parseInt(newDosage) * 30} حبة`,
+      note: updatedMedications[medIndex].note || null
     };
 
     // تحديث في الـ API
@@ -335,19 +360,20 @@ const handleEditMedication = async (medIndex, newDosage) => {
     );
     
     if (patientIndex !== -1) {
-      patients.value[patientIndex].medications = updatedPatient.medications;
+      patients.value[patientIndex].medications = updatedPatient.medications || updatedMedications;
     }
     
     // تحديث المريض المحدد
     selectedPatient.value = {
       ...selectedPatient.value,
-      medications: updatedPatient.medications
+      medications: updatedPatient.medications || updatedMedications
     };
 
     showSuccessAlert(`✅ تم تعديل جرعة ${medicationName} بنجاح`);
   } catch (err) {
     console.error('فشل تعديل الدواء:', err);
-    showInfoAlert('فشل تعديل الدواء. يرجى المحاولة مرة أخرى.');
+    const errorMsg = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
+    showInfoAlert(`فشل تعديل الدواء: ${errorMsg}`);
   }
 };
 
@@ -369,19 +395,20 @@ const handleDeleteMedication = async (medIndex) => {
     );
     
     if (patientIndex !== -1) {
-      patients.value[patientIndex].medications = updatedPatient.medications;
+      patients.value[patientIndex].medications = updatedPatient.medications || updatedMedications;
     }
     
     // تحديث المريض المحدد
     selectedPatient.value = {
       ...selectedPatient.value,
-      medications: updatedPatient.medications
+      medications: updatedPatient.medications || updatedMedications
     };
 
     showSuccessAlert(`🗑️ تم حذف الدواء ${medicationName} بنجاح`);
   } catch (err) {
     console.error('فشل حذف الدواء:', err);
-    showInfoAlert('فشل حذف الدواء. يرجى المحاولة مرة أخرى.');
+    const errorMsg = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
+    showInfoAlert(`فشل حذف الدواء: ${errorMsg}`);
   }
 };
 

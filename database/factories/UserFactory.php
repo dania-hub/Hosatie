@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -11,34 +12,92 @@ use Illuminate\Support\Str;
  */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
+    protected $model = User::class;
+
     protected static ?string $password;
 
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'national_id' => fake()->unique()->numerify('2##########'),
+            'birth_date' => fake()->dateTimeBetween('-70 years', '-18 years')->format('Y-m-d'),
+            'type' => 'data_entry',
             'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
+            'phone' => fake()->unique()->phoneNumber(),
+            'full_name' => fake()->name(),
             'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'fcm_token' => Str::random(64),
+            'warehouse_id' => null,
+            'hospital_id' => null,
+            'supplier_id' => null,
+            'department_id' => null,
+            'pharmacy_id' => null,
+            'status' => fake()->randomElement(['active','inactive','pending_activation']),
+            'created_by' => null,
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-    public function unverified(): static
+    public function patient(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+        return $this->state(fn () => [
+            'type' => 'patient',
+            'status' => 'active',
+        ]);
+    }
+
+    public function doctor(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'doctor',
+            'status' => 'active',
+        ]);
+    }
+
+    public function pharmacist(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'pharmacist',
+            'status' => 'active',
+        ]);
+    }
+
+    public function warehouseManager(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'warehouse_manager',
+            'status' => 'active',
+        ]);
+    }
+
+    public function departmentHead(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'department_head',
+            'status' => 'active',
+        ]);
+    }
+
+    public function hospitalAdmin(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'hospital_admin',
+            'status' => 'active',
+        ]);
+    }
+
+    public function supplierAdmin(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'supplier_admin',
+            'status' => 'active',
+        ]);
+    }
+
+    public function dataEntry(): static
+    {
+        return $this->state(fn () => [
+            'type' => 'data_entry',
+            'status' => 'active',
         ]);
     }
 }

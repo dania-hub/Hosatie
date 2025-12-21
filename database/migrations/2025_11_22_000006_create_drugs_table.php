@@ -21,6 +21,8 @@ class CreateDrugsTable extends Migration
             $table->string('country')->nullable();
             $table->string('utilization_type')->nullable();
             $table->text('warnings')->nullable();
+            $table->text('indications')->nullable(); // ✅ دواعي الاستعمال
+            $table->text('contraindications')->nullable(); // ✅ موانع الاستعمال
             $table->date('expiry_date')->nullable();
             $table->timestamps();
 

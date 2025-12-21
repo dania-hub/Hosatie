@@ -28,21 +28,7 @@ class PatientDataEntryController extends BaseApiController
             'status'      => 'pending_activation',
         ]);
 
-        AuditLog::create([
-            'user_id'    => $request->user()->id ?? null,
-            'table_name' => 'users',
-            'record_id'  => $user->id,
-            'action'     => 'create_patient',
-            'old_values' => null,
-            'new_values' => json_encode([
-                'full_name'   => $user->full_name,
-                'national_id' => $user->national_id,
-                'birth_date'  => $user->birth_date,
-                'phone'       => $user->phone,
-                'email'       => $user->email,
-            ]),
-            'ip_address' => $request->ip(),
-        ]);
+        // يتم تسجيل العملية تلقائياً من خلال UserObserver
 
         return response()->json([
             'success' => true,
@@ -85,23 +71,13 @@ class PatientDataEntryController extends BaseApiController
             ], 404);
         }
 
-        $old = $user->only(['full_name', 'national_id', 'birth_date', 'phone', 'email']);
-
         $user->update([
             'email'      => $request->email,
             'phone'      => $request->phone,
             'birth_date' => $request->birth_date,
         ]);
 
-        AuditLog::create([
-            'user_id'    => $request->user()->id ?? null,
-            'table_name' => 'users',
-            'record_id'  => $user->id,
-            'action'     => 'update_patient',
-            'old_values' => json_encode($old),
-            'new_values' => json_encode($user->only(['full_name','national_id','birth_date','phone','email'])),
-            'ip_address' => $request->ip(),
-        ]);
+        // يتم تسجيل العملية تلقائياً من خلال UserObserver
 
         return response()->json([
             'success' => true,
@@ -208,19 +184,9 @@ class PatientDataEntryController extends BaseApiController
             return $this->sendError('المريض غير موجود.', [], 404);
         }
 
-        $old = $patient->only(['full_name','national_id','birth_date','phone','email']);
-
         $patient->delete();
 
-        AuditLog::create([
-            'user_id'    => $request->user()->id ?? null,
-            'table_name' => 'users',
-            'record_id'  => $id,
-            'action'     => 'delete_patient',
-            'old_values' => json_encode($old),
-            'new_values' => null,
-            'ip_address' => $request->ip(),
-        ]);
+        // يتم تسجيل العملية تلقائياً من خلال UserObserver
 
         return $this->sendSuccess([], 'تم حذف المريض بنجاح.');
     }

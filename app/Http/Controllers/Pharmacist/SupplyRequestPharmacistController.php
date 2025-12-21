@@ -21,7 +21,8 @@ class SupplyRequestPharmacistController extends BaseApiController
             'items' => 'required|array|min:1',
             'items.*.drugId' => 'required|exists:drug,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'notes' => 'nullable|string'
+            'notes' => 'nullable|string',
+            'supplier_id' => 'nullable|exists:supplier,id'
         ]);
 
         DB::beginTransaction();

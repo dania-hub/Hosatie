@@ -139,33 +139,71 @@ class AuthController extends BaseApiController
             return $this->handleException($e, 'خطأ في تسجيل الدخول إلى لوحة التحكم');
         }
     }
-    public function forceChangePassword(ForceChangePasswordRequest $request)
-    {
-        try {
-            $user = $request->user();
+    /**
+ * تغيير كلمة المرور الإجباري للمستخدمين الجدد
+ */
+public function forceChangePassword(Request $request)
+{
+    try {
+        $user = $request->user();
 
-            // Security: Only patients
-            if ($user->type !== 'patient') {
-                return $this->sendError('هذا الإجراء مخصص للمرضى فقط.', [], 403);
-            }
-
-            // Security: Only if pending
-            if ($user->status === 'active') {
-                return $this->sendError('حسابك نشط بالفعل.', [], 400);
-            }
-
-            // Update Password & Activate
-            $user->password = Hash::make($request->new_password);
-            $user->status = 'active';
-            $user->save();
-
-            return $this->sendSuccess(new UserResource($user), 'تم تغيير كلمة المرور وتفعيل الحساب بنجاح.');
-
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'خطأ في تغيير كلمة المرور الإجباري');
+        // 1. التحقق: فقط المرضى
+        if ($user->type !== 'patient') {
+            return $this->sendError('هذا الإجراء مخصص للمرضى فقط.', [], 403);
         }
-    }
 
+        // 2. التحقق: يجب أن يكون pending_activation فقط
+        if ($user->status !== 'pending_activation') {
+            return $this->sendError('لا تحتاج لتغيير كلمة المرور.', [], 400);
+        }
+
+        // 3. التحقق من البيانات المدخلة
+        $validator = Validator::make($request->all(), [
+            'new_password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'
+            ],
+            'new_password_confirmation' => 'required|string|min:8',
+        ], [
+            'new_password.min' => 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.',
+            'new_password.confirmed' => 'كلمات المرور غير متطابقة.',
+            'new_password.regex' => 'يجب أن تحتوي كلمة المرور على حرف كبير وصغير ورقم.',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('لأمان أقوى، يرجى استخدام مزيج من الأرقام والحروف الكبيرة والصغيرة.', $validator->errors()->toArray(), 422);
+        }
+
+        // 4. التحقق: لا يمكن استخدام كلمة المرور القديمة
+        if (Hash::check($request->new_password, $user->password)) {
+            return $this->sendError('لا يمكن استخدام كلمة المرور القديمة.', [], 400);
+        }
+
+        // 5. تحديث كلمة المرور وتفعيل الحساب (بدون password_changed_at)
+        $user->password = Hash::make($request->new_password);
+        $user->status = 'active';
+        // $user->password_changed_at = now(); // <-- احذف هذا السطر
+        $user->save();
+
+        // 6. حذف جميع التوكنات القديمة (أمان إضافي)
+        $user->tokens()->delete();
+
+        // 7. إنشاء توكن جديد
+        $token = $user->createToken('mobile_app')->plainTextToken;
+
+        return $this->sendSuccess([
+            'token' => $token,
+            'user' => new UserResource($user),
+            'message' => 'تم تغيير كلمة المرور وتفعيل الحساب بنجاح.'
+        ], 'تمت العملية بنجاح');
+
+    } catch (\Exception $e) {
+        return $this->handleException($e, 'خطأ في تغيير كلمة المرور الإجباري');
+    }
+}
     /**
      * FR-2: Logout
      */

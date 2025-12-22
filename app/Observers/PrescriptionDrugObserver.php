@@ -5,7 +5,7 @@ namespace App\Observers;
 use App\Models\PrescriptionDrug;
 use App\Models\AuditLog;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log; // For debugging
+use Illuminate\Support\Facades\Log;
 
 class PrescriptionDrugObserver
 {
@@ -14,9 +14,13 @@ class PrescriptionDrugObserver
      */
     public function created(PrescriptionDrug $prescriptionDrug)
     {
-        // Force log for debugging (check laravel.log if still failing)
+        // ✅ إضافة منطق daily_quantity → monthly_quantity عند الإنشاء
+        if ($prescriptionDrug->daily_quantity && !$prescriptionDrug->monthly_quantity) {
+            $prescriptionDrug->monthly_quantity = $prescriptionDrug->daily_quantity * 30;
+            $prescriptionDrug->save(); // حفظ التغيير
+        }
+
         Log::info('Observer Created Triggered', ['id' => $prescriptionDrug->id]);
-        
         $this->logAction('إضافة دواء', $prescriptionDrug);
     }
 
@@ -25,9 +29,10 @@ class PrescriptionDrugObserver
      */
     public function updated(PrescriptionDrug $prescriptionDrug)
     {
+        // ✅ عند التحديث: لا نغيّر monthly_quantity حتى لو تغيّر daily_quantity
+        // هذا المنطق يطبّق على الإنشاء فقط
+        
         Log::info('Observer Updated Triggered', ['id' => $prescriptionDrug->id]);
-
-        // Log regardless of what changed to ensure it works
         $this->logAction('تعديل دواء', $prescriptionDrug, $prescriptionDrug->getOriginal());
     }
 

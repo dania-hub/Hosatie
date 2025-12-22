@@ -16,7 +16,6 @@ class InternalSupplyRequestFactory extends Factory
     {
         return [
             'status' => fake()->randomElement(['pending', 'approved', 'rejected', 'fulfilled', 'cancelled']),
-            'notes' => fake()->sentence(),
             'approved_by' => null,
             'approved_at' => null,
         ];

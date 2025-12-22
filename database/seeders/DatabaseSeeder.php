@@ -219,14 +219,16 @@ class DatabaseSeeder extends Seeder
             }
         }
 
-        for ($i = 0; $i < 200; $i++) {
-            $hospital = $hospitals->random();
-            $patient = $patientsByHospital[$hospital->id]->random();
-            $doctor = $doctorsByHospital[$hospital->id]->random();
+        foreach ($patients as $patient) {
+            $hospital = $hospitals->firstWhere('id', $patient->hospital_id);
+            if (!$hospital) {
+                continue;
+            }
+            $doctorPool = $doctorsByHospital[$hospital->id] ?? collect();
+            $doctor = $doctorPool->isNotEmpty()
+                ? $doctorPool->random()
+                : $doctors->random();
             $status = fake()->randomElement(['active', 'cancelled', 'suspended']);
-            $cancelledBy = $status === 'cancelled'
-                ? $departmentHeadsByHospital[$hospital->id]->random()->id
-                : null;
             $cancelledAt = $status === 'cancelled' ? fake()->dateTimeBetween('-60 days', 'now') : null;
             $prescription = Prescription::factory()
                 ->for($patient, 'patient')
@@ -239,7 +241,6 @@ class DatabaseSeeder extends Seeder
                         ? fake()->dateTimeBetween('now', '+120 days')->format('Y-m-d')
                         : null,
                     'cancelled_at' => $cancelledAt,
-                    'cancelled_by' => $cancelledBy,
                 ])
                 ->create();
             $drugCount = fake()->numberBetween(1, 4);

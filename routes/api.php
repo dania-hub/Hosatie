@@ -420,6 +420,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 //هده تنشئ في موظف و تبعتله في رابط التفعيل اللي من خلاله يحط فيه كلمة السر بتاعته 
 
         Route::post('staff', [StaffController::class, 'store']);
+        Route::patch('staff/{id}/status', [StaffController::class, 'toggleStatus']);
 
         Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);//تعرض الاقسام اللي عندك
         Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);// تنشئي قسم جديد

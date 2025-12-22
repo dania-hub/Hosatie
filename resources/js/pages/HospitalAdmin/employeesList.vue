@@ -13,9 +13,53 @@ import employeeViewModel from "@/components/forhospitaladmin/employeeViewModel.v
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_URL = "/api/data-entry/employees";
-const DEPARTMENTS_API_URL = "/api/departments";
+const API_URL = "/api/admin-hospital/staff";
+const DEPARTMENTS_API_URL = "/api/admin-hospital/departments";
 const ROLES_API_URL = "/api/employee-roles"; // رابط API للأدوار
+
+// إنشاء instance مخصصة من axios مع interceptor لإضافة الـ token تلقائياً
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة الـ token تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        // البحث عن التوكن في كلا المفاتيح (auth_token و token) للتوافق
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        } else {
+            console.warn('No token found in localStorage');
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// إضافة interceptor للتعامل مع أخطاء المصادقة
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+            console.error('Unauthenticated - Token exists:', !!token);
+            if (token) {
+                console.error('Token value (first 20 chars):', token.substring(0, 20) + '...');
+            } else {
+                console.error('No token found. Please login again.');
+            }
+        }
+        return Promise.reject(error);
+    }
+);
 
 // قائمة الأدوار المتاحة (سيتم جلبها من API)
 const employeeRoles = ref([]);
@@ -49,15 +93,33 @@ const fetchEmployees = async () => {
     error.value = null;
     
     try {
-        const response = await axios.get(API_URL);
-        employees.value = response.data.map(emp => ({
+        const response = await api.get('/admin-hospital/staff');
+        
+        // التحقق من بنية الاستجابة
+        let data = [];
+        if (response.data) {
+            if (Array.isArray(response.data)) {
+                // إذا كانت البيانات مصفوفة مباشرة
+                data = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                // إذا كانت البيانات في response.data.data
+                data = response.data.data;
+            } else if (response.data.success && Array.isArray(response.data.data)) {
+                // إذا كانت الاستجابة من sendSuccess
+                data = response.data.data;
+            }
+        }
+        
+        employees.value = data.map(emp => ({
             ...emp,
             nameDisplay: emp.name || "",
             nationalIdDisplay: emp.nationalId || "",
             birthDisplay: emp.birth ? formatDateForDisplay(emp.birth) : "",
         }));
     } catch (err) {
-       
+        console.error("Error fetching employees:", err);
+        const errorMessage = err.response?.data?.message || err.message || "فشل في تحميل بيانات الموظفين.";
+        error.value = errorMessage;
         employees.value = [];
     } finally {
         loading.value = false;
@@ -70,10 +132,31 @@ const fetchDepartments = async () => {
     departmentsError.value = null;
     
     try {
-        const response = await axios.get(DEPARTMENTS_API_URL);
-        availableDepartments.value = response.data;
+        const response = await api.get('/admin-hospital/departments');
+        
+        // التحقق من بنية الاستجابة
+        let data = [];
+        if (response.data) {
+            if (Array.isArray(response.data)) {
+                // إذا كانت البيانات مصفوفة مباشرة
+                data = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                // إذا كانت البيانات في response.data.data
+                data = response.data.data;
+            } else if (response.data.success && Array.isArray(response.data.data)) {
+                // إذا كانت الاستجابة من sendSuccess
+                data = response.data.data;
+            }
+        }
+        
+        availableDepartments.value = data.map(dept => ({
+            id: dept.id,
+            name: dept.name,
+        }));
     } catch (err) {
-       
+        console.error("Error fetching departments:", err);
+        const errorMessage = err.response?.data?.message || err.message || "فشل في تحميل بيانات الأقسام.";
+        departmentsError.value = errorMessage;
         availableDepartments.value = [];
     } finally {
         loadingDepartments.value = false;
@@ -86,18 +169,28 @@ const fetchEmployeeRoles = async () => {
     rolesError.value = null;
     
     try {
-        const response = await axios.get(ROLES_API_URL);
-        employeeRoles.value = response.data;
+        const response = await api.get('/employee-roles');
+        // التحقق من بنية الاستجابة
+        const data = response.data.data || response.data;
+        employeeRoles.value = data;
     } catch (err) {
-       
-        employeeRoles.value = [];
+        console.error("Error fetching employee roles:", err);
+        // إذا فشل جلب الأدوار من API، استخدم قائمة افتراضية
+        employeeRoles.value = [
+            'طبيب',
+            'صيدلي',
+            'مدير المخزن',
+            'مدير القسم',
+            'مدخل بيانات',
+        ];
+        rolesError.value = null; // لا نعرض خطأ لأننا استخدمنا قائمة افتراضية
     } finally {
         loadingRoles.value = false;
     }
 };
 
 // ----------------------------------------------------
-// 4. دالة مساعدة لتنسيق التاريخ
+// 4. دوال مساعدة
 // ----------------------------------------------------
 const formatDateForDisplay = (dateString) => {
     if (!dateString) return "";
@@ -110,15 +203,36 @@ const formatDateForDisplay = (dateString) => {
     return dateString;
 };
 
-// ----------------------------------------------------
-// 5. تحميل البيانات عند التهيئة
-// ----------------------------------------------------
-onMounted(async () => {
+// تحويل الدور من العربية إلى الإنجليزية للـ API
+const convertRoleToEnglish = (arabicRole) => {
+    const roleMap = {
+        'طبيب': 'doctor',
+        'صيدلي': 'pharmacist',
+        'مدير المخزن': 'warehouse_manager',
+        'مدير القسم': 'department_head',
+        'مدخل بيانات': 'data_entry',
+    };
+    
+    // إذا كان الدور كائن، استخرج الاسم
+    const roleName = typeof arabicRole === 'object' ? arabicRole.name : arabicRole;
+    
+    return roleMap[roleName] || roleName;
+};
+
+// إعادة جلب جميع البيانات
+const fetchAllData = async () => {
     await Promise.all([
         fetchEmployees(), 
         fetchDepartments(), 
         fetchEmployeeRoles()
     ]);
+};
+
+// ----------------------------------------------------
+// 5. تحميل البيانات عند التهيئة
+// ----------------------------------------------------
+onMounted(async () => {
+    await fetchAllData();
 });
 
 // ----------------------------------------------------
@@ -184,26 +298,40 @@ const confirmStatusToggle = async () => {
     const newStatus = !employeeToToggle.value.isActive;
 
     try {
-        await axios.patch(
-            `${API_URL}/${employeeToToggle.value.fileNumber}/status`,
+        const response = await api.patch(
+            `/admin-hospital/staff/${employeeToToggle.value.fileNumber}/status`,
             { isActive: newStatus }
         );
 
-        const index = employees.value.findIndex(
-            (p) => p.fileNumber === employeeToToggle.value.fileNumber
-        );
-        if (index !== -1) {
-            employees.value[index].isActive = newStatus;
-            employees.value[index].lastUpdated = new Date().toISOString();
+        // التحقق من بنية الاستجابة
+        const responseData = response.data;
+        let successMessage = `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name} بنجاح!`;
+        
+        if (responseData.message) {
+            successMessage = "✅ " + responseData.message;
         }
 
-        showSuccessAlert(
-            `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name} بنجاح!`
-        );
+        // إعادة تحميل قائمة الموظفين بعد التحديث
+        await fetchEmployees();
+
+        showSuccessAlert(successMessage);
         closeStatusConfirmationModal();
     } catch (error) {
         console.error(`Error ${statusAction.value} employee:`, error);
-        showSuccessAlert(`❌ فشل ${statusAction.value} حساب الموظف.`);
+        console.error("Error response:", error.response?.data);
+        
+        let errorMessage = `❌ فشل ${statusAction.value} حساب الموظف.`;
+        
+        if (error.response?.data) {
+            const errorData = error.response.data;
+            if (errorData.message) {
+                errorMessage = "❌ " + errorData.message;
+            } else if (errorData.error) {
+                errorMessage = "❌ " + errorData.error;
+            }
+        }
+        
+        showSuccessAlert(errorMessage);
         closeStatusConfirmationModal();
     }
 };
@@ -409,27 +537,66 @@ const addEmployee = async (newEmployee) => {
             }
         }
 
+        // تحويل البيانات إلى الصيغة المتوقعة من API
+        // تحويل تاريخ الميلاد من YYYY/MM/DD إلى YYYY-MM-DD إذا كان موجوداً
+        let birthDate = null;
+        if (newEmployee.birth) {
+            // إذا كان التاريخ بصيغة YYYY/MM/DD، نحوله إلى YYYY-MM-DD
+            birthDate = newEmployee.birth.replace(/\//g, '-');
+            // التأكد من الصيغة الصحيحة YYYY-MM-DD
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+                console.warn('Invalid birth date format:', newEmployee.birth);
+                birthDate = null;
+            }
+        }
+        
         const employeeData = {
-            ...newEmployee,
-            isActive: true,
-            lastUpdated: new Date().toISOString(),
-            fileNumber: Date.now()
+            full_name: newEmployee.name,
+            email: newEmployee.email,
+            role: convertRoleToEnglish(newEmployee.role), // تحويل الدور إلى الإنجليزية
+            phone: newEmployee.phone || null,
+            national_id: newEmployee.nationalId || null,
+            birth_date: birthDate,
         };
 
-        const response = await axios.post(API_URL, employeeData);
+        const response = await api.post('/admin-hospital/staff', employeeData);
         
-        employees.value.push({
-            ...response.data,
-            nameDisplay: response.data.name || "",
-            nationalIdDisplay: response.data.nationalId || "",
-            birthDisplay: response.data.birth ? formatDateForDisplay(response.data.birth) : "",
-        });
+        // التحقق من بنية الاستجابة
+        const responseData = response.data.data || response.data;
+        let successMessage = "✅ تم تسجيل بيانات الموظف بنجاح!";
+        
+        if (responseData.message) {
+            successMessage = "✅ " + responseData.message;
+        }
+        
+        // إعادة تحميل قائمة الموظفين بعد الإضافة
+        await fetchEmployees();
         
         closeAddModal();
-        showSuccessAlert("✅ تم تسجيل بيانات الموظف بنجاح!");
+        showSuccessAlert(successMessage);
     } catch (error) {
         console.error("Error adding employee:", error);
-        showSuccessAlert("❌ فشل تسجيل الموظف. تحقق من البيانات.");
+        console.error("Error response:", error.response?.data);
+        
+        let errorMessage = "❌ فشل تسجيل الموظف.";
+        
+        if (error.response?.data) {
+            const errorData = error.response.data;
+            
+            // معالجة أخطاء التحقق من Laravel
+            if (errorData.errors) {
+                const validationErrors = Object.values(errorData.errors).flat();
+                errorMessage = "❌ " + validationErrors.join(', ');
+            } else if (errorData.message) {
+                errorMessage = "❌ " + errorData.message;
+            } else if (errorData.error) {
+                errorMessage = "❌ " + errorData.error;
+            }
+        } else if (error.message) {
+            errorMessage = "❌ " + error.message;
+        }
+        
+        showSuccessAlert(errorMessage);
     }
 };
 
@@ -482,23 +649,24 @@ const updateEmployee = async (updatedEmployee) => {
             }
         }
 
-        const response = await axios.put(
-            `${API_URL}/${updatedEmployee.fileNumber}`,
-            updatedEmployee
+        // تحويل البيانات إلى الصيغة المتوقعة من API
+        const employeeData = {
+            full_name: updatedEmployee.name,
+            email: updatedEmployee.email,
+            role: convertRoleToEnglish(updatedEmployee.role), // تحويل الدور إلى الإنجليزية
+            phone: updatedEmployee.phone || null,
+            national_id: updatedEmployee.nationalId || null,
+            birth_date: updatedEmployee.birth || null,
+        };
+
+        // ملاحظة: قد تحتاج إلى إضافة route للتحديث في API
+        const response = await api.put(
+            `/admin-hospital/staff/${updatedEmployee.fileNumber}`,
+            employeeData
         );
 
-        const index = employees.value.findIndex(
-            (p) => p.fileNumber === updatedEmployee.fileNumber
-        );
-        if (index !== -1) {
-            employees.value[index] = {
-                ...response.data,
-                nameDisplay: response.data.name || "",
-                nationalIdDisplay: response.data.nationalId || "",
-                birthDisplay: response.data.birth ? formatDateForDisplay(response.data.birth) : "",
-                lastUpdated: new Date().toISOString(),
-            };
-        }
+        // إعادة تحميل قائمة الموظفين بعد التحديث
+        await fetchEmployees();
 
         closeEditModal();
         showSuccessAlert(
@@ -506,7 +674,8 @@ const updateEmployee = async (updatedEmployee) => {
         );
     } catch (error) {
         console.error("Error updating employee:", error);
-        showSuccessAlert("❌ فشل تعديل بيانات الموظف.");
+        const errorMessage = error.response?.data?.message || "❌ فشل تعديل بيانات الموظف.";
+        showSuccessAlert(errorMessage);
     }
 };
 

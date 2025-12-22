@@ -6,30 +6,46 @@ use App\Http\Controllers\BaseApiController;
 use App\Models\Department;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DepartmentHospitalAdminController extends BaseApiController
 {
     // 1) قائمة الأقسام
    public function index(Request $request)
 {
-    $hospitalId = $request->user()->hospital_id;
+    try {
+        $user = $request->user();
+        
+        if (!$user) {
+            return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+        }
 
-    $departments = Department::with('head')
-        ->where('hospital_id', $hospitalId)
-        ->latest()
-        ->get()
-        ->map(function ($dep) {
-            return [
-                'id'          => $dep->id,
-                'name'        => $dep->name,
-                'managerId'   => $dep->head_user_id,
-                'managerName' => $dep->head?->full_name ?? null,
-                'isActive'    => $dep->status === 'active',
-                'lastUpdated' => $dep->updated_at?->toIso8601String(),
-            ];
-        });
+        $hospitalId = $user->hospital_id;
+        
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
 
-    return response()->json($departments);
+        $departments = Department::with('head')
+            ->where('hospital_id', $hospitalId)
+            ->latest()
+            ->get()
+            ->map(function ($dep) {
+                return [
+                    'id'          => $dep->id,
+                    'name'        => $dep->name,
+                    'managerId'   => $dep->head_user_id,
+                    'managerName' => $dep->head?->full_name ?? null,
+                    'isActive'    => $dep->status === 'active',
+                    'lastUpdated' => $dep->updated_at?->toIso8601String(),
+                ];
+            });
+
+        return $this->sendSuccess($departments, 'تم جلب قائمة الأقسام بنجاح.');
+    } catch (\Exception $e) {
+        Log::error('Get Departments Error: ' . $e->getMessage(), ['exception' => $e]);
+        return $this->sendError('فشل في جلب قائمة الأقسام.', [], 500);
+    }
 }
 
     // 2) قائمة الموظفين (الأطباء) لاختيارهم كمديرين

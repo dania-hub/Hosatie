@@ -111,27 +111,40 @@
                                         </div>
                                     </div>
 
-                                    <!-- Actionh -->
-                                    <div class="flex items-center gap-3 w-full md:w-auto bg-gray-50 p-2 rounded-xl border border-gray-200">
-                                        <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
-                                            الكمية المرسلة:
-                                        </label>
-                                        <input
-                                            :id="`sent-qty-${index}`"
-                                            type="number"
-                                            v-model.number="item.sentQuantity"
-                                            :max="item.availableQuantity"
-                                            :min="0"
-                                            class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
-                                            :class="{
-                                                'border-red-300 focus:border-red-500': item.sentQuantity > item.availableQuantity,
-                                                'border-green-300 focus:border-green-500': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0,
-                                                'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0,
-                                                'bg-gray-100 cursor-not-allowed': isProcessing
-                                            }"
-                                            @input="validateQuantity(index, item.availableQuantity)"
-                                            :disabled="props.isLoading || isConfirming || isProcessing"
-                                        />
+                                    <!-- Actions -->
+                                    <div class="flex flex-col md:flex-row items-start md:items-center gap-3 w-full md:w-auto">
+                                        <!-- الكمية المقترحة -->
+                                        <div class="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-200">
+                                            <label class="text-sm font-bold text-blue-600 px-2">
+                                                الكمية المقترحة:
+                                            </label>
+                                            <div class="w-24 h-10 flex items-center justify-center bg-white border border-blue-300 rounded-lg font-bold text-blue-700 text-lg">
+                                                {{ item.suggestedQuantity || 0 }}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- الكمية المرسلة -->
+                                        <div class="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                            <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
+                                                الكمية المرسلة:
+                                            </label>
+                                            <input
+                                                :id="`sent-qty-${index}`"
+                                                type="number"
+                                                v-model.number="item.sentQuantity"
+                                                :max="item.availableQuantity"
+                                                :min="0"
+                                                class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
+                                                :class="{
+                                                    'border-red-300 focus:border-red-500': item.sentQuantity > item.availableQuantity,
+                                                    'border-green-300 focus:border-green-500': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0,
+                                                    'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0,
+                                                    'bg-gray-100 cursor-not-allowed': isProcessing
+                                                }"
+                                                @input="validateQuantity(index, item.availableQuantity)"
+                                                :disabled="props.isLoading || isConfirming || isProcessing"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -307,28 +320,67 @@ watch(
     () => props.requestData.items,
     (newItems) => {
         if (newItems && newItems.length > 0) {
+            console.log('🔍 Processing items for ConfirmationModal:', newItems);
             receivedItems.value = newItems.map((item) => {
-                // الحصول على الكمية المتاحة من المخزون
-                const available = Number(
-                    item.availableQuantity ||
-                    item.stock ||
-                    item.quantity ||
-                    0
-                );
-                const requested = Number(
-                    item.quantity || item.requestedQuantity || 0
-                );
+                // الحصول على الكمية المتاحة من المخزون - أولوية للقيم الصحيحة من API
+                let available = 0;
+                if (item.availableQuantity !== undefined && item.availableQuantity !== null) {
+                    available = Number(item.availableQuantity);
+                } else if (item.stock !== undefined && item.stock !== null) {
+                    available = Number(item.stock);
+                } else if (item.quantity !== undefined && item.quantity !== null) {
+                    available = Number(item.quantity);
+                }
+                
+                // الحصول على الكمية المطلوبة
+                let requested = 0;
+                if (item.requested_qty !== undefined && item.requested_qty !== null) {
+                    requested = Number(item.requested_qty);
+                } else if (item.requestedQuantity !== undefined && item.requestedQuantity !== null) {
+                    requested = Number(item.requestedQuantity);
+                } else if (item.originalQuantity !== undefined && item.originalQuantity !== null) {
+                    requested = Number(item.originalQuantity);
+                } else if (item.quantity !== undefined && item.quantity !== null) {
+                    requested = Number(item.quantity);
+                }
+                
+                // استخدام الكمية المقترحة من الـ API إذا كانت متوفرة
+                // الـ API يحسب الكمية المقترحة بناءً على:
+                // - إذا كان المخزون كافي لجميع الطلبات: الكمية المطلوبة بالكامل
+                // - إذا كان المخزون ناقص: توزيع متساوي حسب نسبة الطلب
+                let suggestedQty = 0;
+                if (item.suggestedQuantity !== undefined && item.suggestedQuantity !== null) {
+                    // استخدام الكمية المقترحة من الـ API مباشرة (الـ API يتأكد من صحة القيمة)
+                    suggestedQty = Number(item.suggestedQuantity);
+                    // التأكد من أن القيمة صحيحة (للأمان فقط - يجب أن تكون القيمة من API صحيحة)
+                    suggestedQty = Math.max(0, Math.min(suggestedQty, available, requested));
+                } else {
+                    // إذا لم تكن الكمية المقترحة متوفرة من الـ API، استخدام الحد الأدنى كحل احتياطي
+                    suggestedQty = Math.max(0, Math.min(requested, available));
+                }
+
+                console.log(`📦 Item: ${item.name || item.drug_name || 'غير محدد'}`, {
+                    rawItem: item,
+                    requested,
+                    available,
+                    suggestedQty,
+                    suggestedQuantityFromAPI: item.suggestedQuantity,
+                    availableQuantityFromAPI: item.availableQuantity,
+                    stockFromAPI: item.stock
+                });
 
                 return {
-                    id: item.id || item.drugId,
-                    name: item.name || item.drugName,
+                    id: item.id || item.drugId || item.drug_id,
+                    name: item.name || item.drugName || item.drug_name || 'دواء غير محدد',
                     originalQuantity: requested,
                     availableQuantity: available,
-                    sentQuantity: Math.min(requested, available),
+                    suggestedQuantity: suggestedQty, // الكمية المقترحة من الـ API
+                    sentQuantity: suggestedQty, // استخدام الكمية المقترحة كقيمة افتراضية
                     unit: item.unit || "حبة",
-                    dosage: item.dosage || item.strength
+                    dosage: item.dosage || item.strength || ''
                 };
             });
+            console.log('✅ Final receivedItems:', receivedItems.value);
         } else {
             receivedItems.value = [];
         }

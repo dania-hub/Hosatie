@@ -6,6 +6,8 @@ use App\Http\Controllers\BaseApiController;
 use App\Models\User;
 use App\Models\ExternalSupplyRequest;
 use App\Models\Complaint;
+use App\Models\PatientTransferRequest;
+use App\Models\Department;
 use Illuminate\Http\Request;
 
 class StatsAdminHospitalController extends BaseApiController
@@ -27,7 +29,15 @@ class StatsAdminHospitalController extends BaseApiController
             ->where('hospital_id', $hospitalId)
             ->count();
 
-        // 2) الحسابات النشطة والخاملة (لكل الأنواع داخل المستشفى)
+        $dataEntryCount = User::where('type', 'data_entry')
+            ->where('hospital_id', $hospitalId)
+            ->count();
+
+        // 2) عدد الأقسام
+        $departmentsCount = Department::where('hospital_id', $hospitalId)
+            ->count();
+
+        // 3) الحسابات النشطة والخاملة (لكل الأنواع داخل المستشفى)
         $activeAccountsCount = User::where('hospital_id', $hospitalId)
             ->where('status', 'active')
             ->count();
@@ -36,7 +46,7 @@ class StatsAdminHospitalController extends BaseApiController
             ->whereIn('status', ['inactive', 'pending_activation'])
             ->count();
 
-        // 3) عمليات التوريد الخارجية (ExternalSupplyRequest)
+        // 4) عمليات التوريد الخارجية (ExternalSupplyRequest)
         $externalTodayCount = ExternalSupplyRequest::where('hospital_id', $hospitalId)
             ->whereDate('created_at', today())
             ->count();
@@ -49,19 +59,23 @@ class StatsAdminHospitalController extends BaseApiController
             ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
             ->count();
 
-        // 4) الشكاوى (Complaint) الخاصة بالمستشفى
+        // 5) الشكاوى (Complaint) الخاصة بالمستشفى
         $complaintsCount = Complaint::whereHas('patient', function ($q) use ($hospitalId) {
                 $q->where('hospital_id', $hospitalId);
             })
             ->count();
 
-        // 5) طلبات النقل (أفترض جدول transfer_request إن وجد، مؤقتاً 0)
-        $transferRequestsCount = 0; // عدّليه لاحقاً مع جدول طلبات النقل
+        // 6) طلبات النقل (الطلبات الموجهة لهذا المستشفى)
+        $transferRequestsCount = PatientTransferRequest::where('to_hospital_id', $hospitalId)
+            ->where('status', 'pending')
+            ->count();
 
         return response()->json([
             'patientsCount'          => $patientsCount,
             'doctorsCount'           => $doctorsCount,
             'pharmacistsCount'       => $pharmacistsCount,
+            'dataEntryCount'        => $dataEntryCount,
+            'departmentsCount'      => $departmentsCount,
 
             'activeAccountsCount'    => $activeAccountsCount,
             'inactiveAccountsCount'  => $inactiveAccountsCount,

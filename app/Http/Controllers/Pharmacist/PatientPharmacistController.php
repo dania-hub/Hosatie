@@ -222,10 +222,19 @@ class PatientPharmacistController extends BaseApiController
                         : 'تم صرف الكمية الشهرية كاملة';
                 }
 
-                // اسم من قام بالإسناد (لمن يحتاجه مستقبلاً)
-                $assignedBy = $activePrescription->doctor
-                    ? ($activePrescription->doctor->full_name ?? $activePrescription->doctor->name)
-                    : 'غير محدد';
+                // اسم من قام بالإسناد (من audit_log أو اسم الطبيب كبديل)
+                $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                    ->where('record_id', $pivot->id)
+                    ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
+                    ->with('user')
+                    ->latest()
+                    ->first();
+                
+                $assignedBy = $latestLog && $latestLog->user 
+                    ? $latestLog->user->full_name 
+                    : ($activePrescription->doctor 
+                        ? ($activePrescription->doctor->full_name ?? $activePrescription->doctor->name)
+                        : 'غير محدد');
 
                 $medications[] = [
                     'id' => $drug->id,

@@ -109,7 +109,7 @@ const fetchPatientDetails = async (patientId) => {
       // إضافة خصائص العرض (الـ API يعيد name, nationalId, birth)
       nameDisplay: patientData.name || patientData.nameDisplay || 'غير متوفر',
       nationalIdDisplay: patientData.nationalId || patientData.nationalIdDisplay || patientData.national_id || 'غير متوفر',
-      birthDisplay: patientData.birth || patientData.birthDisplay || patientData.birth_date || 'غير متوفر',
+      birthDisplay: formatDate(patientData.birth || patientData.birthDisplay || patientData.birth_date || 'غير متوفر'),
       // التأكد من وجود مصفوفة الأدوية مع معالجة البيانات
       medications: (patientData.medications || []).map(med => {
         // الحصول على وحدة القياس من API أو استخدام "حبة" كافتراضي
@@ -130,6 +130,14 @@ const fetchPatientDetails = async (patientId) => {
         // التأكد من وجود وحدة القياس في الكائن
         if (!med.unit) {
           med.unit = unit;
+        }
+        // تنسيق تاريخ الإسناد
+        if (med.assignmentDate) {
+          med.assignmentDate = formatDate(med.assignmentDate);
+        } else if (med.assignment_date) {
+          med.assignmentDate = formatDate(med.assignment_date);
+        } else if (med.created_at) {
+          med.assignmentDate = formatDate(med.created_at);
         }
         return med;
       })
@@ -256,7 +264,8 @@ const formatDate = (dateString) => {
     
     // إذا كان التاريخ بصيغة Y/m/d أو Y-m-d
     if (dateString.includes('/') || dateString.includes('-')) {
-        return dateString;
+        // تحويل من Y-m-d إلى Y/m/d
+        return dateString.replace(/-/g, '/');
     }
     
     return dateString;
@@ -394,8 +403,11 @@ const openViewModal = async (patient) => {
         fileNumber: patient.fileNumber || patient.file_number || patient.id,
         nameDisplay: patient.name || patient.nameDisplay || 'غير متوفر',
         nationalIdDisplay: patient.nationalId || patient.nationalIdDisplay || patient.national_id || 'غير متوفر',
-        birthDisplay: patient.birth || patient.birthDisplay || patient.birth_date || 'غير متوفر',
-        medications: patient.medications || []
+        birthDisplay: formatDate(patient.birth || patient.birthDisplay || patient.birth_date || 'غير متوفر'),
+        medications: (patient.medications || []).map(med => ({
+          ...med,
+          assignmentDate: formatDate(med.assignmentDate || med.assignment_date || med.created_at)
+        }))
       };
       isViewModalOpen.value = true;
     }
@@ -406,8 +418,11 @@ const openViewModal = async (patient) => {
       fileNumber: patient.fileNumber || patient.file_number || patient.id || patientId,
       nameDisplay: patient.name || patient.nameDisplay || 'غير متوفر',
       nationalIdDisplay: patient.nationalId || patient.nationalIdDisplay || patient.national_id || 'غير متوفر',
-      birthDisplay: patient.birth || patient.birthDisplay || patient.birth_date || 'غير متوفر',
-      medications: patient.medications || []
+      birthDisplay: formatDate(patient.birth || patient.birthDisplay || patient.birth_date || 'غير متوفر'),
+      medications: (patient.medications || []).map(med => ({
+        ...med,
+        assignmentDate: formatDate(med.assignmentDate || med.assignment_date || med.created_at)
+      }))
     };
     isViewModalOpen.value = true;
   }

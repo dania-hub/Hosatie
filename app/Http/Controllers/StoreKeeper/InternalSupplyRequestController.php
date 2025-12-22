@@ -8,6 +8,7 @@ use App\Models\InternalSupplyRequest;
 use Illuminate\Support\Facades\DB;
 use App\Models\Inventory;
 use App\Models\AuditLog;
+use App\Models\Warehouse;
 class InternalSupplyRequestController extends BaseApiController
 {
     // GET /api/storekeeper/shipments
@@ -68,8 +69,23 @@ class InternalSupplyRequestController extends BaseApiController
         $req = InternalSupplyRequest::with(['pharmacy', 'items.drug'])
             ->findOrFail($id);
 
-        // TODO: اجلب warehouse_id الصحيح من المستخدم/المستشفى
-        $warehouseId = 1; // مؤقتاً
+        // جلب warehouse_id الصحيح من المستخدم أو من المستشفى
+        $warehouseId = null;
+        if ($user->warehouse_id) {
+            $warehouseId = $user->warehouse_id;
+        } elseif ($user->hospital_id) {
+            // جلب warehouse من المستشفى
+            $warehouse = Warehouse::where('hospital_id', $user->hospital_id)->first();
+            if ($warehouse) {
+                $warehouseId = $warehouse->id;
+            }
+        }
+        
+        // إذا لم يتم العثور على warehouse، استخدام الأول المتاح (fallback)
+        if (!$warehouseId) {
+            $warehouse = Warehouse::first();
+            $warehouseId = $warehouse ? $warehouse->id : 1;
+        }
 
         return response()->json([
             'id'             => $req->id,
@@ -78,11 +94,56 @@ class InternalSupplyRequestController extends BaseApiController
             'date'           => $req->created_at,
             'status'         => $this->mapStatusToArabic($req->status),
             'notes'          => $req->notes,
-            'items'          => $req->items->map(function ($item) use ($warehouseId) {
+            'items'          => $req->items->map(function ($item) use ($warehouseId, $req) {
                 // جلب المخزون المتاح لهذا الدواء في المستودع
                 $inventory = Inventory::where('warehouse_id', $warehouseId)
                     ->where('drug_id', $item->drug_id)
                     ->first();
+                
+                // التأكد من جلب الكمية الصحيحة من قاعدة البيانات
+                $availableStock = $inventory ? (int) $inventory->current_quantity : 0;
+                
+                // جلب جميع الطلبات الأخرى (pending) التي تحتوي نفس الدواء
+                $otherPendingRequests = DB::table('internal_supply_request_item')
+                    ->join('internal_supply_request', 'internal_supply_request_item.request_id', '=', 'internal_supply_request.id')
+                    ->where('internal_supply_request.status', 'pending')
+                    ->where('internal_supply_request_item.drug_id', $item->drug_id)
+                    ->where('internal_supply_request.id', '!=', $req->id)
+                    ->select('internal_supply_request_item.requested_qty')
+                    ->get();
+                
+                // حساب إجمالي الكمية المطلوبة من جميع الطلبات الأخرى
+                $totalOtherRequestsQty = $otherPendingRequests->sum('requested_qty');
+                
+                // إجمالي الكمية المطلوبة (الطلب الحالي + الطلبات الأخرى)
+                $totalRequestedQty = $item->requested_qty + $totalOtherRequestsQty;
+                
+                // حساب الكمية المقترحة
+                $suggestedQuantity = 0;
+                
+                // الحالة 1: إذا كان المخزون كافي لجميع الطلبات (الطلب الحالي + الطلبات الأخرى)
+                if ($availableStock >= $totalRequestedQty) {
+                    // الكمية المقترحة = الكمية المطلوبة بالكامل
+                    $suggestedQuantity = $item->requested_qty;
+                } 
+                // الحالة 2: إذا كان المخزون ناقص ولكن متوفر
+                else if ($availableStock > 0 && $totalRequestedQty > 0) {
+                    // حساب نسبة الطلب الحالي من إجمالي الطلبات
+                    $requestRatio = $item->requested_qty / $totalRequestedQty;
+                    
+                    // توزيع المخزون المتاح بشكل نسبي حسب نسبة الطلب
+                    $suggestedQuantity = floor($availableStock * $requestRatio);
+                    
+                    // التأكد من أن الكمية المقترحة:
+                    // - لا تتجاوز الكمية المطلوبة في الطلب الحالي
+                    // - لا تتجاوز المخزون المتاح
+                    $suggestedQuantity = min($suggestedQuantity, $item->requested_qty, $availableStock);
+                    
+                    // التأكد من أن القيمة لا تقل عن 0
+                    $suggestedQuantity = max(0, $suggestedQuantity);
+                }
+                // الحالة 3: إذا كان المخزون = 0 أو لا توجد طلبات
+                // $suggestedQuantity سيبقى 0 (القيمة الافتراضية)
                 
                 return [
                     'id'             => $item->id,
@@ -95,8 +156,10 @@ class InternalSupplyRequestController extends BaseApiController
                     'fulfilled_qty'  => $item->fulfilled_qty,
                     'sentQuantity'   => $item->approved_qty, // للتوافق مع المكون
                     'receivedQuantity' => $item->fulfilled_qty, // للتوافق مع المكون
-                    'availableQuantity' => $inventory ? $inventory->current_quantity : 0, // المخزون المتاح
-                    'stock'          => $inventory ? $inventory->current_quantity : 0, // للتوافق مع المكون
+                    'availableQuantity' => $availableStock, // المخزون المتاح
+                    'stock'          => $availableStock, // للتوافق مع المكون
+                    'suggestedQuantity' => $suggestedQuantity, // الكمية المقترحة
+                    'totalOtherRequestsQty' => $totalOtherRequestsQty, // إجمالي طلبات الأدوية الأخرى
                     'strength'       => $item->drug->strength ?? '',
                     'dosage'         => $item->drug->strength ?? '', // للتوافق مع المكون
                     'form'           => $item->drug->form ?? '',
@@ -162,8 +225,24 @@ class InternalSupplyRequestController extends BaseApiController
         }
 
         $pharmacyId = $req->pharmacy_id;
-        // TODO: اجلب warehouse_id الصحيح من المستخدم/المستشفى
-        $warehouseId = 1; // مؤقتاً
+        
+        // جلب warehouse_id الصحيح من المستخدم أو من المستشفى
+        $warehouseId = null;
+        if ($user->warehouse_id) {
+            $warehouseId = $user->warehouse_id;
+        } elseif ($user->hospital_id) {
+            // جلب warehouse من المستشفى
+            $warehouse = Warehouse::where('hospital_id', $user->hospital_id)->first();
+            if ($warehouse) {
+                $warehouseId = $warehouse->id;
+            }
+        }
+        
+        // إذا لم يتم العثور على warehouse، استخدام الأول المتاح (fallback)
+        if (!$warehouseId) {
+            $warehouse = Warehouse::first();
+            $warehouseId = $warehouse ? $warehouse->id : 1;
+        }
 
         \Log::info('Starting database transaction');
         DB::beginTransaction();

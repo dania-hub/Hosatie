@@ -157,6 +157,7 @@ const cancelConfirmation = () => {
                                     <th class="p-4 text-sm font-bold text-[#2E5077]">الجرعة</th>
                                     <th class="p-4 text-sm font-bold text-[#2E5077]">الكمية الشهرية</th>
                                     <th class="p-4 text-sm font-bold text-[#2E5077]">أخر إستلام</th>
+                                    <th class="p-4 text-sm font-bold text-[#2E5077]">بواسطة</th>
                                     <th class="p-4 text-sm font-bold text-[#2E5077]">حالة الإستحقاق</th>
                                 </tr>
                             </thead>
@@ -185,6 +186,7 @@ const cancelConfirmation = () => {
                                         </div>
                                     </td>
                                     <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate }}</td>
+                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy || '-' }}</td>
                                     <td class="p-4">
                                         <div 
                                             class="flex items-center justify-start gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition-colors w-fit"

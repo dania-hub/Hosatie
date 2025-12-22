@@ -672,27 +672,37 @@ const openConfirmationModal = async (shipment) => {
         }
         
         // تحويل البيانات لتتوافق مع ما يتوقعه مكون التأكيد
+        console.log('📥 Response from API:', response);
         selectedShipmentForConfirmation.value = {
             id: response.id,
             shipmentNumber: response.shipmentNumber || `INT-${response.id}`,
             department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
             date: response.date || response.requestDate || response.createdAt,
             status: response.status || shipment.requestStatus,
-            items: (response.items || []).map(item => ({
-                id: item.id, // هذا هو ID من internal_supply_request_item
-                drug_id: item.drug_id,
-                name: item.drug_name || item.name || 'دواء غير محدد',
-                quantity: item.requested_qty || item.quantity || 0,
-                requestedQuantity: item.requested_qty || 0,
-                originalQuantity: item.requested_qty || 0,
-                availableQuantity: 0, // سيتم تحديثه من المخزون
-                sentQuantity: item.approved_qty || 0,
-                unit: item.unit || 'وحدة',
-                dosage: item.dosage || item.strength || '',
-                type: item.type || item.form || ''
-            })),
+            items: (response.items || []).map(item => {
+                console.log('📦 Processing item:', item);
+                return {
+                    id: item.id, // هذا هو ID من internal_supply_request_item
+                    drug_id: item.drug_id,
+                    name: item.drug_name || item.name || 'دواء غير محدد',
+                    quantity: item.requested_qty || item.quantity || 0,
+                    requested_qty: item.requested_qty || 0,
+                    requestedQuantity: item.requested_qty || 0,
+                    originalQuantity: item.requested_qty || 0,
+                    availableQuantity: item.availableQuantity !== undefined && item.availableQuantity !== null ? item.availableQuantity : (item.stock !== undefined && item.stock !== null ? item.stock : 0), // استخدام القيمة من API
+                    stock: item.stock !== undefined && item.stock !== null ? item.stock : (item.availableQuantity !== undefined && item.availableQuantity !== null ? item.availableQuantity : 0),
+                    suggestedQuantity: item.suggestedQuantity !== undefined && item.suggestedQuantity !== null ? item.suggestedQuantity : null, // الكمية المقترحة من API
+                    sentQuantity: item.approved_qty || 0,
+                    unit: item.unit || 'وحدة',
+                    dosage: item.dosage || item.strength || '',
+                    strength: item.strength || item.dosage || '',
+                    type: item.type || item.form || '',
+                    form: item.form || item.type || ''
+                };
+            }),
             notes: response.notes || ''
         };
+        console.log('✅ Final selectedShipmentForConfirmation:', selectedShipmentForConfirmation.value);
         isConfirmationModalOpen.value = true;
     } catch (err) {
         showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');

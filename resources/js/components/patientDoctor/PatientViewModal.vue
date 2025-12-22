@@ -76,6 +76,32 @@ const updatedMonthlyQuantity = computed(() => {
     const dosage = parseFloat(editingDosage.value) || 0;
     return Math.round(dosage * 30);
 });
+
+// دالة لتنسيق التاريخ
+const formatDate = (dateString) => {
+    if (!dateString) return 'غير محدد';
+    
+    // إذا كان التاريخ بصيغة ISO string (مثل 2025-12-09T00:00:00.000000Z)
+    if (dateString.includes('T')) {
+        try {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}/${month}/${day}`;
+        } catch (e) {
+            return dateString;
+        }
+    }
+    
+    // إذا كان التاريخ بصيغة Y/m/d أو Y-m-d
+    if (dateString.includes('/') || dateString.includes('-')) {
+        // تحويل من Y-m-d إلى Y/m/d
+        return dateString.replace(/-/g, '/');
+    }
+    
+    return dateString;
+};
 </script>
 
 <template>
@@ -118,7 +144,7 @@ const updatedMonthlyQuantity = computed(() => {
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.birthDisplay }}</div>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ formatDate(patient.birthDisplay) }}</div>
                         </div>
                     </div>
                 </div>
@@ -169,7 +195,7 @@ const updatedMonthlyQuantity = computed(() => {
                                         </span>
                                     </td>
                                     <td class="p-4 text-gray-600">{{ med.monthlyQuantity || '-' }}</td>
-                                    <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate || '-' }}</td>
+                                    <td class="p-4 text-gray-500 text-sm">{{ formatDate(med.assignmentDate) }}</td>
                                     <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy || '-' }}</td>
                                     <td class="p-4">
                                         <div class="flex justify-center gap-2">

@@ -22,9 +22,10 @@ const processedHistory = computed(() => {
     
     return props.dispensationHistory.map(item => ({
         drugName: item.drugName || item.medicationName || 'غير معروف',
-        quantity: item.quantity || item.amount || 'غير محدد',
-        date: item.date || item.dispensationDate || 'غير محدد',
-        assignedBy: item.assignedBy || item.dispenser || 'غير معروف',
+        quantity: item.quantity || item.quantity_dispensed || item.amount || 0,
+        date: item.dispensedAt || item.date || item.dispensationDate || null,
+        assignedBy: item.pharmacist || item.assignedBy || item.dispenser || 'غير معروف',
+        pharmacy: item.pharmacy || null,
         notes: item.notes || ''
     }));
 });
@@ -33,11 +34,22 @@ const processedHistory = computed(() => {
 const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     
+    // إذا كان التاريخ بالفعل بصيغة Y/m/d، نعيده كما هو
+    if (typeof dateString === 'string' && /^\d{4}\/\d{2}\/\d{2}$/.test(dateString)) {
+        return dateString;
+    }
+    
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('EN');
+        if (isNaN(date.getTime())) return 'غير محدد';
+        
+        // تنسيق التاريخ بصيغة Y/m/d
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}/${month}/${day}`;
     } catch {
-        return dateString;
+        return 'غير محدد';
     }
 };
 

@@ -233,6 +233,7 @@ const fetchPatientDetails = async (fileNumber) => {
                             .toISOString()
                             .split("T")[0]
                             .replace(/-/g, "/"),
+                    assignedBy: med.assignedBy || "غير محدد",
                     eligibilityStatus: med.eligibilityStatus || "مستحق",
                     dispensedQuantity: med.dispensedQuantity || 0,
                     // معلومات الصرف الشهري

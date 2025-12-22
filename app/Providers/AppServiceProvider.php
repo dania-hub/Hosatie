@@ -42,6 +42,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Register model observers
+// تسجيل جميع Observers
+    \App\Models\Drug::observe(\App\Observers\DrugObserver::class);
+    \App\Models\Inventory::observe(\App\Observers\InventoryObserver::class);
+
         User::observe(UserObserver::class);
    InternalSupplyRequest::observe(InternalSupplyRequestObserver::class);
      Prescription::observe(PrescriptionObserver::class);
@@ -50,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
      PatientTransferRequest::observe(PatientTransferRequestObserver::class);
         PrescriptionDrug::observe(PrescriptionDrugObserver::class);
   ExternalSupplyRequest::observe(ExternalSupplyRequestObserver::class);
+
 
     }
 }

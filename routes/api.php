@@ -416,48 +416,49 @@ Route::middleware('auth:sanctum')->group(function () {
     // --------------------------------------------------------------------
     Route::prefix('admin-hospital')->group(function () {
         // Example Staff Management Routes
-        Route::get('staff', [StaffController::class, 'index']);
+        // Route::get('staff', [StaffController::class, 'index']);
+                //هده تنشئ في موظف و تبعتله في رابط التفعيل اللي من خلاله يحط فيه كلمة السر بتاعته 
+
         Route::post('staff', [StaffController::class, 'store']);
 
-        Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);
-        Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);
-        Route::put('/departments/{id}', [DepartmentHospitalAdminController::class, 'update']);
-        Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);
+        Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);//تعرض الاقسام اللي عندك
+        Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);// تنشئي قسم جديد
+        Route::put('/departments/{id}', [DepartmentHospitalAdminController::class, 'update']);// تعديل قسم 
+        Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);// تفعيل و الغاء تفعيل قسم
 
-        Route::get('/employees', [DepartmentHospitalAdminController::class, 'employees']);
+        Route::get('/employees', [DepartmentHospitalAdminController::class, 'employees']);// الدكاترة او مدراء الاقسام اللي بتعينيهم
 
-        Route::get('/operations', [OperationLogController::class, 'index']);
+        Route::get('/operations', [OperationLogController::class, 'index']);//يعرضلك سجل العمليات
 
-        Route::get('/patients', [PatientHospitalAdminController::class, 'index']);
-        Route::get('/patients/{id}', [PatientHospitalAdminController::class, 'show']);
-        Route::put('/patients/{id}/medications', [PatientHospitalAdminController::class, 'updateMedications']);
-        Route::get('/patients/{id}/dispensation-history', [PatientHospitalAdminController::class, 'dispensationHistory']);
+        Route::get('/patients', [PatientHospitalAdminController::class, 'index']);// يعرضلك المرضى
+        Route::get('/patients/{id}', [PatientHospitalAdminController::class, 'show']);// يعرضلك تفاصيل ادوية كل مريض
+        Route::put('/patients/{id}/medications', [PatientHospitalAdminController::class, 'updateMedications']);//تعديل ادوية المريض
+        Route::get('/patients/{id}/dispensation-history', [PatientHospitalAdminController::class, 'dispensationHistory']);// يعرضلك سجل الصرف 
 
-        Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
-        Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
-        Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);
-        Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);
+        Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);//قائمة الشحنات (تُستخدم في الواجهتين)
+        Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);// تفاصيل الشحنة
+        Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);// تأكيد الشحنة
+        Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);// رفض الشحنة
         // Complaint Management Routes
-        Route::get('requests',              [ComplaintHospitalAdminController::class, 'index']);
-        Route::get('requests/{id}',         [ComplaintHospitalAdminController::class, 'show']);
-        Route::post('requests/{id}/respond', [ComplaintHospitalAdminController::class, 'respond']);
-        Route::post('requests/{id}/reject', [ComplaintHospitalAdminController::class, 'reject']);
+        Route::get('requests',              [ComplaintHospitalAdminController::class, 'index']);//قائمة الشكاوي
+        Route::get('requests/{id}',         [ComplaintHospitalAdminController::class, 'show']);//نفاصيل شكوى واحدة
+        Route::post('requests/{id}/respond', [ComplaintHospitalAdminController::class, 'respond']);//الرد على الشكوى
+        Route::post('requests/{id}/reject', [ComplaintHospitalAdminController::class, 'reject']);//رفض الشكوى
 
-        Route::get('/admin-hospital/stats',  [StatsAdminHospitalController::class, 'index']);
-        Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
-        Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
+        Route::get('/admin-hospital/stats',  [StatsAdminHospitalController::class, 'index']);// إحصائيات المدير
+        Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);//قائمة الشحنات (تُستخدم في الواجهتين)
+        Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);// تفاصيل الشحنة
 
         // للواجهة الأولى (المدير)
-        Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);
-        Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);
-
+        Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);// تأكيد الشحنة
+        Route::put('/shipments/{id}/reject',  [ExternalShipmentAdminHospitalController::class, 'reject']);// رفض الشحنة
         // للواجهة الثانية (القسم)
-        Route::put('/shipments/{id}/status',           [ExternalShipmentAdminHospitalController::class, 'updateStatus']);
-        Route::post('/shipments/{id}/confirm-delivery', [ExternalShipmentAdminHospitalController::class, 'confirmDelivery']);
+        Route::put('/shipments/{id}/status',           [ExternalShipmentAdminHospitalController::class, 'updateStatus']);// تحديث حالة الشحنة
+        Route::post('/shipments/{id}/confirm-delivery', [ExternalShipmentAdminHospitalController::class, 'confirmDelivery']);// تأكيد استلام الشحنة
         // Patient Transfer Requests
-        Route::get('transfer-requests', [PatientTransferAdminHospitalController::class, 'index']);
+        Route::get('transfer-requests', [PatientTransferAdminHospitalController::class, 'index']);//قائمة طلبات نقل المرضى
 
-        Route::put('transfer-requests/{id}/status', [PatientTransferAdminHospitalController::class, 'updateStatus']);
+        Route::put('transfer-requests/{id}/status', [PatientTransferAdminHospitalController::class, 'updateStatus']);//تحديث حالة طلب نقل المريض
     });
 
     // ========================================================================

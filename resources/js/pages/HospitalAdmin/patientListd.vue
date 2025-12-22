@@ -7,7 +7,7 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
 // استيراد المكونات المنفصلة
-import PatientViewModal from "@/components/forhospitaladmin/employeeViewModal.vue";
+import PatientViewModal from "@/components/forhospitaladmin/PatientViewModal.vue";
 import DispensationModal from "@/components/forhospitaladmin/DispensationModal.vue";
 import DefaultLayout from "@/components/DefaultLayout.vue";
 
@@ -156,7 +156,7 @@ const formatDateForDisplay = (dateString) => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     
-    return date.toLocaleDateString('ar-SA', {
+    return date.toLocaleDateString( {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
@@ -300,7 +300,16 @@ const openViewModal = async (patient) => {
     isViewModalOpen.value = true;
   } catch (err) {
     console.error('فشل فتح نموذج العرض:', err);
-    showInfoAlert('فشل تحميل تفاصيل المريض. يرجى المحاولة مرة أخرى.');
+    // استخدام بيانات المريض من القائمة إذا فشل جلب البيانات
+    selectedPatient.value = {
+      ...patient,
+      nameDisplay: patient.name || '',
+      nationalIdDisplay: patient.nationalId || '',
+      birthDisplay: patient.birth ? formatDateForDisplay(patient.birth) : '',
+      medications: patient.medications || []
+    };
+    isViewModalOpen.value = true;
+    showInfoAlert('تم فتح النموذج ببيانات محدودة. قد لا تكون جميع المعلومات متاحة.');
   }
 };
 
@@ -633,8 +642,6 @@ onMounted(() => {
     :patient="selectedPatient"
     @close="closeViewModal"
     @dispensation-record="openDispensationModal"
-    @edit-medication="handleEditMedication"
-    @delete-medication="handleDeleteMedication"
   />
 
   <DispensationModal

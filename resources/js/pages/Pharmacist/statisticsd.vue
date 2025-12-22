@@ -9,10 +9,10 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 // ----------------------------------------------------
 const API_BASE_URL = '/api/pharmacist';
 
-// تهيئة نسخة خاصة من Axios مع الـ baseURL والتوكن
+// تكوين Axios مع التوكن
 const api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 10000,
+    timeout: 30000,
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -38,7 +38,8 @@ const stats = ref({
     weekRegistered: 0,
     supplyRequestsCount: 0,
     receivedRequestsCount: 0,
-    isLoading: true, 
+    isLoading: true,
+    error: null
 });
 
 // ----------------------------------------------------
@@ -46,6 +47,7 @@ const stats = ref({
 // ----------------------------------------------------
 const fetchStats = async () => {
     stats.value.isLoading = true;
+    stats.value.error = null;
 
     try {
         const response = await api.get('/dashboard/stats');
@@ -64,12 +66,7 @@ const fetchStats = async () => {
         
     } catch (error) {
         console.error("Error fetching dashboard statistics:", error);
-        // في حالة الخطأ، نعرض القيم الافتراضية (0)
-        stats.value.totalRegistered = 0;
-        stats.value.todayRegistered = 0;
-        stats.value.weekRegistered = 0;
-        stats.value.supplyRequestsCount = 0;
-        stats.value.receivedRequestsCount = 0;
+        stats.value.error = error.response?.data?.message || 'فشل تحميل الإحصائيات';
     } finally {
         stats.value.isLoading = false;
     }
@@ -85,66 +82,93 @@ onMounted(() => {
 
 <template>
 <DefaultLayout>
-    <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-30">
-        
+    <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-5 min-h-screen">
+        <!-- حالة التحميل -->
         <div 
             v-if="stats.isLoading" 
-            class="flex justify-center items-center h-20 text-[#2E5077] font-semibold"
+            class="flex flex-col justify-center items-center h-64 text-[#2E5077]"
         >
-            جاري تحميل الإحصائيات...
-            <Icon icon="svg-spinners:ring-resize" class="w-6 h-6 mr-2" />
+            <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 mb-4" />
+            <p class="font-semibold text-lg">جاري تحميل الإحصائيات...</p>
         </div>
 
-        <div v-else class="cards flex flex-col md:flex-row md:flex-wrap md:justify-between items-center mb-6 group gap-4">
+        <!-- حالة الخطأ -->
+        <div 
+            v-else-if="stats.error" 
+            class="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center shadow-md"
+        >
+            <Icon icon="solar:danger-circle-bold-duotone" class="w-12 h-12 text-red-500 mx-auto mb-2" />
+            <p class="text-red-700 font-semibold">{{ stats.error }}</p>
+        </div>
 
-            <div class="card bg-[#A0B0BF] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#2E5077] flex flex-col justify-between transition duration-300 ease-in-out
-                group-hover:blur-xs
-                hover:!blur-none">
-                <div class="content flex items-center gap-2 justify-end">
-                    <Icon icon="lucide:users" class="icon w-10 h-10 text-[#2E5077]" />
-                    <p class="text text-xl font-bold text-[#2E5077]"> عدد عمليات الصرف المنجزة اليوم </p>
+        <!-- الإحصائيات -->
+        <div v-else class="space-y-8">
+            <!-- قسم: عمليات الصرف والخدمات -->
+            <div>
+                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
+                    <Icon icon="solar:check-read-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
+                    عمليات الصرف والخدمات
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
+                                <Icon icon="solar:check-read-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">عمليات الصرف المنجزة اليوم</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.totalRegistered }}</p>
+                    </div>
+
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
+                                <Icon icon="solar:users-group-rounded-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">المرضى المخدمين هذا الأسبوع</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.weekRegistered }}</p>
+                    </div>
+
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
+                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">الأصناف عند الحد الحرج</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.todayRegistered }}</p>
+                    </div>
                 </div>
-                <p class="number text-4xl font-bold text-left text-white">{{ stats.totalRegistered }}</p>
             </div>
 
-            <div class="card bg-[#c9dcdd] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#4DA1A9] flex flex-col justify-between transition duration-300 ease-in-out
-                group-hover:blur-xs
-                hover:!blur-none">
-                <div class="content flex items-center gap-2 justify-end">
-                    <Icon icon="material-symbols:add-box-rounded" class="icon w-10 h-10 text-[#4DA1A9]" />
-                    <p class="text text-xl font-bold text-[#2E5077]">عدد الأصناف التي وصلت للحد الحرج</p>
-                </div>
-                <p class="number text-4xl font-bold text-left text-white">{{ stats.todayRegistered }}</p>
-            </div>
+            <!-- قسم: طلبات التوريد -->
+            <div>
+                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
+                    <Icon icon="solar:document-text-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
+                    طلبات التوريد
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
+                                <Icon icon="solar:document-text-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي طلبات التوريد</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.supplyRequestsCount }}</p>
+                    </div>
 
-            <div class="card bg-[#cce8e0] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#79D7BE] flex flex-col justify-between transition duration-300 ease-in-out
-                group-hover:blur-xs
-                hover:!blur-none">
-                <div class="content flex items-center gap-2 justify-end">
-                    <Icon icon="simple-line-icons:calender" class="icon w-10 h-10 text-[#79D7BE]" />
-                    <p class="text text-xl font-bold text-[#2E5077]"> عدد المرضى الذين تم خدمتهم هذا الأسبوع</p>
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
+                                <Icon icon="solar:box-check-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">عمليات الاستلام المنجزة</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.receivedRequestsCount }}</p>
+                    </div>
                 </div>
-                <p class="number text-4xl font-bold text-left text-white">{{ stats.weekRegistered }}</p>
-            </div>
-
-            <div class="card bg-[#E8D5B7] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#D4A574] flex flex-col justify-between transition duration-300 ease-in-out
-                group-hover:blur-xs
-                hover:!blur-none">
-                <div class="content flex items-center gap-2 justify-end">
-                    <Icon icon="solar:document-text-bold-duotone" class="icon w-10 h-10 text-[#D4A574]" />
-                    <p class="text text-xl font-bold text-[#2E5077]">عدد طلبات التوريد</p>
-                </div>
-                <p class="number text-4xl font-bold text-left text-white">{{ stats.supplyRequestsCount }}</p>
-            </div>
-
-            <div class="card bg-[#F0E6D2] text-white p-4 w-full md:w-72 h-36 rounded-xl shadow-lg border-4 border-[#E5C9A1] flex flex-col justify-between transition duration-300 ease-in-out
-                group-hover:blur-xs
-                hover:!blur-none">
-                <div class="content flex items-center gap-2 justify-end">
-                    <Icon icon="solar:box-check-bold-duotone" class="icon w-10 h-10 text-[#E5C9A1]" />
-                    <p class="text text-xl font-bold text-[#2E5077]">عدد عمليات استلام طلبات التوريد</p>
-                </div>
-                <p class="number text-4xl font-bold text-left text-white">{{ stats.receivedRequestsCount }}</p>
             </div>
         </div>
     </main>
@@ -152,5 +176,50 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* لا حاجة لـ CSS هنا */
+/* تحسينات إضافية للبطاقات */
+.card {
+    backdrop-filter: blur(10px);
+    direction: rtl;
+    text-align: right;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+}
+
+/* تحسين الخطوط */
+.number {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    letter-spacing: -0.02em;
+    text-align: right !important;
+    direction: rtl;
+    display: block;
+    width: 100%;
+}
+
+/* تحسين المسافات */
+.content {
+    min-height: 60px;
+    direction: rtl;
+    text-align: right;
+}
+
+.content p {
+    text-align: right !important;
+}
+
+/* تحسين الظلال */
+.shadow-lg {
+    box-shadow: 0 10px 25px -5px rgba(46, 80, 119, 0.1), 0 10px 10px -5px rgba(46, 80, 119, 0.04);
+}
+
+.hover\:shadow-xl:hover {
+    box-shadow: 0 20px 25px -5px rgba(46, 80, 119, 0.15), 0 10px 10px -5px rgba(46, 80, 119, 0.08);
+}
+
+/* ضمان محاذاة جميع النصوص لليمين */
+.card * {
+    text-align: right !important;
+    direction: rtl;
+}
 </style>

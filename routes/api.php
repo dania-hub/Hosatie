@@ -443,7 +443,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('requests/{id}/respond', [ComplaintHospitalAdminController::class, 'respond']);
         Route::post('requests/{id}/reject', [ComplaintHospitalAdminController::class, 'reject']);
 
-        Route::get('/admin-hospital/stats',  [StatsAdminHospitalController::class, 'index']);
+        Route::get('/stats', [StatsAdminHospitalController::class, 'index']);
         Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
         Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
 
@@ -487,7 +487,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('patients/{id}', [PatientDepartmentAdminController::class, 'show']);
         Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);
         Route::put('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'update']);
-        Route::delete('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'destroy']);
+        Route::delete('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'destroy']);//للتعديل
         Route::get('patients/{id}/dispensation-history', [PatientDepartmentAdminController::class, 'dispensationHistory']);
     });
     // ========================================================================

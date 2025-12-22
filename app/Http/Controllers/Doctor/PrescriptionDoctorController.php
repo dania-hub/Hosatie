@@ -7,13 +7,14 @@ use Illuminate\Http\Request;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use Illuminate\Support\Facades\DB;
+use App\Services\PatientNotificationService;
 
 class PrescriptionDoctorController extends BaseApiController
 {
     /**
      * Add Drugs (Auto-create Prescription if missing)
      */
-    public function store(Request $request, $patientId)
+    public function store(Request $request, $patientId, PatientNotificationService $notifications)
     {
         $request->validate([
             'medications' => 'required|array',
@@ -46,13 +47,15 @@ class PrescriptionDoctorController extends BaseApiController
             }
 
             // 3. Add Drugs
+            $createdDrugs = [];
+
             foreach ($request->medications as $med) {
                 $exists = PrescriptionDrug::where('prescription_id', $prescription->id)
                             ->where('drug_id', $med['drug_id'])
                             ->exists();
                 
                 if (!$exists) {
-                    PrescriptionDrug::create([
+                    $createdDrugs[] = PrescriptionDrug::create([
                         'prescription_id' => $prescription->id,
                         'drug_id'         => $med['drug_id'],
                         'monthly_quantity'=> $med['quantity'],
@@ -62,6 +65,17 @@ class PrescriptionDoctorController extends BaseApiController
             }
 
             DB::commit();
+            if (!empty($createdDrugs)) {
+                $prescription->loadMissing('patient');
+                foreach ($createdDrugs as $drug) {
+                    $drug->loadMissing('drug');
+                    $notifications->notifyDrugAssigned(
+                        $prescription->patient,
+                        $prescription,
+                        $drug->drug
+                    );
+                }
+            }
             return $this->sendSuccess([], 'تم إضافة الأدوية بنجاح.');
 
         } catch (\Exception $e) {
@@ -74,7 +88,7 @@ class PrescriptionDoctorController extends BaseApiController
     /**
      * Edit Drug Quantity
      */
-    public function update(Request $request, $patientId, $pivotId)
+    public function update(Request $request, $patientId, $pivotId, PatientNotificationService $notifications)
     {
         $request->validate(['dosage' => 'required|integer|min:1']);
         $hospitalId = $request->user()->hospital_id;
@@ -91,13 +105,20 @@ class PrescriptionDoctorController extends BaseApiController
         $item->monthly_quantity = $request->dosage;
         $item->save();
 
+        $item->loadMissing(['prescription.patient', 'drug']);
+        $notifications->notifyDrugUpdated(
+            $item->prescription->patient,
+            $item->prescription,
+            $item->drug
+        );
+
         return $this->sendSuccess($item, 'تم تحديث جرعة الدواء بنجاح.');
     }
 
     /**
      * Remove Drug (Auto-delete Prescription if empty)
      */
-    public function destroy(Request $request, $patientId, $pivotId)
+    public function destroy(Request $request, $patientId, $pivotId, PatientNotificationService $notifications)
     {
         $hospitalId = $request->user()->hospital_id;
 
@@ -109,6 +130,13 @@ class PrescriptionDoctorController extends BaseApiController
         if ($prescription->hospital_id !== $hospitalId) {
              return $this->sendError('غير مصرح لك بحذف هذا السجل (مستشفى مختلف).', [], 403);
         }
+
+        $item->loadMissing(['prescription.patient', 'drug']);
+        $notifications->notifyDrugDeleted(
+            $item->prescription->patient,
+            $item->prescription,
+            $item->drug
+        );
 
         // 1. Delete the Drug
         $item->delete();

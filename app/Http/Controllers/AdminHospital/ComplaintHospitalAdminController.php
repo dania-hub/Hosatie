@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\AdminHospital;
-
+use App\Services\PatientNotificationService;
 use App\Http\Controllers\BaseApiController;
 use App\Http\Controllers\Controller;
 use App\Models\Complaint;
@@ -9,7 +9,9 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 
 class ComplaintHospitalAdminController extends BaseApiController
-{
+{ public function __construct(
+        private PatientNotificationService $notifications
+    ) {}
     // 1) قائمة الطلبات/الشكاوى
     public function index(Request $request)
     {
@@ -65,6 +67,7 @@ class ComplaintHospitalAdminController extends BaseApiController
             'replied_by'    => $request->user()->id ?? null,
             'replied_at'    => Carbon::now(),
         ]);
+  $this->notifications->notifyComplaintReplied($complaint->patient, $complaint);
 
         return response()->json([
             'success' => true,

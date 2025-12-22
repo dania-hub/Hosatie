@@ -418,6 +418,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Example Staff Management Routes
         Route::get('staff', [StaffController::class, 'index']);
         Route::post('staff', [StaffController::class, 'store']);
+        Route::patch('staff/{id}/status', [StaffController::class, 'toggleStatus']);
 
         Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);
         Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);

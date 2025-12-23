@@ -252,31 +252,29 @@ const getRequestedQuantity = (item) => {
     return item.requested_qty || item.requestedQty || item.quantity || 0;
 };
 
-// دالة لاستخراج الكمية المرسلة (من Supplier)
+// دالة لاستخراج الكمية المرسلة (من أمين المخزن)
 const getSentQuantity = (item) => {
-    // أولوية: fulfilled_qty (الكمية المرسلة من Supplier) > approved_qty (الكمية المعتمدة من HospitalAdmin) > sentQuantity
-    // fulfilled_qty هو الكمية الفعلية المرسلة من Supplier
-    if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
-        const val = Number(item.fulfilled_qty);
-        if (!isNaN(val) && val >= 0) {
-            return val;
-        }
-    }
-    if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
-        const val = Number(item.fulfilledQty);
-        if (!isNaN(val) && val >= 0) {
-            return val;
-        }
-    }
-    // إذا لم يكن fulfilled_qty موجوداً، نستخدم approved_qty (الكمية المعتمدة من HospitalAdmin)
+    // approved_qty = الكمية المرسلة من أمين المخزن
+    // fulfilled_qty = الكمية المستلمة (ليست الكمية المرسلة!)
+    
+    // أولاً: approved_qty (الكمية المرسلة الفعلية من أمين المخزن)
     if (item.approved_qty !== null && item.approved_qty !== undefined) {
-        return Number(item.approved_qty);
+        const val = Number(item.approved_qty);
+        if (!isNaN(val) && val > 0) {
+            return val;
+        }
     }
     if (item.approvedQty !== null && item.approvedQty !== undefined) {
-        return Number(item.approvedQty);
+        const val = Number(item.approvedQty);
+        if (!isNaN(val) && val > 0) {
+            return val;
+        }
     }
     if (item.sentQuantity !== null && item.sentQuantity !== undefined) {
-        return Number(item.sentQuantity);
+        const val = Number(item.sentQuantity);
+        if (!isNaN(val) && val > 0) {
+            return val;
+        }
     }
     return 0;
 };

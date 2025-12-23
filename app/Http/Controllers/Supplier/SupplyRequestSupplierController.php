@@ -224,7 +224,7 @@ class SupplyRequestSupplierController extends BaseApiController
     {
         $statuses = [
             'pending' => 'قيد الانتظار',
-            'approved' => 'تم الموافقة',
+            'approved' => 'جديد',
             'fulfilled' => 'تم التنفيذ',
             'rejected' => 'مرفوض',
         ];

@@ -22,6 +22,7 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
             'items' => 'required|array|min:1',
             'items.*.drugId' => 'required|exists:drug,id',
             'items.*.quantity' => 'required|integer|min:1',
+            // notes يتم حفظها في audit_log فقط (لا يوجد عمود notes في الجدول)
             'notes' => 'nullable|string'
         ]);
 
@@ -49,12 +50,11 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                 throw new \Exception("لا توجد صيدلية محددة لإنشاء الطلب منها.");
             }
 
-            // إنشاء الطلب
+            // إنشاء الطلب (notes لا تُخزن في الجدول، تُحفظ فقط في الـ audit_log)
             $supplyRequest = InternalSupplyRequest::create([
                 'pharmacy_id' => $pharmacyId,
                 'requested_by' => $user->id,
                 'status' => 'pending',
-                'notes' => $request->notes,
             ]);
 
             // إضافة عناصر الطلب
@@ -62,6 +62,9 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                 InternalSupplyRequestItem::create([
                     'request_id' => $supplyRequest->id,
                     'drug_id' => $item['drugId'],
+                    // تخزين الكمية المطلوبة من department في requested_qty
+                    // approved_qty: سيتم تعيينه من storekeeper عند الإرسال
+                    // fulfilled_qty: سيتم تعيينه من department/pharmacist عند الاستلام
                     'requested_qty' => $item['quantity'],
                     'approved_qty' => null,
                     'fulfilled_qty' => null,

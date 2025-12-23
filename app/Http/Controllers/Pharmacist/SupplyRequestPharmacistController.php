@@ -52,13 +52,14 @@ class SupplyRequestPharmacistController extends BaseApiController
             $supplyRequest->pharmacy_id = $pharmacyId; // <--- استخدام الصيدلية المستنتجة
             
             $supplyRequest->status = 'pending';
-            $supplyRequest->notes = $request->notes;
             $supplyRequest->save();
 
             foreach ($request->items as $item) {
                 $requestItem = new InternalSupplyRequestItem();
                 $requestItem->request_id = $supplyRequest->id; 
                 $requestItem->drug_id = $item['drugId'];
+                // تخزين الكمية المطلوبة من pharmacist في requested_qty
+                // approved_qty و fulfilled_qty سيتم تعيينهما لاحقاً (null في البداية)
                 $requestItem->requested_qty = $item['quantity']; 
                 $requestItem->save();
             }

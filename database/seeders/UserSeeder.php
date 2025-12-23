@@ -84,7 +84,6 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'type' => 'doctor',
                 'hospital_id' => 1,
-                'department_id' => 1,
                 'status' => 'active',
             ]
         );
@@ -125,7 +124,6 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'type' => 'department_head',
                 'hospital_id' => 1,
-                'department_id' => 1,
                 'status' => 'active',
             ]
         );

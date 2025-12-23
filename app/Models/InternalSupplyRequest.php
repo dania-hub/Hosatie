@@ -15,7 +15,6 @@ class InternalSupplyRequest extends Model
         'pharmacy_id',
         'requested_by',
         'status',
-        'notes',
         'approved_by',
         'approved_at',
     ];

@@ -17,7 +17,6 @@ class PharmacyFactory extends Factory
         return [
             'name' => fake()->company() . ' صيدلية',
             'status' => fake()->randomElement(['active', 'inactive']),
-            'inventory_id' => null,
         ];
     }
 }

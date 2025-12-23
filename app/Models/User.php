@@ -24,7 +24,6 @@ class User extends Authenticatable
         'warehouse_id',
         'hospital_id',
         'supplier_id',
-        'department_id',
         'pharmacy_id',
         'status',
         'created_by',
@@ -55,11 +54,7 @@ class User extends Authenticatable
         return $this->belongsTo(Supplier::class);
     }
 
-    public function department()
-    {
-        return $this->belongsTo(Department::class);
-    }
-
+   
     public function pharmacy()
     {
         return $this->belongsTo(Pharmacy::class);
@@ -77,7 +72,7 @@ class User extends Authenticatable
 
     public function prescriptionsAsPatient()
     {
-        return $this->hasMany(Prescription::class, 'patient_id');
+        return $this->hasOne(Prescription::class, 'patient_id');
     }
 
     public function prescriptionsAsDoctor()

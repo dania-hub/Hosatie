@@ -21,7 +21,6 @@ class PrescriptionFactory extends Factory
                 ? fake()->dateTimeBetween('now', '+120 days')->format('Y-m-d')
                 : null,
             'cancelled_at' => null,
-            'cancelled_by' => null,
         ];
     }
 }

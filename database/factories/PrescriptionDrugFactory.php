@@ -16,7 +16,7 @@ class PrescriptionDrugFactory extends Factory
     {
         return [
             'monthly_quantity' => fake()->numberBetween(10, 150),
-            'note' => fake()->optional(0.3)->sentence(),
+            'daily_quantity' => fake()->numberBetween(1, 4),
         ];
     }
 }

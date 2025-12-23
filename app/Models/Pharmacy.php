@@ -13,7 +13,6 @@ class Pharmacy extends Model
 
     protected $fillable = [
         'hospital_id',
-        'inventory_id', // قد لا تحتاج هذا العمود مستقبلاً
         'name',
         'status',
     ];

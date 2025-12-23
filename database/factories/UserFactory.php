@@ -30,7 +30,6 @@ class UserFactory extends Factory
             'warehouse_id' => null,
             'hospital_id' => null,
             'supplier_id' => null,
-            'department_id' => null,
             'pharmacy_id' => null,
             'status' => fake()->randomElement(['active','inactive','pending_activation']),
             'created_by' => null,

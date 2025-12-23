@@ -15,7 +15,7 @@ class PrescriptionDrug extends Model
         'prescription_id',
         'drug_id',
         'monthly_quantity',
-        'note',
+        'daily_quantity',
     ];
 
     public function prescription()

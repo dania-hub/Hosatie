@@ -19,7 +19,6 @@ class Prescription extends Model
         'start_date',
         'end_date',
         'cancelled_at',
-        'cancelled_by',
     ];
 
     protected $casts = [
@@ -43,17 +42,12 @@ class Prescription extends Model
         return $this->belongsTo(Hospital::class);
     }
 
-    public function canceller()
-    {
-        return $this->belongsTo(User::class, 'cancelled_by');
-    }
-
     // Relationship to Drugs (Many-to-Many via prescription_drug)
     public function drugs()
     {
         return $this->belongsToMany(Drug::class, 'prescription_drug', 'prescription_id', 'drug_id')
                     // نضيف حقل id من جدول pivot حتى يصل للواجهة ويُستخدم كمعرّف للتعديل/الحذف
-                    ->withPivot('id', 'monthly_quantity', 'note')
+                    ->withPivot('id', 'monthly_quantity', 'daily_quantity')
                     ->withTimestamps();
     }
 }

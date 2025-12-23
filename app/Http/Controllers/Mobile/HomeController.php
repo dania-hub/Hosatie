@@ -18,57 +18,30 @@ class HomeController extends BaseApiController
     {
         $user = $request->user();
         $user->load('hospital');
-
+        
         $hospitalName = $user->hospital ? $user->hospital->name : 'غير محدد';
 
         $healthFile = [
             'file_number' => $user->id,
-            'hospital'    => $hospitalName,
+            'hospital'    => $hospitalName, 
         ];
 
-        // الحصول على صيدلية المريض
         $patientPharmacyId = $user->pharmacy_id ?? 1;
 
-        // الحصول على جميع الوصفات النشطة للمستخدم
         $activePrescriptions = Prescription::where('patient_id', $user->id)
             ->where('status', 'active')
             ->get();
 
         $drugStatus = [];
-        $now = Carbon::now()->startOfDay(); // نبدأ اليوم من بدايته لتجنب مشاكل الوقت
-
-        Log::info('===== HOME API CALCULATION START =====');
-        Log::info('User ID: ' . $user->id);
-        Log::info('Current date: ' . $now->format('Y-m-d'));
+        $now = Carbon::now()->startOfDay();
+        
+        Log::info('======= HOME API - MONTH CALCULATION =======');
 
         foreach ($activePrescriptions as $prescription) {
-            Log::info('--- Processing Prescription ID: ' . $prescription->id . ' ---');
-            Log::info('Prescription start date: ' . $prescription->start_date);
-
+            Log::info('Prescription: ' . $prescription->id . ', Start: ' . $prescription->start_date);
+            
             $startDate = Carbon::parse($prescription->start_date)->startOfDay();
-
-            // حساب الأشهر المتراكمة باستخدام diffInMonths(now, startDate, false)
-            $monthsAccumulated = 0;
-
-            // diffInMonths(now, startDate, false) يعطي الفارق بالأشهر مع إشارة حسب الترتيب.
-            $diff = $now->diffInMonths($startDate, false);
-
-            // إذا كان الفارق سالباً (اليوم قبل تاريخ البدء)، فلا يوجد أشهر متراكمة بعد الآن.
-            if ($diff < 0) {
-                $monthsAccumulated = 0;
-                Log::info('Prescription not started yet (future start date)');
-            } else {
-                // المريض يستحق شهر + عدد الأشهر الكاملة (مثل المنطق القديم).
-                $monthsAccumulated = $diff + 1;
-
-                // الحد الأقصى 3 أشهر فقط.
-                if ($monthsAccumulated > 3) {
-                    $monthsAccumulated = 3;
-                }
-
-                Log::info('Months accumulated: ' . $monthsAccumulated);
-            }
-
+            
             // الحصول على أدوية الوصفة
             $drugs = DB::table('prescription_drug')
                 ->join('drug', 'prescription_drug.drug_id', '=', 'drug.id')
@@ -82,71 +55,98 @@ class HomeController extends BaseApiController
                 ->get();
 
             foreach ($drugs as $drug) {
-                Log::info('Processing drug: ' . $drug->name . ' (ID: ' . $drug->id . ')');
-
                 $monthlyDosage = (int) ($drug->monthly_quantity ?? 0);
-                $dailyDosage = (int) ($drug->daily_quantity ?? 0);
-
-                Log::info('Monthly quantity: ' . $monthlyDosage);
-                Log::info('Daily quantity: ' . $dailyDosage);
-
-                if ($monthlyDosage <= 0) {
-                    Log::info('Skipping - invalid monthly dosage');
+                $dailyDosage = (int) ($drug->daily_quantity ?? 1);
+                
+                Log::info('Drug: ' . $drug->name . ', Monthly: ' . $monthlyDosage . ', Daily: ' . $dailyDosage);
+                
+                if ($monthlyDosage <= 0 || $dailyDosage <= 0) {
+                    Log::info('Skipping - invalid dosage');
                     continue;
                 }
 
-                // حساب الكمية المصروفة لهذا الدواء
+                // ==============================================
+                // 1. حساب عدد الأشهر المتراكمة (ليس الأيام!)
+                // ==============================================
+                $accumulatedMonths = 0;
+                
+                if ($now->greaterThanOrEqualTo($startDate)) {
+                    // حساب الأشهر منذ بداية الوصفة
+                    $monthsSinceStart = $startDate->diffInMonths($now);
+                    
+                    // المريض يستحق الشهر الحالي أيضاً
+                    $accumulatedMonths = $monthsSinceStart + 1;
+                    
+                    Log::info('Months since start: ' . $monthsSinceStart);
+                    Log::info('Accumulated months (+1): ' . $accumulatedMonths);
+                    
+                    // الحد الأقصى: 3 أشهر فقط
+                    $maxMonths = 3;
+                    if ($accumulatedMonths > $maxMonths) {
+                        $accumulatedMonths = $maxMonths;
+                        Log::info('Capped at max ' . $maxMonths . ' months');
+                    }
+                } else {
+                    Log::info('Prescription not started yet');
+                    $accumulatedMonths = 0;
+                }
+
+                // ==============================================
+                // 2. حساب الصرفيات بالأشهر
+                // ==============================================
                 $totalDispensed = (int) Dispensing::where('patient_id', $user->id)
                     ->where('prescription_id', $prescription->id)
                     ->where('drug_id', $drug->id)
                     ->sum('quantity_dispensed');
-
+                    
                 Log::info('Total dispensed: ' . $totalDispensed . ' pills');
-
-                // تحويل المصروف إلى أشهر
+                
+                // تحويل المصروف إلى أشهر (كمية شهرية ÷ المصروف)
                 $monthsDispensed = 0;
                 if ($monthlyDosage > 0) {
                     $monthsDispensed = floor($totalDispensed / $monthlyDosage);
                 }
-
+                
                 Log::info('Months dispensed: ' . $monthsDispensed);
 
-                // حساب الرصيد المتبقي (الأشهر المتراكمة - الأشهر المصروفة)
-                $remainingMonths = max(0, $monthsAccumulated - $monthsDispensed);
-
+                // ==============================================
+                // 3. حساب الأشهر المتبقية
+                // ==============================================
+                $remainingMonths = max(0, $accumulatedMonths - $monthsDispensed);
+                
                 Log::info('Remaining months: ' . $remainingMonths);
 
-                // الكمية بالحبات
-                $currentBalance = $remainingMonths * $monthlyDosage;
-
-                Log::info('Current balance: ' . $currentBalance . ' pills');
-
-                // التحقق من الصرف في آخر 4 أشهر
-                $hasRecentDispensing = false;
-
-                // إذا كان هناك رصيد متبقي وكانت الأشهر المتراكمة 3 أو أكثر،
-                // نتحقق من وجود صرف خلال آخر 4 أشهر.
-                if ($monthsAccumulated >= 3 && $remainingMonths > 0) {
-                    $fourMonthsAgo = $now->copy()->subMonths(4);
-
-                    $recentDispensing = Dispensing::where('patient_id', $user->id)
-                        ->where('prescription_id', $prescription->id)
-                        ->where('drug_id', $drug->id)
-                        ->where('dispensing_date', '>=', $fourMonthsAgo)
-                        ->exists();
-
-                    if (!$recentDispensing) {
-                        // إذا مرت 4 أشهر بدون صرف → الرصيد يصفر
-                        $remainingMonths = 0;
-                        $currentBalance = 0;
-                        Log::info('No dispensing in last 4 months - resetting balance to 0');
-                    }
+                // ==============================================
+                // 4. قاعدة: 4 أشهر بدون صرف → يصفر
+                // ==============================================
+                if ($accumulatedMonths >= 4 && $monthsDispensed == 0) {
+                    $remainingMonths = 0;
+                    Log::info('Reset to 0 - no dispensing in 4 months');
                 }
 
-                // التحقق من التوفر في المخزون
-                $isAvailable = false;
+                // ==============================================
+                // 5. حساب الرصيد بالحبات
+                // ==============================================
+                // طريقة 1: من الأشهر المتبقية × الكمية الشهرية
+                $currentBalance = $remainingMonths * $monthlyDosage;
+                
+                // طريقة 2 (بديلة): من الأيام (لتجنب التقريب)
+                // $remainingDays = $remainingMonths * 30;
+                // $currentBalance = $remainingDays * $dailyDosage;
+                
+                Log::info('Current balance in pills: ' . $currentBalance);
+
+                // ==============================================
+                // 6. تنسيق المدة للعرض (بالأشهر فقط!)
+                // ==============================================
+                $durationLabel = $this->formatMonthsOnly($remainingMonths);
+                Log::info('Duration label: ' . $durationLabel);
+
+                // ==============================================
+                // 7. التحقق من التوفر
+                // ==============================================
                 $statusText = 'غير متوفر';
-                $statusColor = '#fee2e2'; // أحمر
+                $statusColor = '#fee2e2';
                 $textColor = '#991b1b';
 
                 $inventoryRecord = Inventory::where('drug_id', $drug->id)
@@ -154,45 +154,46 @@ class HomeController extends BaseApiController
                     ->first();
 
                 if ($inventoryRecord && $inventoryRecord->current_quantity > 0) {
-                    $isAvailable = true;
                     $statusText = 'متوفر';
-                    $statusColor = '#dcfce7'; // أخضر
+                    $statusColor = '#dcfce7';
                     $textColor = '#166534';
                 }
 
-                // تحديد الحالة النهائية
-                if ($currentBalance == 0 && $totalDispensed > 0) {
-                    $statusText = 'تم الصرف';
-                    $statusColor = '#e0f2fe'; // أزرق
-                    $textColor = '#075985';
-                } elseif ($currentBalance == 0 && $totalDispensed == 0) {
-                    $statusText = 'لا يوجد رصيد';
-                    $statusColor = '#f3f4f6'; // رمادي
-                    $textColor = '#374151';
+                // ==============================================
+                // 8. تحديد الحالة النهائية
+                // ==============================================
+                if ($currentBalance == 0) {
+                    if ($totalDispensed > 0) {
+                        $statusText = 'تم الصرف';
+                        $statusColor = '#e0f2fe';
+                        $textColor = '#075985';
+                    } else {
+                        $statusText = 'لا يوجد رصيد';
+                        $statusColor = '#f3f4f6';
+                        $textColor = '#374151';
+                    }
                 }
 
-                // إعداد البيانات للعرض
+                // ==============================================
+                // 9. إضافة النتيجة
+                // ==============================================
                 $drugStatus[] = [
                     'id'           => $drug->id,
                     'drug_name'    => $drug->name,
-                    'duration'     => $remainingMonths . ' شهر',
+                    'duration'     => $durationLabel, // مثال: "شهران"
                     'dosage'       => $currentBalance . ' حبة',
+                    'daily_dosage' => $dailyDosage,
                     'status'       => $statusText,
                     'status_color' => $statusColor,
                     'text_color'   => $textColor,
                 ];
-
-                Log::info('Drug status added: ' . $drug->name . ' - ' . $remainingMonths . ' months - ' . $currentBalance . ' pills');
+                
+                Log::info('Final: ' . $durationLabel . ', ' . $currentBalance . ' pills');
             }
         }
 
-        // إذا لم توجد أدوية، أضف رسالة فارغة
-        if (empty($drugStatus)) {
-            Log::info('No drugs found for user');
-        }
-
-        Log::info('===== HOME API CALCULATION END =====');
-        Log::info('Total drugs in response: ' . count($drugStatus));
+        Log::info('======= END =======');
+        Log::info('Total drugs: ' . count($drugStatus));
 
         return response()->json([
             'success' => true,
@@ -201,5 +202,23 @@ class HomeController extends BaseApiController
                 'drug_status' => $drugStatus,
             ]
         ]);
+    }
+
+    /**
+     * تنسيق الأشهر فقط (بدون أيام)
+     */
+    private function formatMonthsOnly(int $months): string
+    {
+        if ($months == 0) {
+            return '0 شهر';
+        } elseif ($months == 1) {
+            return 'شهر واحد';
+        } elseif ($months == 2) {
+            return 'شهران';
+        } elseif ($months <= 10) {
+            return $months . ' أشهر';
+        } else {
+            return $months . ' شهرًا';
+        }
     }
 }

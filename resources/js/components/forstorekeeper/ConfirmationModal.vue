@@ -234,8 +234,8 @@
                         placeholder="أضف أي ملاحظات حول الشحنة..."
                         rows="2"
                         class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
-                        :class="{ 'bg-gray-100 cursor-not-allowed': isProcessing }"
-                        :disabled="isProcessing"
+                        :class="{ 'bg-gray-100 ': isProcessing }"
+                       
                     ></textarea>
                 </div>
             </div>

@@ -145,21 +145,49 @@
                 </div>
 
                 <!-- Notes -->
-                <div v-if="requestDetails.notes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || requestDetails.notes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
                     </h3>
 
-                    <div v-if="requestDetails.confirmation?.notes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                    <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
+                    <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                            ملاحظة مسؤول المخزن
+                        </h4>
+                        <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
+                    </div>
+
+                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
+                    <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                            ملاحظة الاستلام
+                            ملاحظة المورد
+                        </h4>
+                        <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
+                    </div>
+
+                    <!-- ملاحظة تأكيد الاستلام من Storekeeper -->
+                    <div v-if="requestDetails.confirmation?.confirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                        <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة تأكيد الاستلام
+                        </h4>
+                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation.confirmationNotes }}</p>
+                    </div>
+
+                    <!-- للتوافق مع الكود القديم -->
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes && !requestDetails.confirmation?.confirmationNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                        <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة الإرسال
                         </h4>
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <div v-if="requestDetails.notes" class="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmation?.notes" class="p-4 bg-gray-50 border border-gray-100 rounded-xl">
                         <h4 class="font-bold text-[#2E5077] mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5 text-[#4DA1A9]" />
                             ملاحظة الطلب الأصلية
@@ -204,6 +232,8 @@ const props = defineProps({
             status: '', 
             items: [], 
             notes: '',
+            storekeeperNotes: null,
+            supplierNotes: null,
             confirmation: null 
         })
     }
@@ -218,6 +248,8 @@ const requestDetails = ref({
     status: props.requestData.status,
     items: props.requestData.items,
     notes: props.requestData.notes || '',
+    storekeeperNotes: props.requestData.storekeeperNotes || null,
+    supplierNotes: props.requestData.supplierNotes || null,
     confirmation: props.requestData.confirmation || null
 });
 
@@ -241,6 +273,8 @@ watch(() => props.requestData, (newVal) => {
             status: newVal.status,
             items: newVal.items || [],
             notes: newVal.notes || '',
+            storekeeperNotes: newVal.storekeeperNotes || null,
+            supplierNotes: newVal.supplierNotes || null,
             confirmation: newVal.confirmation || null
         };
     }

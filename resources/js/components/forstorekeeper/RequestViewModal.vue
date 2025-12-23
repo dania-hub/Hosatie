@@ -164,7 +164,7 @@
                 </div>
 
                 <!-- Notes -->
-                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || requestDetails.notes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
@@ -188,8 +188,17 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
                     </div>
 
+                    <!-- ملاحظة تأكيد الاستلام من Storekeeper -->
+                    <div v-if="requestDetails.confirmation?.confirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                        <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة تأكيد الاستلام
+                        </h4>
+                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation.confirmationNotes }}</p>
+                    </div>
+
                     <!-- للتوافق مع الكود القديم -->
-                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes && !requestDetails.confirmation?.confirmationNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
                             ملاحظة الإرسال
@@ -197,7 +206,7 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmation?.notes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmation?.notes && !requestDetails.confirmation?.confirmationNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             ملاحظة الطلب الأصلية

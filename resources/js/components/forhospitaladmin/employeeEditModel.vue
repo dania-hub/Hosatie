@@ -2,12 +2,11 @@
 import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import Input from "@/components/ui/input/Input.vue";
 
 const props = defineProps({
     isOpen: Boolean,
-    employee: Object,
+    patient: Object, // Keeping the prop name as 'patient' to match employeesList.vue
     hasWarehouseManager: Boolean,
     availableDepartments: Array,
     availableRoles: Array,
@@ -45,17 +44,18 @@ const isConfirmationModalOpen = ref(false);
 
 // تهيئة النموذج عند فتح النافذة
 watch(() => props.isOpen, (newVal) => {
-    if (newVal && props.employee) {
+    if (newVal && props.patient) {
+        const emp = props.patient;
         form.value = {
-            id: props.employee.id,
-            nationalId: props.employee.nationalId,
-            name: props.employee.name,
-            birth: props.employee.birth ? props.employee.birth.replace(/\//g, "-") : "",
-            phone: props.employee.phone,
-            email: props.employee.email,
-            role: props.employee.role,
-            department: props.employee.department || "",
-            isActive: props.employee.isActive,
+            id: emp.id || emp.fileNumber || "",
+            nationalId: emp.nationalId || emp.nationalIdDisplay || "",
+            name: emp.name || emp.nameDisplay || "",
+            birth: emp.birth ? (emp.birth.replace ? emp.birth.replace(/\//g, "-") : emp.birth) : (emp.birthDisplay ? emp.birthDisplay.replace(/\//g, "-") : ""),
+            phone: emp.phone || "",
+            email: emp.email || "",
+            role: emp.role || "",
+            department: emp.department || "",
+            isActive: emp.isActive !== undefined ? emp.isActive : true,
         };
     }
 }, { immediate: true });
@@ -64,10 +64,8 @@ watch(() => props.isOpen, (newVal) => {
 const filteredDepartments = computed(() => {
     if (!props.availableDepartments) return [];
     
-    // الأقسام المتاحة هي الأقسام التي ليس لها مدير + القسم الحالي للموظف إذا كان هو مديره
-    return props.availableDepartments.filter(dept => 
-        !props.departmentsWithManager.includes(dept) || dept === props.employee.department
-    );
+    // نعرض كل الأقسام دائماً
+    return props.availableDepartments;
 });
 
 // الحصول على قائمة الأدوار بشكل صحيح
@@ -116,14 +114,17 @@ const validateForm = () => {
         if (errors.value.department) isValid = false;
         
         // التحقق من أن القسم ليس لديه مدير بالفعل (باستثناء القسم الحالي للموظف)
-        if (props.departmentsWithManager.includes(data.department) && data.department !== props.employee.department) {
+        const deptName = typeof data.department === 'object' ? data.department.name : data.department;
+        const currentDepartment = props.patient?.department || "";
+        if (props.departmentsWithManager.includes(deptName) && deptName !== currentDepartment) {
             errors.value.department = true;
             isValid = false;
         }
     }
 
     // التحقق من وجود مدير مخزن آخر
-    if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager && props.employee.role !== "مدير المخزن") {
+    const currentRole = props.patient?.role || "";
+    if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager && currentRole !== "مدير المخزن") {
         alert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
         isValid = false;
     }
@@ -154,27 +155,32 @@ const isFormValid = computed(() => {
 
     if (isDepartmentManagerRole(data.role)) {
         if (!data.department) return false;
-        if (props.departmentsWithManager.includes(data.department) && data.department !== props.employee.department) {
+        const deptName = typeof data.department === 'object' ? data.department.name : data.department;
+        const currentDepartment = props.patient?.department || "";
+        if (props.departmentsWithManager.includes(deptName) && deptName !== currentDepartment) {
             return false;
         }
     }
 
-    if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager && props.employee.role !== "مدير المخزن") {
+    const currentRole = props.patient?.role || "";
+    if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager && currentRole !== "مدير المخزن") {
         return false;
     }
 
     // التحقق من وجود تغييرات
-    const hasChanges = JSON.stringify(form.value) !== JSON.stringify({
-        id: props.employee.id,
-        nationalId: props.employee.nationalId,
-        name: props.employee.name,
-        birth: props.employee.birth ? props.employee.birth.replace(/\//g, "-") : "",
-        phone: props.employee.phone,
-        email: props.employee.email,
-        role: props.employee.role,
-        department: props.employee.department || "",
-        isActive: props.employee.isActive,
-    });
+    const emp = props.patient || {};
+    const originalData = {
+        id: emp.id || emp.fileNumber || "",
+        nationalId: emp.nationalId || emp.nationalIdDisplay || "",
+        name: emp.name || emp.nameDisplay || "",
+        birth: emp.birth ? (emp.birth.replace ? emp.birth.replace(/\//g, "-") : emp.birth) : (emp.birthDisplay ? emp.birthDisplay.replace(/\//g, "-") : ""),
+        phone: emp.phone || "",
+        email: emp.email || "",
+        role: emp.role || "",
+        department: emp.department || "",
+        isActive: emp.isActive !== undefined ? emp.isActive : true,
+    };
+    const hasChanges = JSON.stringify(form.value) !== JSON.stringify(originalData);
 
     return hasChanges;
 });
@@ -197,7 +203,7 @@ const confirmUpdate = () => {
     const updatedEmployee = {
         ...form.value,
         birth: form.value.birth.replace(/-/g, "/"),
-        department: isDepartmentManagerRole(form.value.role) ? form.value.department : "",
+        department: isDepartmentManagerRole(form.value.role) ? (typeof form.value.department === 'object' ? form.value.department.name : form.value.department) : "",
     };
     
     emit('save', updatedEmployee);
@@ -213,20 +219,9 @@ watch(() => form.value.role, (newRole) => {
 </script>
 
 <template>
-    <!-- Modal الرئيسي -->
-    <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-    >
-        <div
-            @click="$emit('close')"
-            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        ></div>
-
-        <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto transform transition-all scale-100"
-            dir="rtl"
-        >
+    <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="$emit('close')">
+        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+            
             <!-- Header -->
             <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
@@ -243,22 +238,23 @@ watch(() => form.value.role, (newRole) => {
                 </button>
             </div>
 
+            <!-- Body -->
             <form @submit.prevent="submitForm" class="p-8 space-y-8">
-                <!-- المعلومات الشخصية -->
+                
+                <!-- المعلومات الشخصية والوظيفية -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
                         <Icon icon="solar:user-id-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         المعلومات الشخصية والوظيفية
                     </h3>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- الرقم الوطني -->
                         <div class="space-y-2">
-                            <Label for="national-id" class="text-gray-700 font-bold">الرقم الوطني</Label>
+                            <label class="text-sm font-semibold text-gray-500">الرقم الوطني</label>
                             <div class="relative">
                                 <Input
                                     required
-                                    id="national-id"
                                     v-model="form.nationalId"
                                     placeholder="أدخل الرقم الوطني"
                                     type="text"
@@ -272,11 +268,10 @@ watch(() => form.value.role, (newRole) => {
 
                         <!-- الاسم الرباعي -->
                         <div class="space-y-2">
-                            <Label for="name" class="text-gray-700 font-bold">الإسم رباعي</Label>
+                            <label class="text-sm font-semibold text-gray-500">الإسم رباعي</label>
                             <div class="relative">
                                 <Input
                                     required
-                                    id="name"
                                     v-model="form.name"
                                     placeholder="أدخل الإسم الرباعي"
                                     :class="{ 'border-red-500 focus:ring-red-500/20': errors.name, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.name }"
@@ -289,11 +284,10 @@ watch(() => form.value.role, (newRole) => {
 
                         <!-- الدور الوظيفي -->
                         <div class="space-y-2">
-                            <Label for="role" class="text-gray-700 font-bold">الدور الوظيفي</Label>
+                            <label class="text-sm font-semibold text-gray-500">الدور الوظيفي</label>
                             <div class="relative">
                                 <select
                                     required
-                                    id="role"
                                     v-model="form.role"
                                     :class="{ 'border-red-500 focus:ring-red-500/20': errors.role, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.role }"
                                     class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
@@ -310,11 +304,10 @@ watch(() => form.value.role, (newRole) => {
 
                         <!-- تاريخ الميلاد -->
                         <div class="space-y-2">
-                            <Label for="birth" class="text-gray-700 font-bold">تاريخ الميلاد</Label>
+                            <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
                             <div class="relative">
                                 <Input
                                     required
-                                    id="birth"
                                     type="date"
                                     v-model="form.birth"
                                     :class="{ 'border-red-500 focus:ring-red-500/20': errors.birth, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.birth }"
@@ -326,25 +319,32 @@ watch(() => form.value.role, (newRole) => {
                         </div>
 
                         <!-- حقل القسم (مشروط) -->
-                        <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 sm:col-span-2 animate-in fade-in slide-in-from-top-2">
-                            <Label for="department" class="text-gray-700 font-bold">اسم القسم</Label>
+                        <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 md:col-span-2 animate-in fade-in slide-in-from-top-2">
+                            <label class="text-sm font-semibold text-gray-500">اسم القسم</label>
                             <div class="relative">
                                 <select
                                     required
-                                    id="department"
                                     v-model="form.department"
                                     :class="{ 'border-red-500 focus:ring-red-500/20': errors.department, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.department }"
                                     class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
                                 >
                                     <option value="" disabled>اختر القسم</option>
-                                    <option v-for="dept in filteredDepartments" :key="dept" :value="dept">
-                                        {{ dept }}
+                                    <option 
+                                        v-for="dept in filteredDepartments" 
+                                        :key="typeof dept === 'object' ? dept.id : dept" 
+                                        :value="typeof dept === 'object' ? dept.name : dept"
+                                        :disabled="props.departmentsWithManager.includes(typeof dept === 'object' ? dept.name : dept) && (typeof dept === 'object' ? dept.name : dept) !== (props.patient?.department || '')"
+                                    >
+                                        {{ typeof dept === 'object' ? dept.name : dept }}
+                                        <template v-if="props.departmentsWithManager.includes(typeof dept === 'object' ? dept.name : dept) && (typeof dept === 'object' ? dept.name : dept) !== (props.patient?.department || '')">
+                                            (لديه مدير)
+                                        </template>
                                     </option>
                                 </select>
                                 <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
                             </div>
                             <p v-if="errors.department" class="text-sm text-red-500 font-medium">
-                                {{ form.department && props.departmentsWithManager.includes(form.department) && form.department !== props.employee.department
+                                {{ form.department && props.departmentsWithManager.includes(typeof form.department === 'object' ? form.department.name : form.department) && (typeof form.department === 'object' ? form.department.name : form.department) !== (props.patient?.department || "")
                                     ? 'هذا القسم لديه مدير بالفعل!' 
                                     : 'الرجاء اختيار القسم.' }}
                             </p>
@@ -354,18 +354,17 @@ watch(() => form.value.role, (newRole) => {
 
                 <!-- معلومات الإتصال والحالة -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
                         <Icon icon="solar:phone-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         معلومات الإتصال والحالة
                     </h3>
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
-                            <Label for="phone" class="text-gray-700 font-bold">رقم الهاتف</Label>
+                            <label class="text-sm font-semibold text-gray-500">رقم الهاتف</label>
                             <div class="relative">
                                 <Input
                                     required
-                                    id="phone"
                                     v-model="form.phone"
                                     placeholder="أدخل رقم الهاتف"
                                     type="text"
@@ -378,11 +377,10 @@ watch(() => form.value.role, (newRole) => {
                         </div>
 
                         <div class="space-y-2">
-                            <Label for="email" class="text-gray-700 font-bold">البريد الإلكتروني</Label>
+                            <label class="text-sm font-semibold text-gray-500">البريد الإلكتروني</label>
                             <div class="relative">
                                 <Input
                                     required
-                                    id="email"
                                     type="email"
                                     v-model="form.email"
                                     placeholder="أدخل البريد الإلكتروني"
@@ -395,8 +393,8 @@ watch(() => form.value.role, (newRole) => {
                         </div>
 
                         <!-- حالة الحساب -->
-                        <div class="space-y-2 sm:col-span-2">
-                            <Label class="text-gray-700 font-bold block mb-2">حالة الحساب</Label>
+                        <div class="space-y-2 md:col-span-2">
+                            <label class="text-sm font-semibold text-gray-500 block mb-2">حالة الحساب</label>
                             <div class="flex gap-4">
                                 <label class="cursor-pointer relative">
                                     <input type="radio" v-model="form.isActive" :value="true" class="peer sr-only" />
@@ -416,67 +414,50 @@ watch(() => form.value.role, (newRole) => {
                         </div>
                     </div>
                 </div>
-
-                <!-- Footer Buttons -->
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <button
-                        type="button"
-                        @click="$emit('close')"
-                        class="px-6 py-3 rounded-xl text-[#2E5077] font-bold hover:bg-gray-100 transition-all duration-200"
-                    >
-                        إلغاء
-                    </button>
-                    <button
-                        type="submit"
-                        :disabled="!isFormValid"
-                        class="px-8 py-3 rounded-xl bg-[#4DA1A9] text-white font-bold hover:bg-[#3a8c94] transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
-                        حفظ التعديلات
-                    </button>
-                </div>
             </form>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="$emit('close')" 
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    إلغاء
+                </button>
+                <button 
+                    @click="submitForm"
+                    :disabled="!isFormValid"
+                    class="px-8 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                    <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
+                    حفظ التعديلات
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- نافذة التأكيد -->
-    <div
-        v-if="isConfirmationModalOpen"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-4"
-    >
-        <div
-            @click="closeConfirmationModal"
-            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        ></div>
-
-        <div
-            class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 text-center rtl z-[70] transform transition-all scale-100"
-        >
-            <div class="w-20 h-20 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Icon
-                    icon="solar:pen-new-square-bold-duotone"
-                    class="w-10 h-10 text-yellow-500"
-                />
+    <div v-if="isConfirmationModalOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeConfirmationModal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div class="p-6 text-center space-y-4">
+                <div class="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon icon="solar:pen-new-square-bold-duotone" class="w-8 h-8 text-yellow-500" />
+                </div>
+                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد تعديل البيانات</h3>
+                <p class="text-gray-500 leading-relaxed">
+                    هل أنت متأكد من رغبتك في حفظ التعديلات للموظف <span class="font-bold text-[#2E5077]">"{{ form.name }}"</span>؟
+                </p>
             </div>
-            
-            <h3 class="text-xl font-bold text-[#2E5077] mb-3">
-                تأكيد تعديل البيانات
-            </h3>
-            
-            <p class="text-gray-600 mb-8 leading-relaxed">
-                هل أنت متأكد من رغبتك في حفظ التعديلات للموظف <span class="font-bold text-[#2E5077]">"{{ form.name }}"</span>؟
-            </p>
-            
-            <div class="flex gap-3 justify-center">
-                <button
-                    @click="closeConfirmationModal"
-                    class="px-6 py-2.5 rounded-xl text-gray-600 font-bold hover:bg-gray-100 transition-all duration-200"
+            <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                <button 
+                    @click="closeConfirmationModal" 
+                    class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                 >
                     إلغاء
                 </button>
-                <button
-                    @click="confirmUpdate"
-                    class="px-8 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-bold hover:bg-[#3a8c94] transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                <button 
+                    @click="confirmUpdate" 
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20"
                 >
                     تأكيد الحفظ
                 </button>

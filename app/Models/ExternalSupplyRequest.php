@@ -39,6 +39,9 @@ class ExternalSupplyRequest extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    // ملاحظة: rejected_by غير موجود في الجدول
+    // يمكن استخدام notes لحفظ معلومات الرفض
+
     public function items()
     {
         return $this->hasMany(ExternalSupplyRequestItem::class, 'request_id');

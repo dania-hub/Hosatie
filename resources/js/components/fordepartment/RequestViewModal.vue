@@ -252,9 +252,23 @@ const getRequestedQuantity = (item) => {
     return item.requested_qty || item.requestedQty || item.quantity || 0;
 };
 
-// دالة لاستخراج الكمية المرسلة
+// دالة لاستخراج الكمية المرسلة (من Supplier)
 const getSentQuantity = (item) => {
-    // أولوية: approved_qty > approvedQty > sentQuantity
+    // أولوية: fulfilled_qty (الكمية المرسلة من Supplier) > approved_qty (الكمية المعتمدة من HospitalAdmin) > sentQuantity
+    // fulfilled_qty هو الكمية الفعلية المرسلة من Supplier
+    if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
+        const val = Number(item.fulfilled_qty);
+        if (!isNaN(val) && val >= 0) {
+            return val;
+        }
+    }
+    if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
+        const val = Number(item.fulfilledQty);
+        if (!isNaN(val) && val >= 0) {
+            return val;
+        }
+    }
+    // إذا لم يكن fulfilled_qty موجوداً، نستخدم approved_qty (الكمية المعتمدة من HospitalAdmin)
     if (item.approved_qty !== null && item.approved_qty !== undefined) {
         return Number(item.approved_qty);
     }
@@ -268,42 +282,12 @@ const getSentQuantity = (item) => {
 };
 
 const getReceivedQuantity = (item) => {
-    // أولوية: fulfilledQty > fulfilled_qty فقط
-    // لا نستخدم approved_qty أو receivedQuantity كبديل للكمية المستلمة
-    // لأن API قد يرسل approved_qty في receivedQuantity كبديل
+    // الكمية المستلمة هي fulfilled_qty بعد تأكيد الاستلام من StoreKeeper
+    // لكن يجب التمييز بين fulfilled_qty من Supplier (مرسل) و fulfilled_qty بعد تأكيد الاستلام (مستلم)
+    // الحل: نستخدم receivedQuantity إذا كان موجوداً (الكمية المستلمة الفعلية)
+    // وإلا نستخدم fulfilled_qty فقط إذا تم تأكيد الاستلام (isReceivedStatus)
     
-    // التحقق من fulfilledQty أولاً
-    if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
-        const val = Number(item.fulfilledQty);
-        if (!isNaN(val) && val >= 0) {
-            return val;
-        }
-    }
-    
-    // التحقق من fulfilled_qty
-    if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
-        const val = Number(item.fulfilled_qty);
-        if (!isNaN(val) && val >= 0) {
-            return val;
-        }
-    }
-    
-    // التحقق من receivedQuantity فقط إذا لم يكن نفس approved_qty
-    // لأن API قد يرسل approved_qty في receivedQuantity كبديل
-    if (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity !== '') {
-        const approvedQty = item.approved_qty ?? item.approvedQty ?? null;
-        const receivedVal = Number(item.receivedQuantity);
-        const approvedVal = approvedQty !== null ? Number(approvedQty) : null;
-        
-        // إذا كان receivedQuantity مختلف عن approved_qty، نستخدمه
-        if (approvedVal === null || receivedVal !== approvedVal) {
-            if (!isNaN(receivedVal) && receivedVal >= 0) {
-                return receivedVal;
-            }
-        }
-    }
-    
-    // التحقق من confirmation.receivedItems
+    // أولوية: receivedQuantity من confirmation.receivedItems (الكمية المستلمة الفعلية)
     if (requestDetails.value.confirmation?.receivedItems) {
         const receivedItem = requestDetails.value.confirmation.receivedItems.find(
             ri => (item.id && ri.id === item.id) || ri.name === item.name
@@ -316,7 +300,33 @@ const getReceivedQuantity = (item) => {
         }
     }
     
-    return null;
+    // ثانياً: receivedQuantity من item مباشرة
+    if (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity !== '') {
+        const val = Number(item.receivedQuantity);
+        if (!isNaN(val) && val >= 0) {
+            return val;
+        }
+    }
+    
+    // ثالثاً: fulfilledQty أو fulfilled_qty فقط إذا تم تأكيد الاستلام (isReceivedStatus)
+    // لأن fulfilled_qty قد يكون من Supplier (مرسل) وليس مستلم
+    if (isReceivedStatus.value) {
+        if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
+            const val = Number(item.fulfilledQty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        
+        if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
+            const val = Number(item.fulfilled_qty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+    }
+    
+    return 0;
 };
 
 const isFullyReceived = (item) => {
@@ -346,10 +356,34 @@ const isSentStatus = computed(() => {
 // التحقق من أن الحالة هي "تم الإستلام"
 const isReceivedStatus = computed(() => {
     const status = requestDetails.value.status;
-    return status === 'تم الإستلام' || 
-           status === 'fulfilled' || 
-           status?.includes('مُستلَم') ||
-           requestDetails.value.confirmation !== null;
+    // التحقق من الحالة النصية
+    const statusText = status?.toString().toLowerCase() || '';
+    const isReceived = statusText.includes('تم الاستلام') || 
+                       statusText.includes('تم الإستلام') || 
+                       statusText.includes('مستلم') ||
+                       statusText.includes('مُستلَم') ||
+                       status === 'تم الاستلام' ||
+                       status === 'تم الإستلام' ||
+                       status === 'delivered';
+    
+    // التحقق من وجود confirmation
+    const hasConfirmation = requestDetails.value.confirmation !== null && 
+                           requestDetails.value.confirmation !== undefined;
+    
+    // التحقق من وجود receivedItems في confirmation
+    const hasReceivedItems = requestDetails.value.confirmation?.receivedItems && 
+                            Array.isArray(requestDetails.value.confirmation.receivedItems) &&
+                            requestDetails.value.confirmation.receivedItems.length > 0;
+    
+    // التحقق من أن fulfilled_qty موجود في items (يعني تم الاستلام)
+    const hasFulfilledQty = requestDetails.value.items && 
+                            requestDetails.value.items.some(item => 
+                                (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty > 0) ||
+                                (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty > 0) ||
+                                (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity > 0)
+                            );
+    
+    return isReceived || hasConfirmation || hasReceivedItems || hasFulfilledQty;
 });
 
 // تنسيق الحالة

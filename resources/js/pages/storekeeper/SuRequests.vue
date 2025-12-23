@@ -172,13 +172,15 @@
                                     <td
                                         :class="{
                                             'text-red-600 font-semibold':
-                                                shipment.requestStatus ==='مرفوضة',
+                                                shipment.requestStatus === 'مرفوضة' || 
+                                                shipment.requestStatus === 'مرفوض',
                                             'text-green-600 font-semibold':
-                                                shipment.requestStatus ===
-                                                'تم الإستلام',
+                                                shipment.requestStatus === 'تم الإستلام' ||
+                                                shipment.requestStatus === 'تم الاستلام',
                                             'text-yellow-600 font-semibold':
-                                                shipment.requestStatus ===
-                                                'قيد الاستلام',
+                                                shipment.requestStatus === 'قيد الاستلام' ||
+                                                shipment.requestStatus === 'تمت الموافقة عليه جزئياً' ||
+                                                shipment.requestStatus === 'قيد الانتظار',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}
@@ -197,7 +199,7 @@
                                             </button>
                                             
                                             <!-- زر الإجراء الثاني يختلف حسب الحالة -->
-                                            <template v-if="shipment.requestStatus === 'مرفوضة'">
+                                            <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض'">
                                                 <button class="tooltip" data-tip="طلب مرفوض">
                                                     <Icon
                                                         icon="tabler:circle-x" 
@@ -206,12 +208,25 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
-                                                <!-- إذا كانت تم الاستلام، تظهر زر مراجعة التفاصيل -->
+                                            <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
+                                                <!-- إذا كانت قيد الاستلام (أرسلها Supplier)، تظهر زر تأكيد الاستلام -->
+                                                <button
+                                                    @click="openConfirmationModal(shipment)" 
+                                                    class="tooltip"
+                                                    data-tip="تأكيد استلام الشحنة">
+                                                    <Icon
+                                                        icon="tabler:truck-delivery"
+                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </template>
+                                            
+                                            <template v-else-if="shipment.requestStatus === 'تم الإستلام' || shipment.requestStatus === 'تم الاستلام'">
+                                                <!-- إذا كانت تم الاستلام، تظهر علامة الصح -->
                                                 <button 
                                                     @click="openReviewModal(shipment)"
                                                     class="tooltip" 
-                                                    data-tip="مراجعة تفاصيل الاستلام">
+                                                    data-tip="تم الاستلام">
                                                     <Icon
                                                         icon="healthicons:yes-outline"
                                                         class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
@@ -220,14 +235,11 @@
                                             </template>
                                             
                                             <template v-else>
-                                                <!-- إذا لم تكن مستلمة وغير مرفوضة، تظهر زر تأكيد الاستلام -->
-                                                <button
-                                                    @click="openConfirmationModal(shipment)" 
-                                                    class="tooltip"
-                                                    data-tip="تأكيد الإستلام">
+                                                <!-- في انتظار الموافقة من HospitalAdmin أو Supplier -->
+                                                <button class="tooltip" data-tip="في انتظار الموافقة">
                                                     <Icon
-                                                        icon="tabler:truck-delivery"
-                                                        class="w-5 h-5 text-red-500 cursor-pointer hover:scale-110 transition-transform"
+                                                        icon="solar:clock-circle-bold"
+                                                        class="w-5 h-5 text-yellow-600"
                                                     />
                                                 </button>
                                             </template>
@@ -347,11 +359,19 @@ api.interceptors.request.use(
 // إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
   (response) => {
-    return response.data;
+    // إرجاع response كاملاً بدون تعديل (نفس الطريقة المستخدمة في transRequests.vue)
+    return response;
   },
   (error) => {
     console.error('API Error:', error.response?.data || error.message);
     if (error.response?.status === 401) {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      console.error('Unauthenticated - Token exists:', !!token);
+      if (token) {
+        console.error('Token value (first 20 chars):', token.substring(0, 20) + '...');
+      } else {
+        console.error('No token found. Please login again.');
+      }
       showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
     } else if (error.response?.status === 403) {
       showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
@@ -380,7 +400,8 @@ const endpoints = {
   },
   supplyRequests: {
     getAll: () => api.get('/storekeeper/supply-requests'),
-    create: (data) => api.post('/storekeeper/supply-requests', data)
+    create: (data) => api.post('/storekeeper/supply-requests', data),
+    confirmDelivery: (id, data) => api.post(`/storekeeper/supply-requests/${id}/confirm-delivery`, data)
   }
 };
 
@@ -419,8 +440,52 @@ const fetchAllData = async () => {
 
 const fetchShipments = async () => {
     try {
+        console.log('Fetching supply requests from:', '/storekeeper/supply-requests');
         const response = await endpoints.supplyRequests.getAll();
-        shipmentsData.value = response.map(shipment => ({
+        
+        console.log('Raw API Response:', response);
+        console.log('Response.data:', response.data);
+        console.log('Response structure:', {
+            hasData: !!response.data,
+            isArray: Array.isArray(response.data),
+            hasNestedData: !!(response.data?.data),
+            hasSuccess: !!(response.data?.success),
+            dataType: typeof response.data,
+            dataKeys: response.data ? Object.keys(response.data) : []
+        });
+        
+        // التحقق من بنية الاستجابة (نفس الطريقة المستخدمة في transRequests.vue)
+        let data = [];
+        if (response.data) {
+            // sendSuccess يرجع: { success: true, message: "...", data: [...] }
+            if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
+                // إذا كانت الاستجابة من sendSuccess
+                data = response.data.data;
+                console.log('✅ Using data from sendSuccess response, count:', data.length);
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                // إذا كانت البيانات في response.data.data
+                data = response.data.data;
+                console.log('✅ Using nested array from response.data.data, count:', data.length);
+            } else if (Array.isArray(response.data)) {
+                // إذا كانت البيانات مصفوفة مباشرة
+                data = response.data;
+                console.log('✅ Using direct array from response.data, count:', data.length);
+            } else {
+                console.warn('⚠️ Unknown response structure:', response.data);
+                console.warn('⚠️ Response keys:', Object.keys(response.data));
+                // محاولة استخراج البيانات بأي طريقة ممكنة
+                if (response.data.data) {
+                    data = Array.isArray(response.data.data) ? response.data.data : [];
+                    console.log('⚠️ Extracted data (may be empty):', data.length);
+                }
+            }
+        }
+        
+        console.log('Final data array:', data);
+        console.log('Final data count:', data.length);
+        console.log('First item (if exists):', data[0]);
+        
+        shipmentsData.value = data.map(shipment => ({
             id: shipment.id,
             shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
             requestDate: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
@@ -428,18 +493,37 @@ const fetchShipments = async () => {
             received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
             details: {
                 id: shipment.id,
-                date: shipment.requestDate || shipment.requestDateFull,
+                date: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
                 status: shipment.requestStatus || shipment.status,
-                items: shipment.items || [],
+                items: (shipment.items || []).map(item => ({
+                    ...item,
+                    // التأكد من وجود جميع الحقول المطلوبة
+                    requested_qty: item.requested_qty || item.requested || item.quantity || 0,
+                    requestedQty: item.requestedQty || item.requested || item.quantity || 0,
+                    quantity: item.quantity || item.requested || item.requested_qty || 0,
+                    unit: item.unit || 'وحدة'
+                })),
                 notes: shipment.notes || '',
-                department: shipment.requestingDepartment || shipment.department?.name,
+                department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
                 ...(shipment.confirmationDetails && {
                     confirmationDetails: shipment.confirmationDetails
                 })
             }
         }));
+        
+        if (shipmentsData.value.length === 0) {
+            console.log('لا توجد بيانات متاحة');
+        } else {
+            console.log('✅ تم جلب', shipmentsData.value.length, 'طلب توريد بنجاح');
+        }
     } catch (err) {
-        console.error('Error fetching supply requests:', err);
+        console.error('❌ Error fetching supply requests:', err);
+        console.error('Error details:', {
+            message: err.message,
+            response: err.response?.data,
+            status: err.response?.status,
+            url: err.config?.url
+        });
         throw err;
     }
 };
@@ -447,7 +531,20 @@ const fetchShipments = async () => {
 const fetchCategories = async () => {
     try {
         const response = await endpoints.categories.getAll();
-        categories.value = response.map(cat => ({
+        
+        // التحقق من بنية الاستجابة
+        let data = [];
+        if (response.data) {
+            if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            } else if (Array.isArray(response.data)) {
+                data = response.data;
+            }
+        }
+        
+        categories.value = data.map(cat => ({
             id: cat.id || cat.name,
             name: cat.name || cat.id
         }));
@@ -462,7 +559,20 @@ const fetchCategories = async () => {
 const fetchDrugs = async () => {
     try {
         const response = await endpoints.drugs.getAll();
-        allDrugsData.value = response.map(drug => {
+        
+        // التحقق من بنية الاستجابة
+        let data = [];
+        if (response.data) {
+            if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            } else if (Array.isArray(response.data)) {
+                data = response.data;
+            }
+        }
+        
+        allDrugsData.value = data.map(drug => {
             const drugName = drug.drugName || drug.name || '';
             return {
                 id: drug.id,
@@ -649,34 +759,81 @@ const handleConfirmation = async (confirmationData) => {
     const shipmentId = selectedShipmentForConfirmation.value.id;
     
     try {
-        const response = await endpoints.shipments.confirm(shipmentId, confirmationData);
+        // تحويل receivedItems إلى items بالشكل المتوقع من API
+        const items = (confirmationData.receivedItems || []).map(item => ({
+            id: item.id,
+            receivedQuantity: item.receivedQuantity || item.received_qty || 0
+        }));
         
-        const shipmentIndex = shipmentsData.value.findIndex(
-            s => s.id === shipmentId
-        );
+        const requestData = {
+            items: items,
+            notes: confirmationData.notes || ''
+        };
         
-        if (shipmentIndex !== -1) {
-            shipmentsData.value[shipmentIndex].requestStatus = 'تم الإستلام';
-            shipmentsData.value[shipmentIndex].received = true;
-            shipmentsData.value[shipmentIndex].details.confirmationDetails = response.confirmationDetails;
-        }
+        console.log('Confirming delivery with data:', requestData);
         
-        showSuccessAlert(`✅ تم تأكيد استلام الشحنة بنجاح!`);
+        const response = await endpoints.supplyRequests.confirmDelivery(shipmentId, requestData);
+        
+        console.log('Confirm delivery response:', response);
+        
+        // إعادة جلب البيانات
+        await fetchShipments();
+        
+        const message = response.data?.message || response.message || '✅ تم تأكيد استلام الشحنة بنجاح!';
+        showSuccessAlert(message);
         closeConfirmationModal();
         
     } catch (err) {
-        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${err.response?.data?.message || err.message}`);
+        console.error('Error confirming delivery:', err);
+        console.error('Error response:', err.response);
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
+        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
 };
 
-const openReviewModal = (shipment) => {
-    selectedRequestDetails.value = {
-        ...shipment.details,
-        confirmation: shipment.details.confirmationDetails
-    };
-    isRequestViewModalOpen.value = true;
+const openReviewModal = async (shipment) => {
+    try {
+        // جلب البيانات المحدثة من API
+        const response = await endpoints.supplyRequests.getAll();
+        const updatedShipment = response.data?.find(s => s.id === shipment.id) || shipment;
+        
+        selectedRequestDetails.value = {
+            id: updatedShipment.id || shipment.id,
+            date: updatedShipment.requestDateFull || updatedShipment.requestDate || shipment.details.date,
+            status: updatedShipment.requestStatus || shipment.requestStatus || shipment.details.status,
+            items: updatedShipment.items || shipment.details.items || [],
+            notes: updatedShipment.notes || shipment.details.notes || '',
+            confirmation: updatedShipment.confirmationDetails || shipment.details.confirmationDetails || null
+        };
+        
+        // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
+        if (selectedRequestDetails.value.confirmation?.receivedItems) {
+            selectedRequestDetails.value.items = selectedRequestDetails.value.items.map(item => {
+                const receivedItem = selectedRequestDetails.value.confirmation.receivedItems.find(
+                    ri => ri.id === item.id || ri.name === item.name
+                );
+                if (receivedItem) {
+                    return {
+                        ...item,
+                        receivedQuantity: receivedItem.receivedQuantity || item.receivedQuantity || item.fulfilled_qty || 0
+                    };
+                }
+                return item;
+            });
+        }
+        
+        isRequestViewModalOpen.value = true;
+    } catch (err) {
+        console.error('Error loading shipment details:', err);
+        // في حالة الخطأ، نستخدم البيانات المحلية
+        selectedRequestDetails.value = {
+            ...shipment.details,
+            confirmation: shipment.details.confirmationDetails
+        };
+        isRequestViewModalOpen.value = true;
+    }
 };
 
 // ----------------------------------------------------

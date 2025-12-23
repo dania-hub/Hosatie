@@ -510,7 +510,10 @@ const fetchShipments = async () => {
                 rejectedAt: shipment.rejectedAt || null,
                 department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
                 ...(shipment.confirmationDetails && {
-                    confirmationDetails: shipment.confirmationDetails
+                    confirmationDetails: {
+                        ...shipment.confirmationDetails,
+                        confirmationNotes: shipment.confirmationDetails.confirmationNotes || null
+                    }
                 })
             }
         }));
@@ -722,6 +725,7 @@ const handleSupplyConfirm = async (data) => {
         const requestData = {
             items: itemsWithDrugId,
             supplier_id: data.supplierId || null,
+            notes: data.notes || null,
         };
         
         const response = await endpoints.supplyRequests.create(requestData);
@@ -747,10 +751,18 @@ const openRequestViewModal = (shipment) => {
         rejectionReason: shipment.details.rejectionReason || null,
         rejectedAt: shipment.details.rejectedAt || null,
         notes: shipment.details.notes || '',
-        storekeeperNotes: shipment.details.storekeeperNotes || null,
-        supplierNotes: shipment.details.supplierNotes || null,
-        confirmation: shipment.details.confirmationDetails || null
+        storekeeperNotes: shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
+        supplierNotes: shipment.details.supplierNotes || shipment.supplierNotes || null,
+        confirmation: shipment.details.confirmationDetails || shipment.confirmationDetails || null
     };
+    
+    // التأكد من أن confirmation يحتوي على confirmationNotes
+    if (selectedRequestDetails.value.confirmation && !selectedRequestDetails.value.confirmation.confirmationNotes) {
+        // محاولة جلب confirmationNotes من shipment مباشرة
+        if (shipment.confirmationDetails?.confirmationNotes) {
+            selectedRequestDetails.value.confirmation.confirmationNotes = shipment.confirmationDetails.confirmationNotes;
+        }
+    }
     
     // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
     if (selectedRequestDetails.value.confirmation?.receivedItems) {
@@ -767,6 +779,13 @@ const openRequestViewModal = (shipment) => {
             return item;
         });
     }
+    
+    console.log('📋 Storekeeper - Opening RequestViewModal with data:', {
+        storekeeperNotes: selectedRequestDetails.value.storekeeperNotes,
+        supplierNotes: selectedRequestDetails.value.supplierNotes,
+        confirmationNotes: selectedRequestDetails.value.confirmation?.confirmationNotes,
+        confirmation: selectedRequestDetails.value.confirmation
+    });
     
     isRequestViewModalOpen.value = true;
 };
@@ -859,12 +878,21 @@ const openReviewModal = async (shipment) => {
             status: updatedShipment.requestStatus || shipment.requestStatus || shipment.details.status,
             items: updatedShipment.items || shipment.details.items || [],
             notes: updatedShipment.notes || shipment.details.notes || '',
-            storekeeperNotes: updatedShipment.storekeeperNotes || shipment.details.storekeeperNotes || null,
-            supplierNotes: updatedShipment.supplierNotes || shipment.details.supplierNotes || null,
+            storekeeperNotes: updatedShipment.storekeeperNotes || shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
+            supplierNotes: updatedShipment.supplierNotes || shipment.details.supplierNotes || shipment.supplierNotes || null,
             rejectionReason: updatedShipment.rejectionReason || shipment.details.rejectionReason || null,
             rejectedAt: updatedShipment.rejectedAt || shipment.details.rejectedAt || null,
-            confirmation: updatedShipment.confirmationDetails || shipment.details.confirmationDetails || null
+            confirmation: updatedShipment.confirmationDetails || shipment.details.confirmationDetails || shipment.confirmationDetails || null
         };
+        
+        // التأكد من أن confirmation يحتوي على confirmationNotes
+        if (selectedRequestDetails.value.confirmation && !selectedRequestDetails.value.confirmation.confirmationNotes) {
+            if (updatedShipment.confirmationDetails?.confirmationNotes) {
+                selectedRequestDetails.value.confirmation.confirmationNotes = updatedShipment.confirmationDetails.confirmationNotes;
+            } else if (shipment.confirmationDetails?.confirmationNotes) {
+                selectedRequestDetails.value.confirmation.confirmationNotes = shipment.confirmationDetails.confirmationNotes;
+            }
+        }
         
         // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
         if (selectedRequestDetails.value.confirmation?.receivedItems) {
@@ -891,10 +919,17 @@ const openReviewModal = async (shipment) => {
             rejectionReason: shipment.details.rejectionReason || null,
             rejectedAt: shipment.details.rejectedAt || null,
             notes: shipment.details.notes || '',
-            storekeeperNotes: shipment.details.storekeeperNotes || null,
-            supplierNotes: shipment.details.supplierNotes || null,
-            confirmation: shipment.details.confirmationDetails || null
+            storekeeperNotes: shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
+            supplierNotes: shipment.details.supplierNotes || shipment.supplierNotes || null,
+            confirmation: shipment.details.confirmationDetails || shipment.confirmationDetails || null
         };
+        
+        // التأكد من أن confirmation يحتوي على confirmationNotes
+        if (selectedRequestDetails.value.confirmation && !selectedRequestDetails.value.confirmation.confirmationNotes) {
+            if (shipment.confirmationDetails?.confirmationNotes) {
+                selectedRequestDetails.value.confirmation.confirmationNotes = shipment.confirmationDetails.confirmationNotes;
+            }
+        }
         
         // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
         if (selectedRequestDetails.value.confirmation?.receivedItems) {

@@ -199,6 +199,63 @@ class ExternalSupplyRequestController extends BaseApiController
             ];
         });
 
+        // جلب الملاحظات من audit_log لكل طلب
+        foreach ($data as &$requestData) {
+            $reqId = $requestData['id'];
+            
+            // جلب ملاحظة storekeeper (الملاحظة الأصلية عند الإنشاء)
+            $storekeeperNotes = null;
+            $storekeeperNotesAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                ->where('record_id', $reqId)
+                ->where('action', 'create_external_supply_request')
+                ->orderBy('created_at', 'asc')
+                ->first();
+            
+            if ($storekeeperNotesAuditLog && $storekeeperNotesAuditLog->new_values) {
+                $newValues = json_decode($storekeeperNotesAuditLog->new_values, true);
+                if (isset($newValues['notes']) && !empty($newValues['notes'])) {
+                    $storekeeperNotes = $newValues['notes'];
+                }
+            }
+            
+            // جلب ملاحظة supplier (عند القبول/الإرسال)
+            $supplierNotes = null;
+            $supplierNotesAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                ->where('record_id', $reqId)
+                ->where('action', 'supplier_confirm_external_supply_request')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            if ($supplierNotesAuditLog && $supplierNotesAuditLog->new_values) {
+                $newValues = json_decode($supplierNotesAuditLog->new_values, true);
+                if (isset($newValues['notes']) && !empty($newValues['notes'])) {
+                    $supplierNotes = $newValues['notes'];
+                }
+            }
+            
+            // جلب ملاحظة تأكيد الاستلام من storekeeper
+            $confirmationNotes = null;
+            if ($requestData['confirmationDetails']) {
+                $confirmationAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                    ->where('record_id', $reqId)
+                    ->where('action', 'storekeeper_confirm_external_delivery')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                if ($confirmationAuditLog && $confirmationAuditLog->new_values) {
+                    $newValues = json_decode($confirmationAuditLog->new_values, true);
+                    if (isset($newValues['confirmationNotes']) && !empty($newValues['confirmationNotes'])) {
+                        $confirmationNotes = $newValues['confirmationNotes'];
+                        // إضافة الملاحظة إلى confirmationDetails
+                        $requestData['confirmationDetails']['confirmationNotes'] = $confirmationNotes;
+                    }
+                }
+            }
+            
+            $requestData['storekeeperNotes'] = $storekeeperNotes;
+            $requestData['supplierNotes'] = $supplierNotes;
+        }
+
         return response()->json($data);
     }
 
@@ -224,6 +281,7 @@ class ExternalSupplyRequestController extends BaseApiController
             'items.*.drug_id'         => 'required|exists:drug,id',
             'items.*.requested_qty'   => 'required|integer|min:1',
             'supplier_id'             => 'nullable|exists:supplier,id',
+            'notes'                   => 'nullable|string|max:1000',
         ]);
 
         DB::beginTransaction();
@@ -279,6 +337,7 @@ class ExternalSupplyRequestController extends BaseApiController
                         'supplier_id' => $validated['supplier_id'] ?? null,
                         'items'       => $validated['items'],
                         'status'      => 'pending',
+                        'notes'       => $validated['notes'] ?? null,
                     ]),
                     'ip_address' => $request->ip(),
                 ]);
@@ -460,7 +519,8 @@ class ExternalSupplyRequestController extends BaseApiController
                     'new_values' => json_encode([
                         'status' => 'fulfilled',
                         'confirmed_delivery' => true,
-                        'items' => $validated['items']
+                        'items' => $validated['items'],
+                        'confirmationNotes' => $validated['notes'] ?? null,
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

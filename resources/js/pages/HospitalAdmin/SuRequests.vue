@@ -431,8 +431,12 @@ const openRequestViewModal = async (shipment) => {
             status: response.status,
             items: response.items || [],
             notes: response.notes,
+            storekeeperNotes: response.storekeeperNotes,
+            supplierNotes: response.supplierNotes,
             rejectionReason: response.rejectionReason,
-            confirmationNotes: response.confirmationNotes
+            rejectedAt: response.rejectedAt,
+            confirmationDetails: response.confirmationDetails,
+            confirmationNotes: response.confirmationDetails?.confirmationNotes || response.confirmationNotes
         };
         
         isRequestViewModalOpen.value = true;

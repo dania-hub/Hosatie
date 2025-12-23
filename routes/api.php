@@ -24,6 +24,7 @@ use App\Http\Controllers\DataEntry\PatientDataEntryController;
 use App\Http\Controllers\AdminHospital\StaffController;
 use App\Http\Controllers\AdminHospital\ComplaintHospitalAdminController;
 use App\Http\Controllers\AdminHospital\DepartmentHospitalAdminController;
+use App\Http\Controllers\AdminHospital\DrugHospitalAdminController;
 use App\Http\Controllers\AdminHospital\OperationLogController;
 use App\Http\Controllers\AdminHospital\PatientHospitalAdminController;
 use App\Http\Controllers\AdminHospital\ExternalShipmentAdminHospitalController;
@@ -399,6 +400,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('categories', [CategoryStoreKeeperController::class, 'index']);
         Route::get('supply-requests', [ExternalSupplyRequestController::class, 'index']);
         Route::post('supply-requests', [ExternalSupplyRequestController::class, 'store']);
+        Route::post('supply-requests/{id}/confirm-delivery', [ExternalSupplyRequestController::class, 'confirmDelivery']);
 
         Route::get('operations', [AuditLogStoreKeeperController::class, 'index']);
         Route::get('shipments', [InternalSupplyRequestController::class, 'index']);
@@ -416,11 +418,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // --------------------------------------------------------------------
     Route::prefix('admin-hospital')->group(function () {
         // Example Staff Management Routes
-        // Route::get('staff', [StaffController::class, 'index']);
-                //هده تنشئ في موظف و تبعتله في رابط التفعيل اللي من خلاله يحط فيه كلمة السر بتاعته 
-
-        Route::post('staff', [StaffController::class, 'store']);
+        Route::get('staff', [StaffController::class, 'index']); // جلب قائمة الموظفين
+        Route::post('staff', [StaffController::class, 'store']); // إنشاء موظف جديد وإرسال رابط التفعيل
         Route::patch('staff/{id}/status', [StaffController::class, 'toggleStatus']);
+
+        Route::get('drugs', [DrugHospitalAdminController::class, 'index']); // جلب الأدوية من جميع الصيدليات
+        Route::get('drugs/all', [DrugHospitalAdminController::class, 'searchAll']); // البحث في جميع الأدوية
+        Route::get('categories', [DrugHospitalAdminController::class, 'categories']); // جلب قائمة الفئات
 
         Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);//تعرض الاقسام اللي عندك
         Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);// تنشئي قسم جديد

@@ -1,8 +1,5 @@
 <script setup>
 import { Icon } from "@iconify/vue";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const props = defineProps({
     isOpen: Boolean,
@@ -10,22 +7,38 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+// دالة لتنسيق التاريخ
+const formatDate = (dateString) => {
+    if (!dateString) return 'غير محدد';
+    
+    // إذا كان التاريخ بصيغة ISO string (مثل 2025-12-09T00:00:00.000000Z)
+    if (dateString.includes('T')) {
+        try {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}/${month}/${day}`;
+        } catch (e) {
+            return dateString;
+        }
+    }
+    
+    // إذا كان التاريخ بصيغة Y/m/d أو Y-m-d
+    if (dateString.includes('/') || dateString.includes('-')) {
+        // تحويل من Y-m-d إلى Y/m/d
+        return dateString.replace(/-/g, '/');
+    }
+    
+    return dateString;
+};
 </script>
 
 <template>
-    <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-    >
-        <div
-            @click="$emit('close')"
-            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        ></div>
-
-       <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all scale-100"
-            dir="rtl"
-        >
+    <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="$emit('close')">
+        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+            
             <!-- Header -->
             <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
@@ -35,93 +48,73 @@ const emit = defineEmits(['close']);
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
                         <Icon icon="solar:user-id-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
-                    نموذج عرض حالة الموظف
+                    ملف الموظف
                 </h2>
                 <button @click="$emit('close')" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
                     <Icon icon="mingcute:close-fill" class="w-6 h-6" />
                 </button>
             </div>
 
+            <!-- Body -->
             <div class="p-8 space-y-8">
+                
                 <!-- المعلومات الشخصية -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
                         <Icon icon="solar:user-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        المعلومات الشخصية
+                        البيانات الشخصية
                     </h3>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">الرقم الوطني</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
-                                {{ patient.nationalIdDisplay }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">الاسم الرباعي</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nameDisplay || patient.name || 'غير محدد' }}</div>
                         </div>
-
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">الاسم رباعي</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077]">
-                                {{ patient.nameDisplay }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">الرقم الوطني</label>
+                            <div class="font-bold text-[#2E5077] text-lg font-mono">{{ patient.nationalIdDisplay || patient.nationalId || 'غير محدد' }}</div>
                         </div>
-                        
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">تاريخ الميلاد</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
-                                {{ patient.birthDisplay }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ formatDate(patient.birthDisplay || patient.birth) }}</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- المعلومات الوظيفية -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
                         <Icon icon="solar:case-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         المعلومات الوظيفية
                     </h3>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">الدور الوظيفي</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077]">
-                                {{ patient.role }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">الدور الوظيفي</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.role || 'غير محدد' }}</div>
                         </div>
-
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">القسم</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077]">
-                                {{ patient.department || '-' }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">القسم</label>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.department || 'غير محدد' }}</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- معلومات الإتصال والحالة -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-6 flex items-center gap-2">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
                         <Icon icon="solar:phone-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         معلومات الإتصال والحالة
                     </h3>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">رقم الهاتف</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
-                                {{ patient.phone }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">رقم الهاتف</label>
+                            <div class="font-bold text-[#2E5077] text-lg font-mono">{{ patient.phone || 'غير محدد' }}</div>
                         </div>
-
                         <div class="space-y-2">
-                            <Label class="text-gray-500 font-medium">البريد الإلكتروني</Label>
-                            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 font-bold text-[#2E5077] font-mono">
-                                {{ patient.email }}
-                            </div>
+                            <label class="text-sm font-semibold text-gray-500">البريد الإلكتروني</label>
+                            <div class="font-bold text-[#2E5077] text-lg font-mono">{{ patient.email || 'غير محدد' }}</div>
                         </div>
-
-                        <div class="space-y-2 sm:col-span-2">
-                            <Label class="text-gray-500 font-medium">حالة الحساب</Label>
+                        <div class="space-y-2 md:col-span-2">
+                            <label class="text-sm font-semibold text-gray-500">حالة الحساب</label>
                             <div class="mt-1">
                                 <span
                                     :class="[
@@ -142,11 +135,11 @@ const emit = defineEmits(['close']);
 
             <!-- Footer -->
             <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
-                <button
-                    @click="$emit('close')"
-                    class="px-8 py-3 rounded-xl bg-[#2E5077] text-white font-bold hover:bg-[#1a3b5e] transition-all duration-200 shadow-lg shadow-[#2E5077]/20"
+                <button 
+                    @click="$emit('close')" 
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
                 >
-                    موافق
+                    إغلاق
                 </button>
             </div>
         </div>

@@ -13,20 +13,34 @@ import DrugPreviewModal from "@/components/forpharmacist/DrugPreviewModal.vue";
 // 1. تهيئة axios مع base URL
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: "http://localhost:3000/api", // تغيير هذا حسب عنوان API الخاص بك
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
-    "Content-Type": "application/json",
-    "Accept": "application/json"
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 });
+
+// إضافة interceptor لإضافة الـ token تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    // البحث عن التوكن في كلا المفاتيح (auth_token و token) للتوافق
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // إضافة interceptor لمعالجة الأخطاء
 api.interceptors.response.use(
   response => response,
   error => {
     console.error("API Error:", error.response?.data || error.message);
-    // إزالة showErrorAlert من هنا لتجنب ظهور رسائل الخطأ
     return Promise.reject(error);
   }
 );
@@ -108,14 +122,27 @@ const fetchDrugs = async () => {
   isLoading.value = true;
   
   try {
-    const response = await api.get("/drugs");
-    drugsData.value = response.data;
-    hasData.value = response.data.length > 0;
-    if (response.data.length > 0) {
+    const response = await api.get("/admin-hospital/drugs");
+    
+    // التحقق من بنية الاستجابة
+    let data = [];
+    if (response.data) {
+      if (Array.isArray(response.data)) {
+        data = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      } else if (response.data.success && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      }
+    }
+    
+    drugsData.value = data;
+    hasData.value = data.length > 0;
+    if (data.length > 0) {
       showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
     }
   } catch (error) {
-    // لا نعرض رسالة خطأ، فقط نترك الجدول فارغًا
+    console.error("Error fetching drugs:", error);
     console.warn("Warning: Could not fetch drugs data from API");
     drugsData.value = [];
     hasData.value = false;
@@ -127,9 +154,23 @@ const fetchDrugs = async () => {
 // جلب الفئات
 const fetchCategories = async () => {
   try {
-    const response = await api.get("/categories");
-    categories.value = response.data;
+    const response = await api.get("/admin-hospital/categories");
+    
+    // التحقق من بنية الاستجابة
+    let data = [];
+    if (response.data) {
+      if (Array.isArray(response.data)) {
+        data = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      } else if (response.data.success && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      }
+    }
+    
+    categories.value = data;
   } catch (error) {
+    console.error("Error fetching categories:", error);
     console.warn("Warning: Could not fetch categories from API");
     categories.value = [];
   }
@@ -138,9 +179,23 @@ const fetchCategories = async () => {
 // جلب جميع بيانات الأدوية للبحث
 const fetchAllDrugsData = async () => {
   try {
-    const response = await api.get("/drugs/all");
-    allDrugsData.value = response.data;
+    const response = await api.get("/admin-hospital/drugs/all");
+    
+    // التحقق من بنية الاستجابة
+    let data = [];
+    if (response.data) {
+      if (Array.isArray(response.data)) {
+        data = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      } else if (response.data.success && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      }
+    }
+    
+    allDrugsData.value = data;
   } catch (error) {
+    console.error("Error fetching all drugs:", error);
     console.warn("Warning: Could not fetch all drugs data from API");
     allDrugsData.value = [];
   }

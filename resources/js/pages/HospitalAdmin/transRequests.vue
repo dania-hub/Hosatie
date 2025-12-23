@@ -135,12 +135,21 @@
                 </div>
             </div>
 
-        
-          
+            <!-- حالة التحميل -->
+            <div v-if="isLoading && transferRequests.length === 0" class="flex flex-col items-center justify-center h-64">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mb-4"></div>
+                <p class="text-gray-600">جاري تحميل البيانات...</p>
+            </div>
+
+            <!-- رسالة عدم وجود بيانات -->
+            <div v-else-if="!isLoading && transferRequests.length === 0" class="flex flex-col items-center justify-center h-64">
+                <Icon icon="tabler:inbox-off" class="w-16 h-16 text-gray-400 mb-4" />
+                <p class="text-gray-600 text-lg">لا توجد طلبات نقل متاحة</p>
+            </div>
 
             <!-- عرض البيانات  -->
             <div
-               
+                v-if="!isLoading && transferRequests.length > 0"
                 class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col"
             >
                 <div
@@ -211,17 +220,33 @@
                                                 />
                                             </button>
                                             
-                                            <!-- زر الرد على الطلب -->
+                                            <!-- عرض علامة الحالة أو زر الرد -->
+                                            <template v-if="!canRespondToRequest(request)">
+                                                <!-- عرض علامة صح عند القبول -->
+                                                <Icon
+                                                    v-if="isApproved(request)"
+                                                    :icon="getStatusIcon(request.status || request.requestStatus)"
+                                                    :class="getStatusIconClass(request.status || request.requestStatus)"
+                                                    class="w-6 h-6"
+                                                />
+                                                <!-- عرض علامة خطأ عند الرفض -->
+                                                <Icon
+                                                    v-else-if="isRejected(request)"
+                                                    :icon="getStatusIcon(request.status || request.requestStatus)"
+                                                    :class="getStatusIconClass(request.status || request.requestStatus)"
+                                                    class="w-6 h-6"
+                                                />
+                                            </template>
+                                            
+                                            <!-- زر الرد على الطلب (فقط عند قيد المراجعة) -->
                                             <button 
+                                                v-else
                                                 @click="openResponseModal(request)"
                                                 class="tooltip" 
-                                                data-tip="الرد على طلب النقل"
-                                                :disabled="!canRespondToRequest(request)"
-                                                :title="!canRespondToRequest(request) ? 'لا يمكن الرد على هذا الطلب' : ''">
+                                                data-tip="الرد على طلب النقل">
                                                 <Icon
                                                     icon="tabler:message-reply" 
                                                     class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
-                                                    :class="{'opacity-50 cursor-not-allowed': !canRespondToRequest(request)}"
                                                 />
                                             </button>
                                         </div>
@@ -245,8 +270,10 @@
         <TransferResponseModal
             :is-open="isResponseModalOpen"
             :request-data="selectedRequest"
+            :is-loading="isLoadingResponse"
             @close="closeResponseModal"
             @submit="handleTransferResponse"
+            @reject="handleTransferResponse"
         />
 
         <!-- التنبيهات -->
@@ -302,19 +329,41 @@ import TransferResponseModal from "@/components/forhospitaladmin/TransferRespons
 // 1. إعدادات API
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // قم بتعديل الرابط حسب الـ endpoint الخاص بك
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
-// إضافة interceptor للتعامل مع الأخطاء
-api.interceptors.response.use(
-  (response) => response.data,
+// إضافة interceptor لإضافة الـ token تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
   (error) => {
-    console.error('API Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء (نفس الطريقة المستخدمة في employeesList.vue)
+api.interceptors.response.use(
+  (response) => response, // إرجاع response كاملاً بدون تعديل
+  (error) => {
+    if (error.response?.status === 401) {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      console.error('Unauthenticated - Token exists:', !!token);
+      if (token) {
+        console.error('Token value (first 20 chars):', token.substring(0, 20) + '...');
+      } else {
+        console.error('No token found. Please login again.');
+      }
+    }
     return Promise.reject(error);
   }
 );
@@ -423,24 +472,99 @@ const getHospitalClass = (hospitalData) => {
 };
 
 const getStatusText = (status) => {
-    switch (status) {
-        case 'approved':
-        case 'تم الرد':
-            return 'تم الرد';
-        case 'pending':
-        case 'قيد المراجعة':
-            return 'قيد المراجعة';
-        case 'rejected':
-        case 'مرفوض':
-            return 'مرفوض';
-        default:
-            return status || 'غير محدد';
+    if (!status) return 'غير محدد';
+    
+    const statusLower = String(status).toLowerCase();
+    
+    if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
+        return 'تم القبول';
     }
+    if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
+        return 'مرفوض';
+    }
+    if (statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد')) {
+        return 'قيد المراجعة';
+    }
+    
+    return status || 'غير محدد';
+};
+
+const getStatusIcon = (status) => {
+    if (!status) return 'solar:checklist-minimalistic-bold-duotone';
+    
+    const statusLower = String(status).toLowerCase();
+    
+    if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
+        return 'solar:check-circle-bold';
+    }
+    if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
+        return 'solar:close-circle-bold';
+    }
+    if (statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد')) {
+        return 'solar:clock-circle-bold';
+    }
+    
+    return 'solar:checklist-minimalistic-bold-duotone';
+};
+
+const getStatusIconClass = (status) => {
+    if (!status) return 'text-[#4DA1A9]';
+    
+    const statusLower = String(status).toLowerCase();
+    
+    if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
+        return 'text-green-600';
+    }
+    if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
+        return 'text-red-600';
+    }
+    if (statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد')) {
+        return 'text-yellow-600';
+    }
+    
+    return 'text-[#4DA1A9]';
+};
+
+const getStatusClass = (status) => {
+    if (!status) return 'bg-gray-100 text-gray-700';
+    
+    const statusLower = String(status).toLowerCase();
+    
+    if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
+        return 'bg-green-100 text-green-700';
+    }
+    if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
+        return 'bg-red-100 text-red-700';
+    }
+    if (statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد')) {
+        return 'bg-yellow-100 text-yellow-700';
+    }
+    
+    return 'bg-gray-100 text-gray-700';
 };
 
 const canRespondToRequest = (request) => {
     const status = request.status || request.requestStatus;
-    return status === 'pending' || status === 'قيد المراجعة';
+    if (!status) return true;
+    
+    const statusLower = String(status).toLowerCase();
+    return statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد');
+};
+
+const isApproved = (request) => {
+    const status = request.status || request.requestStatus;
+    if (!status) return false;
+    
+    const statusLower = String(status).toLowerCase();
+    return statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد');
+};
+
+const isRejected = (request) => {
+    const status = request.status || request.requestStatus;
+    if (!status) return false;
+    
+    const statusLower = String(status).toLowerCase();
+    return statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض');
 };
 
 // ----------------------------------------------------
@@ -451,13 +575,70 @@ const fetchTransferRequests = async () => {
         isLoading.value = true;
         error.value = null;
         
-        // استبدل هذا بـ endpoint الخاص بك
-        const response = await api.get('/transfer-requests');
-        transferRequests.value = response.data || [];
+        console.log('Fetching transfer requests from:', '/admin-hospital/transfer-requests');
+        const response = await api.get('/admin-hospital/transfer-requests');
         
+        console.log('Raw API Response:', response);
+        console.log('Response.data:', response.data);
+        console.log('Response structure:', {
+            hasData: !!response.data,
+            isArray: Array.isArray(response.data),
+            hasNestedData: !!(response.data?.data),
+            hasSuccess: !!(response.data?.success),
+            dataType: typeof response.data,
+            dataKeys: response.data ? Object.keys(response.data) : []
+        });
+        
+        // التحقق من بنية الاستجابة (نفس الطريقة المستخدمة في employeesList.vue)
+        let data = [];
+        if (response.data) {
+            // sendSuccess يرجع: { success: true, message: "...", data: [...] }
+            if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
+                // إذا كانت الاستجابة من sendSuccess
+                data = response.data.data;
+                console.log('✅ Using data from sendSuccess response, count:', data.length);
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                // إذا كانت البيانات في response.data.data
+                data = response.data.data;
+                console.log('✅ Using nested array from response.data.data, count:', data.length);
+            } else if (Array.isArray(response.data)) {
+                // إذا كانت البيانات مصفوفة مباشرة
+                data = response.data;
+                console.log('✅ Using direct array from response.data, count:', data.length);
+            } else {
+                console.warn('⚠️ Unknown response structure:', response.data);
+                console.warn('⚠️ Response keys:', Object.keys(response.data));
+                // محاولة استخراج البيانات بأي طريقة ممكنة
+                if (response.data.data) {
+                    data = Array.isArray(response.data.data) ? response.data.data : [];
+                    console.log('⚠️ Extracted data (may be empty):', data.length);
+                }
+            }
+        }
+        
+        console.log('Final data array:', data);
+        console.log('Final data count:', data.length);
+        console.log('First item (if exists):', data[0]);
+        transferRequests.value = data;
+        
+        if (transferRequests.value.length === 0) {
+            console.log('لا توجد بيانات متاحة');
+        } else {
+            console.log('✅ تم جلب', transferRequests.value.length, 'طلب نقل بنجاح');
+            showSuccessAlert('✅ تم تحميل ' + transferRequests.value.length + ' طلب نقل بنجاح');
+        }
     } catch (err) {
- د
+        console.error('❌ Error fetching transfer requests:', err);
+        console.error('Error details:', {
+            message: err.message,
+            response: err.response?.data,
+            status: err.response?.status,
+            url: err.config?.url
+        });
+        error.value = err.message || 'فشل في جلب البيانات من الخادم';
         transferRequests.value = [];
+        const errorMessage = err.response?.data?.message || err.message || 'فشل في جلب قائمة طلبات النقل.';
+        showErrorAlert('❌ ' + errorMessage);
     } finally {
         isLoading.value = false;
     }
@@ -465,13 +646,41 @@ const fetchTransferRequests = async () => {
 
 const updateRequestStatus = async (requestId, statusData) => {
     try {
-        // استبدل هذا بـ endpoint الخاص بك
-        await api.put(`/transfer-requests/${requestId}/status`, statusData);
-        return true;
+        console.log('Updating transfer request status:', requestId, statusData);
+        const response = await api.put(`/admin-hospital/transfer-requests/${requestId}/status`, statusData);
+        
+        console.log('Update response:', response);
+        
+        // التحقق من بنية الاستجابة
+        const successMessage = response.data?.message || 
+                              (response.data?.success ? 'تم تحديث حالة الطلب بنجاح' : null);
+        
+        if (successMessage) {
+            return {
+                success: true,
+                message: successMessage,
+                status: response.data?.status || statusData.status
+            };
+        }
+        
+        return {
+            success: true,
+            message: 'تم تحديث حالة الطلب بنجاح',
+            status: statusData.status
+        };
     } catch (err) {
-        console.error('Error updating request status:', err);
-        showErrorAlert('فشل في تحديث حالة الطلب');
-        return false;
+        console.error('❌ Error updating request status:', err);
+        console.error('Error details:', {
+            message: err.message,
+            response: err.response?.data,
+            status: err.response?.status
+        });
+        const errorMessage = err.response?.data?.message || err.message || 'فشل في تحديث حالة الطلب';
+        showErrorAlert('❌ ' + errorMessage);
+        return {
+            success: false,
+            message: errorMessage
+        };
     }
 };
 
@@ -507,28 +716,32 @@ const handleTransferResponse = async (responseData) => {
     try {
         const requestId = selectedRequest.value.id;
         
-        // تحديث الطلب في الـ API
-        const success = await updateRequestStatus(requestId, responseData);
+        // تحضير البيانات للإرسال حسب ما يتوقعه الـ API
+        const apiData = {
+            status: responseData.status === 'approved' ? 'approved' : 'rejected',
+            response: responseData.response || null,
+            notes: responseData.notes || null,
+            rejectionReason: responseData.rejectionReason || responseData.response || null,
+        };
         
-        if (success) {
-            // تحديث البيانات المحلية
-            const requestIndex = transferRequests.value.findIndex(
-                r => r.id === requestId
-            );
+        console.log('Sending transfer response:', apiData);
+        
+        // تحديث الطلب في الـ API
+        const result = await updateRequestStatus(requestId, apiData);
+        
+        if (result.success) {
+            // إعادة جلب البيانات للتأكد من التحديث
+            await fetchTransferRequests();
             
-            if (requestIndex !== -1) {
-                transferRequests.value[requestIndex].status = responseData.status;
-                transferRequests.value[requestIndex].response = responseData.response;
-                transferRequests.value[requestIndex].notes = responseData.notes;
-                transferRequests.value[requestIndex].rejectionReason = responseData.rejectionReason;
-                transferRequests.value[requestIndex].updatedAt = new Date().toISOString();
-            }
-            
-            showSuccessAlert(`✅ تم ${responseData.status === 'rejected' ? 'رفض' : 'الرد على'} طلب النقل بنجاح`);
+            const successMsg = result.message || 
+                              `✅ تم ${apiData.status === 'rejected' ? 'رفض' : 'قبول'} طلب النقل بنجاح`;
+            showSuccessAlert(successMsg);
             closeResponseModal();
         }
     } catch (err) {
-        showErrorAlert(`❌ فشل في حفظ الرد: ${err.message}`);
+        console.error('Error handling transfer response:', err);
+        const errorMsg = err.response?.data?.message || err.message || '❌ فشل في حفظ الرد';
+        showErrorAlert(errorMsg);
     }
 };
 
@@ -579,8 +792,8 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 
     filteredRequests.value.forEach((request) => {
         const status = getStatusText(request.status || request.requestStatus);
-        const statusClass = status === 'مرفوض' ? 'status-rejected' :
-                          status === 'تم الرد' ? 'status-approved' : 
+        const statusClass = status.includes('مرفوض') ? 'status-rejected' :
+                          status.includes('قبول') || status.includes('رد') ? 'status-approved' : 
                           'status-pending';
         
         tableHtml += `

@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 use App\Models\ExternalSupplyRequest;
 use App\Models\ExternalSupplyRequestItem;
 use App\Models\AuditLog;
+use App\Models\Inventory;
+use App\Models\Warehouse;
 
 class ExternalSupplyRequestController extends BaseApiController
 {
@@ -21,37 +23,156 @@ class ExternalSupplyRequestController extends BaseApiController
         }
 
         // جلب جميع الطلبات التي أنشأها هذا المستخدم
-        $requests = ExternalSupplyRequest::with(['supplier', 'items.drug'])
-            ->where('requested_by', $user->id)
+        // + الطلبات المعتمدة من HospitalAdmin (status = 'approved') - في انتظار Supplier
+        // + الطلبات المكتملة من Supplier (status = 'fulfilled') - يمكن تأكيد الاستلام
+        // + الطلبات المرفوضة (status = 'rejected') - للعرض فقط
+        $requests = ExternalSupplyRequest::with(['supplier', 'items.drug', 'approver'])
             ->where('hospital_id', $user->hospital_id)
+            ->where(function($query) use ($user) {
+                $query->where('requested_by', $user->id) // طلباته الخاصة
+                      ->orWhere(function($q) {
+                          // أو الطلبات المعتمدة من HospitalAdmin (في انتظار Supplier)
+                          $q->where('status', 'approved')
+                            ->whereHas('requester', function($subQ) {
+                                $subQ->where('type', 'warehouse_manager');
+                            });
+                      })
+                      ->orWhere(function($q) {
+                          // أو الطلبات المكتملة من Supplier (يمكن تأكيد الاستلام)
+                          $q->where('status', 'fulfilled')
+                            ->whereHas('requester', function($subQ) {
+                                $subQ->where('type', 'warehouse_manager');
+                            });
+                      })
+                      ->orWhere(function($q) {
+                          // أو الطلبات المرفوضة (للعرض)
+                          $q->where('status', 'rejected')
+                            ->whereHas('requester', function($subQ) {
+                                $subQ->where('type', 'warehouse_manager');
+                            });
+                      });
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $data = $requests->map(function ($req) {
+        $data = $requests->map(function ($req) use ($user) {
+            // تحديد حالة العرض حسب الحالة الفعلية
+            $displayStatus = $req->status;
+            $isDelivered = false;
+            
+            if ($req->status === 'approved' && $req->requested_by === $user->id) {
+                // طلب المستخدم معتمد من HospitalAdmin، في انتظار Supplier
+                $displayStatus = 'partially_approved'; // "تمت الموافقة عليه جزئياً"
+            } elseif ($req->status === 'fulfilled' && $req->requested_by === $user->id) {
+                // طلب المستخدم أرسله Supplier
+                // نحتاج التمييز بين "أرسلها Supplier" و "استلمها StoreKeeper"
+                // الحل: نتحقق من أن updated_at للـ items تم تحديثه بعد أن أرسله Supplier
+                // عندما يقبل Supplier، يتم تحديث items.updated_at و req.updated_at
+                // عندما يؤكد StoreKeeper الاستلام، يتم تحديث items.updated_at مرة أخرى
+                // لذا نتحقق من أن items.updated_at بعد req.updated_at (يعني تم تحديثها عند تأكيد الاستلام)
+                
+                // أولاً: نتحقق من أن fulfilled_qty موجود (أرسله Supplier)
+                $hasFulfilledQty = $req->items->every(function($item) {
+                    return $item->fulfilled_qty !== null && $item->fulfilled_qty > 0;
+                });
+                
+                if (!$hasFulfilledQty || $req->items->count() === 0) {
+                    // لا يوجد fulfilled_qty، يعني لم يرسله Supplier بعد
+                    $displayStatus = 'approved'; // "تمت الموافقة عليه جزئياً"
+                } else {
+                    // يوجد fulfilled_qty، يعني أرسله Supplier
+                    // الآن نتحقق من أن items تم تحديثها بعد أن أرسله Supplier
+                    // نستخدم updated_at للطلب كمرجع - إذا تم تحديث items بعد req.updated_at، يعني تم الاستلام
+                    // لكن المشكلة أن req.updated_at يتم تحديثه أيضاً عندما يقبل Supplier
+                    // لذا نستخدم طريقة أخرى: نتحقق من أن items.updated_at بعد req.created_at + 1 دقيقة
+                    // أو نستخدم req.updated_at - 1 دقيقة كمرجع
+                    
+                    // الحل الأفضل: نتحقق من أن items.updated_at بعد req.updated_at
+                    // إذا كان الفرق أكثر من ثانية واحدة، يعني تم تحديثها عند تأكيد الاستلام
+                    $requestUpdatedAt = $req->updated_at;
+                    $itemsUpdatedAfterDelivery = $req->items->every(function($item) use ($requestUpdatedAt) {
+                        // إذا كان updated_at للـ item بعد updated_at للطلب بأكثر من ثانية، يعني تم تحديثه عند تأكيد الاستلام
+                        if (!$item->updated_at) {
+                            return false;
+                        }
+                        // نتحقق من أن الفرق أكثر من ثانية واحدة (لأن Supplier و StoreKeeper قد يحدثان في نفس الوقت تقريباً)
+                        $diffInSeconds = $item->updated_at->diffInSeconds($requestUpdatedAt);
+                        return $item->updated_at->gt($requestUpdatedAt) && $diffInSeconds > 1;
+                    });
+                    
+                    // إذا لم يعمل المنطق السابق، نتحقق ببساطة من أن items.updated_at بعد req.updated_at
+                    if (!$itemsUpdatedAfterDelivery) {
+                        $itemsUpdatedAfterDelivery = $req->items->every(function($item) use ($requestUpdatedAt) {
+                            return $item->updated_at && $item->updated_at->gt($requestUpdatedAt);
+                        });
+                    }
+                    
+                    if ($itemsUpdatedAfterDelivery) {
+                        // تم تأكيد الاستلام - يمكن عرض "تم الاستلام"
+                        $displayStatus = 'delivered'; // "تم الاستلام"
+                        $isDelivered = true;
+                    } else {
+                        // قيد الاستلام - لم يتم تأكيد الاستلام بعد
+                        $displayStatus = 'fulfilled'; // "قيد الاستلام"
+                    }
+                }
+            } elseif ($req->status === 'rejected') {
+                // مرفوض (من HospitalAdmin أو Supplier)
+                $displayStatus = 'rejected'; // "مرفوضة"
+            }
+            
+            // إعداد confirmationDetails إذا تم تأكيد الاستلام
+            $confirmationDetails = null;
+            if ($isDelivered) {
+                $confirmationDetails = [
+                    'confirmedAt' => $req->updated_at->format('Y-m-d H:i:s'),
+                    'receivedItems' => $req->items->map(function($item) {
+                        return [
+                            'id' => $item->id,
+                            'name' => $item->drug->name ?? 'غير محدد',
+                            'receivedQuantity' => $item->fulfilled_qty ?? 0,
+                            'unit' => $item->drug->unit ?? 'وحدة'
+                        ];
+                    })->toArray()
+                ];
+            }
+            
             return [
                 'id'                => $req->id,
                 'shipmentNumber'    => 'EXT-' . $req->id,
                 'requestDate'       => $req->created_at ? $req->created_at->format('Y/m/d') : '',
                 'requestDateFull'   => $req->created_at ? $req->created_at->toIso8601String() : null,
                 'status'            => $req->status,
-                'requestStatus'     => $this->mapStatusToArabic($req->status),
+                'requestStatus'     => $this->mapStatusToArabic($displayStatus),
                 'requestingDepartment' => $req->supplier->name ?? 'مورد غير محدد',
                 'department'        => [
                     'name' => $req->supplier->name ?? 'مورد غير محدد',
                 ],
                 'items'             => $req->items->map(function ($item) {
                     return [
-                        'id'        => $item->id,
-                        'drugId'    => $item->drug_id,
-                        'drugName'  => $item->drug->name ?? 'دواء غير معروف',
-                        'requested' => $item->requested_qty,
-                        'approved'  => $item->approved_qty,
-                        'fulfilled' => $item->fulfilled_qty,
+                        'id'                => $item->id,
+                        'drugId'            => $item->drug_id,
+                        'name'              => $item->drug->name ?? 'دواء غير معروف',
+                        'drugName'          => $item->drug->name ?? 'دواء غير معروف',
+                        'requested'         => $item->requested_qty,
+                        'requested_qty'     => $item->requested_qty,
+                        'requestedQty'      => $item->requested_qty,
+                        'quantity'          => $item->requested_qty,
+                        'approved'          => $item->approved_qty,
+                        'approved_qty'      => $item->approved_qty,
+                        'approvedQty'       => $item->approved_qty,
+                        'fulfilled'         => $item->fulfilled_qty,
+                        'fulfilled_qty'     => $item->fulfilled_qty,
+                        'fulfilledQty'      => $item->fulfilled_qty,
+                        'unit'              => $item->drug->unit ?? 'وحدة',
+                        'dosage'            => $item->drug->strength ?? null,
+                        'strength'          => $item->drug->strength ?? null,
                     ];
                 }),
                 'notes'             => null,
                 'createdAt'         => $req->created_at ? $req->created_at->toIso8601String() : null,
                 'updatedAt'         => $req->updated_at ? $req->updated_at->toIso8601String() : null,
+                'confirmationDetails' => $confirmationDetails,
             ];
         });
 
@@ -183,17 +304,192 @@ class ExternalSupplyRequestController extends BaseApiController
     }
 
     /**
+     * تأكيد استلام الشحنة
+     * POST /api/storekeeper/supply-requests/{id}/confirm-delivery
+     * عند تأكيد الاستلام، يتم تحديث المخزون في المستودع
+     */
+    public function confirmDelivery(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $user = $request->user();
+
+            if ($user->type !== 'warehouse_manager') {
+                return response()->json(['message' => 'غير مصرح'], 403);
+            }
+
+            // التحقق من البيانات المرسلة
+            $validated = $request->validate([
+                'items' => 'required|array|min:1',
+                'items.*.id' => 'required|integer|exists:external_supply_request_item,id',
+                'items.*.receivedQuantity' => 'required|numeric|min:0',
+                'notes' => 'nullable|string|max:1000',
+            ]);
+
+            // جلب الطلب
+            $externalRequest = ExternalSupplyRequest::with('items.drug')
+                ->where('hospital_id', $user->hospital_id)
+                ->where('requested_by', $user->id)
+                ->findOrFail($id);
+
+            // يجب أن تكون الحالة 'fulfilled' (أرسلها Supplier)
+            if ($externalRequest->status !== 'fulfilled') {
+                return response()->json([
+                    'message' => 'لا يمكن تأكيد الاستلام. يجب أن تكون الشحنة في حالة "قيد الاستلام" (أرسلها المورد).',
+                    'current_status' => $externalRequest->status
+                ], 400);
+            }
+
+            // جلب warehouse_id الصحيح من المستخدم أو من المستشفى
+            $warehouseId = null;
+            if ($user->warehouse_id) {
+                $warehouseId = $user->warehouse_id;
+            } elseif ($user->hospital_id) {
+                // جلب warehouse من المستشفى
+                $warehouse = Warehouse::where('hospital_id', $user->hospital_id)->first();
+                if ($warehouse) {
+                    $warehouseId = $warehouse->id;
+                }
+            }
+            
+            // إذا لم يتم العثور على warehouse، استخدام الأول المتاح (fallback)
+            if (!$warehouseId) {
+                $warehouse = Warehouse::where('hospital_id', $user->hospital_id)->first();
+                if ($warehouse) {
+                    $warehouseId = $warehouse->id;
+                } else {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'لا يوجد مستودع مرتبط بالمستخدم أو المستشفى'
+                    ], 400);
+                }
+            }
+
+            // تحديث الكميات المستلمة لكل عنصر وإضافة للمخزون
+            foreach ($validated['items'] as $itemData) {
+                $item = $externalRequest->items->firstWhere('id', $itemData['id']);
+                if (!$item) {
+                    continue;
+                }
+
+                $receivedQty = (float)($itemData['receivedQuantity'] ?? 0);
+                if ($receivedQty <= 0) {
+                    continue;
+                }
+
+                // البحث عن مخزون هذا الدواء في المستودع
+                $inventory = Inventory::firstOrNew([
+                    'drug_id' => $item->drug_id,
+                    'warehouse_id' => $warehouseId,
+                ]);
+
+                // إذا كان سجل جديد، نتأكد من عدم ارتباطه بصيدلية
+                if (!$inventory->exists) {
+                    $inventory->pharmacy_id = null;
+                    $inventory->current_quantity = 0;
+                }
+
+                // إضافة الكمية المستلمة للمخزون
+                $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $receivedQty;
+                $inventory->save();
+
+                // تحديث fulfilled_qty بالكمية المستلمة الفعلية (إذا كانت مختلفة عن المرسلة)
+                // ملاحظة: fulfilled_qty تم تعيينه من قبل Supplier، لكن يمكن تحديثه بالكمية الفعلية المستلمة
+                // في هذه الحالة، نستخدم الكمية المستلمة الفعلية
+                // مهم: نحن نحدث fulfilled_qty هنا، وهذا سيحدث updated_at للـ item
+                // لذا عندما نتحقق من updated_at في index()، سنجد أنه تم تحديثه بعد req.updated_at
+                $item->fulfilled_qty = $receivedQty;
+                // تحديث updated_at يدوياً للتأكد من أنه بعد req.updated_at
+                $item->touch(); // هذا سيحدث updated_at إلى الوقت الحالي
+                $item->save();
+            }
+
+            // تحديث الحالة - يمكن إضافة حالة جديدة أو نتركها 'fulfilled'
+            // حالياً، نتركها 'fulfilled' لأنها تعني أن Supplier أرسلها و StoreKeeper استلمها
+            // يمكن إضافة عمود جديد في الجدول لتتبع حالة الاستلام إذا لزم الأمر
+
+            DB::commit();
+
+            // تسجيل العملية
+            try {
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $user->hospital_id,
+                    'action' => 'storekeeper_confirm_external_delivery',
+                    'table_name' => 'external_supply_request',
+                    'record_id' => $externalRequest->id,
+                    'old_values' => json_encode(['status' => 'fulfilled']),
+                    'new_values' => json_encode([
+                        'status' => 'fulfilled',
+                        'confirmed_delivery' => true,
+                        'items' => $validated['items']
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log delivery confirmation', ['error' => $e->getMessage()]);
+            }
+
+            // إعادة جلب البيانات المحدثة
+            $externalRequest->refresh();
+            $externalRequest->load('items.drug');
+            
+            // إعداد بيانات confirmation
+            $confirmationData = [
+                'confirmedAt' => now()->format('Y-m-d H:i:s'),
+                'receivedItems' => $externalRequest->items->map(function($item) use ($validated) {
+                    $itemData = collect($validated['items'])->firstWhere('id', $item->id);
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->drug->name ?? 'غير محدد',
+                        'receivedQuantity' => $itemData['receivedQuantity'] ?? $item->fulfilled_qty ?? 0,
+                        'unit' => $item->drug->unit ?? 'وحدة'
+                    ];
+                })->toArray()
+            ];
+            
+            return response()->json([
+                'message' => 'تم تأكيد استلام الشحنة بنجاح',
+                'data' => [
+                    'id' => $externalRequest->id,
+                    'status' => $externalRequest->status,
+                    'confirmationDetails' => $confirmationData
+                ]
+            ], 200);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'فشل في التحقق من البيانات',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Confirm Delivery Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'فشل في تأكيد الاستلام',
+                'error' => config('app.debug') ? $e->getMessage() : 'حدث خطأ غير متوقع',
+            ], 500);
+        }
+    }
+
+    /**
      * ترجمة حالة الطلب إلى العربية
      */
     private function mapStatusToArabic(string $status): string
     {
         return match ($status) {
-            'pending'   => 'قيد الانتظار',
-            'approved'  => 'قيد الاستلام',
-            'fulfilled' => 'تم الإستلام',
-            'rejected'  => 'مرفوضة',
-            'cancelled' => 'ملغاة',
-            default     => $status,
+            'pending'           => 'قيد الانتظار', // في انتظار موافقة HospitalAdmin
+            'approved'          => 'تمت الموافقة عليه جزئياً', // معتمدة من HospitalAdmin، في انتظار Supplier
+            'partially_approved'=> 'تمت الموافقة عليه جزئياً', // حالة خاصة للعرض
+            'fulfilled'         => 'قيد الاستلام', // أرسلها Supplier، يمكن تأكيد الاستلام
+            'delivered'         => 'تم الاستلام', // تم تأكيد الاستلام من StoreKeeper
+            'rejected'          => 'مرفوضة', // مرفوضة من HospitalAdmin أو Supplier
+            'cancelled'         => 'ملغاة',
+            default             => $status,
         };
     }
 }

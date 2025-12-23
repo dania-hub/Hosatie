@@ -182,13 +182,15 @@
                                     <td
                                         :class="{
                                             'text-red-600 font-semibold':
+                                                shipment.requestStatus === 'مرفوض' || 
                                                 shipment.requestStatus === 'مرفوضة',
                                             'text-green-600 font-semibold':
-                                                shipment.requestStatus ===
-                                                'تم الإستلام',
+                                                shipment.requestStatus === 'تم التنفيذ' ||
+                                                shipment.requestStatus === 'fulfilled',
                                             'text-yellow-600 font-semibold':
-                                                shipment.requestStatus ===
-                                                'قيد الإستلام' || shipment.requestStatus === 'جديد' || shipment.requestStatus === 'قيد الإستلام',
+                                                shipment.requestStatus === 'تم الموافقة' ||
+                                                shipment.requestStatus === 'approved' ||
+                                                shipment.requestStatus === 'قيد الانتظار',
                                         }"
                                     >
                                         {{ shipment.requestStatus }}
@@ -205,7 +207,7 @@
                                                 />
                                             </button>
                                             
-                                            <template v-if="shipment.requestStatus === 'مرفوضة'">
+                                            <template v-if="shipment.requestStatus === 'مرفوض' || shipment.requestStatus === 'مرفوضة'">
                                                 <button class="tooltip" data-tip="طلب مرفوض">
                                                     <Icon
                                                         icon="tabler:circle-x" 
@@ -214,7 +216,7 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
+                                            <template v-else-if="shipment.requestStatus === 'تم التنفيذ' || shipment.requestStatus === 'fulfilled'">
                                                 <button 
                                                     @click="openReviewModal(shipment)"
                                                     class="tooltip" 
@@ -226,14 +228,24 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else>
+                                            <template v-else-if="shipment.requestStatus === 'تم الموافقة' || shipment.requestStatus === 'approved'">
+                                                <!-- طلب معتمد من HospitalAdmin، يمكن للمورد القبول أو الرفض -->
                                                 <button
                                                     @click="openConfirmationModal(shipment)" 
                                                     class="tooltip"
-                                                    data-tip="معاينة الطلب">
+                                                    data-tip="قبول أو رفض الطلب">
                                                     <Icon
                                                         icon="fluent:box-28-regular"
                                                         class="w-5 h-5 text-orange-500 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </template>
+                                            
+                                            <template v-else>
+                                                <button class="tooltip" data-tip="في انتظار الموافقة">
+                                                    <Icon
+                                                        icon="solar:clock-circle-bold"
+                                                        class="w-5 h-5 text-yellow-600"
                                                     />
                                                 </button>
                                             </template>
@@ -260,7 +272,8 @@
             :is-open="isConfirmationModalOpen"
             :request-data="selectedShipmentForConfirmation"
             @close="closeConfirmationModal"
-            @confirm="handleConfirmation"
+            @send="handleConfirmation"
+            @reject="handleConfirmation"
             :is-loading="isConfirming"
         />
 
@@ -298,43 +311,35 @@ import ConfirmationModal from "@/components/forSu/ConfirmationModal.vue";
 // ----------------------------------------------------
 // 1. إعدادات axios ونقاط النهاية API
 // ----------------------------------------------------
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-
 const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: '/api',
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        'Accept': 'application/json'
     }
 });
 
-// تعريف نقاط النهاية API
-const API_ENDPOINTS = {
-    shipments: {
-        getAll: () => api.get('/shipments'),
-        getById: (id) => api.get(`/shipments/${id}`),
-        update: (id, data) => api.put(`/shipments/${id}`, data),
-        confirm: (id, data) => api.post(`/shipments/${id}/confirm`, data),
-        reject: (id, data) => api.post(`/shipments/${id}/reject`, data),
-        receive: (id, data) => api.post(`/shipments/${id}/receive`, data)
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
     },
-    categories: {
-        getAll: () => api.get('/categories')
-    },
-    drugs: {
-        getAll: () => api.get('/drugs'),
-        getByCategory: (categoryId) => api.get(`/drugs?categoryId=${categoryId}`)
-    },
-    departments: {
-        getAll: () => api.get('/departments')
+    (error) => {
+        return Promise.reject(error);
     }
-};
+);
 
 // إضافة interceptor للتعامل مع الأخطاء
 api.interceptors.response.use(
-    (response) => response.data,
+    (response) => {
+        // إرجاع response كاملاً بدون تعديل
+        return response;
+    },
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
         
@@ -356,19 +361,15 @@ api.interceptors.response.use(
     }
 );
 
-// إضافة interceptor لإضافة التوكن تلقائياً
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
+// تعريف نقاط النهاية API
+const API_ENDPOINTS = {
+    shipments: {
+        getAll: () => api.get('/supplier/shipments'),
+        getById: (id) => api.get(`/supplier/shipments/${id}`),
+        confirm: (id, data) => api.post(`/supplier/shipments/${id}/confirm`, data),
+        reject: (id, data) => api.post(`/supplier/shipments/${id}/reject`, data)
     }
-);
+};
 
 // ----------------------------------------------------
 // 2. حالة المكون
@@ -392,12 +393,7 @@ const fetchAllData = async () => {
     error.value = null;
     
     try {
-        // جلب البيانات بالتوازي
-        await Promise.all([
-            fetchShipments(),
-            fetchCategories(),
-            fetchDrugs()
-        ]);
+        await fetchShipments();
     } catch (err) {
         error.value = 'حدث خطأ في تحميل البيانات. يرجى المحاولة مرة أخرى.';
         console.error('Error fetching data:', err);
@@ -410,26 +406,26 @@ const fetchShipments = async () => {
     try {
         const response = await API_ENDPOINTS.shipments.getAll();
         
-        shipmentsData.value = response.map(shipment => ({
+        // التعامل مع response structure من BaseApiController
+        // response.data = { success: true, data: [...], message: '...' }
+        let data = response.data?.data || response.data || [];
+        
+        shipmentsData.value = data.map(shipment => ({
             id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `S-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.createdAt,
-            requestStatus: shipment.status || shipment.requestStatus,
-            received: shipment.received || (shipment.status === 'تم الإستلام'),
+            shipmentNumber: `EXT-${shipment.id}`,
+            requestDate: shipment.createdAt || shipment.requestDate,
+            requestStatus: shipment.status || shipment.statusOriginal || 'قيد الانتظار',
+            requestingDepartment: shipment.hospitalName || 'مستشفى غير محدد',
+            received: shipment.status === 'fulfilled' || shipment.statusOriginal === 'fulfilled',
             details: {
                 id: shipment.id,
-                shipmentNumber: shipment.shipmentNumber,
-                date: shipment.requestDate,
-                status: shipment.status,
+                shipmentNumber: `EXT-${shipment.id}`,
+                date: shipment.createdAt,
+                status: shipment.status || shipment.statusOriginal,
                 items: shipment.items || [],
-                notes: shipment.notes || '',
-                createdAt: shipment.createdAt,
-                updatedAt: shipment.updatedAt,
-                rejectionReason: shipment.rejectionReason,
-                confirmedAt: shipment.confirmedAt,
-                ...(shipment.confirmationDetails && {
-                    confirmationDetails: shipment.confirmationDetails
-                })
+                hospitalName: shipment.hospitalName,
+                hospitalCode: shipment.hospitalCode,
+                approvedBy: shipment.approvedBy
             }
         }));
     } catch (err) {
@@ -559,30 +555,37 @@ const selectedShipmentForConfirmation = ref({
 // ----------------------------------------------------
 const openRequestViewModal = async (shipment) => {
     try {
-        // جرب جلب التفاصيل الكاملة من API
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        // التعامل مع response structure من BaseApiController
+        let data = response.data?.data || response.data || response || {};
+        
         selectedRequestDetails.value = {
-            ...response,
-            items: response.items || [],
-            confirmationDetails: response.confirmationDetails
+            id: data.id,
+            shipmentNumber: data.shipmentNumber || `EXT-${data.id}`,
+            date: data.date || data.createdAt,
+            status: data.status || data.statusOriginal || 'قيد الانتظار',
+            department: data.department || data.hospital?.name || 'مستشفى غير محدد',
+            items: (data.items || []).map(item => ({
+                id: item.id,
+                drugId: item.drugId,
+                name: item.name || item.drugName,
+                drugName: item.name || item.drugName,
+                quantity: item.quantity || item.requestedQuantity || item.requested_qty || 0,
+                requestedQuantity: item.requestedQuantity || item.requested_qty || 0,
+                approvedQuantity: item.approvedQuantity || item.approved_qty || 0,
+                fulfilled_qty: item.fulfilled_qty || null,
+                unit: item.unit || 'وحدة',
+                dosage: item.dosage || item.strength,
+                strength: item.strength || item.dosage
+            })),
+            notes: data.notes || '',
+            rejectionReason: data.rejectionReason || null,
+            confirmation: data.confirmation || null
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
         console.error('Error loading shipment details from API:', err);
-        
-        // Fallback: استخدم البيانات المحلية إذا فشل الـ API
-        if (shipment.details) {
-            selectedRequestDetails.value = {
-                ...shipment.details,
-                items: shipment.details.items || [],
-                confirmationDetails: shipment.details.confirmationDetails
-            };
-            isRequestViewModalOpen.value = true;
-            showSuccessAlert('⚠️ تم تحميل البيانات المحلية (قد تكون غير محدثة). تحقق من اتصال الإنترنت.');
-        } else {
-            // إذا لم تكن هناك بيانات محلية، أظهر خطأ
-            showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة ولا توجد بيانات محلية.');
-        }
+        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -601,28 +604,37 @@ const closeRequestViewModal = () => {
 
 const openConfirmationModal = async (shipment) => {
     try {
-        // جرب جلب التفاصيل الكاملة من API
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        // التعامل مع response structure من BaseApiController
+        let data = response.data?.data || response.data || response || {};
+        
         selectedShipmentForConfirmation.value = {
-            ...response,
-            items: response.items || []
+            id: data.id,
+            shipmentNumber: data.shipmentNumber || `EXT-${data.id}`,
+            date: data.date || data.createdAt,
+            status: data.status || data.statusOriginal || 'قيد الانتظار',
+            department: data.department || data.hospital?.name || 'مستشفى غير محدد',
+            items: (data.items || []).map(item => ({
+                id: item.id,
+                drugId: item.drugId,
+                name: item.name || item.drugName,
+                drugName: item.name || item.drugName,
+                quantity: item.quantity || item.requestedQuantity || item.requested_qty || 0,
+                requestedQuantity: item.requestedQuantity || item.requested_qty || 0,
+                approvedQuantity: item.approvedQuantity || item.approved_qty || 0,
+                fulfilled_qty: item.fulfilled_qty || null,
+                unit: item.unit || 'وحدة',
+                dosage: item.dosage || item.strength,
+                strength: item.strength || item.dosage,
+                // للـ ConfirmationModal
+                originalQuantity: item.requestedQuantity || item.requested_qty || 0,
+                availableQuantity: item.approvedQuantity || item.approved_qty || item.requestedQuantity || item.requested_qty || 0
+            }))
         };
         isConfirmationModalOpen.value = true;
     } catch (err) {
         console.error('Error loading shipment details from API:', err);
-        
-        // Fallback: استخدم البيانات المحلية إذا فشل الـ API
-        if (shipment.details) {
-            selectedShipmentForConfirmation.value = {
-                ...shipment.details,
-                items: shipment.details.items || []
-            };
-            isConfirmationModalOpen.value = true;
-            showSuccessAlert('⚠️ تم تحميل البيانات المحلية (قد تكون غير محدثة). تحقق من اتصال الإنترنت.');
-        } else {
-            // إذا لم تكن هناك بيانات محلية، أظهر خطأ
-            showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة ولا توجد بيانات محلية.');
-        }
+        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -639,103 +651,64 @@ const closeConfirmationModal = () => {
 };
 
 const handleConfirmation = async (confirmationData) => {
+    console.log('handleConfirmation called with:', confirmationData);
     isConfirming.value = true;
     const shipmentId = selectedShipmentForConfirmation.value.id;
-    const shipmentNumber = selectedShipmentForConfirmation.value.shipmentNumber;
+    const shipmentNumber = selectedShipmentForConfirmation.value.shipmentNumber || `EXT-${shipmentId}`;
     
     try {
         if (confirmationData.rejectionReason) {
             // 🔴 معالجة رفض الطلب
-            await API_ENDPOINTS.shipments.reject(shipmentId, {
-                rejectionReason: confirmationData.rejectionReason,
-                rejectedBy: 'أمين المخزن' // يجب أن يكون هذا من بيانات المستخدم
+            console.log('Rejecting shipment:', shipmentId);
+            const response = await API_ENDPOINTS.shipments.reject(shipmentId, {
+                reason: confirmationData.rejectionReason
             });
+            console.log('Reject response:', response);
             
-            // تحديث البيانات محلياً
-            const shipmentIndex = shipmentsData.value.findIndex(s => s.id === shipmentId);
-            if (shipmentIndex !== -1) {
-                shipmentsData.value[shipmentIndex].requestStatus = 'مرفوضة';
-                shipmentsData.value[shipmentIndex].details.status = 'مرفوضة';
-                shipmentsData.value[shipmentIndex].details.rejectionReason = confirmationData.rejectionReason;
-            }
+            await fetchShipments(); // إعادة جلب البيانات
+            const message = response.data?.message || response.message || `✅ تم رفض الشحنة رقم ${shipmentNumber} بنجاح`;
+            showSuccessAlert(message);
+            closeConfirmationModal();
             
-            showSuccessAlert(`✅ تم رفض الشحنة رقم ${shipmentNumber} بنجاح`);
-            
-        } else if (confirmationData.itemsToSend) {
-            // 🟢 معالجة إرسال الشحنة
-            const itemsToUpdate = confirmationData.itemsToSend.map(item => ({
+        } else if (confirmationData.items || confirmationData.itemsToSend) {
+            // 🟢 معالجة قبول الطلب وإرسال الشحنة
+            const items = confirmationData.items || confirmationData.itemsToSend || [];
+            console.log('Confirming shipment with items:', items);
+            const itemsToSend = items.map(item => ({
                 id: item.id,
-                sentQuantity: item.sentQuantity,
-                receivedQuantity: item.sentQuantity
+                fulfilled_qty: item.fulfilled_qty || item.sentQuantity || item.approved_qty || item.requested_qty
             }));
+            console.log('Items to send:', itemsToSend);
             
-            await API_ENDPOINTS.shipments.confirm(shipmentId, {
-                items: itemsToUpdate,
-                notes: confirmationData.notes || '',
-                confirmedBy: 'أمين المخزن' // يجب أن يكون هذا من بيانات المستخدم
+            const response = await API_ENDPOINTS.shipments.confirm(shipmentId, {
+                items: itemsToSend,
+                notes: confirmationData.notes || ''
             });
+            console.log('Confirm response:', response);
             
-            // تحديث البيانات محلياً
-            const shipmentIndex = shipmentsData.value.findIndex(s => s.id === shipmentId);
-            if (shipmentIndex !== -1) {
-                shipmentsData.value[shipmentIndex].requestStatus = 'تم الإستلام';
-                shipmentsData.value[shipmentIndex].details.status = 'تم الإستلام';
-                shipmentsData.value[shipmentIndex].details.confirmationDetails = {
-                    confirmedAt: new Date().toISOString(),
-                    confirmedBy: 'أمين المخزن',
-                    notes: confirmationData.notes || ''
-                };
-                
-                // تحديث الكميات في العناصر
-                if (shipmentsData.value[shipmentIndex].details.items) {
-                    shipmentsData.value[shipmentIndex].details.items = 
-                        shipmentsData.value[shipmentIndex].details.items.map(item => {
-                            const sentItem = confirmationData.itemsToSend.find(s => s.id === item.id);
-                            if (sentItem) {
-                                return { ...item, sentQuantity: sentItem.sentQuantity };
-                            }
-                            return item;
-                        });
-                }
-            }
-            
-            const totalSent = itemsToUpdate.reduce((sum, item) => sum + (item.sentQuantity || 0), 0);
-            showSuccessAlert(`✅ تم تأكيد استلام الشحنة رقم ${shipmentNumber} بنجاح! (${totalSent} وحدة)`);
+            await fetchShipments(); // إعادة جلب البيانات
+            const message = response.data?.message || response.message || `✅ تم تأكيد الشحنة وإرسالها بنجاح!`;
+            showSuccessAlert(message);
+            closeConfirmationModal();
+        } else {
+            console.warn('No valid confirmation data:', confirmationData);
+            showSuccessAlert('❌ بيانات غير صحيحة');
         }
-        
-        closeConfirmationModal();
         
     } catch (err) {
         console.error('Error in handleConfirmation:', err);
-        
-        if (err.response?.status === 404) {
-            showSuccessAlert(`❌ الشحنة غير موجودة أو تم حذفها`);
-        } else if (err.response?.status === 400) {
-            showSuccessAlert(`❌ بيانات غير صالحة: ${err.response.data?.message || ''}`);
-        } else if (err.response?.status === 409) {
-            showSuccessAlert(`❌ تعارض في البيانات: ${err.response.data?.message || ''}`);
-        } else {
-            showSuccessAlert(`❌ فشل في العملية: ${err.message || 'حدث خطأ غير معروف'}`);
-        }
+        console.error('Error response:', err.response);
+        console.error('Error message:', err.message);
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
+        showSuccessAlert(`❌ فشل في العملية: ${errorMessage}`);
     } finally {
+        console.log('Setting isConfirming to false');
         isConfirming.value = false;
     }
 };
 
 const openReviewModal = async (shipment) => {
-    try {
-        // جلب التفاصيل الكاملة من API
-        const response = await API_ENDPOINTS.shipments.getById(shipment.id);
-        selectedRequestDetails.value = {
-            ...response,
-            items: response.items || [],
-            confirmationDetails: response.confirmationDetails
-        };
-        isRequestViewModalOpen.value = true;
-    } catch (err) {
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
-        console.error('Error loading shipment details:', err);
-    }
+    await openRequestViewModal(shipment);
 };
 
 // ----------------------------------------------------

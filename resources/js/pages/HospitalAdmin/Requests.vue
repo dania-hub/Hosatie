@@ -201,13 +201,16 @@
                                     <td
                                         :class="{
                                             'text-red-600 font-semibold':
-                                                shipment.status === 'مرفوضة',
+                                                shipment.status === 'مرفوضة' ||
+                                                shipment.status === 'rejected',
                                             'text-green-600 font-semibold':
-                                                shipment.status === 'تم الإستلام',
+                                                shipment.status === 'تم الإستلام' ||
+                                                shipment.status === 'fulfilled' ||
+                                                shipment.status === 'قيد التجهيز',
                                             'text-yellow-600 font-semibold':
-                                                shipment.status === 'قيد التجهيز' || 
-                                                shipment.status === 'جديد' || 
-                                                shipment.status === 'قيد الإستلام',
+                                                shipment.status === 'قيد الانتظار' ||
+                                                shipment.status === 'pending' ||
+                                                shipment.status === 'approved',
                                         }"
                                     >
                                         {{ shipment.status }}
@@ -224,7 +227,7 @@
                                                 />
                                             </button>
                                             
-                                            <template v-if="shipment.status === 'مرفوضة'">
+                                            <template v-if="shipment.status === 'مرفوضة' || shipment.status === 'rejected'">
                                                 <button class="tooltip" data-tip="طلب مرفوض">
                                                     <Icon
                                                         icon="tabler:circle-x" 
@@ -233,7 +236,7 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else-if="shipment.status === 'تم الإستلام'">
+                                            <template v-else-if="shipment.status === 'تم الإرسال' || shipment.status === 'fulfilled' || shipment.status === 'تم الإستلام'">
                                                 <button 
                                                     @click="openReviewModal(shipment)"
                                                     class="tooltip" 
@@ -245,14 +248,28 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else>
+                                            <template v-else-if="shipment.status === 'قيد الانتظار' || shipment.status === 'pending'">
+                                                <!-- طلب قيد الانتظار، يمكن قبوله أو رفضه -->
                                                 <button
                                                     @click="openConfirmationModal(shipment)" 
                                                     class="tooltip"
-                                                    data-tip="معاينة الطلب">
+                                                    data-tip="قبول أو رفض الطلب">
                                                     <Icon
                                                         icon="fluent:box-28-regular"
                                                         class="w-5 h-5 text-orange-500 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </template>
+                                            
+                                            <template v-else>
+                                                <!-- حالات أخرى (مثل معتمدة مبدئياً) - يمكن مراجعتها فقط -->
+                                                <button
+                                                    @click="openRequestViewModal(shipment)" 
+                                                    class="tooltip"
+                                                    data-tip="معاينة الطلب">
+                                                    <Icon
+                                                        icon="famicons:open-outline"
+                                                        class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                             </template>
@@ -314,10 +331,9 @@ import ConfirmationModal from "@/components/forhospitaladmin/ConfirmationModal.v
 // ----------------------------------------------------
 // 1. إعدادات axios ونقاط النهاية API
 // ----------------------------------------------------
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-
+// استخدام baseURL النسبي للعمل مع Laravel
 const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: '/api',
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -327,9 +343,12 @@ const api = axios.create({
 // إضافة interceptor لإضافة التوكن تلقائياً
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        // البحث عن التوكن بأي من الاسمين المحتملين
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+        } else {
+            console.warn('No token found in localStorage. Available keys:', Object.keys(localStorage));
         }
         return config;
     },
@@ -338,13 +357,32 @@ api.interceptors.request.use(
     }
 );
 
+// إضافة interceptor للـ response للتعامل مع الأخطاء
+api.interceptors.response.use(
+    (response) => {
+        // إرجاع response كاملاً بدون تعديل
+        return response;
+    },
+    (error) => {
+        console.error('API Error:', error.response?.data || error.message);
+        if (error.response?.status === 401) {
+            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+        } else if (error.response?.status === 403) {
+            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+        } else if (!error.response) {
+            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+        }
+        return Promise.reject(error);
+    }
+);
+
 // تعريف نقاط النهاية API
 const API_ENDPOINTS = {
     shipments: {
-        getAll: () => api.get('/shipments'),
-        getById: (id) => api.get(`/shipments/${id}`),
-        confirm: (id, data) => api.put(`/shipments/${id}/confirm`, data),
-        reject: (id, data) => api.put(`/shipments/${id}/reject`, data)
+        getAll: () => api.get('/admin-hospital/shipments'),
+        getById: (id) => api.get(`/admin-hospital/shipments/${id}`),
+        confirm: (id, data) => api.put(`/admin-hospital/shipments/${id}/confirm`, data),
+        reject: (id, data) => api.put(`/admin-hospital/shipments/${id}/reject`, data)
     }
 };
 
@@ -359,26 +397,55 @@ const isConfirming = ref(false);
 // ----------------------------------------------------
 // 3. جلب البيانات من API
 // ----------------------------------------------------
+const isLoading = ref(false);
+
 const fetchShipments = async () => {
-   
+    isLoading.value = true;
     error.value = null;
     
     try {
         const response = await API_ENDPOINTS.shipments.getAll();
-        shipmentsData.value = response.data.map(shipment => ({
-            id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber,
-            requestDate: shipment.createdAt || shipment.requestDate,
-            status: shipment.status,
-            requestingDepartment: shipment.requestingDepartment || shipment.department,
-            received: shipment.status === 'تم الإستلام',
-            details: {
-                ...shipment,
-                items: shipment.items || []
+        
+        // التعامل مع بنية الاستجابة المختلفة
+        // الـ API يرجع مصفوفة مباشرة من response()->json($requests)
+        let data = [];
+        
+        if (response && response.data) {
+            // إذا كانت البيانات في response.data
+            if (Array.isArray(response.data)) {
+                data = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
             }
-        }));
+        } else if (Array.isArray(response)) {
+            // إذا كانت الاستجابة نفسها مصفوفة مباشرة
+            data = response;
+        }
+        
+        if (Array.isArray(data)) {
+            shipmentsData.value = data.map(shipment => ({
+                id: shipment.id,
+                shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+                requestDate: shipment.requestDate || shipment.createdAt,
+                status: shipment.status,
+                requestingDepartment: shipment.requestingDepartment || shipment.department || 'مسؤول المخزن',
+                received: shipment.status === 'تم الإستلام',
+                details: {
+                    ...shipment,
+                    items: shipment.items || []
+                }
+            }));
+        } else {
+            console.warn('No valid data array found in response:', response);
+            shipmentsData.value = [];
+        }
     } catch (err) {
-      
+        console.error('Error fetching shipments:', err);
+        console.error('Error response:', err.response);
+        console.error('Error message:', err.message);
+        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'خطأ غير معروف';
+        error.value = `فشل في تحميل البيانات: ${errorMsg}`;
+        showSuccessAlert(`❌ ${errorMsg}`);
     } finally {
         isLoading.value = false;
     }
@@ -476,9 +543,15 @@ const selectedShipmentForConfirmation = ref({
 const openRequestViewModal = async (shipment) => {
     try {
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        let data = response.data || response;
+        if (data.data) {
+            data = data.data;
+        }
+        
         selectedRequestDetails.value = {
-            ...response.data,
-            items: response.data.items || []
+            ...data,
+            items: data.items || [],
+            shipmentNumber: data.shipmentNumber || `EXT-${data.id}`
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
@@ -502,9 +575,15 @@ const closeRequestViewModal = () => {
 const openConfirmationModal = async (shipment) => {
     try {
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
+        let data = response.data || response;
+        if (data.data) {
+            data = data.data;
+        }
+        
         selectedShipmentForConfirmation.value = {
-            ...response.data,
-            items: response.data.items || []
+            ...data,
+            items: data.items || [],
+            shipmentNumber: data.shipmentNumber || `EXT-${data.id}`
         };
         isConfirmationModalOpen.value = true;
     } catch (err) {
@@ -528,55 +607,37 @@ const closeConfirmationModal = () => {
 const handleConfirmation = async (confirmationData) => {
     isConfirming.value = true;
     const shipmentId = selectedShipmentForConfirmation.value.id;
-    const shipmentNumber = selectedShipmentForConfirmation.value.shipmentNumber;
+    const shipmentNumber = selectedShipmentForConfirmation.value.shipmentNumber || `EXT-${shipmentId}`;
     
     try {
         if (confirmationData.rejectionReason) {
             // 🔴 معالجة رفض الطلب
-            await API_ENDPOINTS.shipments.reject(shipmentId, {
+            const response = await API_ENDPOINTS.shipments.reject(shipmentId, {
                 rejectionReason: confirmationData.rejectionReason
             });
             
-            // تحديث البيانات محلياً
-            const shipmentIndex = shipmentsData.value.findIndex(s => s.id === shipmentId);
-            if (shipmentIndex !== -1) {
-                shipmentsData.value[shipmentIndex].status = 'مرفوضة';
-                shipmentsData.value[shipmentIndex].details.status = 'مرفوضة';
-            }
+            await fetchShipments(); // إعادة جلب البيانات
+            const message = response.data?.message || response.message || `✅ تم رفض الطلب بنجاح. لن يتم إرساله للمورد.`;
+            showSuccessAlert(message);
             
-            showSuccessAlert(`✅ تم رفض الشحنة رقم ${shipmentNumber} بنجاح`);
-            
-        } else if (confirmationData.itemsToSend) {
-            // 🟢 معالجة تأكيد الشحنة
-            await API_ENDPOINTS.shipments.confirm(shipmentId, {
-                items: confirmationData.itemsToSend,
-                notes: confirmationData.notes || ''
+        } else if (confirmationData.items || confirmationData.itemsToSend) {
+            // 🟢 معالجة قبول الطلب (موافقة مبدئية)
+            const items = confirmationData.items || confirmationData.itemsToSend || [];
+            const response = await API_ENDPOINTS.shipments.confirm(shipmentId, {
+                items: items.map(item => ({ id: item.id }))
             });
             
-            // تحديث البيانات محلياً
-            const shipmentIndex = shipmentsData.value.findIndex(s => s.id === shipmentId);
-            if (shipmentIndex !== -1) {
-                shipmentsData.value[shipmentIndex].status = 'تم الإستلام';
-                shipmentsData.value[shipmentIndex].details.status = 'تم الإستلام';
-            }
-            
-            showSuccessAlert(`✅ تم تأكيد استلام الشحنة رقم ${shipmentNumber} بنجاح!`);
+            await fetchShipments(); // إعادة جلب البيانات
+            const message = response.data?.message || response.message || `✅ تم قبول الطلب بنجاح. سيتم إرساله للمورد للموافقة النهائية.`;
+            showSuccessAlert(message);
         }
         
         closeConfirmationModal();
         
     } catch (err) {
         console.error('Error in handleConfirmation:', err);
-        
-        if (err.response?.status === 404) {
-            showSuccessAlert(`❌ الشحنة غير موجودة أو تم حذفها`);
-        } else if (err.response?.status === 400) {
-            showSuccessAlert(`❌ بيانات غير صالحة: ${err.response.data?.message || ''}`);
-        } else if (err.response?.status === 409) {
-            showSuccessAlert(`❌ تعارض في البيانات: ${err.response.data?.message || ''}`);
-        } else {
-            showSuccessAlert(`❌ فشل في العملية: ${err.response?.data?.message || 'حدث خطأ غير معروف'}`);
-        }
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
+        showSuccessAlert(`❌ فشل في العملية: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }

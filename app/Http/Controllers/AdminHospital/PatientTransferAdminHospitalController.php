@@ -11,13 +11,36 @@ class PatientTransferAdminHospitalController extends BaseApiController
     // قائمة طلبات النقل
     public function index(Request $request)
     {
-        $hospitalId = $request->user()->hospital_id;
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
 
-        $requests = PatientTransferRequest::with(['patient', 'fromHospital'])
-            ->where('to_hospital_id', $hospitalId)   // المستشفى المستقبِل يرى الطلبات الموجهة له
-            ->latest()
-            ->get()
-            ->map(function ($r) {
+            $hospitalId = $user->hospital_id;
+            
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            \Illuminate\Support\Facades\Log::debug('Fetching transfer requests', [
+                'hospital_id' => $hospitalId,
+                'user_id' => $user->id
+            ]);
+
+            // المستشفى يرى فقط الطلبات الموجهة إليه (to_hospital_id = hospital_id)
+            $requests = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
+                ->where('to_hospital_id', $hospitalId)   // الطلبات الموجهة إليه فقط
+                ->latest()
+                ->get();
+
+            \Illuminate\Support\Facades\Log::debug('Transfer requests found', [
+                'count' => $requests->count(),
+                'hospital_id' => $hospitalId
+            ]);
+
+            $mappedRequests = $requests->map(function ($r) {
                 return [
                     'id'            => $r->id,
                     'requestNumber' => 'TR-' . $r->id,
@@ -29,6 +52,10 @@ class PatientTransferAdminHospitalController extends BaseApiController
                         'id'   => $r->fromHospital?->id,
                         'name' => $r->fromHospital?->name,
                     ],
+                    'toHospital'  => [
+                        'id'   => $r->toHospital?->id,
+                        'name' => $r->toHospital?->name,
+                    ],
                     'reason'        => $r->reason,
                     'status'        => $this->statusToArabic($r->status),
                     'createdAt'     => optional($r->created_at)->toIso8601String(),
@@ -36,47 +63,83 @@ class PatientTransferAdminHospitalController extends BaseApiController
                 ];
             });
 
-        return response()->json([
-            'data' => $requests,
-        ]);
+            \Illuminate\Support\Facades\Log::debug('Mapped transfer requests', [
+                'count' => $mappedRequests->count(),
+                'first_item' => $mappedRequests->first()
+            ]);
+
+            return $this->sendSuccess($mappedRequests, 'تم جلب قائمة طلبات النقل بنجاح.');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Get Transfer Requests Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في جلب قائمة طلبات النقل.', [], 500);
+        }
     }
 
     // تحديث حالة الطلب (قبول / رفض) مع سبب
     public function updateStatus(Request $request, $id)
     {
-        $hospitalId = $request->user()->hospital_id;
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
 
-        $data = $request->validate([
-            'status'          => 'required|in:approved,rejected',
-            'response'        => 'nullable|string|max:1000',   // مثلاً ملاحظات
-            'notes'           => 'nullable|string|max:1000',
-            'rejectionReason' => 'nullable|string|max:1000',
-        ]);
+            $hospitalId = $user->hospital_id;
+            
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
 
-        $r = PatientTransferRequest::where('to_hospital_id', $hospitalId)->findOrFail($id);
+            $data = $request->validate([
+                'status'          => 'required|in:approved,rejected',
+                'response'        => 'nullable|string|max:1000',   // مثلاً ملاحظات
+                'notes'           => 'nullable|string|max:1000',
+                'rejectionReason' => 'nullable|string|max:1000',
+            ]);
 
-        $r->status          = $data['status'];
-        // لو عندك أعمدة approved_by / rejected_by / rejection_reason يمكنك تفعيلها هنا:
-        if ($data['status'] === 'approved') {
-            $r->approved_by = $request->user()->id;
-            $r->approved_at = now();
-              $this->notifications->notifyTransferApproved($r->patient, $r);
-     } else {
-            $r->rejected_by     = $request->user()->id;
-           $r->rejected_at     = now();
-            $r->rejection_reason= $data['rejectionReason'] ?? null;
-              $this->notifications->notifyTransferRejected($r->patient, $r);
-        }
+            $r = PatientTransferRequest::where('to_hospital_id', $hospitalId)->find($id);
 
-        $r->save();
+            if (!$r) {
+                return $this->sendError('طلب النقل غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => $data['status'] === 'approved'
+            $r->status = $data['status'];
+            
+            // لو عندك أعمدة approved_by / rejected_by / rejection_reason يمكنك تفعيلها هنا:
+            if ($data['status'] === 'approved') {
+                $r->approved_by = $user->id;
+                $r->approved_at = now();
+                $r->load('patient');
+                $this->notifications->notifyTransferApproved($r->patient, $r);
+            } else {
+                $r->rejected_by = $user->id;
+                $r->rejected_at = now();
+                $r->rejection_reason = $data['rejectionReason'] ?? null;
+                $r->load('patient');
+                $this->notifications->notifyTransferRejected($r->patient, $r);
+            }
+
+            $r->save();
+
+            $message = $data['status'] === 'approved'
                 ? 'تم قبول طلب النقل بنجاح'
-                : 'تم رفض طلب النقل بنجاح',
-            'status'  => $this->statusToArabic($r->status),
-        ]);
+                : 'تم رفض طلب النقل بنجاح';
+
+            return $this->sendSuccess([
+                'id' => $r->id,
+                'status' => $this->statusToArabic($r->status),
+                'updatedAt' => $r->updated_at?->toIso8601String(),
+            ], $message);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Update Transfer Request Status Error: ' . $e->getMessage(), [
+                'exception' => $e,
+                'request_id' => $id
+            ]);
+            return $this->sendError('فشل في تحديث حالة طلب النقل.', [], 500);
+        }
     }
 
     private function statusToArabic(?string $status): string

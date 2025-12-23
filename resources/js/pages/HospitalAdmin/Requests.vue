@@ -208,6 +208,7 @@
                                                 shipment.status === 'fulfilled' ||
                                                 shipment.status === 'قيد التجهيز',
                                             'text-yellow-600 font-semibold':
+                                                shipment.status === 'جديد' ||
                                                 shipment.status === 'قيد الانتظار' ||
                                                 shipment.status === 'pending' ||
                                                 shipment.status === 'approved',
@@ -248,8 +249,8 @@
                                                 </button>
                                             </template>
                                             
-                                            <template v-else-if="shipment.status === 'قيد الانتظار' || shipment.status === 'pending'">
-                                                <!-- طلب قيد الانتظار، يمكن قبوله أو رفضه -->
+                                            <template v-else-if="shipment.status === 'جديد' || shipment.status === 'قيد الانتظار' || shipment.status === 'pending'">
+                                                <!-- طلب جديد، يمكن قبوله أو رفضه -->
                                                 <button
                                                     @click="openConfirmationModal(shipment)" 
                                                     class="tooltip"
@@ -551,7 +552,13 @@ const openRequestViewModal = async (shipment) => {
         selectedRequestDetails.value = {
             ...data,
             items: data.items || [],
-            shipmentNumber: data.shipmentNumber || `EXT-${data.id}`
+            shipmentNumber: data.shipmentNumber || `EXT-${data.id}`,
+            confirmationDetails: data.confirmationDetails || null,
+            storekeeperNotes: data.storekeeperNotes || null,
+            supplierNotes: data.supplierNotes || null,
+            notes: data.notes || '',
+            rejectionReason: data.rejectionReason || null,
+            rejectedAt: data.rejectedAt || null
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {

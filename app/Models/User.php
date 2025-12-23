@@ -25,6 +25,7 @@ class User extends Authenticatable
         'hospital_id',
         'supplier_id',
         'pharmacy_id',
+        'department_id',
         'status',
         'created_by',
         'birth_date',   // 👈 جديد
@@ -58,6 +59,11 @@ class User extends Authenticatable
     public function pharmacy()
     {
         return $this->belongsTo(Pharmacy::class);
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 
     public function creator()

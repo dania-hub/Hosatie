@@ -31,6 +31,20 @@
             </div>
 
             <div class="p-8 space-y-8">
+                <!-- حالة التحميل -->
+                <div v-if="isLoading" class="text-center py-10">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mx-auto"></div>
+                    <p class="text-gray-600 mt-4">جاري تحميل البيانات...</p>
+                </div>
+                
+                <!-- حالة الخطأ -->
+                <div v-else-if="modalError" class="text-center py-10">
+                    <div class="text-red-600 text-4xl mb-4">⚠️</div>
+                    <p class="text-red-600 font-semibold">{{ modalError }}</p>
+                </div>
+                
+                <!-- المحتوى الرئيسي -->
+                <template v-else>
                 <!-- بيانات الشحنة الأساسية -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
@@ -116,26 +130,44 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="text-left flex flex-col items-end gap-2">
-                                        <div class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                                            <span class="text-gray-500 text-sm font-medium">الكمية:</span>
+                                    <div class="text-left flex flex-row flex-wrap items-center gap-2 justify-end">
+                                        <!-- الكمية المطلوبة -->
+                                        <div v-if="item.requestedQuantity || item.requested_qty || item.requested" class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+                                            <span class="text-gray-500 text-sm font-medium">المطلوب:</span>
                                             <span class="text-[#4DA1A9] font-bold text-lg">
-                                                {{ item.quantity }} <span class="text-sm font-normal text-gray-500">{{ item.unit || 'وحدة' }}</span>
+                                                {{ item.requestedQuantity || item.requested_qty || item.requested || 0 }} <span class="text-sm font-normal text-gray-500">{{ item.unit || 'وحدة' }}</span>
                                             </span>
                                         </div>
                                         
-                                        <div v-if="item.receivedQuantity"
+                                        <!-- الكمية المعتمدة -->
+                                        <div v-if="item.approved_qty || item.approved" class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                                            <span class="text-blue-600 text-sm font-medium">المعتمد:</span>
+                                            <span class="text-blue-700 font-bold">
+                                                {{ item.approved_qty || item.approved || 0 }} <span class="text-sm font-normal">{{ item.unit || 'وحدة' }}</span>
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- الكمية المرسلة/المستلمة -->
+                                        <div v-if="item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity"
                                             class="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
                                             :class="{
-                                                'bg-green-50 border-green-100 text-green-700': item.receivedQuantity >= item.quantity,
-                                                'bg-amber-50 border-amber-100 text-amber-700': item.receivedQuantity < item.quantity
+                                                'bg-green-50 border-green-100 text-green-700': (item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0) >= (item.approved_qty || item.approved || item.requestedQuantity || item.requested_qty || 0),
+                                                'bg-amber-50 border-amber-100 text-amber-700': (item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0) < (item.approved_qty || item.approved || item.requestedQuantity || item.requested_qty || 0)
                                             }"
                                         >
                                             <span class="text-sm font-medium">مستلم:</span>
                                             <span class="font-bold">
-                                                {{ item.receivedQuantity || 0 }}
+                                                {{ item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0 }} <span class="text-sm font-normal">{{ item.unit || 'وحدة' }}</span>
                                             </span>
-                                            <Icon v-if="item.receivedQuantity >= item.quantity" icon="solar:check-circle-bold" class="w-4 h-4" />
+                                            <Icon v-if="(item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0) >= (item.approved_qty || item.approved || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-4 h-4" />
+                                        </div>
+                                        
+                                        <!-- الكمية المتوفرة -->
+                                        <div v-if="item.availableQuantity || item.available_quantity" class="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100">
+                                            <span class="text-purple-600 text-sm font-medium">المتاح:</span>
+                                            <span class="text-purple-700 font-bold">
+                                                {{ item.availableQuantity || item.available_quantity || 0 }} <span class="text-sm font-normal">{{ item.unit || 'وحدة' }}</span>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -145,13 +177,36 @@
                 </div>
 
                 <!-- الملاحظات -->
-                <div v-if="requestDetails.notes || requestDetails.confirmationNotes" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.notes || requestDetails.confirmationNotes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
                     </h3>
                     
-                    <div v-if="requestDetails.confirmationNotes" class="bg-green-50 border border-green-100 rounded-2xl p-5">
+                    <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
+                    <div v-if="requestDetails.storekeeperNotes" class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+                        <p class="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                            ملاحظة مسؤول المخزن:
+                        </p>
+                        <p class="text-blue-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-blue-100/50">
+                            {{ requestDetails.storekeeperNotes }}
+                        </p>
+                    </div>
+
+                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
+                    <div v-if="requestDetails.supplierNotes" class="bg-green-50 border border-green-100 rounded-2xl p-5">
+                        <p class="font-bold text-green-800 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة المورد:
+                        </p>
+                        <p class="text-green-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-green-100/50">
+                            {{ requestDetails.supplierNotes }}
+                        </p>
+                    </div>
+
+                    <!-- للتوافق مع الكود القديم -->
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmationNotes" class="bg-green-50 border border-green-100 rounded-2xl p-5">
                         <p class="font-bold text-green-800 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             ملاحظة الإرسال:
@@ -161,7 +216,7 @@
                         </p>
                     </div>
 
-                    <div v-if="requestDetails.notes" class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmationNotes" class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
                         <p class="font-bold text-blue-800 mb-2 flex items-center gap-2">
                             <Icon icon="solar:document-text-bold" class="w-5 h-5" />
                             ملاحظة الطلب الأصلية:
@@ -171,6 +226,52 @@
                         </p>
                     </div>
                 </div>
+
+                <!-- Confirmation Details -->
+                <div v-if="requestDetails.confirmationDetails" class="bg-purple-50 border border-purple-100 rounded-2xl p-6">
+                    <h3 class="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
+                        <Icon icon="solar:user-check-bold-duotone" class="w-6 h-6" />
+                        تفاصيل التأكيد
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div v-if="requestDetails.confirmationDetails.confirmedAt">
+                            <span class="text-purple-600 text-sm block mb-1">تاريخ التأكيد</span>
+                            <span class="font-bold text-purple-900">{{ formatDate(requestDetails.confirmationDetails.confirmedAt) }}</span>
+                        </div>
+                        
+                        <!-- ملاحظة تأكيد الاستلام من مسؤول المخزن -->
+                        <div v-if="requestDetails.confirmationDetails.confirmationNotes" class="sm:col-span-2 p-4 bg-white/50 rounded-xl border border-purple-100/50">
+                            <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                ملاحظة تأكيد الاستلام
+                            </h4>
+                            <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmationDetails.confirmationNotes }}</p>
+                        </div>
+                        
+                        <div v-if="requestDetails.confirmationDetails.receivedItems && requestDetails.confirmationDetails.receivedItems.length > 0" class="sm:col-span-2">
+                            <span class="text-purple-600 text-sm block mb-2">الكميات المرسلة والمستلمة</span>
+                            <div class="space-y-2">
+                                <div 
+                                    v-for="(receivedItem, idx) in requestDetails.confirmationDetails.receivedItems" 
+                                    :key="idx"
+                                    class="bg-white/50 p-3 rounded-xl border border-purple-100/50 flex justify-between items-center"
+                                >
+                                    <span class="font-medium text-purple-900">{{ receivedItem.name }}</span>
+                                    <div class="flex gap-4">
+                                        <span class="text-sm text-purple-600">
+                                            مرسل: <span class="font-bold">{{ receivedItem.sentQuantity || 0 }}</span> {{ receivedItem.unit }}
+                                        </span>
+                                        <span class="text-sm text-purple-600">
+                                            مستلم: <span class="font-bold">{{ receivedItem.receivedQuantity || 0 }}</span> {{ receivedItem.unit }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </template>
             </div>
 
             <!-- Footer -->
@@ -193,13 +294,27 @@ import axios from 'axios';
 
 // إعداد axios للمودال
 const modalApi = axios.create({
-  baseURL: 'http://localhost:3000/api',
-  timeout: 8000,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
+
+// إضافة interceptor لإضافة الـ token تلقائياً
+modalApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 const props = defineProps({
     isOpen: {
@@ -215,6 +330,9 @@ const props = defineProps({
             status: '', 
             items: [], 
             notes: '',
+            storekeeperNotes: null,
+            supplierNotes: null,
+            confirmationDetails: null,
             rejectionReason: null,
         })
     }
@@ -229,6 +347,11 @@ const modalError = ref(null);
 // دالة لجلب التفاصيل من API
 const fetchRequestDetails = async () => {
     if (!props.requestData.id) {
+        // إذا كانت البيانات موجودة بالفعل في props، استخدمها
+        if (props.requestData.items && props.requestData.items.length > 0) {
+            requestDetails.value = { ...props.requestData };
+            return;
+        }
         modalError.value = 'رقم الشحنة غير صالح';
         return;
     }
@@ -237,23 +360,40 @@ const fetchRequestDetails = async () => {
     modalError.value = null;
 
     try {
-        const response = await modalApi.get(`/shipments/${props.requestData.id}`);
+        // استخدام الـ endpoint الصحيح
+        const response = await modalApi.get(`/admin-hospital/shipments/${props.requestData.id}`);
+        
+        // التعامل مع بنية الاستجابة المختلفة
+        let data = response.data;
+        if (data && data.data) {
+            data = data.data;
+        }
         
         requestDetails.value = {
-            id: response.data.id,
-            shipmentNumber: response.data.shipmentNumber || response.data.code || `SH-${response.data.id}`,
-            createdAt: response.data.createdAt || response.data.requestDate,
-            status: response.data.status,
-            items: response.data.items || [],
-            notes: response.data.notes,
-            rejectionReason: response.data.rejectionReason,
-            confirmationNotes: response.data.confirmationNotes,
-            rejectedAt: response.data.rejectedAt,
-            confirmedAt: response.data.confirmedAt
+            id: data.id || props.requestData.id,
+            shipmentNumber: data.shipmentNumber || data.code || `EXT-${data.id || props.requestData.id}`,
+            createdAt: data.createdAt || data.requestDate || props.requestData.createdAt,
+            status: data.status || props.requestData.status,
+            items: data.items || props.requestData.items || [],
+            notes: data.notes || props.requestData.notes,
+            storekeeperNotes: data.storekeeperNotes || props.requestData.storekeeperNotes,
+            supplierNotes: data.supplierNotes || props.requestData.supplierNotes,
+            rejectionReason: data.rejectionReason || props.requestData.rejectionReason,
+            confirmationNotes: data.confirmationNotes,
+            confirmationDetails: data.confirmationDetails || props.requestData.confirmationDetails,
+            rejectedAt: data.rejectedAt,
+            confirmedAt: data.confirmedAt,
+            requestingDepartment: data.requestingDepartment || data.department || props.requestData.requestingDepartment,
+            department: data.department || data.requestingDepartment || props.requestData.department
         };
     } catch (err) {
-        modalError.value = 'حدث خطأ في تحميل تفاصيل الشحنة';
         console.error('Error fetching shipment details:', err);
+        // في حالة الخطأ، استخدم البيانات المرسلة من الصفحة الرئيسية
+        if (props.requestData.items && props.requestData.items.length > 0) {
+            requestDetails.value = { ...props.requestData };
+        } else {
+            modalError.value = 'حدث خطأ في تحميل تفاصيل الشحنة';
+        }
     } finally {
         isLoading.value = false;
     }
@@ -261,10 +401,33 @@ const fetchRequestDetails = async () => {
 
 // Watch لتحديث البيانات عند فتح المودال
 watch(() => props.isOpen, (newVal) => {
-    if (newVal && props.requestData.id) {
-        fetchRequestDetails();
+    if (newVal) {
+        // تحديث البيانات من props أولاً
+        requestDetails.value = {
+            ...props.requestData,
+            rejectionReason: props.requestData.rejectionReason || null,
+            rejectedAt: props.requestData.rejectedAt || null,
+            notes: props.requestData.notes || '',
+            storekeeperNotes: props.requestData.storekeeperNotes || null,
+            supplierNotes: props.requestData.supplierNotes || null
+        };
+        
+        // إذا كان هناك id، جلب التفاصيل الكاملة من API
+        if (props.requestData.id) {
+            fetchRequestDetails();
+        }
     }
 }, { immediate: true });
+
+// Watch لتحديث البيانات عند تغيير requestData
+watch(() => props.requestData, (newData) => {
+    if (props.isOpen && newData) {
+        requestDetails.value = { ...newData };
+        if (newData.id) {
+            fetchRequestDetails();
+        }
+    }
+}, { deep: true });
 
 // دالة تنسيق التاريخ
 const formatDate = (dateString) => {
@@ -295,7 +458,7 @@ const getStatusClass = (status) => {
     if (statusLower.includes('مؤكد') || statusLower.includes('confirmed') || statusLower.includes('تم الإرسال')) {
         return 'bg-blue-100 text-blue-700';
     }
-    if (statusLower.includes('قيد الانتظار') || statusLower.includes('pending') || 
+    if (statusLower.includes('جديد') || statusLower.includes('قيد الانتظار') || statusLower.includes('pending') || 
         statusLower.includes('قيد المراجعة') || statusLower.includes('قيد التجهيز') || 
         statusLower.includes('processing')) {
         return 'bg-yellow-100 text-yellow-700';

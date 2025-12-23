@@ -72,7 +72,7 @@ const fetchOperations = async () => {
         } else if (!error.response) {
             showSuccessAlert("❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.");
         } else {
-            showSuccessAlert("❌ فشل في تحميل البيانات.");
+        showSuccessAlert("❌ فشل في تحميل البيانات.");
         }
     } finally {
         isLoading.value = false;

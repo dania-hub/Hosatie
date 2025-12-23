@@ -94,6 +94,10 @@ class ShipmentDepartmentAdminController extends BaseApiController
             'status' => $this->translateStatus($shipment->status),
             'requestDate' => $shipment->created_at->toIso8601String(),
             'items' => $shipment->items->map(function($item) {
+                // الكمية المرسلة من storekeeper هي approved_qty
+                // إذا كانت null، نستخدم requested_qty كقيمة افتراضية (لكن هذا يعني أن الطلب لم يُرسل بعد)
+                $sentQuantity = $item->approved_qty ?? null;
+                
                 return [
                     'id' => $item->id,
                     'drugId' => $item->drug_id,
@@ -106,7 +110,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
                     'approved_qty' => $item->approved_qty ?? null,
                     'fulfilledQty' => $item->fulfilled_qty ?? null,
                     'fulfilled_qty' => $item->fulfilled_qty ?? null,
-                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
+                    'sentQuantity' => $sentQuantity, // الكمية المرسلة من storekeeper
+                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط
                     'unit' => $item->drug->unit ?? 'وحدة',
                     'genericName' => $item->drug->generic_name ?? null,
                     'strength' => $item->drug->strength ?? null,
@@ -172,6 +177,10 @@ class ShipmentDepartmentAdminController extends BaseApiController
             }
             
             // تحديث fulfilled_qty بالكمية المستلمة الفعلية
+            // ملاحظة:
+            // - requested_qty: الكمية المطلوبة الأصلية (لا يتم تعديلها)
+            // - approved_qty: الكمية المرسلة من storekeeper (لا يتم تعديلها)
+            // - fulfilled_qty: الكمية المستلمة الفعلية من department (يتم تحديثها هنا)
             $item->fulfilled_qty = $qtyToSet;
             $item->save();
         }

@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
+use App\Models\Drug;
 use Illuminate\Http\Request;
 
 class OperationLogController extends BaseApiController
@@ -18,12 +19,15 @@ class OperationLogController extends BaseApiController
             $user = User::find($log->user_id);
             $patientName = $this->getPatientName($log);
             $translatedAction = $this->translateAction($log->action);
+            
+            // إضافة تفاصيل الدواء إذا كانت العملية متعلقة بدواء
+            $operationType = $this->addDrugDetails($log, $translatedAction);
 
             return [
                 'fileNumber'    => $log->record_id,                       // أو صيغة أخرى
                 'name'          => $user->full_name ?? 'غير معروف',
                 'patientName'   => $patientName,                          // اسم المريض أو "-"
-                'operationType' => $translatedAction,                     // نوع العملية معرّب
+                'operationType' => $operationType,                       // نوع العملية معرّب مع تفاصيل الدواء إن وجدت
                 'operationDate' => $log->created_at?->format('Y/m/d'),
             ];
         });
@@ -171,5 +175,70 @@ class OperationLogController extends BaseApiController
         
         // في حالة عدم وجود ترجمة، أعد النص الأصلي
         return $action;
+    }
+
+    /**
+     * إضافة تفاصيل الدواء (الاسم والكمية) إلى نوع العملية
+     * 
+     * @param AuditLog $log
+     * @param string $translatedAction
+     * @return string
+     */
+    private function addDrugDetails($log, $translatedAction)
+    {
+        // فقط للعمليات المتعلقة بالأدوية في الوصفات
+        if ($log->table_name !== 'prescription_drug') {
+            return $translatedAction;
+        }
+
+        $drugName = null;
+        $quantity = null;
+
+        try {
+            // محاولة جلب معلومات الدواء من السجل
+            $prescriptionDrug = PrescriptionDrug::with('drug')->find($log->record_id);
+            
+            if ($prescriptionDrug && $prescriptionDrug->drug) {
+                $drugName = $prescriptionDrug->drug->name;
+                $quantity = $prescriptionDrug->monthly_quantity;
+            } else {
+                // في حالة الحذف أو عدم وجود السجل، محاولة جلب المعلومات من JSON
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+                
+                // محاولة من new_values أولاً
+                if ($newValues && isset($newValues['drug_id'])) {
+                    $drug = Drug::find($newValues['drug_id']);
+                    if ($drug) {
+                        $drugName = $drug->name;
+                    }
+                    $quantity = $newValues['monthly_quantity'] ?? null;
+                } 
+                // محاولة من old_values إذا لم نجد في new_values
+                elseif ($oldValues && isset($oldValues['drug_id'])) {
+                    $drug = Drug::find($oldValues['drug_id']);
+                    if ($drug) {
+                        $drugName = $drug->name;
+                    }
+                    $quantity = $oldValues['monthly_quantity'] ?? null;
+                }
+            }
+        } catch (\Exception $e) {
+            // في حالة الخطأ، نستمر بدون تفاصيل الدواء
+            \Log::warning('Failed to get drug details for audit log', [
+                'log_id' => $log->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        // بناء النص مع التفاصيل
+        if ($drugName && $quantity !== null) {
+            return $translatedAction . ' - الدواء: ' . $drugName . ' - الكمية: ' . $quantity;
+        } elseif ($drugName) {
+            return $translatedAction . ' - الدواء: ' . $drugName;
+        }
+
+        // إذا لم توجد تفاصيل الدواء، أعد النص الأصلي
+        return $translatedAction;
     }
 }

@@ -124,13 +124,33 @@ class ExternalSupplyRequestController extends BaseApiController
             // إعداد confirmationDetails إذا تم تأكيد الاستلام
             $confirmationDetails = null;
             if ($isDelivered) {
+                // جلب الكميات المرسلة الأصلية من audit_log
+                $originalSentQuantities = [];
+                $auditLog = AuditLog::where('table_name', 'external_supply_request')
+                    ->where('record_id', $req->id)
+                    ->where('action', 'storekeeper_confirm_external_delivery')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                if ($auditLog && $auditLog->old_values) {
+                    $oldValues = json_decode($auditLog->old_values, true);
+                    if (isset($oldValues['items']) && is_array($oldValues['items'])) {
+                        foreach ($oldValues['items'] as $auditItem) {
+                            if (isset($auditItem['item_id']) && isset($auditItem['sentQuantity'])) {
+                                $originalSentQuantities[$auditItem['item_id']] = $auditItem['sentQuantity'];
+                            }
+                        }
+                    }
+                }
+                
                 $confirmationDetails = [
                     'confirmedAt' => $req->updated_at->format('Y-m-d H:i:s'),
-                    'receivedItems' => $req->items->map(function($item) {
+                    'receivedItems' => $req->items->map(function($item) use ($originalSentQuantities) {
                         return [
                             'id' => $item->id,
                             'name' => $item->drug->name ?? 'غير محدد',
-                            'receivedQuantity' => $item->fulfilled_qty ?? 0,
+                            'sentQuantity' => $originalSentQuantities[$item->id] ?? $item->approved_qty ?? 0, // الكمية المرسلة الأصلية من audit_log
+                            'receivedQuantity' => $item->fulfilled_qty ?? 0, // الكمية المستلمة الفعلية
                             'unit' => $item->drug->unit ?? 'وحدة'
                         ];
                     })->toArray()
@@ -164,6 +184,9 @@ class ExternalSupplyRequestController extends BaseApiController
                         'fulfilled'         => $item->fulfilled_qty,
                         'fulfilled_qty'     => $item->fulfilled_qty,
                         'fulfilledQty'      => $item->fulfilled_qty,
+                        // sentQuantity يجب أن يكون fulfilled_qty (الكمية الفعلية المرسلة من المورد)
+                        // وليس approved_qty (الكمية المعتمدة من HospitalAdmin)
+                        'sentQuantity'      => $item->fulfilled_qty ?? $item->approved_qty,
                         'unit'              => $item->drug->unit ?? 'وحدة',
                         'dosage'            => $item->drug->strength ?? null,
                         'strength'          => $item->drug->strength ?? null,
@@ -365,12 +388,19 @@ class ExternalSupplyRequestController extends BaseApiController
                 }
             }
 
+            // حفظ الكميات المرسلة الأصلية قبل تحديثها
+            $originalSentQuantities = [];
+            
             // تحديث الكميات المستلمة لكل عنصر وإضافة للمخزون
             foreach ($validated['items'] as $itemData) {
                 $item = $externalRequest->items->firstWhere('id', $itemData['id']);
                 if (!$item) {
                     continue;
                 }
+
+                // حفظ الكمية المرسلة الأصلية قبل تحديثها
+                $originalSentQty = $item->fulfilled_qty ?? $item->approved_qty ?? 0;
+                $originalSentQuantities[$item->id] = $originalSentQty;
 
                 $receivedQty = (float)($itemData['receivedQuantity'] ?? 0);
                 if ($receivedQty <= 0) {
@@ -410,7 +440,7 @@ class ExternalSupplyRequestController extends BaseApiController
 
             DB::commit();
 
-            // تسجيل العملية
+            // تسجيل العملية مع حفظ الكميات المرسلة الأصلية
             try {
                 AuditLog::create([
                     'user_id' => $user->id,
@@ -418,7 +448,15 @@ class ExternalSupplyRequestController extends BaseApiController
                     'action' => 'storekeeper_confirm_external_delivery',
                     'table_name' => 'external_supply_request',
                     'record_id' => $externalRequest->id,
-                    'old_values' => json_encode(['status' => 'fulfilled']),
+                    'old_values' => json_encode([
+                        'status' => 'fulfilled',
+                        'items' => collect($externalRequest->items)->map(function($item) use ($originalSentQuantities) {
+                            return [
+                                'item_id' => $item->id,
+                                'sentQuantity' => $originalSentQuantities[$item->id] ?? $item->fulfilled_qty ?? $item->approved_qty ?? 0
+                            ];
+                        })->toArray()
+                    ]),
                     'new_values' => json_encode([
                         'status' => 'fulfilled',
                         'confirmed_delivery' => true,
@@ -437,12 +475,13 @@ class ExternalSupplyRequestController extends BaseApiController
             // إعداد بيانات confirmation
             $confirmationData = [
                 'confirmedAt' => now()->format('Y-m-d H:i:s'),
-                'receivedItems' => $externalRequest->items->map(function($item) use ($validated) {
+                'receivedItems' => $externalRequest->items->map(function($item) use ($validated, $originalSentQuantities) {
                     $itemData = collect($validated['items'])->firstWhere('id', $item->id);
                     return [
                         'id' => $item->id,
                         'name' => $item->drug->name ?? 'غير محدد',
-                        'receivedQuantity' => $itemData['receivedQuantity'] ?? $item->fulfilled_qty ?? 0,
+                        'sentQuantity' => $originalSentQuantities[$item->id] ?? $item->fulfilled_qty ?? $item->approved_qty ?? 0, // الكمية المرسلة الأصلية
+                        'receivedQuantity' => $itemData['receivedQuantity'] ?? $item->fulfilled_qty ?? 0, // الكمية المستلمة الفعلية
                         'unit' => $item->drug->unit ?? 'وحدة'
                     ];
                 })->toArray()

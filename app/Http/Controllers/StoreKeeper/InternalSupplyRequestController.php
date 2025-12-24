@@ -35,10 +35,10 @@ class InternalSupplyRequestController extends BaseApiController
                     'name' => $req->pharmacy->name ?? 'صيدلية غير محددة',
                 ],
                 'items'             => [], // ستُجلب بالتفصيل في show
-                'notes'             => $req->notes,
+                'notes'             => null, // تم إزالة عمود notes من الجدول
                 'createdAt'         => $req->created_at,
                 'updatedAt'         => $req->updated_at,
-                'rejectionReason'   => $req->notes, // لو استعملت notes للرفض أيضاً
+                'rejectionReason'   => null, // تم إزالة عمود notes من الجدول
                 'confirmedBy'       => null,
                 'confirmedAt'       => null,
             ];
@@ -93,7 +93,7 @@ class InternalSupplyRequestController extends BaseApiController
             'department'     => $req->pharmacy->name ?? 'صيدلية غير محددة',
             'date'           => $req->created_at,
             'status'         => $this->mapStatusToArabic($req->status),
-            'notes'          => $req->notes,
+            'notes'          => null, // تم إزالة عمود notes من الجدول
             'items'          => $req->items->map(function ($item) use ($warehouseId, $req) {
                 // جلب المخزون المتاح لهذا الدواء في المستودع
                 $inventory = Inventory::where('warehouse_id', $warehouseId)
@@ -154,9 +154,10 @@ class InternalSupplyRequestController extends BaseApiController
                     'quantity'       => $item->requested_qty, // للتوافق مع المكون
                     'approved_qty'   => $item->approved_qty,
                     'fulfilled_qty'  => $item->fulfilled_qty,
-                    'sentQuantity'   => $item->approved_qty, // للتوافق مع المكون
+                    'sentQuantity'   => $item->approved_qty ?? $suggestedQuantity, // للتوافق مع المكون - استخدام approved_qty إذا كان موجوداً، وإلا suggestedQuantity
                     'receivedQuantity' => $item->fulfilled_qty, // للتوافق مع المكون
                     'availableQuantity' => $availableStock, // المخزون المتاح
+                    'suggestedQuantity' => $suggestedQuantity, // الكمية المقترحة من الـ API
                     'stock'          => $availableStock, // للتوافق مع المكون
                     'suggestedQuantity' => $suggestedQuantity, // الكمية المقترحة
                     'totalOtherRequestsQty' => $totalOtherRequestsQty, // إجمالي طلبات الأدوية الأخرى
@@ -192,9 +193,27 @@ class InternalSupplyRequestController extends BaseApiController
         }
 
         $req->status = 'rejected';
-        // يمكنك تخزين سبب الرفض في notes أو في عمود مستقل لو أضفته
-        $req->notes = trim(($req->notes ? $req->notes . "\n" : '') . 'سبب الرفض: ' . $validated['rejectionReason']);
+        // ملاحظة: تم إزالة عمود notes من الجدول، لذا نحفظ سبب الرفض في audit_log فقط
         $req->save();
+        
+        // تسجيل سبب الرفض في audit_log
+        try {
+            AuditLog::create([
+                'user_id'    => $user->id,
+                'hospital_id'=> $user->hospital_id,
+                'action'     => 'رفض طلب توريد داخلي',
+                'table_name' => 'internal_supply_request',
+                'record_id'  => $req->id,
+                'old_values' => json_encode(['status' => 'pending']),
+                'new_values' => json_encode([
+                    'status' => 'rejected',
+                    'rejectionReason' => $validated['rejectionReason']
+                ]),
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to log rejection reason', ['error' => $e->getMessage()]);
+        }
 
         return response()->json(['message' => 'تم رفض الطلب الداخلي بنجاح']);
     }
@@ -317,8 +336,11 @@ class InternalSupplyRequestController extends BaseApiController
                 $check['inventory']->save();
 
                 // تثبيت الكميات في عناصر الطلب الداخلي
-                $check['item']->approved_qty  = $check['qty'];
-                $check['item']->fulfilled_qty = 0; // لم تستلم الصيدلية بعد
+                // ملاحظة: requested_qty لا يتم تعديله (يحتوي على الكمية المطلوبة الأصلية من pharmacist/department)
+                // approved_qty: الكمية التي يتم إرسالها من storekeeper
+                // fulfilled_qty: الكمية التي استلمتها pharmacist/department (سيتم تحديثها لاحقاً عند الاستلام)
+                $check['item']->approved_qty  = $check['qty']; // الكمية المرسلة من storekeeper
+                $check['item']->fulfilled_qty = 0; // لم تستلم الصيدلية بعد، سيتم تحديثها عند الاستلام
                 $check['item']->save();
             }
 
@@ -326,9 +348,7 @@ class InternalSupplyRequestController extends BaseApiController
             
             // تحديث حالة الطلب
             $req->status = 'approved';
-            if (!empty($validated['notes'])) {
-                $req->notes = trim(($req->notes ? $req->notes . "\n" : '') . 'ملاحظات أمين المخزن: ' . $validated['notes']);
-            }
+            // ملاحظة: تم إزالة عمود notes من الجدول، لذا نحفظ الملاحظات في audit_log فقط
             $req->save();
 
             \Log::info('Committing transaction');
@@ -349,7 +369,7 @@ class InternalSupplyRequestController extends BaseApiController
                         'items'  => collect($validated['items'])->map(fn($i) => [
                             'item_id'       => $i['id'],
                             'sentQuantity'  => $i['sentQuantity'],
-                        ]),
+                        ])->toArray(),
                         'notes'  => $validated['notes'] ?? null,
                     ]),
                     'ip_address' => $request->ip(),
@@ -372,6 +392,7 @@ class InternalSupplyRequestController extends BaseApiController
                 'error'   => $e->getMessage(),
             ], 500);
         }
-}}
+    }
+}
 
  

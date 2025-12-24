@@ -56,9 +56,14 @@
                             <span :class="statusClass" class="px-3 py-1 rounded-lg text-sm font-bold">{{ requestDetails.status || 'جديد' }}</span>
                         </div>
                         
-                        <div v-if="requestDetails.confirmation?.confirmedAt" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center md:col-span-2">
-                            <span class="text-gray-500 font-medium">تاريخ الإرسال/التأكيد</span>
-                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.confirmation.confirmedAt) }}</span>
+                        <div v-if="isReceivedStatus && requestDetails.confirmation?.confirmedAt" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center md:col-span-2">
+                            <span class="text-gray-500 font-medium">تاريخ الاستلام</span>
+                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.confirmation.confirmedAt) || 'غير محدد' }}</span>
+                        </div>
+                        
+                        <div v-if="isSentStatus && !isReceivedStatus && requestDetails.confirmation?.confirmedAt" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center md:col-span-2">
+                            <span class="text-gray-500 font-medium">تاريخ الإرسال</span>
+                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.confirmation.confirmedAt) || 'غير محدد' }}</span>
                         </div>
 
                         <div v-if="requestDetails.priority" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center md:col-span-2">
@@ -159,13 +164,32 @@
                 </div>
 
                 <!-- Notes -->
-                <div v-if="requestDetails.notes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
                     </h3>
 
-                    <div v-if="requestDetails.confirmation?.notes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                    <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
+                    <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                            ملاحظة مسؤول المخزن
+                        </h4>
+                        <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
+                    </div>
+
+                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
+                    <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                        <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة المورد
+                        </h4>
+                        <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
+                    </div>
+
+                    <!-- للتوافق مع الكود القديم -->
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
                             ملاحظة الإرسال
@@ -173,7 +197,7 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <div v-if="requestDetails.notes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmation?.notes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             ملاحظة الطلب الأصلية
@@ -201,6 +225,37 @@
                         <div v-if="requestDetails.confirmation.totalItemsSent" class="sm:col-span-2">
                             <span class="text-purple-600 text-sm block mb-1">إجمالي الوحدات المرسلة</span>
                             <span class="font-bold text-purple-900 text-lg">{{ requestDetails.confirmation.totalItemsSent }}</span>
+                        </div>
+                        
+                        <!-- ملاحظة تأكيد الاستلام من مسؤول المخزن -->
+                        <div v-if="requestDetails.confirmation.confirmationNotes" class="sm:col-span-2 mt-4 p-4 bg-white/50 rounded-xl border border-purple-100/50">
+                            <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                ملاحظة تأكيد الاستلام
+                            </h4>
+                            <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation.confirmationNotes }}</p>
+                        </div>
+                        
+                        <!-- الكميات المرسلة والمستلمة -->
+                        <div v-if="requestDetails.confirmation.receivedItems && requestDetails.confirmation.receivedItems.length > 0" class="sm:col-span-2 mt-4">
+                            <span class="text-purple-600 text-sm block mb-2">الكميات المرسلة والمستلمة</span>
+                            <div class="space-y-2">
+                                <div 
+                                    v-for="(receivedItem, idx) in requestDetails.confirmation.receivedItems" 
+                                    :key="idx"
+                                    class="bg-white/50 p-3 rounded-xl border border-purple-100/50 flex justify-between items-center"
+                                >
+                                    <span class="font-medium text-purple-900">{{ receivedItem.name }}</span>
+                                    <div class="flex gap-4">
+                                        <span class="text-sm text-purple-600">
+                                            مرسل: <span class="font-bold">{{ receivedItem.sentQuantity || 0 }}</span> {{ receivedItem.unit }}
+                                        </span>
+                                        <span class="text-sm text-purple-600">
+                                            مستلم: <span class="font-bold">{{ receivedItem.receivedQuantity || 0 }}</span> {{ receivedItem.unit }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -239,6 +294,8 @@ const props = defineProps({
             status: '', 
             items: [], 
             notes: '',
+            storekeeperNotes: null,
+            supplierNotes: null,
             confirmation: null,
             rejectionReason: null,
             priority: null
@@ -253,7 +310,32 @@ const requestDetails = ref({ ...props.requestData });
 // Watch لتحديث البيانات
 watch(() => props.requestData, (newVal) => {
     if (newVal) {
-        requestDetails.value = { ...newVal };
+        console.log('📋 RequestViewModal - Updating data:', {
+            rejectionReason: newVal.rejectionReason,
+            rejectedAt: newVal.rejectedAt,
+            notes: newVal.notes,
+            storekeeperNotes: newVal.storekeeperNotes,
+            supplierNotes: newVal.supplierNotes,
+            status: newVal.status,
+            fullData: newVal
+        });
+        // التأكد من نسخ جميع البيانات بشكل صحيح
+        requestDetails.value = {
+            ...newVal,
+            rejectionReason: newVal.rejectionReason || null,
+            rejectedAt: newVal.rejectedAt || null,
+            notes: newVal.notes || '',
+            storekeeperNotes: newVal.storekeeperNotes || null,
+            supplierNotes: newVal.supplierNotes || null
+        };
+        console.log('📋 RequestViewModal - Updated requestDetails:', {
+            rejectionReason: requestDetails.value.rejectionReason,
+            rejectedAt: requestDetails.value.rejectedAt,
+            notes: requestDetails.value.notes,
+            storekeeperNotes: requestDetails.value.storekeeperNotes,
+            supplierNotes: requestDetails.value.supplierNotes,
+            hasRejectionReason: !!requestDetails.value.rejectionReason
+        });
     }
 }, { immediate: true, deep: true });
 
@@ -262,10 +344,16 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
+        // التحقق من أن التاريخ صحيح
+        if (isNaN(date.getTime())) {
+            return dateString; // إرجاع التاريخ الأصلي إذا كان غير صحيح
+        }
         return date.toLocaleDateString('ar-SA', {
             year: 'numeric',
             month: '2-digit',
-            day: '2-digit'
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
         });
     } catch {
         return dateString;
@@ -293,22 +381,121 @@ const getRequestedQuantity = (item) => {
 
 // دالة لاستخراج الكمية المرسلة
 const getSentQuantity = (item) => {
-    // محاولة الحصول من confirmation أولاً
+    // أولوية 1: الحصول من confirmation.receivedItems (يحتوي على الكمية المرسلة الأصلية من audit_log)
+    if (requestDetails.value.confirmation?.receivedItems) {
+        const receivedItem = requestDetails.value.confirmation.receivedItems.find(
+            ri => (item.id && ri.id === item.id) || (ri.name && item.name && ri.name === item.name)
+        );
+        if (receivedItem && receivedItem.sentQuantity !== null && receivedItem.sentQuantity !== undefined) {
+            const val = Number(receivedItem.sentQuantity);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+    }
+    // أولوية 2: محاولة الحصول من confirmation.items (للتوافق مع الإصدارات القديمة)
     if (requestDetails.value.confirmation?.items) {
         const sentItem = requestDetails.value.confirmation.items.find(
             si => si.id === item.id || si.drugId === item.id
         );
-        if (sentItem) {
-            return sentItem.sentQuantity || sentItem.receivedQuantity || 0;
+        if (sentItem && sentItem.sentQuantity !== null && sentItem.sentQuantity !== undefined) {
+            const val = Number(sentItem.sentQuantity);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
         }
     }
-    // ثم من الحقول المباشرة
-    return item.approved_qty || item.sentQuantity || item.receivedQuantity || item.provided || 0;
+    // أولوية 3: إذا تم تأكيد الاستلام، نستخدم sentQuantity من confirmation.receivedItems فقط
+    // لأن fulfilled_qty بعد تأكيد الاستلام يكون الكمية المستلمة وليس المرسلة
+    if (isReceivedStatus.value) {
+        // إذا تم تأكيد الاستلام، لا نستخدم fulfilled_qty لأنه أصبح الكمية المستلمة
+        // نستخدم approved_qty أو sentQuantity من item
+        if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
+            const val = Number(item.sentQuantity);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
+            const val = Number(item.approved_qty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
+            const val = Number(item.approvedQty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+    } else {
+        // لم يتم تأكيد الاستلام بعد، يمكن استخدام fulfilled_qty (الكمية الفعلية المرسلة من المورد)
+        if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
+            const val = Number(item.fulfilled_qty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
+            const val = Number(item.fulfilledQty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        // إذا لم يكن fulfilled_qty موجوداً، نستخدم approved_qty
+        if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
+            const val = Number(item.approved_qty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
+            const val = Number(item.approvedQty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
+            const val = Number(item.sentQuantity);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+    }
+    return 0;
 };
 
 // دالة لاستخراج الكمية المستلمة
 const getReceivedQuantity = (item) => {
-    return item.fulfilled_qty || item.receivedQuantity || 0;
+    // أولوية 1: receivedQuantity من confirmation.receivedItems (الكمية المستلمة الفعلية من audit_log)
+    if (requestDetails.value.confirmation?.receivedItems) {
+        const receivedItem = requestDetails.value.confirmation.receivedItems.find(
+            ri => (item.id && ri.id === item.id) || (ri.name && item.name && ri.name === item.name)
+        );
+        if (receivedItem && receivedItem.receivedQuantity !== null && receivedItem.receivedQuantity !== undefined) {
+            const val = Number(receivedItem.receivedQuantity);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+    }
+    // أولوية 2: receivedQuantity مباشرة من item (إذا تم تمريره من الصفحة)
+    if (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity !== '') {
+        const val = Number(item.receivedQuantity);
+        if (!isNaN(val) && val >= 0) {
+            return val;
+        }
+    }
+    // ملاحظة: لا نستخدم fulfilled_qty هنا لأنه قد يكون الكمية المرسلة وليس المستلمة
+    // فقط نستخدمه كحل أخير إذا لم نجد receivedQuantity في أي مكان
+    // ولكن فقط إذا كانت الحالة "تم الاستلام" (لأن fulfilled_qty بعد تأكيد الاستلام يكون الكمية المستلمة)
+    if (isReceivedStatus.value && (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined)) {
+        const val = Number(item.fulfilled_qty);
+        if (!isNaN(val) && val >= 0) {
+            return val;
+        }
+    }
+    return 0;
 };
 
 // تحديد حالة الإرسال

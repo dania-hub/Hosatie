@@ -152,6 +152,7 @@ const fetchDepartments = async () => {
         availableDepartments.value = data.map(dept => ({
             id: dept.id,
             name: dept.name,
+            isActive: dept.isActive !== undefined ? dept.isActive : true,
         }));
     } catch (err) {
         console.error("Error fetching departments:", err);

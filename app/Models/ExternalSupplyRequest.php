@@ -42,6 +42,9 @@ protected $casts = [
         return $this->belongsTo(User::class, 'handeled_by');
     }
 
+    // ملاحظة: rejected_by غير موجود في الجدول
+    // يمكن استخدام notes لحفظ معلومات الرفض
+
     public function items()
     {
         return $this->hasMany(ExternalSupplyRequestItem::class, 'request_id');

@@ -25,12 +25,16 @@ class SupplyRequestSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
+            // جلب فقط الطلبات المعتمدة من HospitalAdmin (status = 'approved')
+            // هذه الطلبات جاءت من StoreKeeper وتم اعتمادها من HospitalAdmin
             $requests = ExternalSupplyRequest::with([
                 'hospital:id,name,city',
                 'requester:id,full_name',
+                'approver:id,full_name',
                 'items.drug:id,name'
             ])
                 ->where('supplier_id', $user->supplier_id)
+                ->where('status', 'approved') // فقط الطلبات المعتمدة من HospitalAdmin
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->map(function ($request) {
@@ -42,6 +46,7 @@ class SupplyRequestSupplierController extends BaseApiController
                         'statusOriginal' => $request->status,
                         'itemsCount' => $request->items->count(),
                         'createdAt' => $request->created_at->format('Y/m/d'),
+                        'approvedBy' => $request->approver?->full_name ?? 'مدير المستشفى',
                     ];
                 });
 
@@ -219,7 +224,7 @@ class SupplyRequestSupplierController extends BaseApiController
     {
         $statuses = [
             'pending' => 'قيد الانتظار',
-            'approved' => 'تم الموافقة',
+            'approved' => 'جديد',
             'fulfilled' => 'تم التنفيذ',
             'rejected' => 'مرفوض',
         ];

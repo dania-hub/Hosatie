@@ -11,7 +11,7 @@ class Complaint extends Model
 
     protected $table = 'complaints';
 
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'patient_id',
@@ -19,9 +19,7 @@ class Complaint extends Model
         'status',
         'replied_by',
         'reply_message',
-        'replied_at'
-        // ,'created_at', 'updated_at'
-       
+        'replied_at',
     ];
 
     protected $casts = [

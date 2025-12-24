@@ -111,29 +111,19 @@
         <p class="text-gray-600">جاري تحميل البيانات...</p>
       </div>
 
+      <!-- رسالة عدم وجود بيانات -->
+      <div v-else-if="!isLoading && patientsData.length === 0" class="flex flex-col items-center justify-center h-64">
+        <Icon icon="tabler:inbox-off" class="w-16 h-16 text-gray-400 mb-4" />
+        <p class="text-gray-600 text-lg">لا توجد شكاوى متاحة</p>
+      </div>
 
       <!-- جدول البيانات -->
-      <div
-       
-        class="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col"
-        style="min-height: 400px;"
-      >
-        <div
-          class="overflow-y-auto flex-1"
-         style="
-                            scrollbar-width: auto;
-                            scrollbar-color: grey transparent;
-                            direction: ltr;
-                        "
-        >
-          <div class="overflow-x-auto h-full">
-            <table
-              dir="rtl"
-              class="table w-full text-right border-collapse"
-            >
-              <thead
-                class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
-              >
+       <div v-if="!isLoading && patientsData.length > 0" class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
+          <div class="overflow-y-auto flex-1" style="scrollbar-width: auto; scrollbar-color: grey transparent; direction: ltr;">
+            <div class="overflow-x-auto h-full">
+              <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
+                <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
+                
                 <tr>
                   <th class="file-number-col">رقم الملف</th>
                   <th class="patient-name-col">اسم المريض</th>
@@ -148,7 +138,7 @@
                 <tr
                   v-for="patient in filteredPatients"
                   :key="patient.id"
-                  class="hover:bg-gray-50 bg-white border-b border-gray-100 transition-colors"
+                  class="hover:bg-gray-50  border-b border-gray-100 transition-colors"
                 >
                   <td class="font-semibold text-gray-700 py-4">
                     {{ patient.fileNumber || 'غير محدد' }}
@@ -193,15 +183,14 @@
                         @click="openResponseModal(patient)"
                         class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
                         data-tip="الرد على الطلب"
-                        :disabled="patient.status === 'تم الرد' || patient.status === 'مرفوض' || isLoadingResponse"
+                        :disabled="patient.status === 'تمت المراجعة' || isLoadingResponse"
                       >
                         <Icon
                           icon="tabler:message-reply"
                           class="w-5 h-5 text-blue-600 hover:text-blue-700 transition-colors"
                           :class="{
                             'opacity-50 cursor-not-allowed': 
-                              patient.status === 'تم الرد' || 
-                              patient.status === 'مرفوض' ||
+                              patient.status === 'تمت المراجعة' ||
                               isLoadingResponse
                           }"
                         />
@@ -234,7 +223,7 @@
       :is-loading="isLoadingResponse"
     />
 
-    <!-- تنبيه النجاح -->
+    <!-- تنبيه النجاح/الخطأ -->
     <Transition
       enter-active-class="transition duration-300 ease-out transform"
       enter-from-class="translate-x-full opacity-0"
@@ -245,11 +234,20 @@
     >
       <div
         v-if="isSuccessAlertVisible"
-        class="fixed top-4 right-4 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-sm transition-all duration-300"
+        :class="{
+          'bg-green-500': alertType === 'success',
+          'bg-red-500': alertType === 'error',
+          'bg-yellow-500': alertType === 'warning',
+          'bg-blue-500': alertType === 'info'
+        }"
+        class="fixed top-4 right-4 z-[1000] p-4 text-right text-white rounded-lg shadow-xl max-w-sm transition-all duration-300"
         dir="rtl"
       >
         <div class="flex items-center">
-          <Icon icon="tabler:check" class="w-5 h-5 ml-2" />
+          <Icon 
+            :icon="alertType === 'error' ? 'tabler:x' : alertType === 'warning' ? 'tabler:alert-triangle' : alertType === 'info' ? 'tabler:info-circle' : 'tabler:check'" 
+            class="w-5 h-5 ml-2" 
+          />
           <span>{{ successMessage }}</span>
         </div>
       </div>
@@ -271,54 +269,52 @@ import RequestResponseModal from '@/components/forhospitaladmin/RequestResponseM
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_BASE_URL = import.meta.env.VUE_APP_API_BASE_URL || 'http://localhost:3000/api';
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
-// إضافة interceptor للتعامل مع الأخطاء
-api.interceptors.response.use(
-  (response) => {
-    // إذا كان الرد يحتوي على data
-    if (response.data && typeof response.data === 'object') {
-      return response.data;
+// إضافة interceptor لإضافة الـ token تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    return response;
+    return config;
   },
   (error) => {
-    console.error('API Error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
-    
-    const errorMessage = error.response?.data?.message || 
-                        error.message || 
-                        'حدث خطأ في الاتصال بالخادم';
-    
-    return Promise.reject(new Error(errorMessage));
+    return Promise.reject(error);
+  }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء (نفس الطريقة المستخدمة في employeesList.vue)
+api.interceptors.response.use(
+  (response) => response, // إرجاع response كاملاً بدون تعديل
+  (error) => {
+    if (error.response?.status === 401) {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      console.error('Unauthenticated - Token exists:', !!token);
+      if (token) {
+        console.error('Token value (first 20 chars):', token.substring(0, 20) + '...');
+      } else {
+        console.error('No token found. Please login again.');
+      }
+    }
+    return Promise.reject(error);
   }
 );
 
 const endpoints = {
-  patients: {
-    getAll: () => api.get('/patients'),
-    getById: (id) => api.get(`/patients/${id}`),
-    update: (id, data) => api.put(`/patients/${id}`, data),
-    respond: (id, data) => api.post(`/patients/${id}/respond`, data),
-    reject: (id, data) => api.post(`/patients/${id}/reject`, data)
-  },
   requests: {
-    getAll: () => api.get('/requests'),
-    getById: (id) => api.get(`/requests/${id}`),
-    respond: (id, data) => api.post(`/requests/${id}/respond`, data),
-    reject: (id, data) => api.post(`/requests/${id}/reject`, data)
+    getAll: () => api.get('/admin-hospital/requests'),
+    getById: (id) => api.get(`/admin-hospital/requests/${id}`),
+    respond: (id, data) => api.post(`/admin-hospital/requests/${id}/respond`, data),
+    reject: (id, data) => api.post(`/admin-hospital/requests/${id}/reject`, data)
   }
 };
 
@@ -436,9 +432,9 @@ const getStatusClass = (status) => {
   if (!status) return 'bg-gray-100 text-gray-700';
   
   const statusClasses = {
-    'تم الرد': 'bg-green-100 text-green-700',
-    'مقبول': 'bg-green-100 text-green-700',
+    'تمت المراجعة': 'bg-green-100 text-green-700',
     'قيد المراجعة': 'bg-yellow-100 text-yellow-700',
+    'مقبول': 'bg-green-100 text-green-700',
     'معلق': 'bg-yellow-100 text-yellow-700',
     'مرفوض': 'bg-red-100 text-red-700',
     'ملغى': 'bg-red-100 text-red-700',
@@ -457,23 +453,55 @@ const fetchPatients = async () => {
   error.value = null;
   
   try {
-    // اختر الـ endpoint المناسب حسب هيكل API الخاص بك
-    // const response = await endpoints.patients.getAll();
+    console.log('Fetching complaints from:', '/admin-hospital/requests');
     const response = await endpoints.requests.getAll();
     
-    // التأكد من أن البيانات في الصيغة الصحيحة
-    patientsData.value = Array.isArray(response) ? response : 
-                       response.data ? response.data : 
-                       response.results ? response.results : 
-                       [];
+    console.log('Raw API Response:', response);
+    console.log('Response structure:', {
+      hasData: !!response.data,
+      isArray: Array.isArray(response.data),
+      hasNestedData: !!(response.data?.data),
+      hasSuccess: !!(response.data?.success)
+    });
+    
+    // التحقق من بنية الاستجابة (نفس الطريقة المستخدمة في employeesList.vue)
+    let data = [];
+    if (response.data) {
+      if (Array.isArray(response.data)) {
+        // إذا كانت البيانات مصفوفة مباشرة
+        data = response.data;
+        console.log('Using direct array from response.data');
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        // إذا كانت البيانات في response.data.data (من sendSuccess)
+        data = response.data.data;
+        console.log('Using nested array from response.data.data');
+      } else if (response.data.success && Array.isArray(response.data.data)) {
+        // إذا كانت الاستجابة من sendSuccess
+        data = response.data.data;
+        console.log('Using data from sendSuccess response');
+      }
+    }
+    
+    patientsData.value = data;
     
     if (patientsData.value.length === 0) {
       console.log('لا توجد بيانات متاحة');
+    } else {
+      console.log('✅ تم جلب', patientsData.value.length, 'شكوى بنجاح');
+      showSuccessAlert('✅ تم تحميل ' + patientsData.value.length + ' شكوى بنجاح');
     }
   } catch (err) {
     error.value = err.message || 'فشل في جلب البيانات من الخادم';
-    console.error('Error fetching patients:', err);
+    console.error('❌ Error fetching complaints:', err);
+    console.error('Error details:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+      url: err.config?.url
+    });
     patientsData.value = [];
+    const errorMessage = err.response?.data?.message || err.message || 'فشل في جلب قائمة الشكاوى.';
+    showSuccessAlert('❌ ' + errorMessage, 'error');
   } finally {
     isLoading.value = false;
   }
@@ -483,14 +511,25 @@ const fetchPatientDetails = async (patientId) => {
   isLoadingDetails.value = true;
   
   try {
-    // اختر الـ endpoint المناسب حسب هيكل API الخاص بك
-    // const response = await endpoints.patients.getById(patientId);
     const response = await endpoints.requests.getById(patientId);
     
-    return response.data || response;
+    // التحقق من بنية الاستجابة (نفس الطريقة المستخدمة في employeesList.vue)
+    let data = null;
+    if (response.data) {
+      if (response.data.data) {
+        data = response.data.data;
+      } else if (response.data.success && response.data.data) {
+        data = response.data.data;
+      } else {
+        data = response.data;
+      }
+    }
+    
+    return data;
   } catch (err) {
-    const errorMsg = `فشل في جلب تفاصيل الملف: ${err.message}`;
-    showSuccessAlert(errorMsg, 'error');
+    console.error('Error fetching complaint details:', err);
+    const errorMsg = err.response?.data?.message || err.message || 'فشل في جلب تفاصيل الشكوى';
+    showSuccessAlert('❌ ' + errorMsg, 'error');
     return null;
   } finally {
     isLoadingDetails.value = false;
@@ -524,8 +563,8 @@ const closePatientModal = () => {
 
 const openResponseModal = (patient) => {
   // التحقق من حالة المريض قبل فتح مودال الرد
-  if (patient.status === 'تم الرد' || patient.status === 'مرفوض' || patient.status === 'مكتمل') {
-    showSuccessAlert('لا يمكن الرد على هذا الطلب لأنه ' + patient.status, 'warning');
+  if (patient.status === 'تمت المراجعة') {
+    showSuccessAlert('لا يمكن الرد على هذه الشكوى لأنها ' + patient.status, 'warning');
     return;
   }
   
@@ -545,35 +584,37 @@ const handleRequestResponse = async (responseData) => {
   isLoadingResponse.value = true;
   
   try {
-    const patientId = selectedPatient.value.id;
+    const complaintId = selectedPatient.value.id;
     
     // إرسال الرد إلى API
     const apiData = {
       response: responseData.response,
-      notes: responseData.notes,
-      status: 'تم الرد'
+      notes: responseData.notes || null,
     };
     
-    // اختر الـ endpoint المناسب
-    // const result = await endpoints.patients.respond(patientId, apiData);
-    const result = await endpoints.requests.respond(patientId, apiData);
+    const result = await endpoints.requests.respond(complaintId, apiData);
     
     // تحديث البيانات المحلية
-    const patientIndex = patientsData.value.findIndex(p => p.id === patientId);
-    if (patientIndex !== -1) {
-      patientsData.value[patientIndex] = {
-        ...patientsData.value[patientIndex],
-        status: 'تم الرد',
-        response: responseData.response,
-        updatedAt: new Date().toISOString()
+    const complaintIndex = patientsData.value.findIndex(p => p.id === complaintId);
+    if (complaintIndex !== -1) {
+      const responseData_result = result.data?.data || result.data || result;
+      patientsData.value[complaintIndex] = {
+        ...patientsData.value[complaintIndex],
+        status: 'تمت المراجعة',
+        reply: responseData.response,
+        repliedAt: new Date().toISOString()
       };
     }
     
-    showSuccessAlert('✅ تم إرسال الرد بنجاح');
+    // إعادة جلب البيانات للتأكد من التحديث
+    await fetchPatients();
+    
+    const successMessage = result.data?.message || '✅ تم إرسال الرد بنجاح';
+    showSuccessAlert(successMessage);
     closeResponseModal();
   } catch (err) {
-    const errorMsg = `❌ فشل في إرسال الرد: ${err.message}`;
-    showSuccessAlert(errorMsg, 'error');
+    const errorMsg = err.response?.data?.message || err.message || '❌ فشل في إرسال الرد';
+    showSuccessAlert('❌ ' + errorMsg, 'error');
   } finally {
     isLoadingResponse.value = false;
   }
@@ -583,35 +624,36 @@ const handleRequestRejection = async (responseData) => {
   isLoadingResponse.value = true;
   
   try {
-    const patientId = selectedPatient.value.id;
+    const complaintId = selectedPatient.value.id;
     
     // إرسال سبب الرفض إلى API
     const apiData = {
       rejectionReason: responseData.rejectionReason,
-      notes: responseData.notes,
-      status: 'مرفوض'
+      notes: responseData.notes || null,
     };
     
-    // اختر الـ endpoint المناسب
-    // const result = await endpoints.patients.reject(patientId, apiData);
-    const result = await endpoints.requests.reject(patientId, apiData);
+    const result = await endpoints.requests.reject(complaintId, apiData);
     
     // تحديث البيانات المحلية
-    const patientIndex = patientsData.value.findIndex(p => p.id === patientId);
-    if (patientIndex !== -1) {
-      patientsData.value[patientIndex] = {
-        ...patientsData.value[patientIndex],
-        status: 'مرفوض',
-        rejectionReason: responseData.rejectionReason,
-        updatedAt: new Date().toISOString()
+    const complaintIndex = patientsData.value.findIndex(p => p.id === complaintId);
+    if (complaintIndex !== -1) {
+      patientsData.value[complaintIndex] = {
+        ...patientsData.value[complaintIndex],
+        status: 'تمت المراجعة',
+        reply: responseData.rejectionReason,
+        repliedAt: new Date().toISOString()
       };
     }
     
-    showSuccessAlert('✅ تم رفض الطلب بنجاح');
+    // إعادة جلب البيانات للتأكد من التحديث
+    await fetchPatients();
+    
+    const successMessage = result.data?.message || '✅ تم رفض الشكوى بنجاح';
+    showSuccessAlert(successMessage);
     closeResponseModal();
   } catch (err) {
-    const errorMsg = `❌ فشل في رفض الطلب: ${err.message}`;
-    showSuccessAlert(errorMsg, 'error');
+    const errorMsg = err.response?.data?.message || err.message || '❌ فشل في رفض الشكوى';
+    showSuccessAlert('❌ ' + errorMsg, 'error');
   } finally {
     isLoadingResponse.value = false;
   }
@@ -730,8 +772,7 @@ const printTable = () => {
   `;
   
   filteredPatients.value.forEach((patient) => {
-    const statusClass = patient.status === 'مرفوض' ? 'status-rejected' :
-                       patient.status === 'تم الرد' || patient.status === 'مقبول' ? 'status-completed' : 
+    const statusClass = patient.status === 'تمت المراجعة' ? 'status-completed' : 
                        'status-pending';
     
     tableHtml += `
@@ -778,6 +819,7 @@ const printTable = () => {
 // ----------------------------------------------------
 const isSuccessAlertVisible = ref(false);
 const successMessage = ref('');
+const alertType = ref('success');
 let alertTimeout = null;
 
 const showSuccessAlert = (message, type = 'success') => {
@@ -786,11 +828,13 @@ const showSuccessAlert = (message, type = 'success') => {
   }
 
   successMessage.value = message;
+  alertType.value = type;
   isSuccessAlertVisible.value = true;
 
   alertTimeout = setTimeout(() => {
     isSuccessAlertVisible.value = false;
     successMessage.value = '';
+    alertType.value = 'success';
   }, 4000);
 };
 

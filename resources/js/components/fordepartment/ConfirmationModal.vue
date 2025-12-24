@@ -211,63 +211,43 @@ watch(() => props.requestData.items, (newItems) => {
             // الحصول على الكمية المطلوبة
             const requestedQty = Number(item.requested_qty || item.requestedQty || item.quantity || 0);
             
-            // الحصول على الكمية المرسلة الفعلية من المورد
-            // أولوية: fulfilled_qty (الكمية الفعلية المرسلة من المورد) > approved_qty (الكمية المعتمدة من HospitalAdmin)
+            // الحصول على الكمية المرسلة من أمين المخزن
+            // approved_qty = الكمية المرسلة من أمين المخزن
+            // fulfilled_qty = الكمية المستلمة (تُحدث بعد التأكيد من المستلم)
             let sentQty = null;
             
-            // التحقق من fulfilled_qty أولاً (الكمية الفعلية المرسلة من المورد) - أولوية عالية
-            if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
-                const val = Number(item.fulfilled_qty);
-                if (!isNaN(val) && val >= 0) {
-                    sentQty = val;
-                }
-            }
-            // التحقق من fulfilledQty (camelCase)
-            else if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
-                const val = Number(item.fulfilledQty);
-                if (!isNaN(val) && val >= 0) {
-                    sentQty = val;
-                }
-            }
-            // التحقق من fulfilled
-            else if (item.fulfilled !== null && item.fulfilled !== undefined && item.fulfilled !== '') {
-                const val = Number(item.fulfilled);
-                if (!isNaN(val) && val >= 0) {
-                    sentQty = val;
-                }
-            }
-            // إذا لم يكن fulfilled_qty موجوداً، نستخدم approved_qty (الكمية المعتمدة من HospitalAdmin) كبديل
-            else if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
+            // التحقق من approved_qty أولاً (الكمية المرسلة من أمين المخزن) - أولوية عالية
+            if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
                 const val = Number(item.approved_qty);
-                if (!isNaN(val) && val >= 0) {
+                if (!isNaN(val) && val > 0) {
                     sentQty = val;
                 }
             }
             // التحقق من approvedQty (camelCase)
             else if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
                 const val = Number(item.approvedQty);
-                if (!isNaN(val) && val >= 0) {
+                if (!isNaN(val) && val > 0) {
                     sentQty = val;
                 }
             }
             // التحقق من sentQuantity
             else if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
                 const val = Number(item.sentQuantity);
-                if (!isNaN(val) && val >= 0) {
+                if (!isNaN(val) && val > 0) {
                     sentQty = val;
                 }
             }
             // التحقق من sent
             else if (item.sent !== null && item.sent !== undefined && item.sent !== '') {
                 const val = Number(item.sent);
-                if (!isNaN(val) && val >= 0) {
+                if (!isNaN(val) && val > 0) {
                     sentQty = val;
                 }
             }
             // التحقق من approved
             else if (item.approved !== null && item.approved !== undefined && item.approved !== '') {
                 const val = Number(item.approved);
-                if (!isNaN(val) && val >= 0) {
+                if (!isNaN(val) && val > 0) {
                     sentQty = val;
                 }
             }

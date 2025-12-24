@@ -11,6 +11,61 @@ use App\Models\AuditLog;
 use App\Models\Warehouse;
 class InternalSupplyRequestController extends BaseApiController
 {
+    /**
+     * جلب الملاحظات من audit_log
+     */
+    private function getNotesFromAuditLog($requestId)
+    {
+        $notes = [
+            'storekeeperNotes' => null,  // ملاحظة عند إنشاء الطلب من pharmacist/department
+            'storekeeperNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'supplierNotes' => null,     // ملاحظة عند إرسال الشحنة من storekeeper
+            'confirmationNotes' => null,  // ملاحظة عند تأكيد الاستلام من pharmacist/department
+            'confirmationNotesSource' => null // مصدر الملاحظة: 'pharmacist' أو 'department'
+        ];
+
+        // جلب جميع سجلات audit_log لهذا الطلب
+        $auditLogs = AuditLog::where('table_name', 'internal_supply_request')
+            ->where('record_id', $requestId)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        foreach ($auditLogs as $log) {
+            $newValues = json_decode($log->new_values, true);
+            if (!$newValues) continue;
+
+            // ملاحظة عند إنشاء الطلب
+            if (in_array($log->action, ['إنشاء طلب توريد', 'pharmacist_create_supply_request', 'department_create_supply_request']) 
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['storekeeperNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'department';
+                }
+            }
+
+            // ملاحظة عند إرسال الشحنة من storekeeper
+            if ($log->action === 'storekeeper_confirm_internal_request' 
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['supplierNotes'] = $newValues['notes'];
+            }
+
+            // ملاحظة عند تأكيد الاستلام
+            if (in_array($log->action, ['pharmacist_confirm_internal_receipt', 'department_confirm_internal_receipt'])
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['confirmationNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'department';
+                }
+            }
+        }
+
+        return $notes;
+    }
+
     // GET /api/storekeeper/shipments
     public function index(Request $request)
     {
@@ -87,6 +142,9 @@ class InternalSupplyRequestController extends BaseApiController
             $warehouseId = $warehouse ? $warehouse->id : 1;
         }
 
+        // جلب الملاحظات من audit_log
+        $notes = $this->getNotesFromAuditLog($req->id);
+
         return response()->json([
             'id'             => $req->id,
             'shipmentNumber' => 'INT-' . $req->id,
@@ -94,6 +152,11 @@ class InternalSupplyRequestController extends BaseApiController
             'date'           => $req->created_at,
             'status'         => $this->mapStatusToArabic($req->status),
             'notes'          => null, // تم إزالة عمود notes من الجدول
+            'storekeeperNotes' => $notes['storekeeperNotes'],
+            'storekeeperNotesSource' => $notes['storekeeperNotesSource'],
+            'supplierNotes' => $notes['supplierNotes'],
+            'confirmationNotes' => $notes['confirmationNotes'],
+            'confirmationNotesSource' => $notes['confirmationNotesSource'],
             'items'          => $req->items->map(function ($item) use ($warehouseId, $req) {
                 // جلب المخزون المتاح لهذا الدواء في المستودع
                 $inventory = Inventory::where('warehouse_id', $warehouseId)
@@ -370,7 +433,7 @@ class InternalSupplyRequestController extends BaseApiController
                             'item_id'       => $i['id'],
                             'sentQuantity'  => $i['sentQuantity'],
                         ])->toArray(),
-                        'notes'  => $validated['notes'] ?? null,
+                        'notes'  => $validated['notes'] ?? null, // ملاحظة storekeeper عند الإرسال
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

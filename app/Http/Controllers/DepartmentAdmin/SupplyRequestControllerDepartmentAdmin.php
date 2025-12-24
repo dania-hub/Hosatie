@@ -77,7 +77,8 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
             try {
                 AuditLog::create([
                     'user_id' => $user->id,
-                    'action' => 'إنشاء طلب توريد',
+                    'hospital_id' => $user->hospital_id,
+                    'action' => 'department_create_supply_request',
                     'table_name' => 'internal_supply_request',
                     'record_id' => $supplyRequest->id,
                     'old_values' => null,
@@ -85,7 +86,7 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                         'request_id' => $supplyRequest->id,
                         'pharmacy_id' => $pharmacyId,
                         'item_count' => count($request->items),
-                        'notes' => $request->notes,
+                        'notes' => $request->notes ?? null, // ملاحظة department عند إنشاء الطلب
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

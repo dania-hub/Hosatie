@@ -89,23 +89,55 @@
                     </div>
                 </div>
 
+                <!-- معلومات النقل (تظهر فقط لطلبات النقل) -->
+                <div v-if="requestData?.requestType === 'النقل' || requestData?.type === 'transfer'" class="bg-blue-50 border border-blue-100 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-lg font-bold text-blue-700 flex items-center gap-2">
+                        <Icon icon="solar:hospital-bold-duotone" class="w-6 h-6" />
+                        معلومات النقل
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-xl">
+                            <span class="text-gray-500 text-sm block mb-1">من المستشفى</span>
+                            <span class="font-bold text-[#2E5077]">{{ requestData?.fromHospitalName || 'غير محدد' }}</span>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl">
+                            <span class="text-gray-500 text-sm block mb-1">إلى المستشفى</span>
+                            <span class="font-bold text-[#4DA1A9]">{{ requestData?.toHospitalName || 'غير محدد' }}</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- نموذج الرد -->
                 <div v-if="!showRejectionNote" class="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:chat-line-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        الرد على الطلب
+                        {{ (requestData?.requestType === 'النقل' || requestData?.type === 'transfer') ? 'قبول الطلب' : 'الرد على الطلب' }}
                     </h3>
 
                     <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                         <label class="block mb-4">
-                            <span class="font-bold text-gray-700 mb-2 block">نص الرد</span>
+                            <span class="font-bold text-gray-700 mb-2 block">
+                                {{ (requestData?.requestType === 'النقل' || requestData?.type === 'transfer') ? 'ملاحظات (اختياري)' : 'نص الرد' }}
+                            </span>
                             <textarea
                                 v-model="responseText"
                                 rows="4"
                                 class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-[#4DA1A9] focus:ring-4 focus:ring-[#4DA1A9]/10 transition-all resize-none text-gray-700"
-                                placeholder="أدخل ردك على الطلب هنا..."
+                                :placeholder="(requestData?.requestType === 'النقل' || requestData?.type === 'transfer') ? 'أدخل أي ملاحظات (اختياري)...' : 'أدخل ردك على الطلب هنا...'"
                                 :disabled="isSubmitting"
-                                required
+                                :required="!(requestData?.requestType === 'النقل' || requestData?.type === 'transfer')"
+                            ></textarea>
+                        </label>
+                        
+                        <!-- حقل الملاحظات (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
+                        <label v-if="requestData?.type !== 'transfer' && requestData?.requestType !== 'النقل'" class="block mt-4">
+                            <span class="font-bold text-gray-700 mb-2 block">ملاحظات إضافية (اختياري)</span>
+                            <textarea
+                                v-model="additionalNotes"
+                                rows="2"
+                                class="w-full p-4 border border-gray-200 rounded-xl bg-white focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
+                                placeholder="أي ملاحظات إضافية..."
+                                :disabled="isSubmitting"
                             ></textarea>
                         </label>
                     </div>
@@ -135,6 +167,7 @@
                             </p>
                         </div>
 
+                        <!-- حقل الملاحظات (يظهر فقط عند الرفض) -->
                         <label class="block">
                             <span class="font-bold text-gray-700 mb-2 block">ملاحظات إضافية (اختياري)</span>
                             <textarea
@@ -196,7 +229,12 @@
                         >
                             <Icon v-if="isSubmitting" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                             <Icon v-else icon="solar:check-circle-bold" class="w-5 h-5" />
-                            {{ isSubmitting ? "جاري الإرسال..." : "إرسال الرد" }}
+                            {{ isSubmitting 
+                                ? "جاري المعالجة..." 
+                                : (requestData?.requestType === 'النقل' || requestData?.type === 'transfer') 
+                                    ? "قبول الطلب" 
+                                    : "إرسال الرد" 
+                            }}
                         </button>
                     </template>
                 </div>
@@ -325,14 +363,19 @@ const confirmRejection = () => {
 
 // إرسال الرد (قبول)
 const submitResponse = async () => {
-    if (!responseText.value.trim()) {
-        alert('يرجى كتابة الرد قبل الإرسال');
-        return;
-    }
+    const isTransferRequest = props.requestData?.requestType === 'النقل' || props.requestData?.type === 'transfer';
+    
+    // التحقق من الرد فقط للشكاوى (ليس لطلبات النقل)
+    if (!isTransferRequest) {
+        if (!responseText.value.trim()) {
+            alert('يرجى كتابة الرد قبل الإرسال');
+            return;
+        }
 
-    if (responseText.value.trim().length < 5) {
-        alert('يرجى كتابة رد مفصل أكثر');
-        return;
+        if (responseText.value.trim().length < 5) {
+            alert('يرجى كتابة رد مفصل أكثر');
+            return;
+        }
     }
 
     isSubmitting.value = true;
@@ -340,8 +383,8 @@ const submitResponse = async () => {
     try {
         const responseData = {
             status: 'تم الرد',
-            response: responseText.value.trim(),
-            notes: additionalNotes.value.trim(),
+            response: responseText.value.trim() || (isTransferRequest ? 'تم قبول طلب النقل' : ''), // إذا كان طلب نقل وليس هناك رد، نضع رسالة افتراضية
+            notes: isTransferRequest ? null : additionalNotes.value.trim(), // لا توجد ملاحظات لطلبات النقل عند الموافقة
             date: new Date().toISOString(),
             requestDetails: {
                 id: props.requestData?.id,

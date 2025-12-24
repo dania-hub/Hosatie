@@ -591,6 +591,9 @@ const openRequestViewModal = async (shipment) => {
                 status: fetchedData.status,
                 items: fetchedData.items || [],
                 notes: fetchedData.notes || '',
+                storekeeperNotes: fetchedData.storekeeperNotes || null,
+                supplierNotes: fetchedData.supplierNotes || null,
+                confirmationNotes: fetchedData.confirmationNotes || null,
                 ...(fetchedData.confirmationDetails && {
                     confirmationDetails: fetchedData.confirmationDetails
                 })
@@ -603,6 +606,11 @@ const openRequestViewModal = async (shipment) => {
     // تحديث البيانات مع التأكد من وجود الكميات المطلوبة والمرسلة والمستلمة
     selectedRequestDetails.value = {
         ...shipment.details,
+        storekeeperNotes: shipment.details.storekeeperNotes || fetchedData?.storekeeperNotes || null,
+        storekeeperNotesSource: shipment.details.storekeeperNotesSource || fetchedData?.storekeeperNotesSource || null,
+        supplierNotes: shipment.details.supplierNotes || fetchedData?.supplierNotes || null,
+        confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null,
+        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
         items: (shipment.details.items || []).map(item => ({
             ...item,
             // الكمية المطلوبة
@@ -637,8 +645,10 @@ const openRequestViewModal = async (shipment) => {
             type: item.type || item.form || ''
         })),
         confirmation: shipment.details.confirmationDetails || (shipment.requestStatus === 'تم الإستلام' || shipment.received || fetchedData?.status === 'تم الإستلام' ? {
-            confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString()
-        } : null)
+            confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString(),
+            confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null
+        } : null),
+        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null
     };
     isRequestViewModalOpen.value = true;
 };
@@ -662,6 +672,8 @@ const openConfirmationModal = async (shipment) => {
                 status: fetchedData.status,
                 items: fetchedData.items || [],
                 notes: fetchedData.notes || '',
+                storekeeperNotes: fetchedData.storekeeperNotes || null,
+                supplierNotes: fetchedData.supplierNotes || null,
                 ...(fetchedData.confirmationDetails && {
                     confirmationDetails: fetchedData.confirmationDetails
                 })

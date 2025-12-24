@@ -259,8 +259,8 @@ const dailyDosageList = ref([]);
 const requestNotes = ref('');
 
 // الثوابت
-const MAX_PILL_QTY = 15;
-const MAX_LIQUID_QTY = 30;
+const MAX_PILL_QTY = 1000;
+const MAX_LIQUID_QTY = 10000;
 
 // Computed Properties
 const uniqueFilteredDrugs = computed(() => {

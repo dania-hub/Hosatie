@@ -625,13 +625,22 @@ const openRequestViewModal = async (shipment) => {
                 type: item.type || item.form || ''
             })),
             notes: response.notes || '',
+            storekeeperNotes: response.storekeeperNotes || null,
+            storekeeperNotesSource: response.storekeeperNotesSource || null,
+            supplierNotes: response.supplierNotes || null,
             confirmationDetails: response.confirmationDetails || null,
             confirmation: response.confirmationDetails ? {
                 confirmedBy: response.confirmationDetails.confirmedBy,
                 confirmedAt: response.confirmationDetails.confirmedAt,
                 notes: response.confirmationDetails.notes,
+                confirmationNotes: response.confirmationNotes || null,
                 items: response.items || []
-            } : null,
+            } : (response.confirmationNotes ? {
+                confirmationNotes: response.confirmationNotes,
+                confirmedAt: response.confirmationDetails?.confirmedAt || null
+            } : null),
+            confirmationNotes: response.confirmationNotes || null,
+            confirmationNotesSource: response.confirmationNotesSource || null,
             rejectionReason: response.rejectionReason || null
         };
         isRequestViewModalOpen.value = true;
@@ -849,13 +858,22 @@ const openReviewModal = async (shipment) => {
                 type: item.type || item.form || ''
             })),
             notes: response.notes || '',
+            storekeeperNotes: response.storekeeperNotes || null,
+            storekeeperNotesSource: response.storekeeperNotesSource || null,
+            supplierNotes: response.supplierNotes || null,
             confirmationDetails: response.confirmationDetails || null,
             confirmation: response.confirmationDetails ? {
                 confirmedBy: response.confirmationDetails.confirmedBy,
                 confirmedAt: response.confirmationDetails.confirmedAt,
                 notes: response.confirmationDetails.notes,
+                confirmationNotes: response.confirmationNotes || null,
                 items: response.items || []
-            } : null,
+            } : (response.confirmationNotes ? {
+                confirmationNotes: response.confirmationNotes,
+                confirmedAt: response.confirmationDetails?.confirmedAt || null
+            } : null),
+            confirmationNotes: response.confirmationNotes || null,
+            confirmationNotesSource: response.confirmationNotesSource || null,
             rejectionReason: response.rejectionReason || null
         };
         isRequestViewModalOpen.value = true;

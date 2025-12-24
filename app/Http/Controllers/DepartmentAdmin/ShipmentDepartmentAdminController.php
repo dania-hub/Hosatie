@@ -11,6 +11,61 @@ use Carbon\Carbon;
 class ShipmentDepartmentAdminController extends BaseApiController
 {
     /**
+     * جلب الملاحظات من audit_log
+     */
+    private function getNotesFromAuditLog($requestId)
+    {
+        $notes = [
+            'storekeeperNotes' => null,  // ملاحظة عند إنشاء الطلب من pharmacist/department
+            'storekeeperNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'supplierNotes' => null,     // ملاحظة عند إرسال الشحنة من storekeeper
+            'confirmationNotes' => null,  // ملاحظة عند تأكيد الاستلام من pharmacist/department
+            'confirmationNotesSource' => null // مصدر الملاحظة: 'pharmacist' أو 'department'
+        ];
+
+        // جلب جميع سجلات audit_log لهذا الطلب
+        $auditLogs = AuditLog::where('table_name', 'internal_supply_request')
+            ->where('record_id', $requestId)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        foreach ($auditLogs as $log) {
+            $newValues = json_decode($log->new_values, true);
+            if (!$newValues) continue;
+
+            // ملاحظة عند إنشاء الطلب
+            if (in_array($log->action, ['إنشاء طلب توريد', 'pharmacist_create_supply_request', 'department_create_supply_request']) 
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['storekeeperNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'department';
+                }
+            }
+
+            // ملاحظة عند إرسال الشحنة من storekeeper
+            if ($log->action === 'storekeeper_confirm_internal_request' 
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['supplierNotes'] = $newValues['notes'];
+            }
+
+            // ملاحظة عند تأكيد الاستلام
+            if (in_array($log->action, ['pharmacist_confirm_internal_receipt', 'department_confirm_internal_receipt'])
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['confirmationNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'department';
+                }
+            }
+        }
+
+        return $notes;
+    }
+
+    /**
      * GET /api/department-admin/shipments
      * List incoming shipments for this department
      */
@@ -88,11 +143,19 @@ class ShipmentDepartmentAdminController extends BaseApiController
             return $this->sendError('الشحنة غير موجودة.', [], 404);
         }
 
+        // جلب الملاحظات من audit_log
+        $notes = $this->getNotesFromAuditLog($shipment->id);
+
         $shipmentData = [
             'id' => $shipment->id,
             'shipmentNumber' => 'REQ-' . $shipment->id,
             'status' => $this->translateStatus($shipment->status),
             'requestDate' => $shipment->created_at->toIso8601String(),
+            'storekeeperNotes' => $notes['storekeeperNotes'],
+            'storekeeperNotesSource' => $notes['storekeeperNotesSource'],
+            'supplierNotes' => $notes['supplierNotes'],
+            'confirmationNotes' => $notes['confirmationNotes'],
+            'confirmationNotesSource' => $notes['confirmationNotesSource'],
             'items' => $shipment->items->map(function($item) {
                 // الكمية المرسلة من storekeeper هي approved_qty
                 // إذا كانت null، نستخدم requested_qty كقيمة افتراضية (لكن هذا يعني أن الطلب لم يُرسل بعد)
@@ -187,16 +250,20 @@ class ShipmentDepartmentAdminController extends BaseApiController
         
         // تسجيل العملية في audit_log
         $user = $request->user();
+        $notes = $request->input('notes', '');
+        
         AuditLog::create([
             'user_id' => $user->id,
-            'action' => 'استلام شحنة',
+            'hospital_id' => $user->hospital_id,
+            'action' => 'department_confirm_internal_receipt',
             'table_name' => 'internal_supply_request',
             'record_id' => $shipment->id,
-            'old_values' => json_encode(['status' => 'pending']),
+            'old_values' => json_encode(['status' => 'approved']),
             'new_values' => json_encode([
                 'request_id' => $shipment->id,
                 'status' => 'fulfilled',
                 'confirmed_at' => $shipment->updated_at->format('Y-m-d H:i'),
+                'notes' => $notes, // ملاحظة department عند تأكيد الاستلام
             ]),
             'ip_address' => $request->ip(),
         ]);

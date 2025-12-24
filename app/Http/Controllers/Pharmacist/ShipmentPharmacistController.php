@@ -12,6 +12,61 @@ use App\Models\AuditLog;
 class ShipmentPharmacistController extends BaseApiController
 {
     /**
+     * جلب الملاحظات من audit_log
+     */
+    private function getNotesFromAuditLog($requestId)
+    {
+        $notes = [
+            'storekeeperNotes' => null,  // ملاحظة عند إنشاء الطلب من pharmacist/department
+            'storekeeperNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'supplierNotes' => null,     // ملاحظة عند إرسال الشحنة من storekeeper
+            'confirmationNotes' => null,  // ملاحظة عند تأكيد الاستلام من pharmacist/department
+            'confirmationNotesSource' => null // مصدر الملاحظة: 'pharmacist' أو 'department'
+        ];
+
+        // جلب جميع سجلات audit_log لهذا الطلب
+        $auditLogs = AuditLog::where('table_name', 'internal_supply_request')
+            ->where('record_id', $requestId)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        foreach ($auditLogs as $log) {
+            $newValues = json_decode($log->new_values, true);
+            if (!$newValues) continue;
+
+            // ملاحظة عند إنشاء الطلب
+            if (in_array($log->action, ['إنشاء طلب توريد', 'pharmacist_create_supply_request', 'department_create_supply_request']) 
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['storekeeperNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'department';
+                }
+            }
+
+            // ملاحظة عند إرسال الشحنة من storekeeper
+            if ($log->action === 'storekeeper_confirm_internal_request' 
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['supplierNotes'] = $newValues['notes'];
+            }
+
+            // ملاحظة عند تأكيد الاستلام
+            if (in_array($log->action, ['pharmacist_confirm_internal_receipt', 'department_confirm_internal_receipt'])
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['confirmationNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'department';
+                }
+            }
+        }
+
+        return $notes;
+    }
+
+    /**
      * GET /api/pharmacist/shipments
      * عرض الشحنات الواردة لصيدلية المستخدم الحالي فقط.
      */
@@ -76,12 +131,20 @@ class ShipmentPharmacistController extends BaseApiController
             // return $this->sendError('هذه الشحنة لا تخص صيدليتك.', [], 403);
         }
 
+        // جلب الملاحظات من audit_log
+        $notes = $this->getNotesFromAuditLog($shipment->id);
+
         $data = [
             'id' => $shipment->id,
             'shipmentNumber' => 'SHP-' . $shipment->id,
             'requestDate' => Carbon::parse($shipment->created_at)->format('Y/m/d'),
             'status' => $this->translateStatus($shipment->status),
             'received' => $shipment->status === 'fulfilled',
+            'storekeeperNotes' => $notes['storekeeperNotes'],
+            'storekeeperNotesSource' => $notes['storekeeperNotesSource'],
+            'supplierNotes' => $notes['supplierNotes'],
+            'confirmationNotes' => $notes['confirmationNotes'],
+            'confirmationNotesSource' => $notes['confirmationNotesSource'],
             'items' => $shipment->items->map(function($item) {
                 return [
                     'id' => $item->id,
@@ -210,24 +273,28 @@ class ShipmentPharmacistController extends BaseApiController
             // إعادة تحميل البيانات المحدثة من قاعدة البيانات
             $shipment = InternalSupplyRequest::with('items.drug')->findOrFail($id);
 
-AuditLog::create([
-    'user_id'    => $user->id,
-     'hospital_id'=> $user->hospital_id,
-    'action'     => 'pharmacist_confirm_internal_receipt',
-    'table_name' => 'internal_supply_request',
-    'record_id'  => $shipment->id,
-    'old_values' => null,
-    'new_values' => json_encode([
-        'status'      => $shipment->status,
-        'pharmacy_id' => $shipment->pharmacy_id,
-        'items'       => $shipment->items->map(fn($item) => [
-            'item_id'       => $item->id,
-            'drug_id'       => $item->drug_id,
-            'fulfilled_qty' => $item->fulfilled_qty ?? $item->approved_qty ?? $item->requested_qty,
-        ]),
-    ]),
-    'ip_address' => $request->ip(),
-]);
+            // جلب الملاحظات من الطلب
+            $notes = $request->input('notes', '');
+
+            AuditLog::create([
+                'user_id'    => $user->id,
+                'hospital_id'=> $user->hospital_id,
+                'action'     => 'pharmacist_confirm_internal_receipt',
+                'table_name' => 'internal_supply_request',
+                'record_id'  => $shipment->id,
+                'old_values' => null,
+                'new_values' => json_encode([
+                    'status'      => $shipment->status,
+                    'pharmacy_id' => $shipment->pharmacy_id,
+                    'items'       => $shipment->items->map(fn($item) => [
+                        'item_id'       => $item->id,
+                        'drug_id'       => $item->drug_id,
+                        'fulfilled_qty' => $item->fulfilled_qty ?? $item->approved_qty ?? $item->requested_qty,
+                    ]),
+                    'notes' => $notes, // ملاحظة pharmacist عند تأكيد الاستلام
+                ]),
+                'ip_address' => $request->ip(),
+            ]);
             
             return $this->sendSuccess([
                 'id' => $id,

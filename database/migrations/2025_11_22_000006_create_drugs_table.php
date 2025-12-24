@@ -7,31 +7,32 @@ class CreateDrugsTable extends Migration
 {
     public function up()
     {
-        Schema::create('drug', function (Blueprint $table) {
+        Schema::create('drugs', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('name');
-            $table->string('generic_name')->nullable();
-            $table->string('strength')->nullable();
-            $table->string('form')->nullable();
-            $table->string('category')->nullable();
+            $table->string('generic_name');
+            $table->string('strength');
+            $table->string('form');
+            $table->string('category');
             $table->string('unit', 50)->default('قرص');
-            $table->integer('max_monthly_dose')->nullable();
+            $table->integer('max_monthly_dose');
             $table->enum('status', ['متوفر', 'غير متوفر', 'تم الصرف'])->default('متوفر');
-            $table->string('manufacturer')->nullable();
-            $table->string('country')->nullable();
-            $table->string('utilization_type')->nullable();
-            $table->text('warnings')->nullable();
-            $table->text('indications')->nullable(); // ✅ دواعي الاستعمال
-            $table->text('contraindications')->nullable(); // ✅ موانع الاستعمال
-            $table->date('expiry_date')->nullable();
-            $table->timestamps();
+            $table->string('manufacturer');
+            $table->string('country');
+            $table->string('utilization_type');
+            $table->text('warnings');
+            $table->text('indications'); // ✅ دواعي الاستعمال
+            $table->text('contraindications'); // ✅ موانع الاستعمال
+            $table->date('expiry_date');
+            $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
-            $table->unique(['name', 'strength']);
+            $table->unique(['name','generic_name']);
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('drug');
+        Schema::dropIfExists('drugs');
     }
 }

@@ -9,7 +9,7 @@ class Complaint extends Model
 {
     use HasFactory;
 
-    protected $table = 'complaint';
+    protected $table = 'complaints';
 
     public $timestamps = false;
 

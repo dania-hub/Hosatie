@@ -9,7 +9,7 @@ class PatientTransferRequest extends Model
 {
     use HasFactory;
 
-    protected $table = 'patient_transfer_request';
+    protected $table = 'patient_transfer_requests';
 
     protected $fillable = [
         'patient_id',
@@ -18,15 +18,13 @@ class PatientTransferRequest extends Model
         'requested_by',
         'status',
         'reason',
-        // 'approved_by',
-        // 'approved_at',
-        // 'rejected_by',
-        // 'rejected_at',
-        // 'rejection_reason',
+        'handeled_by',
+        'handeled_at',
+        'rejection_reason',
     ];
 
     protected $casts = [
-        'approved_at' => 'datetime',
+        'handeled_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];
 
@@ -52,11 +50,7 @@ class PatientTransferRequest extends Model
 
     public function approver()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'handeled_by');
     }
 
-    public function rejecter()
-    {
-        return $this->belongsTo(User::class, 'rejected_by');
-    }
 }

@@ -9,7 +9,7 @@ class ExternalSupplyRequestItem extends Model
 {
     use HasFactory;
 
-    protected $table = 'external_supply_request_item';
+    protected $table = 'external_supply_request_items';
 
     protected $fillable = [
         'request_id',

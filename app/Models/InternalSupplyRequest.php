@@ -9,18 +9,18 @@ class InternalSupplyRequest extends Model
 {
     use HasFactory;
 
-    protected $table = 'internal_supply_request';
+    protected $table = 'internal_supply_requests';
 
     protected $fillable = [
         'pharmacy_id',
         'requested_by',
         'status',
-        'approved_by',
-        'approved_at',
+        // 'handeled_by',
+        // 'handeled_at',
     ];
 
     protected $casts = [
-        'approved_at' => 'datetime',
+        'handeled_at' => 'datetime',
     ];
 
     public function pharmacy()

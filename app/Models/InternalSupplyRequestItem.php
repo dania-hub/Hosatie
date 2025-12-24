@@ -9,7 +9,7 @@ class InternalSupplyRequestItem extends Model
 {
     use HasFactory;
 
-    protected $table = 'internal_supply_request_item';
+    protected $table = 'internal_supply_request_items';
 
     protected $fillable = [
         'request_id',

@@ -7,24 +7,26 @@ class CreateInventoryTable extends Migration
 {
     public function up()
     {
-        Schema::create('inventory', function (Blueprint $table) {
+        Schema::create('inventories', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('drug_id');
             $table->unsignedBigInteger('warehouse_id')->nullable();
             $table->integer('current_quantity')->default(0);
             $table->integer('minimum_level')->default(50);
             $table->unsignedBigInteger('supplier_id')->nullable();
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
-            $table->unique(['warehouse_id', 'drug_id']);
-            $table->foreign('drug_id')->references('id')->on('drug');
-            $table->foreign('warehouse_id')->references('id')->on('warehouse')->onDelete('cascade');
-            $table->foreign('supplier_id')->references('id')->on('supplier');
+
+          
+            $table->foreign('drug_id')->references('id')->on('drugs');
+            $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('cascade');
+            $table->foreign('supplier_id')->references('id')->on('suppliers');
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('inventory');
+        Schema::dropIfExists('inventories');
     }
 }

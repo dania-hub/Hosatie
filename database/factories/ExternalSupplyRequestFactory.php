@@ -17,7 +17,8 @@ class ExternalSupplyRequestFactory extends Factory
         return [
             'supplier_id' => null,
             'requested_by' => null,
-            'approved_by' => null,
+            'handeled_by' => null,
+            'handeled_at' => null,
             'status' => fake()->randomElement(['pending', 'approved', 'fulfilled', 'rejected']),
         ];
     }

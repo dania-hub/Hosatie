@@ -17,10 +17,8 @@ class PatientTransferRequestFactory extends Factory
         return [
             'status' => fake()->randomElement(['pending', 'approved', 'rejected']),
             'reason' => fake()->optional(0.7)->sentence(),
-            'approved_by' => null,
-            'approved_at' => null,
-            'rejected_by' => null,
-            'rejected_at' => null,
+            'handeled_by' => null,
+            'handeled_at' => null,
             'rejection_reason' => null,
         ];
     }

@@ -9,7 +9,7 @@ class Drug extends Model
 {
     use HasFactory;
 
-    protected $table = 'drug';
+    protected $table = 'drugs';
 
     protected $fillable = [
         'name',
@@ -23,7 +23,7 @@ class Drug extends Model
         'manufacturer',
         'country',
         'utilization_type',
-        'warnings',
+        'warnings','indications', 'contraindications',
         'expiry_date',
     ];
 

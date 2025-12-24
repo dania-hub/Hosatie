@@ -7,24 +7,27 @@ class CreatePrescriptionDrugTable extends Migration
 {
     public function up()
     {
-        Schema::create('prescription_drug', function (Blueprint $table) {
+        Schema::create('prescription_drugs', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('prescription_id');
             $table->unsignedBigInteger('drug_id');
             $table->integer('monthly_quantity');
-            $table->string('note')->nullable();
-            $table->timestamps();
+             $table->integer('daily_quantity')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+
 
             // Keep the auto-increment `id` as the primary key. Use a unique index to prevent
             // duplicate (prescription_id, drug_id) pairs instead of making them the primary key.
             $table->unique(['prescription_id', 'drug_id']);
-            $table->foreign('prescription_id')->references('id')->on('prescription')->onDelete('cascade');
-            $table->foreign('drug_id')->references('id')->on('drug');
+
+            $table->foreign('prescription_id')->references('id')->on('prescriptions')->onDelete('cascade');
+            $table->foreign('drug_id')->references('id')->on('drugs');
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('prescription_drug');
+        Schema::dropIfExists('prescription_drugs');
     }
 }

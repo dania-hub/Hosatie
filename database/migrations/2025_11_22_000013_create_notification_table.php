@@ -7,14 +7,16 @@ class CreateNotificationTable extends Migration
 {
     public function up()
     {
-        Schema::create('notification', function (Blueprint $table) {
+        Schema::create('notifications', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('user_id');
             $table->string('title');
             $table->text('message');
             $table->enum('type' , ['عادي', 'مستعجل']);
             $table->boolean('is_read')->default(false);
-            $table->timestamps();
+           $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
@@ -22,6 +24,6 @@ class CreateNotificationTable extends Migration
 
     public function down()
     {
-        Schema::dropIfExists('notification');
+        Schema::dropIfExists('notifications');
     }
 }

@@ -9,8 +9,7 @@ class Warehouse extends Model
 {
     use HasFactory;
 
-    protected $table = 'warehouse';
-
+    protected $table = 'warehouses';
     protected $fillable = [
         'hospital_id',
         'name',

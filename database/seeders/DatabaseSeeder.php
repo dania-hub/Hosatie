@@ -150,7 +150,7 @@ class DatabaseSeeder extends Seeder
             );
             for ($i = 0; $i < 10; $i++) {
                 $status = fake()->randomElement($internalStatuses);
-                $approvedBy = in_array($status, ['approved', 'fulfilled', 'rejected']) && $approverPool->isNotEmpty()
+                $handlerId = in_array($status, ['approved', 'fulfilled', 'rejected']) && $approverPool->isNotEmpty()
                     ? $approverPool->random()->id
                     : null;
                 $request = InternalSupplyRequest::factory()
@@ -158,8 +158,8 @@ class DatabaseSeeder extends Seeder
                     ->state([
                         'requested_by' => $requesterPool->random()->id,
                         'status' => $status,
-                        'approved_by' => $approvedBy,
-                        'approved_at' => $approvedBy ? fake()->dateTimeBetween('-3 months', 'now') : null,
+                        'handeled_by' => $handlerId,
+                        'handeled_at' => $handlerId ? fake()->dateTimeBetween('-3 months', 'now') : null,
                     ])
                     ->create();
                 $itemCount = fake()->numberBetween(2, 6);
@@ -187,7 +187,7 @@ class DatabaseSeeder extends Seeder
             $requesterPool = $departmentHeadsByHospital[$hospital->id];
             for ($i = 0; $i < 6; $i++) {
                 $status = fake()->randomElement($externalStatuses);
-                $approvedBy = in_array($status, ['approved', 'fulfilled', 'rejected']) && $approverPool->isNotEmpty()
+                $handlerId = in_array($status, ['approved', 'fulfilled', 'rejected']) && $approverPool->isNotEmpty()
                     ? $approverPool->random()->id
                     : null;
                 $request = ExternalSupplyRequest::factory()
@@ -196,7 +196,8 @@ class DatabaseSeeder extends Seeder
                         'supplier_id' => $hospital->supplier_id,
                         'requested_by' => $requesterPool->random()->id,
                         'status' => $status,
-                        'approved_by' => $approvedBy,
+                        'handeled_by' => $handlerId,
+                        'handeled_at' => $handlerId ? fake()->dateTimeBetween('-3 months', 'now') : null,
                     ])
                     ->create();
                 $itemCount = fake()->numberBetween(3, 8);
@@ -304,14 +305,14 @@ class DatabaseSeeder extends Seeder
             if ($status === 'approved') {
                 $approverPool = $warehouseManagersByHospital->get($fromHospital->id, collect());
                 $transfer->update([
-                    'approved_by' => $approverPool->isNotEmpty() ? $approverPool->random()->id : null,
-                    'approved_at' => fake()->dateTimeBetween('-30 days', 'now'),
+                    'handeled_by' => $approverPool->isNotEmpty() ? $approverPool->random()->id : null,
+                    'handeled_at' => fake()->dateTimeBetween('-30 days', 'now'),
                 ]);
             } elseif ($status === 'rejected') {
                 $rejectionPool = $departmentHeadsByHospital->get($fromHospital->id, collect());
                 $transfer->update([
-                    'rejected_by' => $rejectionPool->isNotEmpty() ? $rejectionPool->random()->id : null,
-                    'rejected_at' => fake()->dateTimeBetween('-30 days', 'now'),
+                    'handeled_by' => $rejectionPool->isNotEmpty() ? $rejectionPool->random()->id : null,
+                    'handeled_at' => fake()->dateTimeBetween('-30 days', 'now'),
                     'rejection_reason' => fake()->sentence(),
                 ]);
             }

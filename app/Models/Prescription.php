@@ -9,16 +9,16 @@ class Prescription extends Model
 {
     use HasFactory;
 
-    protected $table = 'prescription';
+    protected $table = 'prescriptions';
 
     protected $fillable = [
         'patient_id',
         'doctor_id',
         'hospital_id',
         'status',
-        'start_date',
-        'end_date',
-        'cancelled_at',
+        // 'start_date',
+        // 'end_date',
+        // 'cancelled_at',
     ];
 
     protected $casts = [

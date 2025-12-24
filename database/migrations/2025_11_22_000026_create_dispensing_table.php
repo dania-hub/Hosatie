@@ -8,7 +8,7 @@ class CreateDispensingTable extends Migration
 {
     public function up()
     {
-        Schema::create('dispensing', function (Blueprint $table) {
+        Schema::create('dispensings', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('prescription_id');
             $table->unsignedBigInteger('patient_id');
@@ -21,9 +21,11 @@ class CreateDispensingTable extends Migration
             $table->dateTime('reverted_at')->nullable();
             $table->unsignedBigInteger('reverted_by')->nullable();
             $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
-            // Unique constraint
-            $table->unique(['prescription_id', 'drug_id', 'dispense_month']);
+
+            
+
             
             // Foreign Keys - بدون pharmacy_id
             $table->foreign('patient_id')->references('id')->on('users');
@@ -36,10 +38,10 @@ class CreateDispensingTable extends Migration
 
         // Composite Foreign Key - العلاقة مع prescription_drug
         DB::statement('
-            ALTER TABLE dispensing
+            ALTER TABLE dispensings
             ADD CONSTRAINT fk_dispensing_prescription_drug
             FOREIGN KEY (prescription_id, drug_id)
-            REFERENCES prescription_drug(prescription_id, drug_id)
+            REFERENCES prescription_drugs(prescription_id, drug_id)
             ON DELETE CASCADE
             ON UPDATE CASCADE
         ');
@@ -48,10 +50,10 @@ class CreateDispensingTable extends Migration
     public function down()
     {
         DB::statement('
-            ALTER TABLE dispensing
+            ALTER TABLE dispensings
             DROP FOREIGN KEY fk_dispensing_prescription_drug
         ');
         
-        Schema::dropIfExists('dispensing');
+        Schema::dropIfExists('dispensings');
     }
 }

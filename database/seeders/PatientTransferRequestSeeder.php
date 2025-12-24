@@ -16,8 +16,8 @@ class PatientTransferRequestSeeder extends Seeder
             'requested_by'      => 2,
             'status'            => 'approved',
             'reason'            => 'تحويل لمزيد من الرعاية الطبية',
-            'approved_by'       => 1,
-            'approved_at'       => now(),
+            'handeled_by'       => 1,
+            'handeled_at'       => now(),
         ]);
     }
 }

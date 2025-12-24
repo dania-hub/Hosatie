@@ -7,21 +7,23 @@ class CreatePharmaciesTable extends Migration
 {
     public function up()
     {
-        Schema::create('pharmacy', function (Blueprint $table) {
+        Schema::create('pharmacies', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('hospital_id');
-             $table->unsignedBigInteger('inventory_id')->nullable();
+            
             $table->string('name');
             $table->enum('status', ['active', 'inactive'])->default('active');
-            $table->timestamps();
+           $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
-            $table->unique(['hospital_id', 'name']);
-            $table->foreign('hospital_id')->references('id')->on('hospital')->onDelete('cascade');
-            $table->foreign('inventory_id')->references('id')->on('inventory')->onDelete('set null')->onUpdate('cascade');});
+
+           
+            $table->foreign('hospital_id')->references('id')->on('hospitals')->onDelete('cascade');
+});
     }
 
     public function down()
     {
-        Schema::dropIfExists('pharmacy');
+        Schema::dropIfExists('pharmacies');
     }
 }

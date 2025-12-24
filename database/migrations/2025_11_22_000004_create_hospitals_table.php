@@ -7,7 +7,7 @@ class CreateHospitalsTable extends Migration
 {
     public function up()
     {
-        Schema::create('hospital', function (Blueprint $table) {
+        Schema::create('hospitals', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('supplier_id')->nullable();
             $table->string(column: 'name');
@@ -15,17 +15,19 @@ class CreateHospitalsTable extends Migration
             $table->enum('type', ['hospital', 'health_center', 'clinic'])->default('hospital');
             $table->enum('city', ['طرابلس', 'بنغازي'])->default('طرابلس');
             $table->text('address')->nullable();
-            $table->string('phone', 20)->nullable();
+            $table->string('phone', 20);
             $table->enum('status', ['active', 'inactive'])->default('active');
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
-            $table->foreign('supplier_id')->references('id')->on('supplier')->onDelete('set null')->onUpdate('cascade');
+
+            $table->foreign('supplier_id')->references('id')->on('suppliers')->onDelete('set null')->onUpdate('cascade');
             
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('hospital');
+        Schema::dropIfExists('hospitals');
     }
 }

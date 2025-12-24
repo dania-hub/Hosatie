@@ -7,20 +7,22 @@ class CreateSuppliersTable extends Migration
 {
     public function up()
     {
-        Schema::create('supplier', function (Blueprint $table) {
+        Schema::create('suppliers', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('name');
             $table->string('code')->unique();
-            $table->string('phone', 20)->nullable();
+            $table->string('phone', 20);
             $table->text('address')->nullable();
             $table->enum('city', allowed: ['طرابلس', 'بنغازي'])->default('طرابلس');
             $table->enum('status', ['active', 'inactive'])->default('active');
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('supplier');
+        Schema::dropIfExists('suppliers');
     }
 }

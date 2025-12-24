@@ -7,20 +7,22 @@ class CreateWarehousesTable extends Migration
 {
     public function up()
     {
-        Schema::create('warehouse', function (Blueprint $table) {
+        Schema::create('warehouses', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger(column: 'hospital_id');
             $table->string('name')->default('المخزن الرئيسي');
             $table->enum('status', ['active', 'inactive'])->default('active');
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+
 
             $table->unique('hospital_id');
-            $table->foreign('hospital_id')->references('id')->on('hospital')->onDelete('cascade');
+            $table->foreign('hospital_id')->references('id')->on('hospitals')->onDelete('cascade');
         });
     }
 
     public function down()
     {
-        Schema::dropIfExists('warehouse');
+        Schema::dropIfExists('warehouses');
     }
 }

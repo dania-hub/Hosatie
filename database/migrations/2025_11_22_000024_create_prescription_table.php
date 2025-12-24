@@ -7,7 +7,7 @@ class CreatePrescriptionTable extends Migration
 {
     public function up()
     {
-        Schema::create('prescription', function (Blueprint $table) {
+        Schema::create('prescriptions', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('patient_id');
             $table->unsignedBigInteger('doctor_id');
@@ -16,13 +16,14 @@ class CreatePrescriptionTable extends Migration
             $table->date('start_date');
             $table->date('end_date')->nullable();
             $table->dateTime('cancelled_at')->nullable();
-            $table->unsignedBigInteger('cancelled_by')->nullable();
-            $table->timestamps();
+           
+             $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
             // Foreign Keys - بدون hospital_id
             $table->foreign('patient_id')->references('id')->on('users');
             $table->foreign('doctor_id')->references('id')->on('users');
-            $table->foreign('cancelled_by')->references('id')->on('users')->onDelete('set null');
+          
             
             // Index للأداء
             $table->index('hospital_id');
@@ -31,6 +32,6 @@ class CreatePrescriptionTable extends Migration
 
     public function down()
     {
-        Schema::dropIfExists('prescription');
+        Schema::dropIfExists('prescriptions');
     }
 }

@@ -278,15 +278,22 @@ watch(
     (newItems) => {
         if (newItems && newItems.length > 0) {
             receivedItems.value = newItems.map((item) => {
-                // الحصول على الكمية المتاحة من المخزون
-                const available = Number(
-                    item.availableQuantity ||
-                    item.stock ||
-                    item.quantity ||
+                // الحصول على الكمية المطلوبة
+                const requested = Number(
+                    item.requestedQuantity || 
+                    item.requested_qty || 
+                    item.quantity || 
+                    item.originalQuantity ||
                     0
                 );
-                const requested = Number(
-                    item.quantity || item.requestedQuantity || 0
+                
+                // الحصول على الكمية المعتمدة (التي يجب إرسالها)
+                // في حالة Supplier، الكمية المتاحة هي الكمية المعتمدة من HospitalAdmin
+                const available = Number(
+                    item.approvedQuantity ||
+                    item.approved_qty ||
+                    item.availableQuantity ||
+                    requested
                 );
 
                 return {
@@ -294,8 +301,8 @@ watch(
                     name: item.name || item.drugName,
                     originalQuantity: requested,
                     availableQuantity: available,
-                    sentQuantity: Math.min(requested, available),
-                    unit: item.unit || "حبة",
+                    sentQuantity: Math.min(requested, available), // افتراضي: إرسال الكمية المعتمدة
+                    unit: item.unit || "وحدة",
                     dosage: item.dosage || item.strength
                 };
             });
@@ -371,6 +378,7 @@ const confirmRejection = () => {
         };
 
         emit("reject", rejectionData);
+        // لا نعيد تعيين isConfirming هنا، سيتم إعادة تعيينه في handleConfirmation
     }
 };
 
@@ -403,6 +411,13 @@ const sendShipment = async () => {
         const shipmentData = {
             id: props.requestData.id,
             shipmentNumber: props.requestData.shipmentNumber,
+            items: receivedItems.value
+                .filter(item => item.sentQuantity > 0)
+                .map((item) => ({
+                    id: item.id,
+                    fulfilled_qty: item.sentQuantity,
+                    sentQuantity: item.sentQuantity, // للتوافق
+                })),
             itemsToSend: receivedItems.value
                 .filter(item => item.sentQuantity > 0)
                 .map((item) => ({
@@ -410,15 +425,18 @@ const sendShipment = async () => {
                     name: item.name,
                     requestedQuantity: item.originalQuantity,
                     sentQuantity: item.sentQuantity,
+                    fulfilled_qty: item.sentQuantity,
                     unit: item.unit,
                 })),
             notes: additionalNotes.value.trim()
         };
 
         emit("send", shipmentData);
+        // لا نعيد تعيين isConfirming هنا، سيتم إعادة تعيينه في handleConfirmation
     } catch (error) {
         console.error("Error preparing shipment data:", error);
         alert("حدث خطأ أثناء تحضير بيانات الشحنة.");
+        isConfirming.value = false; // إعادة تعيين في حالة الخطأ
     }
 };
 

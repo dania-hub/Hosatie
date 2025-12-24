@@ -275,6 +275,7 @@
             :request-data="selectedShipmentForConfirmation"
             @close="closeConfirmationModal"
             @confirm="handleConfirmation"
+            @send="handleConfirmation"
             :is-loading="isConfirming"
         />
 
@@ -307,7 +308,7 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
 import RequestViewModal from "@/components/forstorekeeper/RequestViewModal.vue"; 
-import ConfirmationModal from "@/components/forstorekeeper/ConfirmationModal.vue"; 
+import ConfirmationModal from "@/components/fordepartment/ConfirmationModal.vue"; 
 
 // ----------------------------------------------------
 // 0. نظام التنبيهات - يجب تعريفه قبل الاستخدام
@@ -485,35 +486,51 @@ const fetchShipments = async () => {
         console.log('Final data count:', data.length);
         console.log('First item (if exists):', data[0]);
         
-        shipmentsData.value = data.map(shipment => ({
-            id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
-            requestStatus: shipment.requestStatus || shipment.status,
-            received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
-            details: {
-                id: shipment.id,
-                date: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
-                status: shipment.requestStatus || shipment.status,
-                items: (shipment.items || []).map(item => ({
-                    ...item,
-                    // التأكد من وجود جميع الحقول المطلوبة
-                    requested_qty: item.requested_qty || item.requested || item.quantity || 0,
-                    requestedQty: item.requestedQty || item.requested || item.quantity || 0,
-                    quantity: item.quantity || item.requested || item.requested_qty || 0,
-                    unit: item.unit || 'وحدة'
-                })),
-                notes: shipment.notes || '',
-                storekeeperNotes: shipment.storekeeperNotes || null,
-                supplierNotes: shipment.supplierNotes || null,
-                rejectionReason: shipment.rejectionReason || null,
-                rejectedAt: shipment.rejectedAt || null,
-                department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
-                ...(shipment.confirmationDetails && {
-                    confirmationDetails: shipment.confirmationDetails
-                })
+        shipmentsData.value = data.map(shipment => {
+            // تسجيل البيانات للتحقق
+            if (shipment.status === 'rejected' || shipment.requestStatus === 'مرفوضة') {
+                console.log('🔴 Rejected shipment found:', {
+                    id: shipment.id,
+                    rejectionReason: shipment.rejectionReason,
+                    rejectedAt: shipment.rejectedAt,
+                    status: shipment.status,
+                    requestStatus: shipment.requestStatus
+                });
             }
-        }));
+            
+            return {
+                id: shipment.id,
+                shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+                requestDate: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
+                requestStatus: shipment.requestStatus || shipment.status,
+                received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
+                details: {
+                    id: shipment.id,
+                    date: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
+                    status: shipment.requestStatus || shipment.status,
+                    items: (shipment.items || []).map(item => ({
+                        ...item,
+                        // التأكد من وجود جميع الحقول المطلوبة
+                        requested_qty: item.requested_qty || item.requested || item.quantity || 0,
+                        requestedQty: item.requestedQty || item.requested || item.quantity || 0,
+                        quantity: item.quantity || item.requested || item.requested_qty || 0,
+                        // التأكد من وجود fulfilled_qty (الكمية الفعلية المرسلة من المورد)
+                        fulfilled_qty: item.fulfilled_qty || item.fulfilledQty || item.fulfilled || null,
+                        approved_qty: item.approved_qty || item.approvedQty || item.approved || null,
+                        unit: item.unit || 'وحدة'
+                    })),
+                    notes: shipment.notes || '',
+                    storekeeperNotes: shipment.storekeeperNotes || null,
+                    supplierNotes: shipment.supplierNotes || null,
+                    rejectionReason: shipment.rejectionReason || null,
+                    rejectedAt: shipment.rejectedAt || null,
+                    department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
+                    ...(shipment.confirmationDetails && {
+                        confirmationDetails: shipment.confirmationDetails
+                    })
+                }
+            };
+        });
         
         if (shipmentsData.value.length === 0) {
             console.log('لا توجد بيانات متاحة');
@@ -666,16 +683,7 @@ const filteredShipments = computed(() => {
 // ----------------------------------------------------
 const isSupplyRequestModalOpen = ref(false);
 const isRequestViewModalOpen = ref(false); 
-const selectedRequestDetails = ref({ 
-    id: null, 
-    date: '', 
-    status: '', 
-    items: [], 
-    notes: '', 
-    storekeeperNotes: null, 
-    supplierNotes: null, 
-    confirmation: null 
-}); 
+const selectedRequestDetails = ref({ id: null, date: '', status: '', items: [] }); 
 const isConfirmationModalOpen = ref(false);
 const selectedShipmentForConfirmation = ref({ id: null, date: '', status: '', items: [] });
 
@@ -722,6 +730,7 @@ const handleSupplyConfirm = async (data) => {
         const requestData = {
             items: itemsWithDrugId,
             supplier_id: data.supplierId || null,
+            notes: data.notes || null,
         };
         
         const response = await endpoints.supplyRequests.create(requestData);
@@ -741,6 +750,15 @@ const handleSupplyConfirm = async (data) => {
 };
 
 const openRequestViewModal = (shipment) => {
+    // تسجيل البيانات للتحقق
+    console.log('📋 Opening modal with shipment:', {
+        id: shipment.id,
+        status: shipment.details.status,
+        rejectionReason: shipment.details.rejectionReason,
+        rejectedAt: shipment.details.rejectedAt,
+        notes: shipment.details.notes
+    });
+    
     // إعداد البيانات للعرض في الـ modal
     selectedRequestDetails.value = {
         ...shipment.details,
@@ -751,6 +769,15 @@ const openRequestViewModal = (shipment) => {
         supplierNotes: shipment.details.supplierNotes || null,
         confirmation: shipment.details.confirmationDetails || null
     };
+    
+    // تسجيل البيانات بعد التعيين
+    console.log('📋 Selected request details:', {
+        rejectionReason: selectedRequestDetails.value.rejectionReason,
+        rejectedAt: selectedRequestDetails.value.rejectedAt,
+        notes: selectedRequestDetails.value.notes,
+        storekeeperNotes: selectedRequestDetails.value.storekeeperNotes,
+        supplierNotes: selectedRequestDetails.value.supplierNotes
+    });
     
     // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
     if (selectedRequestDetails.value.confirmation?.receivedItems) {
@@ -773,16 +800,7 @@ const openRequestViewModal = (shipment) => {
 
 const closeRequestViewModal = () => {
     isRequestViewModalOpen.value = false;
-    selectedRequestDetails.value = { 
-        id: null, 
-        date: '', 
-        status: '', 
-        items: [], 
-        notes: '', 
-        storekeeperNotes: null, 
-        supplierNotes: null, 
-        confirmation: null 
-    }; 
+    selectedRequestDetails.value = { id: null, date: '', status: '', items: [] }; 
 };
 
 const openConfirmationModal = (shipment) => {

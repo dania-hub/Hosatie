@@ -205,15 +205,39 @@ const formatDate = (dateString) => {
 // تهيئة receivedItems
 watch(() => props.requestData.items, (newItems) => {
     if (newItems && newItems.length > 0) {
+        console.log('📦 Department ConfirmationModal - Raw items:', newItems);
         receivedItems.value = newItems.map(item => {
+            console.log('📦 Processing item:', item);
             // الحصول على الكمية المطلوبة
             const requestedQty = Number(item.requested_qty || item.requestedQty || item.quantity || 0);
             
-            // الحصول على الكمية المرسلة (المعتمدة) - تحقق من جميع الأسماء المحتملة
+            // الحصول على الكمية المرسلة الفعلية من المورد
+            // أولوية: fulfilled_qty (الكمية الفعلية المرسلة من المورد) > approved_qty (الكمية المعتمدة من HospitalAdmin)
             let sentQty = null;
             
-            // التحقق من approved_qty (snake_case) - أولوية عالية
-            if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
+            // التحقق من fulfilled_qty أولاً (الكمية الفعلية المرسلة من المورد) - أولوية عالية
+            if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
+                const val = Number(item.fulfilled_qty);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // التحقق من fulfilledQty (camelCase)
+            else if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
+                const val = Number(item.fulfilledQty);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // التحقق من fulfilled
+            else if (item.fulfilled !== null && item.fulfilled !== undefined && item.fulfilled !== '') {
+                const val = Number(item.fulfilled);
+                if (!isNaN(val) && val >= 0) {
+                    sentQty = val;
+                }
+            }
+            // إذا لم يكن fulfilled_qty موجوداً، نستخدم approved_qty (الكمية المعتمدة من HospitalAdmin) كبديل
+            else if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
                 const val = Number(item.approved_qty);
                 if (!isNaN(val) && val >= 0) {
                     sentQty = val;
@@ -288,7 +312,7 @@ watch(() => props.requestData.items, (newItems) => {
             // لكن المستخدم يمكنه تعديلها
             const defaultReceivedQty = receivedQty !== null ? receivedQty : (sentQty !== null && sentQty !== undefined ? sentQty : 0);
             
-            return {
+            const result = {
                 id: item.id || item.drugId,
                 name: item.name || item.drugName || 'دواء غير محدد',
                 originalQuantity: requestedQty,
@@ -296,6 +320,8 @@ watch(() => props.requestData.items, (newItems) => {
                 receivedQuantity: defaultReceivedQty,
                 unit: item.unit || 'وحدة'
             };
+            console.log('📦 Mapped item:', result, 'Source approved_qty:', item.approved_qty, 'sentQuantity:', item.sentQuantity);
+            return result;
         });
         notes.value = '';
     }

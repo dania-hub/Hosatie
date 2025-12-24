@@ -136,13 +136,32 @@
                 </div>
 
                 <!-- Notes -->
-                <div v-if="requestDetails.notes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.notes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
                     </h3>
 
-                    <div v-if="requestDetails.confirmation?.notes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                    <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
+                    <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                            ملاحظة مسؤول المخزن
+                        </h4>
+                        <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
+                    </div>
+
+                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
+                    <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                        <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة المورد
+                        </h4>
+                        <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
+                    </div>
+
+                    <!-- للتوافق مع الكود القديم -->
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
                             ملاحظة الإرسال
@@ -150,7 +169,7 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <div v-if="requestDetails.notes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmation?.notes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             ملاحظة الطلب الأصلية
@@ -160,24 +179,55 @@
                 </div>
                 
                 <!-- Confirmation Details -->
-                <div v-if="requestDetails.confirmation" class="bg-purple-50 border border-purple-100 rounded-2xl p-6">
+                <div v-if="requestDetails.confirmation || requestDetails.confirmationDetails" class="bg-purple-50 border border-purple-100 rounded-2xl p-6">
                     <h3 class="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
                         <Icon icon="solar:user-check-bold-duotone" class="w-6 h-6" />
                         تفاصيل التأكيد
                     </h3>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div v-if="requestDetails.confirmation.confirmedBy">
+                        <div v-if="(requestDetails.confirmation || requestDetails.confirmationDetails)?.confirmedBy">
                             <span class="text-purple-600 text-sm block mb-1">تم التأكيد بواسطة</span>
-                            <span class="font-bold text-purple-900">{{ requestDetails.confirmation.confirmedBy }}</span>
+                            <span class="font-bold text-purple-900">{{ (requestDetails.confirmation || requestDetails.confirmationDetails).confirmedBy }}</span>
                         </div>
-                        <div v-if="requestDetails.confirmation.confirmedAt">
+                        <div v-if="(requestDetails.confirmation || requestDetails.confirmationDetails)?.confirmedAt">
                             <span class="text-purple-600 text-sm block mb-1">تاريخ التأكيد</span>
-                            <span class="font-bold text-purple-900">{{ formatDate(requestDetails.confirmation.confirmedAt) }}</span>
+                            <span class="font-bold text-purple-900">{{ formatDate((requestDetails.confirmation || requestDetails.confirmationDetails).confirmedAt) }}</span>
                         </div>
-                        <div v-if="requestDetails.confirmation.totalItemsSent" class="sm:col-span-2">
+                        <div v-if="(requestDetails.confirmation || requestDetails.confirmationDetails)?.totalItemsSent" class="sm:col-span-2">
                             <span class="text-purple-600 text-sm block mb-1">إجمالي الوحدات المرسلة</span>
-                            <span class="font-bold text-purple-900 text-lg">{{ requestDetails.confirmation.totalItemsSent }}</span>
+                            <span class="font-bold text-purple-900 text-lg">{{ (requestDetails.confirmation || requestDetails.confirmationDetails).totalItemsSent }}</span>
+                        </div>
+                        
+                        <!-- ملاحظة تأكيد الاستلام من مسؤول المخزن -->
+                        <div v-if="(requestDetails.confirmation || requestDetails.confirmationDetails)?.confirmationNotes" class="sm:col-span-2 p-4 bg-white/50 rounded-xl border border-purple-100/50">
+                            <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                ملاحظة تأكيد الاستلام
+                            </h4>
+                            <p class="text-purple-800 text-sm leading-relaxed">{{ (requestDetails.confirmation || requestDetails.confirmationDetails).confirmationNotes }}</p>
+                        </div>
+                        
+                        <!-- الكميات المرسلة والمستلمة -->
+                        <div v-if="(requestDetails.confirmation || requestDetails.confirmationDetails)?.receivedItems?.length > 0" class="sm:col-span-2">
+                            <span class="text-purple-600 text-sm block mb-2">الكميات المرسلة والمستلمة</span>
+                            <div class="space-y-2">
+                                <div 
+                                    v-for="(receivedItem, idx) in (requestDetails.confirmation || requestDetails.confirmationDetails).receivedItems" 
+                                    :key="idx"
+                                    class="bg-white/50 p-3 rounded-xl border border-purple-100/50 flex justify-between items-center"
+                                >
+                                    <span class="font-medium text-purple-900">{{ receivedItem.name }}</span>
+                                    <div class="flex gap-4">
+                                        <span class="text-sm text-purple-600">
+                                            مرسل: <span class="font-bold">{{ receivedItem.sentQuantity || 0 }}</span> {{ receivedItem.unit }}
+                                        </span>
+                                        <span class="text-sm text-purple-600">
+                                            مستلم: <span class="font-bold">{{ receivedItem.receivedQuantity || 0 }}</span> {{ receivedItem.unit }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -216,7 +266,10 @@ const props = defineProps({
             status: '', 
             items: [], 
             notes: '',
+            storekeeperNotes: null,
+            supplierNotes: null,
             confirmation: null,
+            confirmationDetails: null,
             rejectionReason: null,
             priority: null
         })
@@ -230,7 +283,14 @@ const requestDetails = ref({ ...props.requestData });
 // Watch لتحديث البيانات
 watch(() => props.requestData, (newVal) => {
     if (newVal) {
-        requestDetails.value = { ...newVal };
+        requestDetails.value = {
+            ...newVal,
+            rejectionReason: newVal.rejectionReason || null,
+            rejectedAt: newVal.rejectedAt || null,
+            notes: newVal.notes || '',
+            storekeeperNotes: newVal.storekeeperNotes || null,
+            supplierNotes: newVal.supplierNotes || null
+        };
     }
 }, { immediate: true, deep: true });
 

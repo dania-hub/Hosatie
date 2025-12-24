@@ -13,9 +13,43 @@ import departmentViewModel from "@/components/forhospitaladmin/departmentViewMod
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
-const DEPARTMENTS_API_URL = `${API_BASE_URL}/api/departments`;
-const EMPLOYEES_API_URL = `${API_BASE_URL}/api/employees`;
+const DEPARTMENTS_API_URL = "/api/admin-hospital/departments";
+const EMPLOYEES_API_URL = "/api/admin-hospital/staff";
+
+// إنشاء instance مخصصة من axios مع interceptor لإضافة الـ token تلقائياً
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة الـ token تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// إضافة interceptor للتعامل مع أخطاء المصادقة
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            console.error('Unauthenticated - Please login again.');
+        }
+        return Promise.reject(error);
+    }
+);
 
 // بيانات التطبيق
 const availableEmployees = ref([]);
@@ -40,8 +74,21 @@ const fetchDepartments = async () => {
     error.value = null;
     
     try {
-        const response = await axios.get(DEPARTMENTS_API_URL);
-        departments.value = response.data.map(dept => ({
+        const response = await api.get('/admin-hospital/departments');
+        
+        // التحقق من بنية الاستجابة
+        let data = [];
+        if (response.data) {
+            if (Array.isArray(response.data)) {
+                data = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            } else if (response.data.success && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            }
+        }
+        
+        departments.value = data.map(dept => ({
             ...dept,
             nameDisplay: dept.name || "",
             managerNameDisplay: dept.managerName || "",
@@ -49,7 +96,8 @@ const fetchDepartments = async () => {
     } catch (err) {
         console.error("Error fetching departments:", err);
         departments.value = [];
-        error.value = "فشل في تحميل بيانات الأقسام.";
+        const errorMessage = err.response?.data?.message || err.message || "فشل في تحميل بيانات الأقسام.";
+        error.value = errorMessage;
     } finally {
         loading.value = false;
     }
@@ -61,12 +109,26 @@ const fetchEmployees = async () => {
     employeesError.value = null;
     
     try {
-        const response = await axios.get(EMPLOYEES_API_URL);
-        availableEmployees.value = response.data;
+        const response = await api.get('/admin-hospital/staff');
+        
+        // التحقق من بنية الاستجابة
+        let data = [];
+        if (response.data) {
+            if (Array.isArray(response.data)) {
+                data = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            } else if (response.data.success && Array.isArray(response.data.data)) {
+                data = response.data.data;
+            }
+        }
+        
+        availableEmployees.value = data;
     } catch (err) {
         console.error("Error fetching employees:", err);
         availableEmployees.value = [];
-        employeesError.value = "فشل في تحميل بيانات الموظفين.";
+        const errorMessage = err.response?.data?.message || err.message || "فشل في تحميل بيانات الموظفين.";
+        employeesError.value = errorMessage;
     } finally {
         loadingEmployees.value = false;
     }
@@ -128,8 +190,8 @@ const confirmStatusToggle = async () => {
     const departmentId = departmentToToggle.value.id;
 
     try {
-        await axios.patch(
-            `${DEPARTMENTS_API_URL}/${departmentId}/toggle-status`,
+        const response = await api.patch(
+            `/admin-hospital/departments/${departmentId}/toggle-status`,
             { isActive: newStatus }
         );
 
@@ -138,17 +200,18 @@ const confirmStatusToggle = async () => {
             (d) => d.id === departmentId
         );
         if (index !== -1) {
-            departments.value[index].isActive = newStatus;
-            departments.value[index].lastUpdated = new Date().toISOString();
+            const responseData = response.data.data || response.data;
+            departments.value[index].isActive = responseData.isActive !== undefined ? responseData.isActive : newStatus;
+            departments.value[index].lastUpdated = responseData.lastUpdated || new Date().toISOString();
         }
 
-        showSuccessAlert(
-            `✅ تم ${statusAction.value} القسم ${departmentToToggle.value.name} بنجاح!`
-        );
+        const successMessage = response.data?.message || `✅ تم ${statusAction.value} القسم ${departmentToToggle.value.name} بنجاح!`;
+        showSuccessAlert(successMessage);
         closeStatusConfirmationModal();
     } catch (error) {
         console.error(`Error ${statusAction.value} department:`, error);
-        showSuccessAlert(`❌ فشل ${statusAction.value} القسم.`);
+        const errorMessage = error.response?.data?.message || `❌ فشل ${statusAction.value} القسم.`;
+        showSuccessAlert(errorMessage);
         closeStatusConfirmationModal();
     }
 };
@@ -282,52 +345,61 @@ const closeAddModal = () => {
 const addDepartment = async (newDepartment) => {
     try {
         const departmentData = {
-            ...newDepartment,
-            isActive: true
+            name: newDepartment.name,
+            managerId: newDepartment.managerId || null,
         };
 
-        const response = await axios.post(DEPARTMENTS_API_URL, departmentData);
+        const response = await api.post('/admin-hospital/departments', departmentData);
         
+        const responseData = response.data.data || response.data;
         departments.value.push({
-            ...response.data,
-            nameDisplay: response.data.name || "",
-            managerNameDisplay: response.data.managerName || "",
+            ...responseData,
+            nameDisplay: responseData.name || "",
+            managerNameDisplay: responseData.managerName || "",
         });
         
         closeAddModal();
-        showSuccessAlert("✅ تم إنشاء القسم بنجاح!");
+        const successMessage = response.data?.message || "✅ تم إنشاء القسم بنجاح!";
+        showSuccessAlert(successMessage);
     } catch (error) {
         console.error("Error adding department:", error);
-        showSuccessAlert("❌ فشل إنشاء القسم. تحقق من البيانات.");
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "❌ فشل إنشاء القسم. تحقق من البيانات.";
+        showSuccessAlert(errorMessage);
     }
 };
 
 // تحديث بيانات قسم
 const updateDepartment = async (updatedDepartment) => {
     try {
-        const response = await axios.put(
-            `${DEPARTMENTS_API_URL}/${updatedDepartment.id}`,
-            updatedDepartment
+        const departmentData = {
+            name: updatedDepartment.name,
+            managerId: updatedDepartment.managerId || null,
+        };
+
+        const response = await api.put(
+            `/admin-hospital/departments/${updatedDepartment.id}`,
+            departmentData
         );
 
+        const responseData = response.data.data || response.data;
         const index = departments.value.findIndex(
             (d) => d.id === updatedDepartment.id
         );
         if (index !== -1) {
             departments.value[index] = {
-                ...response.data,
-                nameDisplay: response.data.name || "",
-                managerNameDisplay: response.data.managerName || "",
+                ...responseData,
+                nameDisplay: responseData.name || "",
+                managerNameDisplay: responseData.managerName || "",
             };
         }
 
         closeEditModal();
-        showSuccessAlert(
-            `✅ تم تعديل بيانات القسم ${updatedDepartment.name} بنجاح!`
-        );
+        const successMessage = response.data?.message || `✅ تم تعديل بيانات القسم ${updatedDepartment.name} بنجاح!`;
+        showSuccessAlert(successMessage);
     } catch (error) {
         console.error("Error updating department:", error);
-        showSuccessAlert("❌ فشل تعديل بيانات القسم.");
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "❌ فشل تعديل بيانات القسم.";
+        showSuccessAlert(errorMessage);
     }
 };
 

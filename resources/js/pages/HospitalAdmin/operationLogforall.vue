@@ -7,6 +7,48 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
+// ----------------------------------------------------
+// 1. إعدادات API
+// ----------------------------------------------------
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// إضافة interceptor لإضافة الـ token تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+  (response) => response, // إرجاع response كاملاً بدون تعديل
+  (error) => {
+    if (error.response?.status === 401) {
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+      console.error('Unauthenticated - Token exists:', !!token);
+      if (token) {
+        console.error('Token value (first 20 chars):', token.substring(0, 20) + '...');
+      } else {
+        console.error('No token found. Please login again.');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 const operations = ref([]);
 const isLoading = ref(false);
@@ -15,7 +57,7 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/admin-hospital/operations');
         
         operations.value = response.data; // 👈 تحديث البيانات المجلوبة
         
@@ -23,7 +65,15 @@ const fetchOperations = async () => {
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
+        if (error.response?.status === 401) {
+            showSuccessAlert("❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.");
+        } else if (error.response?.status === 403) {
+            showSuccessAlert("❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.");
+        } else if (!error.response) {
+            showSuccessAlert("❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.");
+        } else {
         showSuccessAlert("❌ فشل في تحميل البيانات.");
+        }
     } finally {
         isLoading.value = false;
     }
@@ -206,7 +256,7 @@ const printTable = () => {
             <tr>
                 <td>${op.fileNumber}</td>
                 <td>${op.name}</td>
-                <td>${op.patientName || 'غير محدد'}</td>
+                <td>${op.patientName || '-'}</td>
                 <td>${op.operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
@@ -368,7 +418,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 >
                                     <td class="file-number-col">{{ op.fileNumber }}</td>
                                     <td class="name-col">{{ op.name }}</td>
-                                    <td class="patient-name-col">{{ op.patientName || 'غير محدد' }}</td>
+                                    <td class="patient-name-col">{{ op.patientName || '-' }}</td>
                                     <td class="operation-type-col">{{ op.operationType }}</td>
                                     <td class="operation-date-col">{{ op.operationDate }}</td>
                                 </tr>

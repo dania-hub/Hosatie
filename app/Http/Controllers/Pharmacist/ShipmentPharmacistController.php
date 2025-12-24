@@ -197,6 +197,10 @@ class ShipmentPharmacistController extends BaseApiController
                 $inventory->save();
 
                 // تحديث fulfilled_qty في item بالكمية المستلمة الفعلية:
+                // ملاحظة: 
+                // - requested_qty: الكمية المطلوبة الأصلية (لا يتم تعديلها)
+                // - approved_qty: الكمية المرسلة من storekeeper (لا يتم تعديلها)
+                // - fulfilled_qty: الكمية المستلمة الفعلية من pharmacist (يتم تحديثها هنا)
                 $item->fulfilled_qty = $qtyToAdd;
                 $item->save();
             }

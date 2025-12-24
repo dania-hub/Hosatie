@@ -71,77 +71,132 @@ class DepartmentHospitalAdminController extends BaseApiController
 
 
     // 3) إنشاء قسم جديد
-  public function store(Request $request)
-{
-    $hospitalId = $request->user()->hospital_id;
+    public function store(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
 
-    $data = $request->validate([
-        'name'      => 'required|string|max:255',
-        'managerId' => 'nullable|exists:users,id',
-    ]);
+            $hospitalId = $user->hospital_id;
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
 
-    $dep = Department::create([
-        'hospital_id'  => $hospitalId,
-        'name'         => $data['name'],
-        'head_user_id' => $data['managerId'] ?? null,
-        'status'       => 'active',
-    ]);
+            $data = $request->validate([
+                'name'      => 'required|string|max:255',
+                'managerId' => 'nullable|exists:users,id',
+            ]);
 
-    return response()->json([
-        'id'          => $dep->id,
-        'name'        => $dep->name,
-        'managerId'   => $dep->head_user_id,
-        'managerName' => $dep->head?->full_name,
-        'isActive'    => true,
-        'lastUpdated' => $dep->updated_at?->toIso8601String(),
-    ], 201);
-}
+            $dep = Department::create([
+                'hospital_id'  => $hospitalId,
+                'name'         => $data['name'],
+                'head_user_id' => $data['managerId'] ?? null,
+                'status'       => 'active',
+            ]);
 
-public function update(Request $request, $id)
-{
-    $hospitalId = $request->user()->hospital_id;
+            $dep->load('head');
 
-    $dep = Department::where('hospital_id', $hospitalId)->findOrFail($id);
+            return $this->sendSuccess([
+                'id'          => $dep->id,
+                'name'        => $dep->name,
+                'managerId'   => $dep->head_user_id,
+                'managerName' => $dep->head?->full_name ?? null,
+                'isActive'    => $dep->status === 'active',
+                'lastUpdated' => $dep->updated_at?->toIso8601String(),
+            ], 'تم إنشاء القسم بنجاح.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            Log::error('Create Department Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في إنشاء القسم.', [], 500);
+        }
+    }
 
-    $data = $request->validate([
-        'name'      => 'required|string|max:255',
-        'managerId' => 'nullable|exists:users,id',
-    ]);
+    public function update(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
 
-    $dep->update([
-        'name'         => $data['name'],
-        'head_user_id' => $data['managerId'] ?? null,
-    ]);
+            $hospitalId = $user->hospital_id;
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
 
-    return response()->json([
-        'id'          => $dep->id,
-        'name'        => $dep->name,
-        'managerId'   => $dep->head_user_id,
-        'managerName' => $dep->head?->full_name,
-        'isActive'    => $dep->status === 'active',
-        'lastUpdated' => $dep->updated_at?->toIso8601String(),
-    ]);
-}
+            $dep = Department::where('hospital_id', $hospitalId)->find($id);
+            if (!$dep) {
+                return $this->sendError('القسم غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+            }
+
+            $data = $request->validate([
+                'name'      => 'required|string|max:255',
+                'managerId' => 'nullable|exists:users,id',
+            ]);
+
+            $dep->update([
+                'name'         => $data['name'],
+                'head_user_id' => $data['managerId'] ?? null,
+            ]);
+
+            $dep->load('head');
+
+            return $this->sendSuccess([
+                'id'          => $dep->id,
+                'name'        => $dep->name,
+                'managerId'   => $dep->head_user_id,
+                'managerName' => $dep->head?->full_name ?? null,
+                'isActive'    => $dep->status === 'active',
+                'lastUpdated' => $dep->updated_at?->toIso8601String(),
+            ], 'تم تحديث بيانات القسم بنجاح.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            Log::error('Update Department Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في تحديث بيانات القسم.', [], 500);
+        }
+    }
 
 
     // 5) تفعيل/تعطيل قسم
     public function toggleStatus(Request $request, $id)
     {
-        $hospitalId = $request->user()->hospital_id;
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
 
-        $department = Department::where('hospital_id', $hospitalId)->findOrFail($id);
+            $hospitalId = $user->hospital_id;
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
 
-        $data = $request->validate([
-            'isActive' => 'required|boolean',
-        ]);
+            $department = Department::where('hospital_id', $hospitalId)->find($id);
+            if (!$department) {
+                return $this->sendError('القسم غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+            }
 
-        $department->status = $data['isActive'] ? 'active' : 'inactive';
-        $department->save();
+            $data = $request->validate([
+                'isActive' => 'required|boolean',
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'isActive' => $department->status === 'active',
-            'lastUpdated' => $department->updated_at?->toIso8601String(),
-        ]);
+            $department->status = $data['isActive'] ? 'active' : 'inactive';
+            $department->save();
+
+            $action = $data['isActive'] ? 'تفعيل' : 'تعطيل';
+            return $this->sendSuccess([
+                'isActive' => $department->status === 'active',
+                'lastUpdated' => $department->updated_at?->toIso8601String(),
+            ], "تم {$action} القسم {$department->name} بنجاح.");
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            Log::error('Toggle Department Status Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في تغيير حالة القسم.', [], 500);
+        }
     }
 }

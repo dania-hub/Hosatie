@@ -66,12 +66,12 @@ class SupplyRequestPharmacistController extends BaseApiController
 
             DB::commit();
 
-            // تسجيل العملية في AuditLog
+            // تسجيل العملية في AuditLog مع الملاحظة
             try {
                 AuditLog::create([
                     'user_id' => $user->id,
                     'hospital_id' => $user->hospital_id,
-                    'action' => 'إنشاء طلب توريد',
+                    'action' => 'pharmacist_create_supply_request',
                     'table_name' => 'internal_supply_request',
                     'record_id' => $supplyRequest->id,
                     'old_values' => null,
@@ -79,7 +79,7 @@ class SupplyRequestPharmacistController extends BaseApiController
                         'request_id' => $supplyRequest->id,
                         'pharmacy_id' => $pharmacyId,
                         'item_count' => count($request->items),
-                        'notes' => $request->notes,
+                        'notes' => $request->notes ?? null, // ملاحظة pharmacist عند إنشاء الطلب
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

@@ -103,6 +103,24 @@
                             <span class="text-gray-500 text-sm block mb-2">المحتوى</span>
                             <p class="text-gray-700 bg-gray-50 p-4 rounded-xl leading-relaxed">{{ patientData?.content || 'لا يوجد محتوى' }}</p>
                         </div>
+
+                        <!-- معلومات النقل (تظهر فقط لطلبات النقل) -->
+                        <div v-if="patientData?.requestType === 'النقل' || patientData?.type === 'transfer'" class="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+                            <h4 class="font-bold text-blue-700 flex items-center gap-2">
+                                <Icon icon="solar:hospital-bold-duotone" class="w-5 h-5" />
+                                معلومات النقل
+                            </h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="bg-white p-3 rounded-lg">
+                                    <span class="text-gray-500 text-sm block mb-1">من المستشفى</span>
+                                    <span class="font-bold text-[#2E5077]">{{ patientData?.fromHospitalName || 'غير محدد' }}</span>
+                                </div>
+                                <div class="bg-white p-3 rounded-lg">
+                                    <span class="text-gray-500 text-sm block mb-1">إلى المستشفى</span>
+                                    <span class="font-bold text-[#4DA1A9]">{{ patientData?.toHospitalName || 'غير محدد' }}</span>
+                                </div>
+                            </div>
+                        </div>
                         
                         <div class="flex flex-wrap gap-4 pt-2">
                             <div v-if="patientData?.priority" class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg">

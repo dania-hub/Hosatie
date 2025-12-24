@@ -164,7 +164,7 @@
                 </div>
 
                 <!-- Notes -->
-                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || requestDetails.notes" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || (requestDetails.confirmationNotes && !requestDetails.confirmation) || requestDetails.notes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
@@ -174,27 +174,27 @@
                     <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                            ملاحظة مسؤول المخزن
+                            {{ requestDetails.storekeeperNotesSource === 'pharmacist' ? 'من الصيدلي' : requestDetails.storekeeperNotesSource === 'department' ? 'من مدير القسم' : 'ملاحظة الطلب' }}
                         </h4>
                         <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
                     </div>
 
-                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
+                    <!-- ملاحظة عند الإرسال من storekeeper -->
                     <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                            ملاحظة المورد
+                            من مدير المخزن
                         </h4>
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
                     </div>
 
-                    <!-- ملاحظة تأكيد الاستلام من Storekeeper -->
-                    <div v-if="requestDetails.confirmation?.confirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                    <!-- ملاحظة عند تأكيد الاستلام -->
+                    <div v-if="requestDetails.confirmation?.confirmationNotes || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
                         <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
                             ملاحظة تأكيد الاستلام
                         </h4>
-                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation.confirmationNotes }}</p>
+                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation?.confirmationNotes || requestDetails.confirmationNotes }}</p>
                     </div>
 
                     <!-- للتوافق مع الكود القديم -->
@@ -236,13 +236,13 @@
                             <span class="font-bold text-purple-900 text-lg">{{ requestDetails.confirmation.totalItemsSent }}</span>
                         </div>
                         
-                        <!-- ملاحظة تأكيد الاستلام من مسؤول المخزن -->
-                        <div v-if="requestDetails.confirmation.confirmationNotes" class="sm:col-span-2 mt-4 p-4 bg-white/50 rounded-xl border border-purple-100/50">
+                        <!-- ملاحظة تأكيد الاستلام -->
+                        <div v-if="requestDetails.confirmation?.confirmationNotes || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="sm:col-span-2 mt-4 p-4 bg-white/50 rounded-xl border border-purple-100/50">
                             <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
                                 <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
                                 ملاحظة تأكيد الاستلام
                             </h4>
-                            <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation.confirmationNotes }}</p>
+                            <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation?.confirmationNotes || requestDetails.confirmationNotes }}</p>
                         </div>
                         
                         <!-- الكميات المرسلة والمستلمة -->
@@ -304,8 +304,11 @@ const props = defineProps({
             items: [], 
             notes: '',
             storekeeperNotes: null,
+            storekeeperNotesSource: null,
             supplierNotes: null,
             confirmation: null,
+            confirmationNotes: null,
+            confirmationNotesSource: null,
             rejectionReason: null,
             priority: null
         })
@@ -335,7 +338,10 @@ watch(() => props.requestData, (newVal) => {
             rejectedAt: newVal.rejectedAt || null,
             notes: newVal.notes || '',
             storekeeperNotes: newVal.storekeeperNotes || null,
-            supplierNotes: newVal.supplierNotes || null
+            storekeeperNotesSource: newVal.storekeeperNotesSource || null,
+            supplierNotes: newVal.supplierNotes || null,
+            confirmationNotes: newVal.confirmationNotes || (newVal.confirmation?.confirmationNotes) || null,
+            confirmationNotesSource: newVal.confirmationNotesSource || null
         };
         console.log('📋 RequestViewModal - Updated requestDetails:', {
             rejectionReason: requestDetails.value.rejectionReason,

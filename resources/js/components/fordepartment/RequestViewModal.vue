@@ -145,37 +145,37 @@
                 </div>
 
                 <!-- Notes -->
-                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || requestDetails.notes" class="space-y-4">
+                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || shouldShowConfirmationNotes || requestDetails.notes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
                     </h3>
 
-                    <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
+                    <!-- ملاحظة عند إنشاء الطلب -->
                     <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                            ملاحظة مسؤول المخزن
+                            {{ requestDetails.storekeeperNotesSource === 'pharmacist' ? 'من الصيدلي' : requestDetails.storekeeperNotesSource === 'department' ? 'من مدير القسم' : 'ملاحظة الطلب' }}
                         </h4>
                         <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
                     </div>
 
-                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
+                    <!-- ملاحظة عند الإرسال من storekeeper -->
                     <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                            ملاحظة المورد
+                            من مدير المخزن
                         </h4>
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
                     </div>
 
-                    <!-- ملاحظة تأكيد الاستلام من Storekeeper -->
-                    <div v-if="requestDetails.confirmation?.confirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                    <!-- ملاحظة عند تأكيد الاستلام (تظهر فقط للمستخدم الذي كتبها) -->
+                    <div v-if="shouldShowConfirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
                         <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
                             ملاحظة تأكيد الاستلام
                         </h4>
-                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation.confirmationNotes }}</p>
+                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation?.confirmationNotes || requestDetails.confirmationNotes }}</p>
                     </div>
 
                     <!-- للتوافق مع الكود القديم -->
@@ -212,7 +212,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { Icon } from "@iconify/vue";
 
 const props = defineProps({
@@ -233,8 +233,10 @@ const props = defineProps({
             items: [], 
             notes: '',
             storekeeperNotes: null,
+            storekeeperNotesSource: null,
             supplierNotes: null,
-            confirmation: null 
+            confirmation: null,
+            confirmationNotesSource: null 
         })
     }
 });
@@ -249,8 +251,14 @@ const requestDetails = ref({
     items: props.requestData.items,
     notes: props.requestData.notes || '',
     storekeeperNotes: props.requestData.storekeeperNotes || null,
+    storekeeperNotesSource: props.requestData.storekeeperNotesSource || null,
     supplierNotes: props.requestData.supplierNotes || null,
-    confirmation: props.requestData.confirmation || null
+    confirmation: props.requestData.confirmation ? {
+        ...props.requestData.confirmation,
+        confirmationNotes: props.requestData.confirmation.confirmationNotes || props.requestData.confirmationNotes || null
+    } : null,
+    confirmationNotes: props.requestData.confirmationNotes || (props.requestData.confirmation?.confirmationNotes) || null,
+    confirmationNotesSource: props.requestData.confirmationNotesSource || null
 });
 
 // دالة مساعدة لتنسيق التاريخ
@@ -264,6 +272,58 @@ const formatDate = (dateString) => {
     }
 };
 
+// نوع المستخدم الحالي
+const currentUserType = ref('');
+
+onMounted(() => {
+    // جلب نوع المستخدم من localStorage
+    const userRole = localStorage.getItem('user_role') || '';
+    const userData = localStorage.getItem('user_data');
+    
+    if (userData) {
+        try {
+            const parsed = JSON.parse(userData);
+            currentUserType.value = parsed.type || userRole || '';
+        } catch {
+            currentUserType.value = userRole || '';
+        }
+    } else {
+        currentUserType.value = userRole || '';
+    }
+    
+    // تحويل نوع المستخدم إلى التنسيق المتوقع
+    if (currentUserType.value === 'pharmacist') {
+        currentUserType.value = 'pharmacist';
+    } else if (currentUserType.value === 'department_head' || currentUserType.value === 'department_admin') {
+        currentUserType.value = 'department';
+    }
+});
+
+// computed property للتحقق من إمكانية عرض ملاحظة التأكيد
+const shouldShowConfirmationNotes = computed(() => {
+    // إذا لم تكن هناك ملاحظة تأكيد، لا نعرضها
+    if (!requestDetails.value.confirmation?.confirmationNotes && !requestDetails.value.confirmationNotes) {
+        return false;
+    }
+    
+    // إذا لم يكن هناك مصدر محدد، نعرضها (للتوافق مع الكود القديم)
+    if (!requestDetails.value.confirmationNotesSource) {
+        return true;
+    }
+    
+    // إذا كان المستخدم الحالي هو نفس مصدر الملاحظة، نعرضها
+    // pharmacist يرى ملاحظته فقط، department يرى ملاحظته فقط
+    if (currentUserType.value === 'pharmacist' && requestDetails.value.confirmationNotesSource === 'pharmacist') {
+        return true;
+    }
+    if (currentUserType.value === 'department' && requestDetails.value.confirmationNotesSource === 'department') {
+        return true;
+    }
+    
+    // إذا كان المستخدم مختلف عن مصدر الملاحظة، لا نعرضها
+    return false;
+});
+
 // Watch لتحديث البيانات
 watch(() => props.requestData, (newVal) => {
     if (newVal) {
@@ -274,8 +334,14 @@ watch(() => props.requestData, (newVal) => {
             items: newVal.items || [],
             notes: newVal.notes || '',
             storekeeperNotes: newVal.storekeeperNotes || null,
+            storekeeperNotesSource: newVal.storekeeperNotesSource || null,
             supplierNotes: newVal.supplierNotes || null,
-            confirmation: newVal.confirmation || null
+            confirmation: newVal.confirmation ? {
+                ...newVal.confirmation,
+                confirmationNotes: newVal.confirmation.confirmationNotes || newVal.confirmationNotes || null
+            } : null,
+            confirmationNotes: newVal.confirmationNotes || (newVal.confirmation?.confirmationNotes) || null,
+            confirmationNotesSource: newVal.confirmationNotesSource || null
         };
     }
 }, { immediate: true, deep: true });

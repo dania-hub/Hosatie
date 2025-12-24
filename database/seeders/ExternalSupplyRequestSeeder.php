@@ -31,7 +31,7 @@ class ExternalSupplyRequestSeeder extends Seeder
             'hospital_id' => $hospital->id,
             'supplier_id' => $supplier->id,
             'requested_by' => $user->id,
-            // approved_by left null, status defaults to 'pending'
+            // handeled_by left null, status defaults to 'pending'
         ]);
     }
 }

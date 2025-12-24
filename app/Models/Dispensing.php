@@ -9,7 +9,7 @@ class Dispensing extends Model
 {
     use HasFactory;
 
-    protected $table = 'dispensing';
+    protected $table = 'dispensings';
 
     public $timestamps = false;
 
@@ -22,8 +22,8 @@ class Dispensing extends Model
         'quantity_dispensed', // <--- Ensure this matches your DB column name
         'dispense_month',
         'reverted',
-        'reverted_at',
-        'reverted_by'
+        // 'reverted_at',
+        // 'reverted_by'
     ];
 
     protected $casts = [

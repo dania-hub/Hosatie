@@ -11,12 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('inventory', function (Blueprint $table) {
+        Schema::table('inventories', function (Blueprint $table) {
             // إضافة عمود pharmacy_id بعد warehouse_id
             $table->unsignedBigInteger('pharmacy_id')->nullable()->after('warehouse_id');
 
             // إضافة مفتاح خارجي (Foreign Key)
-            $table->foreign('pharmacy_id')->references('id')->on('pharmacy')->onDelete('cascade');
+            $table->foreign('pharmacy_id')->references('id')->on('pharmacies')->onDelete('cascade');
         });
     }
 
@@ -25,7 +25,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('inventory', function (Blueprint $table) {
+        Schema::table('inventories', function (Blueprint $table) {
             // حذف المفتاح الخارجي أولاً
             $table->dropForeign(['pharmacy_id']);
             

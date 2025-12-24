@@ -8,6 +8,23 @@ use Illuminate\Support\Facades\Auth;
 
 class UserObserver
 {
+    public function creating(User $user): void
+    {
+        // لو فيه مستخدم مسجّل دخول
+        if (Auth::check()) {
+            $creator = Auth::user();
+
+            // خزّن معرف من أنشأ المستخدم
+            if (! $user->created_by) {
+                $user->created_by = $creator->id;
+            }
+
+            // اجعل hospital_id للمستخدم الجديد نفس منشئه إن لم تُمرَّر يدويًا
+            if (! $user->hospital_id && $creator->hospital_id) {
+                $user->hospital_id = $creator->hospital_id;
+            }
+        }
+    }
     /**
      * Handle the User "created" event.
      */

@@ -7,7 +7,7 @@ class CreateComplaintTable extends Migration
 {
     public function up()
     {
-        Schema::create('complaint', function (Blueprint $table) {
+        Schema::create('complaints', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->unsignedBigInteger('patient_id');
             $table->text('message');
@@ -15,8 +15,9 @@ class CreateComplaintTable extends Migration
             $table->unsignedBigInteger('replied_by')->nullable();
             $table->text('reply_message')->nullable();
             $table->dateTime('replied_at')->nullable();
-               $table->timestamp('created_at')->useCurrent();
-             $table->timestamp('updated_at')->nullable();
+             $table->timestamp('created_at')->useCurrent();
+$table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+
 
             $table->foreign('patient_id')->references('id')->on('users');
             $table->foreign('replied_by')->references('id')->on('users')->onDelete('set null');
@@ -25,6 +26,6 @@ class CreateComplaintTable extends Migration
 
     public function down()
     {
-        Schema::dropIfExists('complaint');
+        Schema::dropIfExists('complaints');
     }
 }

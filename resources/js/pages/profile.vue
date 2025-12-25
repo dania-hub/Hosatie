@@ -83,6 +83,22 @@
                                     </span>
                                 </div>
 
+                                <!-- قسم المستشفى - يظهر فقط لرئيس القسم -->
+                                <div
+                                    v-if="userData.jobRole === 'department_head' && userData.department"
+                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                >
+                                    <span
+                                        class="text-gray-500 text-base sm:text-lg"
+                                        >القسم</span
+                                    >
+                                    <span
+                                        class="font-medium text-gray-800 text-base sm:text-lg"
+                                    >
+                                        {{ userData.department }}
+                                    </span>
+                                </div>
+
                                 <div
                                     class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
                                 >
@@ -223,6 +239,7 @@ const userData = ref({
     id: null,
     fullName: "",
     jobRole: "",
+    department: "", // إضافة حقل القسم
     healthCenter: "",
     email: "",
     phone: "",
@@ -306,51 +323,90 @@ api.interceptors.request.use(
 );
 
 // جلب بيانات المستخدم من API
+// جلب بيانات المستخدم من API
+// جلب بيانات المستخدم من API
 const fetchUserData = async () => {
     loading.value = true;
     
     try {
         const response = await api.get(endpoints.profile);
         
+        console.log("📊 API Response:", response.data);
+        
         if (response.data.success) {
             const profile = response.data.data || response.data;
+            
+            // 🔍 تحقق تفصيلي من البيانات
+            console.log("🔍 Raw profile data:", profile);
+            console.log("🔍 User type:", profile.type);
+            console.log("🔍 Department fields:", {
+                department_name: profile.department_name,
+                department: profile.department,
+                has_department_relation: !!profile.department,
+                department_object: profile.department ? JSON.stringify(profile.department) : 'null'
+            });
+            console.log("🔍 Hospital fields:", {
+                hospital_name: profile.hospital_name,
+                hospital: profile.hospital
+            });
             
             userData.value = {
                 id: profile.id,
                 fullName: profile.full_name || profile.fullName || profile.name || "",
                 jobRole: profile.type || profile.role || profile.job_title || "غير محدد",
+                // عدة محاولات لجلب القسم
+                department: getDepartmentName(profile),
                 healthCenter: profile.hospital_name || 
-                             profile.hospital?.name || 
+                             (profile.hospital && profile.hospital.name) || 
                              profile.center || 
                              "غير محدد",
                 email: profile.email || "",
                 phone: profile.phone || profile.mobile || "",
                 profileImage: profile.profileImage || profile.avatar || null,
                 hospitalId: profile.hospital_id,
-                hospitalData: profile.hospital
+                hospitalData: profile.hospital,
+                departmentData: profile.department
             };
+            
+            console.log("✅ Final userData:", userData.value);
+            console.log("🔍 Should show department?", 
+                userData.value.jobRole === 'department_head' && userData.value.department ? "YES" : "NO"
+            );
+            
         } else {
             showSuccessAlert(`⚠️ ${response.data.message || "فشل في تحميل البيانات الشخصية"}`);
         }
     } catch (err) {
-        let errorMsg = "حدث خطأ في الاتصال بالخادم";
-        
-        if (err.response?.status === 401) {
-            errorMsg = "انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى";
-        } else if (err.response?.status === 403) {
-            errorMsg = "ليس لديك صلاحية للوصول إلى هذه الصفحة";
-        } else if (err.response?.status === 404) {
-            errorMsg = "لم يتم العثور على بيانات المستخدم";
-        } else if (err.response?.data?.message) {
-            errorMsg = err.response.data.message;
-        } else if (err.message) {
-            errorMsg = err.message;
-        }
-        
-        showSuccessAlert(`⚠️ ${errorMsg}`);
+        console.error("❌ Error fetching profile:", err);
+        showSuccessAlert(`⚠️ حدث خطأ في تحميل البيانات`);
     } finally {
         loading.value = false;
     }
+};
+
+// دالة مساعدة لجلب اسم القسم
+const getDepartmentName = (profile) => {
+    // المحاولة 1: department_name مباشر
+    if (profile.department_name && profile.department_name.trim() !== '') {
+        return profile.department_name;
+    }
+    
+    // المحاولة 2: department object مع name
+    if (profile.department && profile.department.name && profile.department.name.trim() !== '') {
+        return profile.department.name;
+    }
+    
+    // المحاولة 3: department كـ string
+    if (typeof profile.department === 'string' && profile.department.trim() !== '') {
+        return profile.department;
+    }
+    
+    // المحاولة 4: أي حقل آخر
+    if (profile.department_name_ar) return profile.department_name_ar;
+    if (profile.department_arabic) return profile.department_arabic;
+    if (profile.department_ar) return profile.department_ar;
+    
+    return "";
 };
 
 // حفظ التعديلات

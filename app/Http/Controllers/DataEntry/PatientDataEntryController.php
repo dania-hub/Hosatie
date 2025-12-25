@@ -17,6 +17,17 @@ class PatientDataEntryController extends BaseApiController
     // 1. Register New Patient
     public function store(StorePatientRequest $request)
     {
+        $authUser = $request->user();
+        $hospitalId = $authUser->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المستخدم غير مرتبط بمستشفى',
+            ], 400);
+        }
+
         $user = User::create([
             'full_name'   => $request->full_name,
             'national_id' => $request->national_id,
@@ -26,6 +37,7 @@ class PatientDataEntryController extends BaseApiController
             'password'    => Hash::make('password123'),
             'type'        => 'patient',
             'status'      => 'pending_activation',
+            'hospital_id' => $hospitalId,
         ]);
 
         // يتم تسجيل العملية تلقائياً من خلال UserObserverب
@@ -38,10 +50,22 @@ class PatientDataEntryController extends BaseApiController
     }
 
     // 2. View Patient Details
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $authUser = $request->user();
+        $hospitalId = $authUser->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المستخدم غير مرتبط بمستشفى',
+            ], 400);
+        }
+
         $user = User::where('id', $id)
             ->where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
             ->first();
 
         if (!$user) {
@@ -60,8 +84,20 @@ class PatientDataEntryController extends BaseApiController
     // 3. Update Patient (تم التحديث)
     public function update(UpdatePatientRequest $request, $id)
     {
+        $authUser = $request->user();
+        $hospitalId = $authUser->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المستخدم غير مرتبط بمستشفى',
+            ], 400);
+        }
+
         $user = User::where('id', $id)
             ->where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
             ->first();
 
         if (!$user) {
@@ -90,7 +126,23 @@ class PatientDataEntryController extends BaseApiController
     // 4. View Operations Log (سجل العمليات على المرضى)
     public function activityLog(Request $request)
     {
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return response()->json([
+                'error' => 'المستخدم غير مرتبط بمستشفى'
+            ], 400);
+        }
+
+        // جلب سجلات المرضى فقط للمستشفى المحدد
+        $patientIds = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->pluck('id');
+
         $logs = AuditLog::where('table_name', 'users')
+            ->whereIn('record_id', $patientIds)
             ->latest()
             ->get();
 
@@ -129,15 +181,29 @@ class PatientDataEntryController extends BaseApiController
     }
 
     // 5. Dashboard Statistics (إحصائيات المرضى)
-    public function stats()
+    public function stats(Request $request)
     {
-        $total = User::where('type', 'patient')->count();
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return response()->json([
+                'error' => 'المستخدم غير مرتبط بمستشفى'
+            ], 400);
+        }
+
+        $total = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->count();
 
         $today = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
             ->whereDate('created_at', Carbon::today())
             ->count();
 
         $week = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
             ->whereBetween('created_at', [
                 Carbon::now()->startOfWeek(),
                 Carbon::now()->endOfWeek(),
@@ -153,7 +219,16 @@ class PatientDataEntryController extends BaseApiController
     // 6. List All Patients (Index)
     public function index(Request $request)
     {
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
         $query = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
             ->select('id', 'full_name', 'national_id', 'birth_date', 'phone', 'email', 'created_at');
 
         if ($request->has('search')) {
@@ -173,8 +248,17 @@ class PatientDataEntryController extends BaseApiController
     // 7. Delete Patient
     public function destroy(Request $request, $id)
     {
+        $authUser = $request->user();
+        $hospitalId = $authUser->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
         $patient = User::where('type', 'patient')
             ->where('id', $id)
+            ->where('hospital_id', $hospitalId)
             ->first();
 
         if (!$patient) {

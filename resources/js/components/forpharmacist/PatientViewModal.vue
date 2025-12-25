@@ -41,7 +41,15 @@ const formatDosage = (dosage) => {
     return dosage;
 };
 
-// حساب قائمة الأدوية التي سيتم صرفها فعلياً
+// حساب قائمة الأدوية المستحقة للصرف (بغض النظر عن تحديد الكمية)
+const eligibleMedicationsList = computed(() => {
+    if (!props.patient.medications) return [];
+    return props.patient.medications.filter(med => 
+        med.eligibilityStatus === 'مستحق'
+    );
+});
+
+// حساب قائمة الأدوية التي سيتم صرفها فعلياً (التي تم تحديد كمية صرفها)
 const dispensedMedicationsList = computed(() => {
     if (!props.patient.medications) return [];
     return props.patient.medications.filter(med => 
@@ -49,14 +57,15 @@ const dispensedMedicationsList = computed(() => {
     );
 });
 
-// حساب عدد الأدوية المؤهلة للصرف (المستحقة)
+// حساب عدد الأدوية المؤهلة للصرف (المستحقة) - جميع الأدوية المستحقة
 const totalItemsToConfirm = computed(() => {
-    return dispensedMedicationsList.value.length;
+    return eligibleMedicationsList.value.length;
 });
 
 // فتح مودال التأكيد
 const openConfirmationModal = () => {
-    if (totalItemsToConfirm.value === 0) {
+    // التحقق من وجود أدوية تم تحديد كمية صرفها
+    if (dispensedMedicationsList.value.length === 0) {
         emit('close');
         return;
     }
@@ -261,8 +270,8 @@ const cancelConfirmation = () => {
                 <button 
                     @click="openConfirmationModal" 
                     class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200"
-                    :class="totalItemsToConfirm > 0 ? 'bg-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5' : 'bg-gray-300 cursor-not-allowed shadow-none'"
-                    :disabled="totalItemsToConfirm === 0"
+                    :class="dispensedMedicationsList.length > 0 ? 'bg-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5' : 'bg-gray-300 cursor-not-allowed shadow-none'"
+                    :disabled="dispensedMedicationsList.length === 0"
                 >
                     <Icon icon="solar:check-read-bold" class="w-5 h-5" />
                     تأكيد الصرف

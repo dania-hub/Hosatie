@@ -10,6 +10,7 @@ use App\Models\Inventory;
 use App\Models\Drug;
 use App\Models\Prescription;
 use App\Models\Pharmacy;
+use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -21,8 +22,17 @@ class PatientPharmacistController extends BaseApiController
      */
     public function index(Request $request)
     {
-        // جلب جميع المرضى مع آخر تاريخ صرف لكل مريض
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
+        // جلب المرضى الذين لديهم نفس hospital_id فقط
         $patients = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
             ->get()
             ->map(function ($p) {
                 // جلب آخر عملية صرف لهذا المريض
@@ -71,10 +81,17 @@ class PatientPharmacistController extends BaseApiController
      */
     public function show(Request $request, $fileNumber)
     {
-        $hospitalId = $request->user()->hospital_id;
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
 
         $patient = User::where('type', 'patient')
             ->where('id', $fileNumber)
+            ->where('hospital_id', $hospitalId)
             ->first();
 
         if (!$patient) {
@@ -323,8 +340,22 @@ class PatientPharmacistController extends BaseApiController
 
         DB::beginTransaction();
         try {
-            $patient = User::findOrFail($request->patientFileNumber);
             $pharmacist = $request->user();
+            $hospitalId = $pharmacist->hospital_id;
+
+            // التأكد من أن المستخدم لديه hospital_id
+            if (!$hospitalId) {
+                throw new \Exception("المستخدم غير مرتبط بمستشفى.");
+            }
+
+            $patient = User::where('id', $request->patientFileNumber)
+                ->where('type', 'patient')
+                ->where('hospital_id', $hospitalId)
+                ->first();
+
+            if (!$patient) {
+                throw new \Exception("المريض غير موجود.");
+            }
 
             // 1. تحديد الصيدلية (مصدر الصرف)
             $pharmacyId = null;
@@ -354,6 +385,9 @@ class PatientPharmacistController extends BaseApiController
             }
 
             // 3. صرف الأدوية
+            $dispensationsCreated = [];
+            $inventoryChanges = [];
+            
             foreach ($request->dispensedItems as $item) {
                 
                 // أ. العثور على الدواء
@@ -380,9 +414,19 @@ class PatientPharmacistController extends BaseApiController
                     throw new \Exception("الكمية غير كافية للدواء: " . $item['drugName'] . " في هذه الصيدلية.");
                 }
                 
+                // حفظ الكمية الأصلية للمخزون للتراجع
+                $originalQuantity = $inventory->current_quantity;
+                
                 // د. خصم الكمية والحفظ
                 $inventory->current_quantity -= $item['quantity'];
                 $inventory->save();
+                
+                // حفظ معلومات تغيير المخزون للتراجع
+                $inventoryChanges[] = [
+                    'inventory_id' => $inventory->id,
+                    'drug_id' => $drug->id,
+                    'quantity_added_back' => $item['quantity'],
+                ];
 
                 // هـ. إنشاء أو تحديث سجل الصرف
                 // إذا كان هناك سجل موجود لنفس الدواء في نفس الشهر، نضيف الكمية الجديدة
@@ -394,14 +438,27 @@ class PatientPharmacistController extends BaseApiController
                     ->first();
                 
                 if ($existingDispensing) {
+                    // حفظ الكمية الأصلية للتراجع
+                    $originalDispensedQuantity = $existingDispensing->quantity_dispensed;
+                    
                     // تحديث الكمية المصروفة بإضافة الكمية الجديدة
                     $existingDispensing->quantity_dispensed += $item['quantity'];
                     $existingDispensing->pharmacist_id = $pharmacist->id;
                     $existingDispensing->pharmacy_id = $pharmacyId;
                     $existingDispensing->save();
+                    
+                    // حفظ معلومات السجل المحدث للتراجع
+                    $dispensationsCreated[] = [
+                        'dispensing_id' => $existingDispensing->id,
+                        'drug_id' => $drug->id,
+                        'drug_name' => $item['drugName'],
+                        'quantity' => $item['quantity'],
+                        'original_quantity' => $originalDispensedQuantity,
+                        'is_new' => false,
+                    ];
                 } else {
                     // إنشاء سجل جديد
-                    Dispensing::create([
+                    $dispensing = Dispensing::create([
                         'prescription_id' => $prescription->id,
                         'patient_id' => $patient->id,
                         'drug_id' => $drug->id,
@@ -410,11 +467,24 @@ class PatientPharmacistController extends BaseApiController
                         'dispense_month' => $dispenseMonth,
                         'quantity_dispensed' => $item['quantity'],
                     ]);
+                    
+                    // حفظ معلومات السجل الجديد للتراجع
+                    $dispensationsCreated[] = [
+                        'dispensing_id' => $dispensing->id,
+                        'drug_id' => $drug->id,
+                        'drug_name' => $item['drugName'],
+                        'quantity' => $item['quantity'],
+                        'original_quantity' => 0,
+                        'is_new' => true,
+                    ];
                 }
             }
 
             DB::commit();
-            return $this->sendSuccess([], 'تم صرف الأدوية الموصوفة بنجاح.');
+            return $this->sendSuccess([
+                'dispensations' => $dispensationsCreated,
+                'inventory_changes' => $inventoryChanges,
+            ], 'تم صرف الأدوية الموصوفة بنجاح.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -424,13 +494,149 @@ class PatientPharmacistController extends BaseApiController
 
 
     /**
+     * POST /api/pharmacist/dispense/undo
+     * التراجع عن صرف الأدوية (يجب أن يكون خلال 7 ثوانٍ من الصرف).
+     */
+    public function undoDispense(Request $request)
+    {
+        $request->validate([
+            'dispensations' => 'required|array',
+            'dispensations.*.dispensing_id' => 'required|exists:dispensings,id',
+            'dispensations.*.drug_id' => 'required|exists:drugs,id',
+            'dispensations.*.quantity' => 'required|integer|min:1',
+            'dispensations.*.is_new' => 'required|boolean',
+            'dispensations.*.original_quantity' => 'nullable|integer|min:0',
+            'inventory_changes' => 'required|array',
+            'inventory_changes.*.inventory_id' => 'required|exists:inventories,id',
+            'inventory_changes.*.quantity_added_back' => 'required|integer|min:1',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $pharmacist = $request->user();
+            $hospitalId = $pharmacist->hospital_id;
+
+            // التأكد من أن المستخدم لديه hospital_id
+            if (!$hospitalId) {
+                throw new \Exception("المستخدم غير مرتبط بمستشفى.");
+            }
+
+            // 1. التراجع عن تغييرات المخزون
+            foreach ($request->inventory_changes as $change) {
+                $inventory = Inventory::find($change['inventory_id']);
+                
+                if ($inventory) {
+                    // إرجاع الكمية المخصومة
+                    $inventory->current_quantity += $change['quantity_added_back'];
+                    $inventory->save();
+                }
+            }
+
+            // 2. التراجع عن سجلات الصرف وتسجيل العملية
+            $patientId = null;
+            $drugsInfo = [];
+            
+            foreach ($request->dispensations as $disp) {
+                $dispensing = Dispensing::find($disp['dispensing_id']);
+                
+                if (!$dispensing) {
+                    continue;
+                }
+
+                // حفظ معرف المريض
+                if (!$patientId) {
+                    $patientId = $dispensing->patient_id;
+                }
+
+                // جلب معلومات الدواء للمستخدم
+                $drug = Drug::find($disp['drug_id']);
+                $drugName = $drug ? $drug->name : 'غير محدد';
+                
+                $drugsInfo[] = [
+                    'drug_name' => $drugName,
+                    'quantity' => $disp['quantity'],
+                ];
+
+                // التحقق من أن الصيدلاني الحالي هو نفس من قام بالصرف (أو السماح للصيدلانيين من نفس المستشفى)
+                // يمكن إضافة هذا التحقق إذا أردت تقييد التراجع للصيدلاني نفسه فقط:
+                // if ($dispensing->pharmacist_id !== $pharmacist->id) {
+                //     throw new \Exception("لا يمكن التراجع عن صرف قام به صيدلاني آخر.");
+                // }
+
+                if ($disp['is_new']) {
+                    // إذا كان سجل جديد، احذفه
+                    $dispensing->delete();
+                } else {
+                    // إذا كان سجل موجود، أرجع الكمية إلى القيمة الأصلية
+                    $dispensing->quantity_dispensed = $disp['original_quantity'] ?? 0;
+                    
+                    // إذا أصبحت الكمية 0 أو أقل، احذف السجل
+                    if ($dispensing->quantity_dispensed <= 0) {
+                        $dispensing->delete();
+                    } else {
+                        $dispensing->save();
+                    }
+                }
+            }
+
+            // 3. تسجيل عملية التراجع في AuditLog
+            if ($patientId && count($drugsInfo) > 0) {
+                $patient = User::find($patientId);
+                $patientName = $patient ? ($patient->full_name ?? $patient->name ?? 'غير محدد') : 'غير محدد';
+                
+                // إنشاء نص وصف للعملية
+                $drugsText = collect($drugsInfo)->map(function($drug) {
+                    return "{$drug['drug_name']} ({$drug['quantity']})";
+                })->implode('، ');
+                
+                AuditLog::create([
+                    'user_id' => $pharmacist->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'تراجع عن صرف وصفة طبية',
+                    'table_name' => 'dispensings',
+                    'record_id' => $patientId,
+                    'old_values' => null,
+                    'new_values' => json_encode([
+                        'patient_id' => $patientId,
+                        'patient_name' => $patientName,
+                        'drugs' => $drugsInfo,
+                        'drugs_text' => $drugsText,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
+
+            DB::commit();
+            return $this->sendSuccess([], 'تم التراجع عن صرف الأدوية بنجاح.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('فشل في التراجع: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * GET /api/pharmacist/patients/{fileNumber}/dispensations
      * سجل صرف المريض.
      */
-    public function history($fileNumber)
+    public function history(Request $request, $fileNumber)
     {
-        $patient = User::where('id', $fileNumber)->where('type', 'patient')->first();
-        if (!$patient) return $this->sendError('المريض غير موجود.');
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
+        $patient = User::where('id', $fileNumber)
+            ->where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->first();
+        
+        if (!$patient) {
+            return $this->sendError('المريض غير موجود.', [], 404);
+        }
 
         $dispensations = Dispensing::with(['drug', 'pharmacist'])
             ->where('patient_id', $patient->id)

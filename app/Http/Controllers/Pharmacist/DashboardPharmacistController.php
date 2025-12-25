@@ -128,7 +128,12 @@ class DashboardPharmacistController extends BaseApiController
                       ->orWhere('action', 'like', '%confirm%');
                 })
                 // إسناد الأدوية
-                ->orWhere('table_name', 'prescription_drug');
+                ->orWhere('table_name', 'prescription_drug')
+                // التراجع عن صرف وصفة طبية
+                ->orWhere(function($q) {
+                    $q->where('action', 'تراجع عن صرف وصفة طبية')
+                      ->orWhere('action', 'like', '%تراجع%');
+                });
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -172,6 +177,39 @@ class DashboardPharmacistController extends BaseApiController
                 } else {
                     $operationData['name'] = 'طلب توريد';
                 }
+            }
+            // معالجة التراجع عن صرف وصفة طبية
+            elseif ($log->action === 'تراجع عن صرف وصفة طبية' || strpos($log->action, 'تراجع') !== false) {
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                
+                if ($newValues) {
+                    $operationData['fileNumber'] = $newValues['patient_id'] ?? $log->record_id ?? 'N/A';
+                    $operationData['name'] = $newValues['patient_name'] ?? 'غير محدد';
+                    
+                    // جلب معلومات الأدوية
+                    $drugsInfo = $newValues['drugs'] ?? [];
+                    if (count($drugsInfo) > 0) {
+                        $drugsText = collect($drugsInfo)->map(function($drug) {
+                            $drugName = $drug['drug_name'] ?? 'غير محدد';
+                            $quantity = $drug['quantity'] ?? 0;
+                            return "{$drugName} ({$quantity})";
+                        })->implode('، ');
+                        
+                        $operationData['drugName'] = $drugsText;
+                        $operationData['details'] = "تراجع عن صرف: {$drugsText}";
+                        
+                        // إذا كان هناك دواء واحد فقط، نعرضه بشكل مباشر
+                        if (count($drugsInfo) === 1) {
+                            $operationData['drugName'] = $drugsInfo[0]['drug_name'] ?? 'غير محدد';
+                            $operationData['quantity'] = $drugsInfo[0]['quantity'] ?? 0;
+                        }
+                    }
+                } else {
+                    $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                    $operationData['name'] = 'غير محدد';
+                }
+                
+                $operationData['operationType'] = 'تراجع عن صرف وصفة طبية';
             }
             // معالجة إسناد دواء للمريض
             elseif ($log->table_name === 'prescription_drug') {
@@ -333,11 +371,13 @@ class DashboardPharmacistController extends BaseApiController
             'إضافة دواء' => 'إسناد دواء للمريض',
             'تعديل دواء' => 'تعديل دواء للمريض',
             'حذف دواء' => 'حذف دواء من المريض',
+            'تراجع عن صرف وصفة طبية' => 'تراجع عن صرف وصفة طبية',
             'create' => 'إضافة',
             'update' => 'تعديل',
             'delete' => 'حذف',
             'assign' => 'إسناد دواء',
             'dispense' => 'صرف وصفة طبية',
+            'undo' => 'تراجع',
         ];
 
         return $translations[$action] ?? $action;

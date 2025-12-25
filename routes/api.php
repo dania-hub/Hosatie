@@ -375,6 +375,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('patients', [PatientPharmacistController::class, 'index']);
         Route::get('patients/{fileNumber}', [PatientPharmacistController::class, 'show']);
         Route::post('dispense', [PatientPharmacistController::class, 'dispense']);
+        Route::post('dispense/undo', [PatientPharmacistController::class, 'undoDispense']);
 
         Route::get('dashboard/stats', [DashboardPharmacistController::class, 'stats']);
 

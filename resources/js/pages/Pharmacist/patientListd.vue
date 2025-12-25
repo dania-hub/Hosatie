@@ -120,16 +120,32 @@ const handleConfirmation = async (patientData, dispensedMedications) => {
     };
 
     try {
-        await api.post("/dispense", payload);
+        const response = await api.post("/dispense", payload);
+        
+        // الحصول على معلومات السجلات المنشأة من الاستجابة
+        const responseData = response.data?.data ?? {};
+        const dispensations = responseData.dispensations || [];
+        const inventoryChanges = responseData.inventory_changes || [];
 
         // تحديث البيانات في الواجهة عن طريق إعادة جلب القائمة
         await fetchPatients();
 
-        // إظهار رسالة نجاح
-        showSuccessAlert(`✅ تم صرف الأدوية بنجاح للمريض ${patientData.nameDisplay}`);
+        // إظهار رسالة نجاح مع زر التراجع (لمدة 7 ثوانٍ)
+        if (dispensations.length > 0 && inventoryChanges.length > 0) {
+            showSuccessAlert(
+                `✅ تم صرف الأدوية بنجاح للمريض ${patientData.nameDisplay}`,
+                true,
+                {
+                    dispensations: dispensations,
+                    inventory_changes: inventoryChanges,
+                }
+            );
+        } else {
+            showSuccessAlert(`✅ تم صرف الأدوية بنجاح للمريض ${patientData.nameDisplay}`, false);
+        }
     } catch (error) {
         console.error("خطأ في عملية صرف الأدوية:", error);
-        showSuccessAlert(`❌ فشل في صرف الأدوية: ${error.response?.data?.message || error.message}`);
+        showSuccessAlert(`❌ فشل في صرف الأدوية: ${error.response?.data?.message || error.message}`, false);
     }
 };
 
@@ -321,24 +337,73 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 4. منطق رسالة النجاح (باقي كما هو)
+// 4. منطق رسالة النجاح مع ميزة التراجع
 // ----------------------------------------------------
 const isSuccessAlertVisible = ref(false);
 const successMessage = ref("");
+const showUndoButton = ref(false);
+const undoData = ref(null);
 let alertTimeout = null;
+let undoTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showSuccessAlert = (message, enableUndo = false, undoInfo = null) => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
+    }
+    if (undoTimeout) {
+        clearTimeout(undoTimeout);
     }
 
     successMessage.value = message;
     isSuccessAlertVisible.value = true;
+    showUndoButton.value = enableUndo;
+    undoData.value = undoInfo;
 
+    // إخفاء زر التراجع بعد 7 ثوانٍ
+    if (enableUndo) {
+        undoTimeout = setTimeout(() => {
+            showUndoButton.value = false;
+            undoData.value = null;
+        }, 7000);
+    }
+
+    // إخفاء الرسالة بعد 10 ثوانٍ (أطول من 7 ثوانٍ)
     alertTimeout = setTimeout(() => {
         isSuccessAlertVisible.value = false;
         successMessage.value = "";
-    }, 4000);
+        showUndoButton.value = false;
+        undoData.value = null;
+    }, enableUndo ? 10000 : 4000);
+};
+
+// دالة التراجع عن الصرف
+const handleUndoDispense = async () => {
+    if (!undoData.value) {
+        return;
+    }
+
+    try {
+        await api.post("/dispense/undo", {
+            dispensations: undoData.value.dispensations,
+            inventory_changes: undoData.value.inventory_changes,
+        });
+
+        // تحديث البيانات في الواجهة
+        await fetchPatients();
+
+        // إخفاء زر التراجع
+        showUndoButton.value = false;
+        undoData.value = null;
+        if (undoTimeout) {
+            clearTimeout(undoTimeout);
+        }
+
+        // إظهار رسالة نجاح التراجع
+        showSuccessAlert("✅ تم التراجع عن صرف الأدوية بنجاح", false);
+    } catch (error) {
+        console.error("خطأ في التراجع عن صرف الأدوية:", error);
+        showSuccessAlert(`❌ فشل في التراجع: ${error.response?.data?.message || error.message}`, false);
+    }
 };
 
 // ----------------------------------------------------
@@ -658,10 +723,20 @@ const printTable = () => {
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3"
             dir="rtl"
         >
-            {{ successMessage }}
+            <div class="flex-1">
+                {{ successMessage }}
+            </div>
+            <button
+                v-if="showUndoButton"
+                @click="handleUndoDispense"
+                class="px-3 py-1.5 bg-white text-green-600 rounded-lg font-bold text-sm hover:bg-gray-100 transition-colors duration-200 whitespace-nowrap flex items-center gap-1"
+            >
+                <Icon icon="solar:undo-left-bold" class="w-4 h-4" />
+                تراجع
+            </button>
         </div>
     </Transition>
 </template>

@@ -5,10 +5,14 @@
             <Navbar />
             <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-5">
               
-               
+                <!-- حالة التحميل -->
+                <div v-if="loading" class="text-center py-10">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mx-auto"></div>
+                    <p class="mt-4 text-gray-600">جاري تحميل البيانات الشخصية...</p>
+                </div>
 
                 <!-- حالة النجاح -->
-                <div class="bg-white shadow-lg rounded-xl p-4 sm:p-6 max-w-4xl mx-auto">
+                <div v-else class="bg-white shadow-lg rounded-xl p-4 sm:p-6 max-w-4xl mx-auto">
                     <div v-if="!isEditing && !isChangingPassword">
                         <h2
                             class="text-3xl font-bold mb-6 sm:mb-8 text-right text-gray-800 border-b border-[#4DA1A9] pb-3"
@@ -47,16 +51,7 @@
                                             />
                                         </svg>
                                     </div>
-                                    <button
-                                        @click="changeProfileImage"
-                                        class="absolute bottom-0 left-0 bg-blue-600 p-2 rounded-full text-white shadow-lg hover:bg-blue-700 transition"
-                                        aria-label="تغيير الصورة"
-                                    >
-                                        <Icon
-                                            icon="ic:baseline-camera-alt"
-                                            class="w-5 h-5"
-                                        />
-                                    </button>
+                                    
                                 </div>
                             </div>
                             <div class="md:w-2/3 w-full pr-7 space-y-4">
@@ -85,6 +80,22 @@
                                         class="font-medium text-gray-800 text-base sm:text-lg"
                                     >
                                         {{ userData.jobRole }}
+                                    </span>
+                                </div>
+
+                                <!-- قسم المستشفى - يظهر فقط لرئيس القسم -->
+                                <div
+                                    v-if="userData.jobRole === 'department_head' && userData.department"
+                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                >
+                                    <span
+                                        class="text-gray-500 text-base sm:text-lg"
+                                        >القسم</span
+                                    >
+                                    <span
+                                        class="font-medium text-gray-800 text-base sm:text-lg"
+                                    >
+                                        {{ userData.department }}
                                     </span>
                                 </div>
 
@@ -179,26 +190,56 @@
             </main>
         </div>
     </div>
+
+    <!-- Alert Notification -->
+    <Transition
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="translate-x-full opacity-0"
+        enter-to-class="translate-x-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="translate-x-0 opacity-100"
+        leave-to-class="translate-x-full opacity-0"
+    >
+        <div 
+            v-if="isSuccessAlertVisible" 
+            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            dir="rtl"
+            :class="{
+                'bg-green-50 border border-green-200 text-green-800': successMessage.includes('✅'),
+                'bg-red-50 border border-red-200 text-red-800': successMessage.includes('⚠️'),
+                'bg-blue-50 border border-blue-200 text-blue-800': !successMessage.includes('✅') && !successMessage.includes('⚠️')
+            }"
+        >
+            <div class="flex items-start gap-3">
+                <Icon 
+                    :icon="successMessage.includes('✅') ? 'solar:check-circle-bold' : 'solar:danger-triangle-bold'" 
+                    class="w-5 h-5 mt-0.5 flex-shrink-0"
+                    :class="successMessage.includes('✅') ? 'text-green-600' : 'text-red-600'"
+                />
+                <div>
+                    <p class="font-medium text-sm whitespace-pre-line">{{ successMessage.replace('✅', '').replace('⚠️', '') }}</p>
+                </div>
+            </div>
+        </div>
+    </Transition>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
-import { useToast } from "vue-toastification";
 
 import Navbar from "@/components/Navbar.vue";
 import Sidebar from "@/components/Sidebar.vue";
 import EditProfileForm from "@/components/EditProfileForm.vue";
 import ChangePasswordForm from "@/components/ChangePasswordForm.vue";
 
-const toast = useToast();
-
 // حالة المستخدم
 const userData = ref({
     id: null,
     fullName: "",
     jobRole: "",
+    department: "", // إضافة حقل القسم
     healthCenter: "",
     email: "",
     phone: "",
@@ -209,23 +250,41 @@ const userData = ref({
 const loading = ref(true);
 const updating = ref(false);
 const changingPassword = ref(false);
-const error = ref(null);
 const isEditing = ref(false);
 const isChangingPassword = ref(false);
 
-// API endpoints (يجب تعديلها حسب الـ API الخاص بك)
-const API_BASE_URL = "https://api.example.com"; // استبدل بعنوان API الفعلي
-  const endpoints = {
-      profile: "/api/profile/dashboard",
-      updateProfile: "/api/profile/dashboard",
-      changePassword: "/api/profile/password/dashboard",
-      uploadImage: "/api/profile/upload-image"
-  };
+// نظام الإشعارات (مشابه لصفحة المرضى)
+const isSuccessAlertVisible = ref(false);
+const successMessage = ref("");
+let alertTimeout = null;
 
-// الحصول على التوكن من localStorage أو Vuex/Pinia
-  const getAuthToken = () => {
-      return localStorage.getItem("auth_token") || "";
-  };
+// دالة عرض الإشعارات
+const showSuccessAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+    
+    successMessage.value = message;
+    isSuccessAlertVisible.value = true;
+    
+    alertTimeout = setTimeout(() => {
+        isSuccessAlertVisible.value = false;
+        successMessage.value = "";
+    }, 4000);
+};
+
+// API endpoints
+const endpoints = {
+    profile: "/api/profile/dashboard",
+    updateProfile: "/api/profile/dashboard",
+    changePassword: "/api/profile/password/dashboard",
+    uploadImage: "/api/profile/upload-image"
+};
+
+// الحصول على التوكن من localStorage
+const getAuthToken = () => {
+    return localStorage.getItem("auth_token") || "";
+};
 
 // تهيئة axios مع التوكن
 const api = axios.create({
@@ -236,6 +295,21 @@ const api = axios.create({
         "Accept": "application/json"
     }
 });
+
+// إضافة interceptor للتعامل مع الردود
+api.interceptors.response.use(
+    (response) => {
+        return response;
+    },
+    (error) => {
+        // معالجة أخطاء الشبكة
+        if (!error.response) {
+            showSuccessAlert("⚠️ فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
+            return Promise.reject(error);
+        }
+        return Promise.reject(error);
+    }
+);
 
 api.interceptors.request.use(
     (config) => {
@@ -249,33 +323,90 @@ api.interceptors.request.use(
 );
 
 // جلب بيانات المستخدم من API
+// جلب بيانات المستخدم من API
+// جلب بيانات المستخدم من API
 const fetchUserData = async () => {
     loading.value = true;
-    error.value = null;
     
-  try {
-      const response = await api.get(endpoints.profile);
-      
-      if (response.data.success) {
-          const profile = response.data.data || response.data;
-          userData.value = {
-              id: profile.id,
-              fullName: profile.full_name || profile.fullName || profile.name || "",
-              jobRole: profile.jobRole || profile.type || "",
-              healthCenter: profile.healthCenter || profile.center || "",
-              email: profile.email || "",
-              phone: profile.phone || profile.mobile || "",
-              profileImage: profile.profileImage || profile.avatar || null
-          };
+    try {
+        const response = await api.get(endpoints.profile);
+        
+        console.log("📊 API Response:", response.data);
+        
+        if (response.data.success) {
+            const profile = response.data.data || response.data;
+            
+            // 🔍 تحقق تفصيلي من البيانات
+            console.log("🔍 Raw profile data:", profile);
+            console.log("🔍 User type:", profile.type);
+            console.log("🔍 Department fields:", {
+                department_name: profile.department_name,
+                department: profile.department,
+                has_department_relation: !!profile.department,
+                department_object: profile.department ? JSON.stringify(profile.department) : 'null'
+            });
+            console.log("🔍 Hospital fields:", {
+                hospital_name: profile.hospital_name,
+                hospital: profile.hospital
+            });
+            
+            userData.value = {
+                id: profile.id,
+                fullName: profile.full_name || profile.fullName || profile.name || "",
+                jobRole: profile.type || profile.role || profile.job_title || "غير محدد",
+                // عدة محاولات لجلب القسم
+                department: getDepartmentName(profile),
+                healthCenter: profile.hospital_name || 
+                             (profile.hospital && profile.hospital.name) || 
+                             profile.center || 
+                             "غير محدد",
+                email: profile.email || "",
+                phone: profile.phone || profile.mobile || "",
+                profileImage: profile.profileImage || profile.avatar || null,
+                hospitalId: profile.hospital_id,
+                hospitalData: profile.hospital,
+                departmentData: profile.department
+            };
+            
+            console.log("✅ Final userData:", userData.value);
+            console.log("🔍 Should show department?", 
+                userData.value.jobRole === 'department_head' && userData.value.department ? "YES" : "NO"
+            );
+            
         } else {
-            error.value = response.data.message || "فشل في تحميل البيانات";
+            showSuccessAlert(`⚠️ ${response.data.message || "فشل في تحميل البيانات الشخصية"}`);
         }
     } catch (err) {
-        error.value = err.response?.data?.message || err.message || "حدث خطأ في الاتصال بالخادم";
-        console.error("Error fetching user data:", err);
+        console.error("❌ Error fetching profile:", err);
+        showSuccessAlert(`⚠️ حدث خطأ في تحميل البيانات`);
     } finally {
         loading.value = false;
     }
+};
+
+// دالة مساعدة لجلب اسم القسم
+const getDepartmentName = (profile) => {
+    // المحاولة 1: department_name مباشر
+    if (profile.department_name && profile.department_name.trim() !== '') {
+        return profile.department_name;
+    }
+    
+    // المحاولة 2: department object مع name
+    if (profile.department && profile.department.name && profile.department.name.trim() !== '') {
+        return profile.department.name;
+    }
+    
+    // المحاولة 3: department كـ string
+    if (typeof profile.department === 'string' && profile.department.trim() !== '') {
+        return profile.department;
+    }
+    
+    // المحاولة 4: أي حقل آخر
+    if (profile.department_name_ar) return profile.department_name_ar;
+    if (profile.department_arabic) return profile.department_arabic;
+    if (profile.department_ar) return profile.department_ar;
+    
+    return "";
 };
 
 // حفظ التعديلات
@@ -287,7 +418,6 @@ const handleSave = async (newProfileData) => {
             full_name: newProfileData.fullName,
             email: newProfileData.email,
             phone: newProfileData.phone,
-            // يمكن إضافة المزيد من الحقول حسب API
         });
         
         if (response.data.success) {
@@ -296,15 +426,49 @@ const handleSave = async (newProfileData) => {
             userData.value.email = response.data.data?.email || newProfileData.email;
             userData.value.phone = response.data.data?.phone || newProfileData.phone;
             
-            toast.success("تم تحديث البيانات بنجاح");
+            showSuccessAlert("✅ تم تحديث بياناتك الشخصية بنجاح");
+            
             isEditing.value = false;
         } else {
-            toast.error(response.data.message || "فشل في تحديث البيانات");
+            showSuccessAlert(`⚠️ ${response.data.message || "فشل في تحديث البيانات"}`);
         }
     } catch (err) {
-        const errorMsg = err.response?.data?.message || err.message || "حدث خطأ في التحديث";
-        toast.error(errorMsg);
-        console.error("Error updating profile:", err);
+        const errorData = err.response?.data;
+        
+        if (errorData?.errors) {
+            // عرض أخطاء التحقق
+            const errorList = Object.values(errorData.errors).flat();
+            if (errorList.length > 0) {
+                showSuccessAlert(`⚠️ ${errorList[0]}`);
+            } else {
+                showSuccessAlert("⚠️ فشل في تحديث البيانات");
+            }
+        } else if (errorData?.message) {
+            // رسائل محددة
+            if (errorData.message.includes("email") || errorData.message.includes("بريد")) {
+                showSuccessAlert("⚠️ البريد الإلكتروني غير صالح أو مستخدم بالفعل");
+            } else if (errorData.message.includes("phone") || errorData.message.includes("هاتف")) {
+                showSuccessAlert("⚠️ رقم الهاتف غير صالح أو مستخدم بالفعل");
+            } else if (errorData.message.includes("full_name") || errorData.message.includes("اسم")) {
+                showSuccessAlert("⚠️ الاسم الرباعي غير صالح");
+            } else {
+                showSuccessAlert(`⚠️ ${errorData.message}`);
+            }
+        } else if (err.response?.status === 422) {
+            showSuccessAlert("⚠️ البيانات المدخلة غير صالحة. يرجى التحقق من المعلومات");
+        } else if (err.response?.status === 409) {
+            showSuccessAlert("⚠️ هذا البريد الإلكتروني أو رقم الهاتف مستخدم بالفعل");
+        } else if (err.response?.status === 401) {
+            showSuccessAlert("⚠️ انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى");
+        } else if (err.response?.status === 403) {
+            showSuccessAlert("⚠️ ليس لديك صلاحية لتعديل البيانات");
+        } else if (err.response?.status === 500) {
+            showSuccessAlert("⚠️ حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً");
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+            showSuccessAlert("⚠️ فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
+        } else {
+            showSuccessAlert("⚠️ حدث خطأ غير متوقع أثناء تحديث البيانات");
+        }
     } finally {
         updating.value = false;
     }
@@ -314,23 +478,55 @@ const handleSave = async (newProfileData) => {
 const handlePasswordSave = async (passwordData) => {
     changingPassword.value = true;
     
-  try {
-      const response = await api.put(endpoints.changePassword, {
-          current_password: passwordData.currentPassword,
-          new_password: passwordData.newPassword,
-          new_password_confirmation: passwordData.newPassword
-      });
+    try {
+        const response = await api.put(endpoints.changePassword, {
+            current_password: passwordData.currentPassword,
+            new_password: passwordData.newPassword,
+            new_password_confirmation: passwordData.newPassword
+        });
         
+        // الطلب ناجح تقنياً
         if (response.data.success) {
-            toast.success("تم تغيير كلمة المرور بنجاح");
+            showSuccessAlert(`✅ ${response.data.message || "تم تغيير كلمة المرور بنجاح"}`);
             isChangingPassword.value = false;
         } else {
-            toast.error(response.data.message || "فشل في تغيير كلمة المرور");
+            // success: false في الـ response
+            showSuccessAlert(`⚠️ ${response.data.message || "فشل في تغيير كلمة المرور"}`);
         }
     } catch (err) {
-        const errorMsg = err.response?.data?.message || err.message || "حدث خطأ في تغيير كلمة المرور";
-        toast.error(errorMsg);
-        console.error("Error changing password:", err);
+        // هنا نتعامل مع الأخطاء التقنية (شبكة، 500، إلخ)
+        // الـ 400 تم التعامل معه في interceptor
+        
+        const errorData = err.response?.data;
+        
+        if (errorData?.message) {
+            // رسائل محددة للكلمة المرور
+            if (errorData.message.includes("current password") || errorData.message.includes("كلمة المرور الحالية")) {
+                showSuccessAlert("⚠️ كلمة المرور الحالية غير صحيحة");
+            } else if (errorData.message.includes("same") || errorData.message.includes("مطابقة")) {
+                showSuccessAlert("⚠️ كلمة المرور الجديدة يجب أن تكون مختلفة عن القديمة");
+            } else if (errorData.message.includes("weak") || errorData.message.includes("ضعيفة")) {
+                showSuccessAlert("⚠️ كلمة المرور ضعيفة. يجب أن تحتوي على أحرف كبيرة وصغيرة وأرقام ورموز");
+            } else if (errorData.message.includes("confirmed") || errorData.message.includes("متطابقة")) {
+                showSuccessAlert("⚠️ كلمات المرور غير متطابقة");
+            } else {
+                showSuccessAlert(`⚠️ ${errorData.message}`);
+            }
+        } else if (err.response?.status === 400) {
+            showSuccessAlert("⚠️ كلمة المرور الحالية غير صحيحة");
+        } else if (err.response?.status === 422) {
+            showSuccessAlert("⚠️ البيانات المدخلة غير صالحة. يرجى التحقق من كلمات المرور");
+        } else if (err.response?.status === 401) {
+            showSuccessAlert("⚠️ انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى");
+        } else if (err.response?.status === 403) {
+            showSuccessAlert("⚠️ ليس لديك صلاحية لهذا الإجراء");
+        } else if (err.response?.status === 500) {
+            showSuccessAlert("⚠️ حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً");
+        } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+            showSuccessAlert("⚠️ فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
+        } else {
+            showSuccessAlert("⚠️ حدث خطأ غير متوقع أثناء تغيير كلمة المرور");
+        }
     } finally {
         changingPassword.value = false;
     }
@@ -346,6 +542,18 @@ const changeProfileImage = async () => {
         const file = e.target.files[0];
         if (!file) return;
         
+        // تحقق من حجم الصورة
+        if (file.size > 5 * 1024 * 1024) {
+            showSuccessAlert("⚠️ حجم الصورة كبير جداً. الحد الأقصى 5MB");
+            return;
+        }
+        
+        const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+        if (!validTypes.includes(file.type)) {
+            showSuccessAlert("⚠️ نوع الملف غير مدعوم. يُرجى اختيار صورة (JPEG, PNG, JPG, GIF)");
+            return;
+        }
+        
         const formData = new FormData();
         formData.append('image', file);
         
@@ -358,10 +566,18 @@ const changeProfileImage = async () => {
             
             if (response.data.success) {
                 userData.value.profileImage = response.data.data.imageUrl;
-                toast.success("تم تحديث الصورة بنجاح");
+                showSuccessAlert("✅ تم تحديث صورتك الشخصية بنجاح");
+            } else {
+                showSuccessAlert(`⚠️ ${response.data.message || "فشل في تحديث الصورة"}`);
             }
         } catch (err) {
-            toast.error("فشل في رفع الصورة");
+            if (err.response?.status === 413) {
+                showSuccessAlert("⚠️ حجم الصورة كبير جداً");
+            } else if (err.response?.status === 415) {
+                showSuccessAlert("⚠️ نوع الملف غير مدعوم");
+            } else {
+                showSuccessAlert("⚠️ فشل في رفع الصورة. حاول مرة أخرى");
+            }
         }
     };
     

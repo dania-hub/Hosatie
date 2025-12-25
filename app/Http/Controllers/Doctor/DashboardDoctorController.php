@@ -8,90 +8,92 @@ use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use App\Models\AuditLog;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class DashboardDoctorController extends BaseApiController
 {
        public function stats(Request $request)
     {
         $doctorId = $request->user()->id;
+        $hospitalId = $request->user()->hospital_id;
 
-        // 1. إجمالي عدد المرضى (Total Registered Patients for this Doctor)
-        // Logic: Count unique patients who have EVER had a prescription from this doctor
-        $totalPatientsResult = DB::table('prescription')
-            ->where('doctor_id', $doctorId)
-            ->select(DB::raw('count(distinct patient_id) as count'))
-            ->first();
-        $totalPatients = $totalPatientsResult ? $totalPatientsResult->count : 0;
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
 
-        // 2. عدد الكشوفات اليومية (Daily Examinations/Prescriptions)
-        // يشمل: الوصفات الطبية التي تم إنشاؤها اليوم + الوصفات الطبية التي تم تعديلها اليوم
-        // (من خلال عمليات إضافة/تعديل/حذف الأدوية)
-        
-        // أ) الوصفات الطبية التي تم إنشاؤها اليوم
-        $prescriptionsCreatedToday = Prescription::where('doctor_id', $doctorId)
-            ->whereDate('created_at', Carbon::today())
-            ->pluck('id')
-            ->toArray();
-        
-        // ب) الوصفات الطبية التي تم تحديثها اليوم (من خلال عمليات إضافة/تعديل/حذف الأدوية)
-        // نحصل على الوصفات الطبية المرتبطة بعمليات إضافة/تعديل/حذف الأدوية من AuditLog
-        $todayAuditLogs = AuditLog::where('user_id', $doctorId)
-            ->where('table_name', 'prescription_drug')
-            ->whereIn('action', ['إضافة دواء', 'تعديل دواء', 'حذف دواء'])
+        // ملاحظة: جميع الإحصائيات هنا خاصة بالطبيب المعين فقط (doctor_id)
+        // hospital_id يستخدم فقط للتحقق من الأمان والاتساق
+
+        // 1. إجمالي عدد المرضى (خاصة بهذا الطبيب فقط)
+        // Count unique patients who have EVER had a prescription from THIS doctor
+        $totalPatients = Prescription::where('doctor_id', $doctorId)
+            ->where('hospital_id', $hospitalId) // للتحقق من الأمان
+            ->distinct('patient_id')
+            ->count();
+
+        // 2. عدد الكشوفات اليومية (خاصة بهذا الطبيب فقط)
+        // نحسب عدد المرضى الفريدين الذين قام هذا الطبيب بعمليات على أدويتهم اليوم (إضافة/تعديل/حذف)
+        // من خلال AuditLog للطبيب المعين فقط (user_id = doctor_id)
+        $todayAuditLogs = AuditLog::where('user_id', $doctorId) // العمليات الخاصة بهذا الطبيب فقط
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
             ->whereDate('created_at', Carbon::today())
             ->get();
-        
-        $prescriptionIdsFromAudit = [];
-        foreach ($todayAuditLogs as $log) {
-            // محاولة جلب prescription_id من new_values أو old_values
+
+        $patientIds = $todayAuditLogs->map(function($log) use ($doctorId, $hospitalId) {
+            // محاولة جلب patient_id من new_values أو old_values
             $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
             $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
             
-            if ($newValues && isset($newValues['prescription_id'])) {
-                $prescriptionIdsFromAudit[] = $newValues['prescription_id'];
-            } elseif ($oldValues && isset($oldValues['prescription_id'])) {
-                $prescriptionIdsFromAudit[] = $oldValues['prescription_id'];
-            } else {
-                // محاولة جلب من PrescriptionDrug مباشرة
-                try {
-                    $prescriptionDrug = PrescriptionDrug::find($log->record_id);
-                    if ($prescriptionDrug && $prescriptionDrug->prescription_id) {
-                        $prescriptionIdsFromAudit[] = $prescriptionDrug->prescription_id;
-                    }
-                } catch (\Exception $e) {
-                    // في حالة الحذف، قد لا يكون السجل موجوداً
+            // 1. محاولة من patient_info (مع التحقق من أن Prescription مرتبطة بهذا الطبيب)
+            $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+            if ($patientInfo && isset($patientInfo['id'])) {
+                // التحقق من أن المريض في نفس المستشفى (للأمان)
+                $patient = \App\Models\User::where('id', $patientInfo['id'])
+                    ->where('hospital_id', $hospitalId)
+                    ->first();
+                if ($patient) {
+                    return $patientInfo['id'];
                 }
             }
-        }
-        
-        // ج) دمج جميع الوصفات الطبية المميزة
-        $allPrescriptionIds = array_unique(array_merge($prescriptionsCreatedToday, $prescriptionIdsFromAudit));
-        
-        // د) التأكد من أن الوصفات الطبية تخص هذا الطبيب
-        if (empty($allPrescriptionIds)) {
-            $dailyExaminations = 0;
-        } else {
-            $validPrescriptionIds = Prescription::where('doctor_id', $doctorId)
-                ->whereIn('id', $allPrescriptionIds)
-                ->pluck('id')
-                ->toArray();
             
-            $dailyExaminations = count($validPrescriptionIds);
-        }
+            // 2. محاولة من prescription_id (مع التأكد من أن Prescription خاصة بهذا الطبيب)
+            $prescriptionId = $newValues['prescription_id'] ?? $oldValues['prescription_id'] ?? null;
+            if ($prescriptionId) {
+                $prescription = Prescription::where('doctor_id', $doctorId) // خاصة بهذا الطبيب فقط
+                    ->where('hospital_id', $hospitalId)
+                    ->find($prescriptionId);
+                if ($prescription) {
+                    return $prescription->patient_id;
+                }
+            }
+            
+            // 3. محاولة من record_id (prescription_drug id) مع التأكد من أن Prescription خاصة بهذا الطبيب
+            if ($log->record_id) {
+                $prescriptionDrug = PrescriptionDrug::with(['prescription' => function($query) use ($doctorId, $hospitalId) {
+                    $query->where('doctor_id', $doctorId) // خاصة بهذا الطبيب فقط
+                          ->where('hospital_id', $hospitalId);
+                }])->find($log->record_id);
+                if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                    return $prescriptionDrug->prescription->patient_id;
+                }
+            }
+            
+            return null;
+        })->filter()->unique();
+        
+        $dailyExaminations = $patientIds->count();
 
-        // 3. عدد الحالات قيد المتابعة (Active Cases)
-        $activeCasesResult = DB::table('prescription')
-            ->where('doctor_id', $doctorId)
+        // 3. عدد الحالات قيد المتابعة (خاصة بهذا الطبيب فقط)
+        $activeCases = Prescription::where('doctor_id', $doctorId) // خاصة بهذا الطبيب فقط
+            ->where('hospital_id', $hospitalId)
             ->where('status', 'active')
-            ->select(DB::raw('count(distinct patient_id) as count'))
-            ->first();
-        $activeCases = $activeCasesResult ? $activeCasesResult->count : 0;
+            ->distinct('patient_id')
+            ->count();
 
         $data = [
-            'totalRegistered' => $totalPatients,     // إجمالي عدد المرضى
-            'todayRegistered' => $dailyExaminations, // عدد الكشوفات اليوم
-            'weekRegistered'  => $activeCases        // عدد الحالات قيد المتابعة
+            'totalRegistered' => $totalPatients,     // Changed from 'today' to 'total'
+            'todayRegistered' => $dailyExaminations, // Matches "Daily Examinations"
+            'weekRegistered'  => $activeCases        // Matches "Under Follow-up"
         ];
 
         return $this->sendSuccess($data, 'تم جلب إحصائيات لوحة التحكم بنجاح.');
@@ -140,38 +142,15 @@ class DashboardDoctorController extends BaseApiController
                     }
                 } elseif ($log->table_name === 'prescription_drug' && $log->record_id) {
                     // If it's a prescription drug log, get patient from prescription_drug -> prescription -> patient
-                    $prescriptionDrug = \App\Models\PrescriptionDrug::with(['prescription.patient', 'drug'])->find($log->record_id);
-                    
-                    // محاولة جلب معلومات الدواء
-                    $drugName = null;
-                    $quantity = null;
-                    
-                    if ($prescriptionDrug) {
-                        if ($prescriptionDrug->drug) {
-                            $drugName = $prescriptionDrug->drug->name ?? null;
-                        }
-                        $quantity = $prescriptionDrug->monthly_quantity ?? null;
-                        
-                        if ($prescriptionDrug->prescription) {
-                            $patient = $prescriptionDrug->prescription->patient;
-                        }
+                    $prescriptionDrug = \App\Models\PrescriptionDrug::with('prescription.patient')->find($log->record_id);
+                    if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                        $patient = $prescriptionDrug->prescription->patient;
                     }
                     
-                    // إذا لم يوجد السجل (محذوف)، حاول جلب معلومات المريض والدواء من JSON
-                    if (!$patient || !$drugName) {
+                    // إذا لم يوجد السجل (محذوف)، حاول جلب معلومات المريض من JSON
+                    if (!$patient) {
                         $values = json_decode($log->new_values ?? $log->old_values, true);
                         if (is_array($values)) {
-                            // جلب معلومات الدواء
-                            if (!$drugName && isset($values['drug_id'])) {
-                                $drug = \App\Models\Drug::find($values['drug_id']);
-                                if ($drug) {
-                                    $drugName = $drug->name;
-                                }
-                            }
-                            if ($quantity === null && isset($values['monthly_quantity'])) {
-                                $quantity = $values['monthly_quantity'];
-                            }
-                            
                             // أولاً: تحقق من وجود patient_info (الطريقة الجديدة)
                             if (isset($values['patient_info']) && isset($values['patient_info']['full_name'])) {
                                 $patientName = $values['patient_info']['full_name'];
@@ -194,24 +173,162 @@ class DashboardDoctorController extends BaseApiController
                     $fileNumber = $patient->id;
                 }
                 
-                $result = [
+                return [
                     'fileNumber'    => $fileNumber,
                     'name'          => $patientName,
                     'operationType' => $log->action ?? 'غير محدد',
                     'operationDate' => $log->created_at ? $log->created_at->format('Y/m/d') : 'N/A',
                 ];
-                
-                // إضافة معلومات الدواء إذا كانت متوفرة
-                if ($drugName) {
-                    $result['drugName'] = $drugName;
-                }
-                if ($quantity !== null) {
-                    $result['quantity'] = $quantity;
-                }
-                
-                return $result;
             });
 
         return $this->sendSuccess($logs, 'تم جلب سجل النشاطات بنجاح.');
+    }
+
+    /**
+     * GET /api/doctor/operations
+     * سجل جميع عمليات الطبيب:
+     * - إضافة دواء للمريض (من AuditLog - prescription_drug)
+     * - تعديل دواء للمريض (من AuditLog - prescription_drug)
+     * - حذف دواء من المريض (من AuditLog - prescription_drug)
+     */
+    public function operations(Request $request)
+    {
+        $doctorId = $request->user()->id;
+        
+        // جلب جميع عمليات الطبيب من AuditLog (خاصة بعمليات الأدوية)
+        $logs = AuditLog::where('user_id', $doctorId)
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+            ->orderBy('created_at', 'desc')
+            ->take(100)
+            ->get()
+            ->map(function ($log) {
+                $operationData = [
+                    'operationType' => $this->translateAction($log->action),
+                    'operationDate' => $log->created_at->format('Y/m/d'),
+                    'operationDateTime' => $log->created_at->format('Y/m/d H:i'),
+                ];
+
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+                $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+                
+                // محاولة جلب معلومات الدواء والمريض
+                $drugName = null;
+                $quantity = null;
+                $patient = null;
+                
+                try {
+                    // محاولة جلب PrescriptionDrug إذا كان موجوداً
+                    $prescriptionDrug = PrescriptionDrug::with(['prescription.patient', 'drug'])
+                        ->find($log->record_id);
+                    
+                    if ($prescriptionDrug) {
+                        // جلب معلومات الدواء
+                        if ($prescriptionDrug->drug) {
+                            $drugName = $prescriptionDrug->drug->name ?? null;
+                        }
+                        $quantity = $prescriptionDrug->monthly_quantity ?? null;
+                        
+                        // جلب معلومات المريض
+                        if ($prescriptionDrug->prescription && $prescriptionDrug->prescription->patient) {
+                            $patient = $prescriptionDrug->prescription->patient;
+                            $operationData['fileNumber'] = $patient->id;
+                            $operationData['name'] = $patient->full_name ?? $patient->name ?? 'غير محدد';
+                        }
+                    } else {
+                        // في حالة الحذف أو عدم وجود السجل، محاولة جلب المعلومات من new_values أو old_values
+                        
+                        // محاولة جلب معلومات الدواء من new_values أو old_values
+                        $drugId = null;
+                        if ($newValues && isset($newValues['drug_id'])) {
+                            $drugId = $newValues['drug_id'];
+                            $quantity = $newValues['monthly_quantity'] ?? null;
+                        } elseif ($oldValues && isset($oldValues['drug_id'])) {
+                            $drugId = $oldValues['drug_id'];
+                            $quantity = $oldValues['monthly_quantity'] ?? null;
+                        }
+                        
+                        if ($drugId) {
+                            $drug = \App\Models\Drug::find($drugId);
+                            if ($drug) {
+                                $drugName = $drug->name;
+                            }
+                        }
+                        
+                        // محاولة جلب معلومات المريض من prescription_id
+                        $prescriptionId = null;
+                        if ($newValues && isset($newValues['prescription_id'])) {
+                            $prescriptionId = $newValues['prescription_id'];
+                        } elseif ($oldValues && isset($oldValues['prescription_id'])) {
+                            $prescriptionId = $oldValues['prescription_id'];
+                        }
+                        
+                        if ($prescriptionId) {
+                            $prescription = Prescription::with('patient')->find($prescriptionId);
+                            if ($prescription && $prescription->patient) {
+                                $patient = $prescription->patient;
+                                $operationData['fileNumber'] = $patient->id;
+                                $operationData['name'] = $patient->full_name ?? $patient->name ?? 'غير محدد';
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Error processing operation log', [
+                        'log_id' => $log->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+                
+                // إذا لم يتم تعيين معلومات المريض بعد بشكل صحيح، نحاول من patient_info
+                if (!isset($operationData['fileNumber']) || !isset($operationData['name'])) {
+                    if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
+                        $operationData['fileNumber'] = $patientInfo['id'];
+                        $operationData['name'] = $patientInfo['full_name'];
+                    } else {
+                        if (!isset($operationData['fileNumber'])) {
+                            $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                        }
+                        if (!isset($operationData['name'])) {
+                            $operationData['name'] = 'غير محدد';
+                        }
+                    }
+                }
+                
+                // إضافة معلومات الدواء إذا كانت متوفرة
+                if ($drugName) {
+                    $operationData['drugName'] = $drugName;
+                }
+                if ($quantity !== null) {
+                    $operationData['quantity'] = $quantity;
+                }
+
+                return $operationData;
+            })
+            ->filter(function ($operation) {
+                // التأكد من وجود البيانات الأساسية
+                return isset($operation['fileNumber']) && isset($operation['name']);
+            })
+            ->values()
+            ->toArray();
+
+        return $this->sendSuccess($logs, 'تم تحميل سجل العمليات بنجاح.');
+    }
+
+    /**
+     * ترجمة نوع العملية إلى نص عربي واضح
+     */
+    private function translateAction($action)
+    {
+        $translations = [
+            'إضافة دواء' => 'إضافة دواء للمريض',
+            'تعديل دواء' => 'تعديل دواء للمريض',
+            'حذف دواء' => 'حذف دواء من المريض',
+            'create' => 'إضافة دواء للمريض',
+            'update' => 'تعديل دواء للمريض',
+            'delete' => 'حذف دواء من المريض',
+            'assign' => 'إضافة دواء للمريض',
+        ];
+
+        return $translations[$action] ?? $action;
     }
 }

@@ -6,6 +6,10 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Drug;
+use App\Models\Prescription;
+use App\Models\PrescriptionDrug;
+use App\Models\AuditLog;
+use Carbon\Carbon;
 // use App\Models\SupplyRequest; // Enable when model exists
 
 class DashboardDepartmentAdminController extends BaseApiController
@@ -13,116 +17,219 @@ class DashboardDepartmentAdminController extends BaseApiController
     /**
      * GET /api/department-admin/dashboard/stats
      * Returns stats matching the Frontend keys: totalRegistered, todayRegistered, weekRegistered
+     * (مثل doctor/statistics)
      */
     public function stats(Request $request)
     {
-        // 1. totalRegistered -> Total Patients under this department's scope
-        $totalPatients = User::where('type', 'patient')->count();
+        $userId = $request->user()->id;
+        $hospitalId = $request->user()->hospital_id;
 
-        // 2. todayRegistered -> Today's Activities (e.g., Requests made today)
-        // $todayRequests = SupplyRequest::whereDate('created_at', now())->count();
-        $todayRequests = 5; // Mock data
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
 
-        // 3. weekRegistered -> Active Items (e.g., Pending Requests or Low Stock Drugs)
-        // $activeRequests = SupplyRequest::where('status', 'pending')->count();
-        $activeRequests = 12; // Mock data
+        // 1. إجمالي عدد المرضى (خاصة بهذا المستشفى فقط)
+        $totalPatients = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->count();
 
-        // Match the keys expected by the Frontend View 3
+        // 2. عدد الكشوفات اليومية (خاصة بهذا المستخدم فقط)
+        // نحسب عدد المرضى الفريدين الذين قام هذا المستخدم بعمليات على أدويتهم اليوم (إضافة/تعديل/حذف)
+        // من خلال AuditLog للمستخدم المعين فقط (user_id = userId)
+        $todayAuditLogs = AuditLog::where('user_id', $userId) // العمليات الخاصة بهذا المستخدم فقط
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+            ->whereDate('created_at', Carbon::today())
+            ->get();
+
+        $patientIds = $todayAuditLogs->map(function($log) use ($userId, $hospitalId) {
+            // محاولة جلب patient_id من new_values أو old_values
+            $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+            
+            // 1. محاولة من patient_info (مع التحقق من أن Prescription مرتبطة بنفس المستشفى)
+            $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+            if ($patientInfo && isset($patientInfo['id'])) {
+                // التحقق من أن المريض في نفس المستشفى (للأمان)
+                $patient = User::where('id', $patientInfo['id'])
+                    ->where('hospital_id', $hospitalId)
+                    ->first();
+                if ($patient) {
+                    return $patientInfo['id'];
+                }
+            }
+            
+            // 2. محاولة من prescription_id (مع التأكد من أن Prescription خاصة بنفس المستشفى)
+            $prescriptionId = $newValues['prescription_id'] ?? $oldValues['prescription_id'] ?? null;
+            if ($prescriptionId) {
+                $prescription = Prescription::where('hospital_id', $hospitalId)
+                    ->find($prescriptionId);
+                if ($prescription) {
+                    return $prescription->patient_id;
+                }
+            }
+            
+            // 3. محاولة من record_id (prescription_drug id) مع التأكد من أن Prescription خاصة بنفس المستشفى
+            if ($log->record_id) {
+                $prescriptionDrug = PrescriptionDrug::with(['prescription' => function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                }])->find($log->record_id);
+                if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                    return $prescriptionDrug->prescription->patient_id;
+                }
+            }
+            
+            return null;
+        })->filter()->unique();
+        
+        $dailyExaminations = $patientIds->count();
+
+        // 3. عدد الحالات قيد المتابعة (خاصة بنفس المستشفى فقط)
+        $activeCases = Prescription::where('hospital_id', $hospitalId)
+            ->where('status', 'active')
+            ->distinct('patient_id')
+            ->count();
+
         $data = [
-            'totalRegistered' => $totalPatients,
-            'todayRegistered' => $todayRequests,
-            'weekRegistered'  => $activeRequests,
+            'totalRegistered' => $totalPatients,     // إجمالي المرضى
+            'todayRegistered' => $dailyExaminations, // الكشوفات اليومية
+            'weekRegistered'  => $activeCases        // الحالات قيد المتابعة
         ];
 
-        return $this->sendSuccess($data, 'تم جلب إحصائيات لوحة التحكم.');
+        return $this->sendSuccess($data, 'تم جلب إحصائيات لوحة التحكم بنجاح.');
     }
 
     /**
      * GET /api/department-admin/operations
-     * (Matches View 1 Activity Log)
-     * Returns all operations performed by the current user: drug operations, supply requests, and shipments
+     * سجل جميع عمليات Department Admin:
+     * - إضافة دواء للمريض (من AuditLog - prescription_drug)
+     * - تعديل دواء للمريض (من AuditLog - prescription_drug)
+     * - حذف دواء من المريض (من AuditLog - prescription_drug)
+     * - طلبات التوريد والشحنات
      */
     public function operations(Request $request)
     {
-        $user = $request->user();
-
-        // جلب جميع العمليات التي قام بها المستخدم
-        $logs = \App\Models\AuditLog::where('user_id', $user->id)
-            ->where(function($query) {
-                $query->where('table_name', 'prescription_drug')
-                      ->orWhere('table_name', 'internal_supply_request');
-            })
+        $userId = $request->user()->id;
+        $hospitalId = $request->user()->hospital_id;
+        
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+        
+        // جلب جميع عمليات المستخدم من AuditLog (خاصة بعمليات الأدوية)
+        $logs = AuditLog::where('user_id', $userId)
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs', 'internal_supply_request'])
             ->orderBy('created_at', 'desc')
+            ->take(100)
             ->get()
-            ->map(function ($log) {
+            ->map(function ($log) use ($hospitalId) {
                 $operationData = [
-                    'operationType' => $log->action,
+                    'operationType' => $this->translateAction($log->action),
                     'operationDate' => $log->created_at->format('Y/m/d'),
                     'operationDateTime' => $log->created_at->format('Y/m/d H:i'),
                 ];
 
-                // معالجة عمليات الأدوية (إضافة/تعديل/حذف دواء)
-                if ($log->table_name === 'prescription_drug') {
-                    $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
-                    $patientInfo = $newValues['patient_info'] ?? null;
-                    
-                    // محاولة جلب معلومات الدواء
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+                $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+                
+                // معالجة عمليات الأدوية
+                if (in_array($log->table_name, ['prescription_drug', 'prescription_drugs'])) {
                     $drugName = null;
                     $quantity = null;
+                    $patient = null;
                     
                     try {
-                        $prescriptionDrug = \App\Models\PrescriptionDrug::with(['prescription.patient', 'drug'])
+                        // محاولة جلب PrescriptionDrug إذا كان موجوداً
+                        $prescriptionDrug = PrescriptionDrug::with(['prescription.patient', 'drug'])
                             ->find($log->record_id);
                         
                         if ($prescriptionDrug) {
-                            // جلب معلومات الدواء
-                            if ($prescriptionDrug->drug) {
-                                $drugName = $prescriptionDrug->drug->name ?? null;
-                            }
-                            $quantity = $prescriptionDrug->monthly_quantity ?? null;
-                            
-                            // جلب معلومات المريض
-                            if ($prescriptionDrug->prescription && $prescriptionDrug->prescription->patient) {
-                                $patient = $prescriptionDrug->prescription->patient;
-                                $operationData['fileNumber'] = $patient->id;
-                                $operationData['name'] = $patient->full_name;
+                            // التحقق من أن Prescription مرتبطة بنفس المستشفى
+                            if ($prescriptionDrug->prescription && 
+                                $prescriptionDrug->prescription->hospital_id == $hospitalId) {
+                                
+                                // جلب معلومات الدواء
+                                if ($prescriptionDrug->drug) {
+                                    $drugName = $prescriptionDrug->drug->name ?? null;
+                                }
+                                $quantity = $prescriptionDrug->monthly_quantity ?? null;
+                                
+                                // جلب معلومات المريض
+                                if ($prescriptionDrug->prescription->patient) {
+                                    $patient = $prescriptionDrug->prescription->patient;
+                                    $operationData['fileNumber'] = $patient->id;
+                                    $operationData['name'] = $patient->full_name ?? $patient->name ?? 'غير محدد';
+                                }
                             }
                         } else {
-                            // في حالة الحذف، محاولة جلب المعلومات من old_values أو new_values
-                            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+                            // في حالة الحذف أو عدم وجود السجل، محاولة جلب المعلومات من new_values أو old_values
                             
                             // محاولة جلب معلومات الدواء من new_values أو old_values
+                            $drugId = null;
                             if ($newValues && isset($newValues['drug_id'])) {
-                                $drug = \App\Models\Drug::find($newValues['drug_id']);
-                                if ($drug) {
-                                    $drugName = $drug->name;
-                                }
+                                $drugId = $newValues['drug_id'];
                                 $quantity = $newValues['monthly_quantity'] ?? null;
                             } elseif ($oldValues && isset($oldValues['drug_id'])) {
-                                $drug = \App\Models\Drug::find($oldValues['drug_id']);
-                                if ($drug) {
-                                    $drugName = $drug->name;
-                                }
+                                $drugId = $oldValues['drug_id'];
                                 $quantity = $oldValues['monthly_quantity'] ?? null;
                             }
                             
-                            // محاولة جلب معلومات المريض
-                            if ($oldValues && isset($oldValues['prescription_id'])) {
-                                $prescription = \App\Models\Prescription::with('patient')->find($oldValues['prescription_id']);
+                            if ($drugId) {
+                                $drug = Drug::find($drugId);
+                                if ($drug) {
+                                    $drugName = $drug->name;
+                                }
+                            }
+                            
+                            // محاولة جلب معلومات المريض من prescription_id
+                            $prescriptionId = null;
+                            if ($newValues && isset($newValues['prescription_id'])) {
+                                $prescriptionId = $newValues['prescription_id'];
+                            } elseif ($oldValues && isset($oldValues['prescription_id'])) {
+                                $prescriptionId = $oldValues['prescription_id'];
+                            }
+                            
+                            if ($prescriptionId) {
+                                $prescription = Prescription::with('patient')
+                                    ->where('hospital_id', $hospitalId)
+                                    ->find($prescriptionId);
                                 if ($prescription && $prescription->patient) {
-                                    $operationData['fileNumber'] = $prescription->patient->id;
-                                    $operationData['name'] = $prescription->patient->full_name;
+                                    $patient = $prescription->patient;
+                                    $operationData['fileNumber'] = $patient->id;
+                                    $operationData['name'] = $patient->full_name ?? $patient->name ?? 'غير محدد';
                                 }
                             }
                         }
                     } catch (\Exception $e) {
-                        // في حالة الخطأ، نحاول جلب معلومات المريض من patient_info
+                        \Log::warning('Error processing operation log', [
+                            'log_id' => $log->id,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                    
+                    // إذا لم يتم تعيين معلومات المريض بعد بشكل صحيح، نحاول من patient_info
+                    if (!isset($operationData['fileNumber']) || !isset($operationData['name'])) {
                         if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
-                            $operationData['fileNumber'] = $patientInfo['id'];
-                            $operationData['name'] = $patientInfo['full_name'];
+                            // التحقق من أن المريض في نفس المستشفى
+                            $patient = User::where('id', $patientInfo['id'])
+                                ->where('hospital_id', $hospitalId)
+                                ->first();
+                            if ($patient) {
+                                $operationData['fileNumber'] = $patientInfo['id'];
+                                $operationData['name'] = $patientInfo['full_name'];
+                            } else {
+                                $operationData['fileNumber'] = $log->record_id ?? 'غير متاح';
+                                $operationData['name'] = 'غير محدد';
+                            }
                         } else {
-                            $operationData['fileNumber'] = $log->record_id ?? 'N/A';
-                            $operationData['name'] = 'غير محدد';
+                            if (!isset($operationData['fileNumber'])) {
+                                $operationData['fileNumber'] = $log->record_id ?? 'غير متاح';
+                            }
+                            if (!isset($operationData['name'])) {
+                                $operationData['name'] = 'غير محدد';
+                            }
                         }
                     }
                     
@@ -133,32 +240,19 @@ class DashboardDepartmentAdminController extends BaseApiController
                     if ($quantity !== null) {
                         $operationData['quantity'] = $quantity;
                     }
-                    
-                    // إذا لم يتم تعيين معلومات المريض بعد، نحاول من patient_info
-                    if (!isset($operationData['fileNumber']) || $operationData['fileNumber'] === 'N/A') {
-                        if ($patientInfo && isset($patientInfo['id']) && isset($patientInfo['full_name'])) {
-                            $operationData['fileNumber'] = $patientInfo['id'];
-                            $operationData['name'] = $patientInfo['full_name'];
-                        } else {
-                            $operationData['fileNumber'] = $log->record_id ?? 'N/A';
-                            $operationData['name'] = 'غير محدد';
-                        }
-                    }
                 }
                 // معالجة عمليات طلبات التوريد والشحنات
                 elseif ($log->table_name === 'internal_supply_request') {
-                    $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
-                    // استخدام record_id مباشرة إذا لم يكن request_id موجوداً في new_values
                     $requestId = $newValues['request_id'] ?? $log->record_id ?? null;
                     
                     // للطلبات والشحنات، نعرض رقم الطلب كـ fileNumber
-                    $operationData['fileNumber'] = $requestId ? 'REQ-' . $requestId : 'N/A';
+                    $operationData['fileNumber'] = $requestId ? 'REQ-' . $requestId : 'غير متاح';
                     
                     // عرض معلومات إضافية حسب نوع العملية
-                    if ($log->action === 'إنشاء طلب توريد') {
+                    if ($log->action === 'إنشاء طلب توريد' || $log->action === 'create') {
                         $itemCount = $newValues['item_count'] ?? 0;
                         $operationData['name'] = "طلب توريد ({$itemCount} عنصر)";
-                    } elseif ($log->action === 'استلام شحنة') {
+                    } elseif ($log->action === 'استلام شحنة' || $log->action === 'confirm') {
                         $operationData['name'] = "استلام شحنة #{$requestId}";
                     } else {
                         $operationData['name'] = 'طلب توريد';
@@ -166,13 +260,46 @@ class DashboardDepartmentAdminController extends BaseApiController
                 }
                 // في حالة عدم تطابق أي نوع
                 else {
-                    $operationData['fileNumber'] = $log->record_id ?? 'N/A';
+                    $operationData['fileNumber'] = $log->record_id ?? 'غير متاح';
                     $operationData['name'] = 'غير محدد';
                 }
 
                 return $operationData;
-            });
+            })
+            ->filter(function ($operation) {
+                // التأكد من وجود البيانات الأساسية
+                return isset($operation['fileNumber']) && isset($operation['name']);
+            })
+            ->values()
+            ->toArray();
 
-        return $this->sendSuccess($logs, 'تم جلب سجل العمليات بنجاح.');
+        return $this->sendSuccess($logs, 'تم تحميل سجل العمليات بنجاح.');
+    }
+
+    /**
+     * ترجمة نوع العملية إلى نص عربي واضح
+     */
+    private function translateAction($action)
+    {
+        $translations = [
+            'إضافة دواء' => 'إضافة دواء للمريض',
+            'تعديل دواء' => 'تعديل دواء للمريض',
+            'حذف دواء' => 'حذف دواء من المريض',
+            'create' => 'إضافة دواء للمريض',
+            'update' => 'تعديل دواء للمريض',
+            'delete' => 'حذف دواء من المريض',
+            'assign' => 'إضافة دواء للمريض',
+            'إنشاء طلب توريد' => 'إنشاء طلب توريد',
+            'استلام شحنة' => 'استلام شحنة',
+            'confirm' => 'استلام شحنة',
+            'department_create_supply_request' => 'إنشاء طلب توريد',
+            // 'pharmacist_create_supply_request' => 'إنشاء طلب توريد',
+            'department_confirm_supply_delivery' => 'استلام شحنة',
+            // 'pharmacist_confirm_supply_delivery' => 'استلام شحنة',
+            'department_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية',
+            // 'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية',
+        ];
+
+        return $translations[$action] ?? $action;
     }
 }

@@ -278,7 +278,7 @@ class ExternalSupplyRequestController extends BaseApiController
 
         $validated = $request->validate([
             'items'                   => 'required|array|min:1',
-            'items.*.drug_id'         => 'required|exists:drug,id',
+            'items.*.drug_id'         => 'required|exists:drugs,id',
             'items.*.requested_qty'   => 'required|integer|min:1',
             'supplier_id'             => 'nullable|exists:supplier,id',
             'notes'                   => 'nullable|string|max:1000',

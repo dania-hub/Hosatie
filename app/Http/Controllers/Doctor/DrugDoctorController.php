@@ -57,4 +57,27 @@ class DrugDoctorController extends BaseApiController
 
         return $this->sendSuccess($categories, 'Categories retrieved successfully.');
     }
+
+    /**
+     * GET /api/doctor/drugs/{id}
+     * Get single drug details.
+     */
+    public function show($id)
+    {
+        $drug = Drug::find($id);
+
+        if (!$drug) {
+            return $this->sendError('الدواء غير موجود.', [], 404);
+        }
+
+        return $this->sendSuccess([
+            'id' => $drug->id,
+            'name' => $drug->name,
+            'generic_name' => $drug->generic_name,
+            'strength' => $drug->strength,
+            'form' => $drug->form,
+            'category' => $drug->category,
+            'unit' => $drug->unit,
+        ], 'تم جلب بيانات الدواء بنجاح.');
+    }
 }

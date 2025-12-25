@@ -240,6 +240,7 @@ class PatientPharmacistController extends BaseApiController
                     'id' => $drug->id,
                     'pivot_id' => $pivot->id,
                     'drugName' => $drug->name,
+                    'strength' => $drug->strength ?? null,
                     'dosage' => $dosageText,
                     'monthlyQuantity' => $monthlyQuantityText,
                     'monthlyQuantityNum' => $monthlyQty,

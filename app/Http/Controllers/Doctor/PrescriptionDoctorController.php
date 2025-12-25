@@ -16,14 +16,13 @@ class PrescriptionDoctorController extends BaseApiController
      */
     public function store(Request $request, $patientId, PatientNotificationService $notifications)
     {
-        $request->validate([
-            'medications' => 'required|array',
-            'medications.*.drug_id' => 'required|exists:drug,id',
-            'medications.*.quantity' => 'required|integer|min:1',
-            'medications.*.note' => 'nullable|string',
-        ]);
-
         try {
+            $request->validate([
+                'medications' => 'required|array',
+                'medications.*.drug_id' => 'required|exists:drugs,id',
+                'medications.*.quantity' => 'required|integer|min:1',
+            ]);
+            
             DB::beginTransaction();
 
             $hospitalId = $request->user()->hospital_id;
@@ -55,11 +54,17 @@ class PrescriptionDoctorController extends BaseApiController
                             ->exists();
                 
                 if (!$exists) {
+                    $monthlyQuantity = $med['quantity'];
+                    // استخدام daily_quantity المرسلة من Frontend، أو null إذا لم يتم إرسالها
+                    $dailyQuantity = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
+                        ? (int)$med['daily_quantity'] 
+                        : null;
+                    
                     $createdDrugs[] = PrescriptionDrug::create([
                         'prescription_id' => $prescription->id,
                         'drug_id'         => $med['drug_id'],
-                        'monthly_quantity'=> $med['quantity'],
-                        'note'            => $med['note'] ?? null,
+                        'monthly_quantity'=> $monthlyQuantity,
+                        'daily_quantity'  => $dailyQuantity,
                     ]);
                 }
             }
@@ -78,10 +83,23 @@ class PrescriptionDoctorController extends BaseApiController
             }
             return $this->sendSuccess([], 'تم إضافة الأدوية بنجاح.');
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // لا حاجة لـ rollback إذا فشل validation قبل بدء transaction
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            return $this->sendError('خطأ في التحقق من البيانات.', $e->errors(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
-            // Handle general exception
-            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', ['error' => $e->getMessage()], 500);
+            // التراجع عن transaction فقط إذا كان موجوداً
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            // Handle general exception - إظهار الخطأ الفعلي للتطوير
+            \Log::error('Error adding medications: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', ['error' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 500);
         }
     }
 
@@ -90,7 +108,10 @@ class PrescriptionDoctorController extends BaseApiController
      */
     public function update(Request $request, $patientId, $pivotId, PatientNotificationService $notifications)
     {
-        $request->validate(['dosage' => 'required|integer|min:1']);
+        $request->validate([
+            'dosage' => 'required|integer|min:1',
+            'daily_quantity' => 'nullable|integer|min:1',
+        ]);
         $hospitalId = $request->user()->hospital_id;
 
         $item = PrescriptionDrug::where('id', $pivotId)->first();
@@ -102,7 +123,12 @@ class PrescriptionDoctorController extends BaseApiController
              return $this->sendError('غير مصرح لك بتعديل هذا السجل (مستشفى مختلف).', [], 403);
         }
 
+        // تحديث الكمية الشهرية واليومية (استخدام القيمة المرسلة من Frontend أو الإبقاء على القيمة الحالية)
         $item->monthly_quantity = $request->dosage;
+        if ($request->has('daily_quantity')) {
+            $item->daily_quantity = (int)$request->daily_quantity;
+        }
+        // إذا لم يتم إرسال daily_quantity، نترك القيمة الحالية كما هي (لا نحسبها من monthly_quantity)
         $item->save();
 
         $item->loadMissing(['prescription.patient', 'drug']);

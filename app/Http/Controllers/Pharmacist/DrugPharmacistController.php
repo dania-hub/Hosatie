@@ -133,7 +133,7 @@ class DrugPharmacistController extends BaseApiController
     public function store(Request $request)
     {
         $request->validate([
-            'drugId' => 'required|exists:drug,id',
+            'drugId' => 'required|exists:drugs,id',
             'quantity' => 'required|integer|min:0',
             'minimumLevel' => 'nullable|integer|min:0'
         ]);

@@ -192,7 +192,7 @@ class PatientHospitalAdminController extends BaseApiController
 
         $data = $request->validate([
             'medications'                    => 'array',
-            'medications.*.drugId'           => 'nullable|integer|exists:drug,id',
+            'medications.*.drugId'           => 'nullable|integer|exists:drugs,id',
             'medications.*.drugName'         => 'required_without:medications.*.drugId|string|max:255',
             'medications.*.dosage'           => 'nullable|string|max:50',
             'medications.*.monthlyQuantity'  => 'nullable|string|max:50',

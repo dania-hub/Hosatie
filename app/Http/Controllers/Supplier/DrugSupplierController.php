@@ -137,7 +137,7 @@ class DrugSupplierController extends BaseApiController
             }
 
             // جلب الفئات المميزة من عمود category في جدول drug
-            $categories = \DB::table('drug')
+            $categories = \DB::table('drugs')
                 ->select('category')
                 ->whereNotNull('category')
                 ->where('category', '!=', '')

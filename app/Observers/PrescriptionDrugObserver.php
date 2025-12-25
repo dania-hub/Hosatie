@@ -103,7 +103,7 @@ class PrescriptionDrugObserver
             AuditLog::create([
                 'user_id'    => $userId,
                 'action'     => $action,
-                'table_name' => 'prescription_drug',
+                'table_name' => 'prescription_drugs',
                 'record_id'  => $record->id,
                 'old_values' => $oldValues ? json_encode($oldValues) : null,
                 'new_values' => json_encode($newValuesArray),

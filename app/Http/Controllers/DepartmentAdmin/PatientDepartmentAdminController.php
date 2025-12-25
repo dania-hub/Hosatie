@@ -20,7 +20,17 @@ class PatientDepartmentAdminController extends BaseApiController
      */
     public function index(Request $request)
     {
-        $query = User::where('type', 'patient');
+        $hospitalId = $request->user()->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
+        // 1. Query Patients (with Search support)
+        // عرض المرضى الذين لديهم نفس hospital_id فقط
+        $query = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId);
 
         if ($request->has('search')) {
             $search = $request->search;
@@ -32,47 +42,87 @@ class PatientDepartmentAdminController extends BaseApiController
             });
         }
 
-        $patients = $query->get()->map(function ($patient) {
+        // 2. Get Data
+        $patients = $query->get()->map(function ($patient) use ($hospitalId) {
             // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
             $birthFormatted = $patient->birth_date
                 ? Carbon::parse($patient->birth_date)->format('Y/m/d')
                 : null;
             
+            // Find Active Prescription for this Patient in THIS Hospital
+            $activePrescription = Prescription::with(['drugs'])
+                ->where('patient_id', $patient->id)
+                ->where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->first();
+
             return [
                 'fileNumber' => $patient->id,
                 'name'       => $patient->full_name,
                 'nationalId' => $patient->national_id,
-                'birth'      => $birthFormatted,
+                // تاريخ الميلاد بصيغة موحدة لواجهة الطبيب
+                'birth'      => $birthFormatted ?? 'غير محدد',
                 'phone'      => $patient->phone,
                 'lastUpdated'=> $patient->updated_at->toIso8601String(),
+                
+                // Return Medications List (Formatted for Frontend)
+                'medications' => $activePrescription ? $activePrescription->drugs->map(function($drug) {
+                    return [
+                        'id'       => $drug->id,
+                        'pivot_id' => $drug->pivot->id, // Important for Update/Delete
+                        'drugName' => $drug->name,
+                        'strength' => $drug->strength ?? null,
+                        'dosage'   => $drug->pivot->monthly_quantity,
+                    ];
+                }) : [],
+
+                'hasPrescription' => !!$activePrescription
             ];
         });
 
-        return $this->sendSuccess($patients, 'تم جلب قائمة المرضى.');
+        return $this->sendSuccess($patients, 'تم جلب بيانات المرضى بنجاح.');
     }
 
     /**
      * GET /api/department-admin/patients/{id}
      * Get single patient details + medications
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $patient = User::where('type', 'patient')->where('id', $id)->first();
-        if (!$patient) return $this->sendError('المريض غير موجود.', [], 404);
+        $hospitalId = $request->user()->hospital_id;
+        
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+        
+        $patient = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->where('id', $id)
+            ->first();
+
+        if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
 
         // Get active prescription for this department/hospital
         // تحميل العلاقة doctor للحصول على اسم الدكتور الذي قام بالإسناد
         $activePrescription = Prescription::with(['drugs', 'doctor'])
             ->where('patient_id', $patient->id)
+            ->where('hospital_id', $hospitalId)
             ->where('status', 'active')
             ->first();
+
+        // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
+        $birthFormatted = $patient->birth_date
+            ? Carbon::parse($patient->birth_date)->format('Y/m/d')
+            : null;
 
         $data = [
             'fileNumber' => $patient->id,
             'name'       => $patient->full_name,
             'nationalId' => $patient->national_id,
-            'birth'      => $patient->birth_date,
+            'birth'      => $birthFormatted ?? 'غير محدد',
             'phone'      => $patient->phone,
+            'lastUpdated'=> $patient->updated_at->toIso8601String(),
             'medications' => $activePrescription ? $activePrescription->drugs->map(function($drug) use ($activePrescription) {
                 // استخدام created_at من pivot كتاريخ الإسناد، أو start_date من prescription
                 $assignmentDate = $drug->pivot->created_at 
@@ -80,7 +130,7 @@ class PatientDepartmentAdminController extends BaseApiController
                     : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
                 
                 // اسم المستخدم الذي قام بآخر عملية على هذا الدواء (من audit_log)
-                $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
                     ->where('record_id', $drug->pivot->id)
                     ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
                     ->with('user')
@@ -110,19 +160,119 @@ class PatientDepartmentAdminController extends BaseApiController
                     'id' => $drug->id,
                     'pivot_id' => $drug->pivot->id ?? null, // مهم للتعديل/الحذف
                     'drugName' => $drug->name,
+                    'strength' => $drug->strength ?? null,
                     'dosage' => $dosageText, // الجرعة اليومية: "2 مل يومياً" أو "2 حبة يومياً"
                     'monthlyQuantity' => $monthlyQuantityText, // الكمية الشهرية: "60 مل" أو "60 حبة"
                     'monthlyQuantityNum' => $monthlyQty, // الكمية الشهرية كرقم للعمليات الحسابية
                     'unit' => $unit, // وحدة القياس للاستخدام في الواجهة
                     'assignmentDate' => $assignmentDate,
                     'assignedBy' => $assignedBy, // اسم الدكتور الفعلي من قاعدة البيانات
-                    'note' => $drug->pivot->note ?? null,
                 ];
             }) : [],
 
         ];
 
         return $this->sendSuccess($data, 'تم جلب بيانات المريض.');
+    }
+
+    /**
+     * POST /api/department-admin/patients/{id}/medications
+     * Add new medications (like doctor/patients)
+     */
+    public function store(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'medications' => 'required|array',
+                'medications.*.drug_id' => 'required|exists:drugs,id',
+                'medications.*.quantity' => 'required|integer|min:1',
+            ]);
+            
+            DB::beginTransaction();
+
+            $hospitalId = $request->user()->hospital_id;
+            $currentUserId = $request->user()->id;
+
+            // التأكد من أن المستخدم لديه hospital_id
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            $patient = User::where('type', 'patient')
+                ->where('hospital_id', $hospitalId)
+                ->where('id', $id)
+                ->first();
+            
+            if (!$patient) {
+                return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+            }
+
+            // 1. Find existing active prescription
+            $prescription = Prescription::where('patient_id', $patient->id)
+                ->where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->first();
+
+            // 2. If NO prescription, Create one
+            if (!$prescription) {
+                $prescription = Prescription::create([
+                    'patient_id' => $patient->id,
+                    'hospital_id' => $hospitalId,
+                    'doctor_id' => $currentUserId,
+                    'start_date' => now(),
+                    'status' => 'active',
+                ]);
+            }
+
+            // 3. Add Drugs (only if they don't exist, or update quantity if exists)
+            $createdDrugs = [];
+
+            foreach ($request->medications as $med) {
+                $existingPd = PrescriptionDrug::where('prescription_id', $prescription->id)
+                            ->where('drug_id', $med['drug_id'])
+                            ->first();
+                
+                if (!$existingPd) {
+                    // إضافة دواء جديد فقط
+                    $monthlyQuantity = $med['quantity'];
+                    $dailyQuantity = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
+                        ? (int)$med['daily_quantity'] 
+                        : null;
+                    
+                    $createdDrugs[] = PrescriptionDrug::create([
+                        'prescription_id' => $prescription->id,
+                        'drug_id'         => $med['drug_id'],
+                        'monthly_quantity'=> $monthlyQuantity,
+                        'daily_quantity'  => $dailyQuantity,
+                    ]);
+                } else {
+                    // إذا كان الدواء موجوداً، قم بتحديث الكمية فقط (مثل doctor/patients)
+                    $existingPd->monthly_quantity = $med['quantity'];
+                    if (isset($med['daily_quantity']) && $med['daily_quantity'] !== null) {
+                        $existingPd->daily_quantity = (int)$med['daily_quantity'];
+                    }
+                    $existingPd->save();
+                }
+            }
+
+            DB::commit();
+            return $this->sendSuccess([], 'تم إضافة الأدوية بنجاح.');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            return $this->sendError('خطأ في التحقق من البيانات.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            \Log::error('Error adding medications: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', ['error' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 500);
+        }
     }
 
     /**
@@ -141,9 +291,18 @@ class PatientDepartmentAdminController extends BaseApiController
             $hospitalId = $request->user()->hospital_id;
             $currentUserId = $request->user()->id; // المستخدم الحالي (Department Admin أو Doctor)
 
-            $patient = User::where('type', 'patient')->where('id', $id)->first();
+            // التأكد من أن المستخدم لديه hospital_id
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            $patient = User::where('type', 'patient')
+                ->where('hospital_id', $hospitalId)
+                ->where('id', $id)
+                ->first();
+            
             if (!$patient) {
-                return $this->sendError('المريض غير موجود.', [], 404);
+                return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
             }
 
             // البحث عن وصفة نشطة أو إنشاء واحدة
@@ -169,41 +328,59 @@ class PatientDepartmentAdminController extends BaseApiController
                 }
             }
 
-            // حذف جميع الأدوية القديمة
-            PrescriptionDrug::where('prescription_id', $prescription->id)->delete();
+            // الحصول على الأدوية الموجودة حالياً
+            $existingDrugs = PrescriptionDrug::where('prescription_id', $prescription->id)
+                ->pluck('drug_id')
+                ->toArray();
 
             $created = [];
+            $processedDrugIds = [];
             
-            // إضافة الأدوية الجديدة
+            // إضافة أو تحديث الأدوية
             foreach ($request->medications as $med) {
                 // البحث عن الدواء بواسطة الاسم أو ID
                 $drug = null;
                 
+                // أولاً: البحث بواسطة ID
                 if (!empty($med['drugId']) || !empty($med['id'])) {
-                    $drug = Drug::find($med['drugId'] ?? $med['id']);
+                    $drugId = $med['drugId'] ?? $med['id'];
+                    $drug = Drug::find($drugId);
                 }
                 
+                // ثانياً: البحث بواسطة الاسم
                 if (!$drug && !empty($med['drugName'])) {
-                    $drug = Drug::where('name', $med['drugName'])->first();
+                    $drug = Drug::where('name', trim($med['drugName']))->first();
                 }
                 
-                // إذا لم يوجد الدواء، إنشاء واحد جديد
-                if (!$drug && !empty($med['drugName'])) {
-                    $drug = Drug::create([
-                        'name' => $med['drugName'],
-                        'generic_name' => $med['drugName'],
-                        'strength' => $med['dosage'] ?? '',
-                        'form' => '',
-                        'category' => '',
-                        'unit' => '',
-                        'max_monthly_dose' => null,
-                        'status' => 'active',
-                        'manufacturer' => '',
-                        'country' => '',
-                        'utilization_type' => '',
-                        'warnings' => '',
-                        'expiry_date' => null,
-                    ]);
+                // ثالثاً: إذا لم يوجد الدواء وكان هناك اسم، إنشاء واحد جديد
+                if (!$drug) {
+                    $drugName = trim($med['drugName'] ?? $med['name'] ?? '');
+                    if (empty($drugName)) {
+                        // تخطي هذا الدواء إذا لم يكن هناك اسم أو ID
+                        \Log::warning('Skipping medication without drugId or drugName', ['med' => $med]);
+                        continue;
+                    }
+                    
+                    try {
+                        $drug = Drug::create([
+                            'name' => $drugName,
+                            'generic_name' => $drugName,
+                            'strength' => $med['dosage'] ?? '',
+                            'form' => '',
+                            'category' => '',
+                            'unit' => '',
+                            'max_monthly_dose' => null,
+                            'status' => 'active',
+                            'manufacturer' => '',
+                            'country' => '',
+                            'utilization_type' => '',
+                            'warnings' => '',
+                            'expiry_date' => null,
+                        ]);
+                    } catch (\Exception $e) {
+                        \Log::error('Error creating drug: ' . $e->getMessage(), ['drugName' => $drugName]);
+                        throw new \Exception('فشل في إنشاء الدواء: ' . $drugName . ' - ' . $e->getMessage());
+                    }
                 }
 
                 if ($drug) {
@@ -246,12 +423,46 @@ class PatientDepartmentAdminController extends BaseApiController
                         $monthlyQuantity = 30; // قيمة افتراضية
                     }
 
-                    $pd = PrescriptionDrug::create([
-                        'prescription_id' => $prescription->id,
-                        'drug_id' => $drug->id,
-                        'monthly_quantity' => $monthlyQuantity,
-                        'note' => $med['note'] ?? null,
-                    ]);
+                    // التحقق من وجود الدواء في الوصفة
+                    $existingPd = PrescriptionDrug::where('prescription_id', $prescription->id)
+                        ->where('drug_id', $drug->id)
+                        ->first();
+
+                    if ($existingPd) {
+                        // تحديث كمية الدواء الموجود فقط إذا تغيرت القيم فعلياً
+                        $needsUpdate = false;
+                        
+                        if ($existingPd->monthly_quantity != $monthlyQuantity) {
+                            $existingPd->monthly_quantity = $monthlyQuantity;
+                            $needsUpdate = true;
+                        }
+                        
+                        $newDailyQuantity = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
+                            ? (int)$med['daily_quantity'] 
+                            : null;
+                        if ($existingPd->daily_quantity != $newDailyQuantity) {
+                            $existingPd->daily_quantity = $newDailyQuantity;
+                            $needsUpdate = true;
+                        }
+                        
+                        // حفظ فقط إذا كان هناك تغيير فعلي (لتجنب إنشاء audit_log غير ضروري)
+                        if ($needsUpdate) {
+                            $existingPd->save();
+                        }
+                        $pd = $existingPd;
+                    } else {
+                        // إضافة دواء جديد فقط
+                        $pd = PrescriptionDrug::create([
+                            'prescription_id' => $prescription->id,
+                            'drug_id' => $drug->id,
+                            'monthly_quantity' => $monthlyQuantity,
+                            'daily_quantity' => isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
+                                ? (int)$med['daily_quantity'] 
+                                : null,
+                        ]);
+                    }
+
+                    $processedDrugIds[] = $drug->id;
 
                     // تحديد وحدة القياس من بيانات الدواء
                     $unit = $this->getDrugUnit($drug);
@@ -271,19 +482,45 @@ class PatientDepartmentAdminController extends BaseApiController
                         'unit' => $unit,
                         'assignmentDate' => $prescription->start_date ? $prescription->start_date->format('Y-m-d') : null,
                         'assignedBy' => $request->user()->full_name, // اسم المستخدم الحالي
-                        'note' => $pd->note,
                     ];
                 }
+            }
+
+            // حذف الأدوية التي لم تعد موجودة في القائمة الجديدة
+            $drugsToDelete = array_diff($existingDrugs, $processedDrugIds);
+            if (!empty($drugsToDelete)) {
+                PrescriptionDrug::where('prescription_id', $prescription->id)
+                    ->whereIn('drug_id', $drugsToDelete)
+                    ->delete();
             }
 
             DB::commit();
 
             // إعادة جلب البيانات المحدثة
-            return $this->show($id);
+            return $this->show($request, $id);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // لا حاجة لـ rollback إذا فشل validation قبل بدء transaction
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            return $this->sendError('خطأ في التحقق من البيانات.', $e->errors(), 422);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', ['error' => $e->getMessage()], 500);
+            // التراجع عن transaction فقط إذا كان موجوداً
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            // Handle general exception - إظهار الخطأ الفعلي للتطوير
+            \Log::error('Error updating medications: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+                'patient_id' => $id
+            ]);
+            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 500);
         }
     }
 

@@ -188,7 +188,12 @@ const formatDate = (dateString) => {
                             </thead>
                             <tbody class="divide-y divide-gray-50">
                                 <tr v-for="(med, medIndex) in patient.medications" :key="medIndex" class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="p-4 font-medium text-gray-700">{{ med.drugName }}</td>
+                                    <td class="p-4 font-medium text-gray-700">
+                                        <div class="flex flex-col">
+                                            <span>{{ med.drugName }}</span>
+                                            <span v-if="med.strength" class="text-sm text-gray-500 font-normal mt-1">{{ med.strength }}</span>
+                                        </div>
+                                    </td>
                                     <td class="p-4 text-gray-600">
                                         <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium">
                                             {{ med.dosage }}

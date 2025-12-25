@@ -19,7 +19,7 @@ class SupplyRequestPharmacistController extends BaseApiController
     {
         $request->validate([
             'items' => 'required|array|min:1',
-            'items.*.drugId' => 'required|exists:drug,id',
+            'items.*.drugId' => 'required|exists:drugs,id',
             'items.*.quantity' => 'required|integer|min:1',
             'notes' => 'nullable|string',
             'supplier_id' => 'nullable|exists:supplier,id'

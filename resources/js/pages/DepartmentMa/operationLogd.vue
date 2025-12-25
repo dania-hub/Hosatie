@@ -4,24 +4,29 @@ import { Icon } from "@iconify/vue";
 import axios from 'axios'; 
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
-// إعداد interceptor لـ axios لتحويل طلب /api/operations
-// إلى /api/department-admin/operations مع إضافة التوكن
-axios.interceptors.request.use(
-    (config) => {
-        if (config.url === '/api/operations') {
-            const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+// تكوين Axios لـ Department Admin
+const API_BASE_URL = "/api/department-admin";
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
 
-            config.url = '/api/department-admin/operations';
-            config.headers = config.headers || {};
-            config.headers['Accept'] = 'application/json';
-
-            if (token) {
-                config.headers['Authorization'] = `Bearer ${token}`;
-            }
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
+// إضافة interceptor لإضافة التوكن تلقائيًا
+api.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
 );
 
 import search from "@/components/search.vue";
@@ -35,18 +40,39 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/operations');
         
         // BaseApiController يُرجع البيانات في response.data.data
         const operationsData = response.data?.data || response.data || [];
-        operations.value = Array.isArray(operationsData) ? operationsData : [];
         
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
+        if (operationsData && Array.isArray(operationsData)) {
+            operations.value = operationsData;
+            showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
+        } else {
+            operations.value = [];
+            console.error('شكل البيانات غير متوقع:', response.data);
+            showSuccessAlert("⚠️ تم الاتصال بالخادم لكن البيانات بصيغة غير متوقعة");
+        }
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
-        console.error("Failed to fetch operations:", error);
+        console.error("فشل في جلب العمليات:", error);
+        
+        if (error.response) {
+            const status = error.response.status;
+            if (status === 401) {
+                showSuccessAlert("🔒 خطأ في المصادقة. يرجى تسجيل الدخول مرة أخرى");
+            } else if (status === 403) {
+                showSuccessAlert("🚫 ليس لديك صلاحية للوصول إلى هذه البيانات");
+            } else {
+                showSuccessAlert(`❌ فشل في تحميل البيانات: ${error.response.data?.message || 'خطأ غير معروف'}`);
+            }
+        } else if (error.request) {
+            showSuccessAlert("📡 لا يمكن الاتصال بالخادم. تحقق من اتصال الإنترنت");
+        } else {
+            showSuccessAlert("❌ فشل في تحميل البيانات.");
+        }
+        
         operations.value = [];
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
     } finally {
         isLoading.value = false;
     }

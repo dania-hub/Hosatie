@@ -14,8 +14,15 @@ class PatientDoctorController extends BaseApiController
     {
         $hospitalId = $request->user()->hospital_id;
 
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
         // 1. Query Patients (with Search support)
-        $query = User::where('type', 'patient');
+        // عرض المرضى الذين لديهم نفس hospital_id فقط
+        $query = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId);
 
         if ($request->has('search')) {
             $search = $request->search;
@@ -56,6 +63,7 @@ class PatientDoctorController extends BaseApiController
                         'id'       => $drug->id,
                         'pivot_id' => $drug->pivot->id, // Important for Update/Delete
                         'drugName' => $drug->name,
+                        'strength' => $drug->strength ?? null,
                         'dosage'   => $drug->pivot->monthly_quantity,
                         'note'     => $drug->pivot->note
                     ];
@@ -75,9 +83,17 @@ class PatientDoctorController extends BaseApiController
     {
         $hospitalId = $request->user()->hospital_id;
         
-        $patient = User::where('type', 'patient')->where('id', $id)->first();
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+        
+        $patient = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->where('id', $id)
+            ->first();
 
-        if (!$patient) return $this->sendError('المريض غير موجود.', [], 404);
+        if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
 
         $activePrescription = Prescription::with(['drugs', 'doctor'])
             ->where('patient_id', $patient->id)
@@ -104,7 +120,7 @@ class PatientDoctorController extends BaseApiController
                     : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
                 
                 // اسم المستخدم الذي قام بآخر عملية على هذا الدواء (من audit_log)
-                $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
                     ->where('record_id', $drug->pivot->id)
                     ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
                     ->with('user')
@@ -134,6 +150,7 @@ class PatientDoctorController extends BaseApiController
                     'id'       => $drug->id,
                     'pivot_id' => $drug->pivot->id,
                     'drugName' => $drug->name,
+                    'strength' => $drug->strength ?? null,
                     'dosage'   => $dosageText, // الجرعة اليومية: "2 مل يومياً" أو "2 حبة يومياً"
                     'monthlyQuantity' => $monthlyQuantityText, // الكمية الشهرية: "60 مل" أو "60 حبة"
                     'monthlyQuantityNum' => $monthlyQty, // الكمية الشهرية كرقم للعمليات الحسابية

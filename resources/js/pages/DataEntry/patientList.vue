@@ -65,7 +65,7 @@ const fetchPatients = async () => {
         }));
     } catch (error) {
         console.error("Error fetching patients:", error);
-        showSuccessAlert("⚠️ تعذر تحميل بيانات المرضى من الخادم. الرجاء التحقق من اتصال الإنترنت والمحاولة مرة أخرى.");
+        showSuccessAlert(" تعذر تحميل بيانات المرضى من الخادم. الرجاء التحقق من اتصال الإنترنت والمحاولة مرة أخرى.");
     }
 };
 
@@ -230,7 +230,7 @@ const addPatient = async (newPatient) => {
         });
 
         closeAddModal();
-        showSuccessAlert("✅ تم تسجيل بيانات المريض بنجاح!");
+        showSuccessAlert(" تم تسجيل بيانات المريض بنجاح!");
     } catch (error) {
         console.error("Error adding patient:", error);
         let msg = "";
@@ -240,45 +240,45 @@ const addPatient = async (newPatient) => {
             
             if (errors.phone) {
                 if (errors.phone.includes("has already been taken") || errors.phone.some(e => e.includes("مأخوذ"))) {
-                    msg = "⚠️ رقم الهاتف هذا مسجل بالفعل لمريض آخر.";
+                    msg = " رقم الهاتف هذا مسجل بالفعل لمريض آخر.";
                 } else if (errors.phone[0]) {
-                    msg = `⚠️ ${errors.phone[0]}`;
+                    msg = ` ${errors.phone[0]}`;
                 }
             } else if (errors.national_id) {
                 if (errors.national_id.includes("has already been taken") || errors.national_id.some(e => e.includes("مأخوذ"))) {
-                    msg = "⚠️ الرقم الوطني هذا مسجل بالفعل لمريض آخر.";
+                    msg = " الرقم الوطني هذا مسجل بالفعل لمريض آخر.";
                 } else if (errors.national_id[0]) {
-                    msg = `⚠️ ${errors.national_id[0]}`;
+                    msg = ` ${errors.national_id[0]}`;
                 }
             } else if (errors.email) {
                 if (errors.email.includes("has already been taken") || errors.email.some(e => e.includes("مأخوذ"))) {
-                    msg = "⚠️ البريد الإلكتروني هذا مسجل بالفعل لمريض آخر.";
+                    msg = " البريد الإلكتروني هذا مسجل بالفعل لمريض آخر.";
                 } else if (errors.email[0]) {
-                    msg = `⚠️ ${errors.email[0]}`;
+                    msg = ` ${errors.email[0]}`;
                 }
             } else if (errors.full_name) {
-                msg = "⚠️ الاسم الرباعي غير صالح.";
+                msg = " الاسم الرباعي غير صالح.";
             } else if (errors.birth_date) {
-                msg = "⚠️ تاريخ الميلاد غير صالح.";
+                msg = " تاريخ الميلاد غير صالح.";
             } else {
                 // عرض جميع الأخطاء بشكل عام
                 const errorList = Object.values(errors).flat();
                 if (errorList.length > 0) {
-                    msg = `⚠️ ${errorList[0]}`;
+                    msg = ` ${errorList[0]}`;
                 } else {
-                    msg = "⚠️ فشل تسجيل المريض. الرجاء التحقق من البيانات المدخلة.";
+                    msg = " فشل تسجيل المريض. الرجاء التحقق من البيانات المدخلة.";
                 }
             }
         } else if (error.response?.status === 401) {
-            msg = "⚠️ انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.";
+            msg = " انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.";
         } else if (error.response?.status === 403) {
-            msg = "⚠️ ليس لديك صلاحية لإضافة مرضى.";
+            msg = " ليس لديك صلاحية لإضافة مرضى.";
         } else if (error.response?.status === 500) {
-            msg = "⚠️ خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.";
+            msg = " خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.";
         } else if (error.code === 'NETWORK_ERROR' || !error.response) {
-            msg = "⚠️ فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.";
+            msg = " فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.";
         } else {
-            msg = "⚠️ فشل تسجيل المريض. الرجاء المحاولة مرة أخرى.";
+            msg = " فشل تسجيل المريض. الرجاء المحاولة مرة أخرى.";
         }
         
         showSuccessAlert(msg);
@@ -317,7 +317,7 @@ const updatePatient = async (updatedPatient) => {
         }
         
         closeEditModal();
-        showSuccessAlert(`✅ تم تعديل بيانات المريض ${p.file_number} بنجاح!`);
+        showSuccessAlert(` تم تعديل بيانات المريض ${p.file_number} بنجاح!`);
     } catch (error) {
         console.error("Error updating patient:", error);
         
@@ -328,47 +328,47 @@ const updatePatient = async (updatedPatient) => {
             
             if (errors.phone) {
                 if (errors.phone.includes("has already been taken") || errors.phone.some(e => e.includes("مأخوذ"))) {
-                    msg = "⚠️ رقم الهاتف هذا مسجل بالفعل لمريض آخر.";
+                    msg = " رقم الهاتف هذا مسجل بالفعل لمريض آخر.";
                 } else if (errors.phone[0]) {
-                    msg = `⚠️ ${errors.phone[0]}`;
+                    msg = ` ${errors.phone[0]}`;
                 }
             } else if (errors.national_id) {
                 if (errors.national_id.includes("has already been taken") || errors.national_id.some(e => e.includes("مأخوذ"))) {
-                    msg = "⚠️ الرقم الوطني هذا مسجل بالفعل لمريض آخر.";
+                    msg = " الرقم الوطني هذا مسجل بالفعل لمريض آخر.";
                 } else if (errors.national_id[0]) {
-                    msg = `⚠️ ${errors.national_id[0]}`;
+                    msg = ` ${errors.national_id[0]}`;
                 }
             } else if (errors.email) {
                 if (errors.email.includes("has already been taken") || errors.email.some(e => e.includes("مأخوذ"))) {
-                    msg = "⚠️ البريد الإلكتروني هذا مسجل بالفعل لمريض آخر.";
+                    msg = " البريد الإلكتروني هذا مسجل بالفعل لمريض آخر.";
                 } else if (errors.email[0]) {
-                    msg = `⚠️ ${errors.email[0]}`;
+                    msg = ` ${errors.email[0]}`;
                 }
             } else if (errors.full_name) {
-                msg = "⚠️ الاسم الرباعي غير صالح.";
+                msg = " الاسم الرباعي غير صالح.";
             } else if (errors.birth_date) {
-                msg = "⚠️ تاريخ الميلاد غير صالح.";
+                msg = " تاريخ الميلاد غير صالح.";
             } else {
                 // عرض جميع الأخطاء بشكل عام
                 const errorList = Object.values(errors).flat();
                 if (errorList.length > 0) {
-                    msg = `⚠️ ${errorList[0]}`;
+                    msg = ` ${errorList[0]}`;
                 } else {
-                    msg = "⚠️ فشل تعديل بيانات المريض.";
+                    msg = " فشل تعديل بيانات المريض.";
                 }
             }
         } else if (error.response?.status === 404) {
-            msg = "⚠️ المريض غير موجود.";
+            msg = " المريض غير موجود.";
         } else if (error.response?.status === 401) {
-            msg = "⚠️ انتهت صلاحية الجلسة.";
+            msg = " انتهت صلاحية الجلسة.";
         } else if (error.response?.status === 403) {
-            msg = "⚠️ ليس لديك صلاحية لتعديل بيانات المرضى.";
+            msg = " ليس لديك صلاحية لتعديل بيانات المرضى.";
         } else if (error.response?.status === 500) {
-            msg = "⚠️ خطأ في الخادم.";
+            msg = " خطأ في الخادم.";
         } else if (error.code === 'NETWORK_ERROR' || !error.response) {
-            msg = "⚠️ فشل الاتصال بالخادم.";
+            msg = " فشل الاتصال بالخادم.";
         } else {
-            msg = "⚠️ فشل تعديل بيانات المريض.";
+            msg = " فشل تعديل بيانات المريض.";
         }
         
         showSuccessAlert(msg);
@@ -390,23 +390,23 @@ const confirmDelete = async () => {
         }
         
         closeDeleteModal();
-        showSuccessAlert(`✅ تم حذف المريض ${patient.fileNumber} بنجاح!`);
+        showSuccessAlert(` تم حذف المريض ${patient.fileNumber} بنجاح!`);
     } catch (error) {
         console.error("Error deleting patient:", error);
         let msg = "";
         
         if (error.response?.status === 404) {
-            msg = "⚠️ المريض غير موجود.";
+            msg = " المريض غير موجود.";
         } else if (error.response?.status === 401) {
-            msg = "⚠️ انتهت صلاحية الجلسة.";
+            msg = " انتهت صلاحية الجلسة.";
         } else if (error.response?.status === 403) {
-            msg = "⚠️ ليس لديك صلاحية لحذف المرضى.";
+            msg = " ليس لديك صلاحية لحذف المرضى.";
         } else if (error.response?.status === 500) {
-            msg = "⚠️ خطأ في الخادم.";
+            msg = " خطأ في الخادم.";
         } else if (error.code === 'NETWORK_ERROR' || !error.response) {
-            msg = "⚠️ فشل الاتصال بالخادم.";
+            msg = " فشل الاتصال بالخادم.";
         } else {
-            msg = "⚠️ فشل حذف المريض.";
+            msg = " فشل حذف المريض.";
         }
         
         showSuccessAlert(msg);
@@ -423,7 +423,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("⚠️ فشل عملية الطباعة. الرجاء السماح بفتح النوافذ المنبثقة.");
+        showSuccessAlert(" فشل عملية الطباعة. الرجاء السماح بفتح النوافذ المنبثقة.");
         return;
     }
 
@@ -521,7 +521,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 </script>

@@ -264,21 +264,23 @@ public function forceChangePassword(Request $request)
      * 2. DASHBOARD PROFILE (Staff Only)
      */
     public function profileDashboard(Request $request)
-    {
-        try {
-            $user = $request->user();
+{
+    try {
+        $user = $request->user();
 
-            // Security Check
-            if ($user->type === 'patient') {
-                return $this->sendError('تم رفض الوصول. المرضى لا يمكنهم عرض ملفات تعريف لوحة التحكم.', [], 403);
-            }
-
-            return $this->sendSuccess(new UserResource($user), 'Staff profile retrieved.');
-
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'خطأ في ملف تعريف لوحة التحكم');
+        // Security Check
+        if ($user->type === 'patient') {
+            return $this->sendError('تم رفض الوصول. المرضى لا يمكنهم عرض ملفات تعريف لوحة التحكم.', [], 403);
         }
+
+        $user->load('hospital');
+
+        return $this->sendSuccess(new UserResource($user), 'Staff profile retrieved.');
+
+    } catch (\Exception $e) {
+        return $this->handleException($e, 'خطأ في ملف تعريف لوحة التحكم');
     }
+}
     /**
      * FR-8: Update Profile
      */

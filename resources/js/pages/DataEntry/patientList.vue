@@ -65,7 +65,7 @@ const fetchPatients = async () => {
         }));
     } catch (error) {
         console.error("Error fetching patients:", error);
-        showSuccessAlert("❌ فشل تحميل بيانات المرضى من الخادم.");
+        showSuccessAlert("⚠️ تعذر تحميل بيانات المرضى من الخادم. الرجاء التحقق من اتصال الإنترنت والمحاولة مرة أخرى.");
     }
 };
 
@@ -151,7 +151,7 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 4. منطق رسالة النجاح (لم يتغير)
+// 4. منطق رسالة النجاح والخطأ
 // ----------------------------------------------------
 const isSuccessAlertVisible = ref(false);
 const successMessage = ref("");
@@ -177,7 +177,9 @@ const showSuccessAlert = (message) => {
 const isViewModalOpen = ref(false);
 const isEditModalOpen = ref(false);
 const isAddModalOpen = ref(false);
+const isDeleteModalOpen = ref(false);
 const selectedPatient = ref({});
+const patientToDelete = ref(null);
 
 const openViewModal = (patient) => { selectedPatient.value = patient; isViewModalOpen.value = true; };
 const closeViewModal = () => { isViewModalOpen.value = false; selectedPatient.value = {}; };
@@ -185,6 +187,18 @@ const openEditModal = (patient) => { selectedPatient.value = patient; isEditModa
 const closeEditModal = () => { isEditModalOpen.value = false; selectedPatient.value = {}; };
 const openAddModal = () => { isAddModalOpen.value = true; };
 const closeAddModal = () => { isAddModalOpen.value = false; };
+
+// فتح نافذة تأكيد الحذف
+const openDeleteModal = (patient) => {
+    patientToDelete.value = patient;
+    isDeleteModalOpen.value = true;
+};
+
+// إغلاق نافذة تأكيد الحذف
+const closeDeleteModal = () => {
+    isDeleteModalOpen.value = false;
+    patientToDelete.value = null;
+};
 
 // ----------------------------------------------------
 // 6. دوال إدارة البيانات
@@ -219,16 +233,54 @@ const addPatient = async (newPatient) => {
         showSuccessAlert("✅ تم تسجيل بيانات المريض بنجاح!");
     } catch (error) {
         console.error("Error adding patient:", error);
-        let msg = "❌ فشل تسجيل المريض.";
-        if (error.response) {
-            msg += ` (رمز الخطأ: ${error.response.status})`;
-            if (error.response.data && error.response.data.message) {
-                msg += `\nالرسالة: ${error.response.data.message}`;
+        let msg = "";
+        
+        if (error.response?.status === 422) {
+            const errors = error.response.data?.errors || {};
+            
+            if (errors.phone) {
+                if (errors.phone.includes("has already been taken") || errors.phone.some(e => e.includes("مأخوذ"))) {
+                    msg = "⚠️ رقم الهاتف هذا مسجل بالفعل لمريض آخر.";
+                } else if (errors.phone[0]) {
+                    msg = `⚠️ ${errors.phone[0]}`;
+                }
+            } else if (errors.national_id) {
+                if (errors.national_id.includes("has already been taken") || errors.national_id.some(e => e.includes("مأخوذ"))) {
+                    msg = "⚠️ الرقم الوطني هذا مسجل بالفعل لمريض آخر.";
+                } else if (errors.national_id[0]) {
+                    msg = `⚠️ ${errors.national_id[0]}`;
+                }
+            } else if (errors.email) {
+                if (errors.email.includes("has already been taken") || errors.email.some(e => e.includes("مأخوذ"))) {
+                    msg = "⚠️ البريد الإلكتروني هذا مسجل بالفعل لمريض آخر.";
+                } else if (errors.email[0]) {
+                    msg = `⚠️ ${errors.email[0]}`;
+                }
+            } else if (errors.full_name) {
+                msg = "⚠️ الاسم الرباعي غير صالح.";
+            } else if (errors.birth_date) {
+                msg = "⚠️ تاريخ الميلاد غير صالح.";
+            } else {
+                // عرض جميع الأخطاء بشكل عام
+                const errorList = Object.values(errors).flat();
+                if (errorList.length > 0) {
+                    msg = `⚠️ ${errorList[0]}`;
+                } else {
+                    msg = "⚠️ فشل تسجيل المريض. الرجاء التحقق من البيانات المدخلة.";
+                }
             }
-            if (error.response.data && error.response.data.errors) {
-                msg += `\nالأخطاء: ${JSON.stringify(error.response.data.errors)}`;
-            }
+        } else if (error.response?.status === 401) {
+            msg = "⚠️ انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.";
+        } else if (error.response?.status === 403) {
+            msg = "⚠️ ليس لديك صلاحية لإضافة مرضى.";
+        } else if (error.response?.status === 500) {
+            msg = "⚠️ خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.";
+        } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+            msg = "⚠️ فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.";
+        } else {
+            msg = "⚠️ فشل تسجيل المريض. الرجاء المحاولة مرة أخرى.";
         }
+        
         showSuccessAlert(msg);
     }
 };
@@ -268,28 +320,65 @@ const updatePatient = async (updatedPatient) => {
         showSuccessAlert(`✅ تم تعديل بيانات المريض ${p.file_number} بنجاح!`);
     } catch (error) {
         console.error("Error updating patient:", error);
-        let msg = "❌ فشل تعديل بيانات المريض.";
-        if (error.response) {
-            msg += ` (رمز الخطأ: ${error.response.status})`;
-            if (error.response.data && error.response.data.message) {
-                msg += `\nالرسالة: ${error.response.data.message}`;
+        
+        let msg = "";
+        
+        if (error.response?.status === 422) {
+            const errors = error.response.data?.errors || {};
+            
+            if (errors.phone) {
+                if (errors.phone.includes("has already been taken") || errors.phone.some(e => e.includes("مأخوذ"))) {
+                    msg = "⚠️ رقم الهاتف هذا مسجل بالفعل لمريض آخر.";
+                } else if (errors.phone[0]) {
+                    msg = `⚠️ ${errors.phone[0]}`;
+                }
+            } else if (errors.national_id) {
+                if (errors.national_id.includes("has already been taken") || errors.national_id.some(e => e.includes("مأخوذ"))) {
+                    msg = "⚠️ الرقم الوطني هذا مسجل بالفعل لمريض آخر.";
+                } else if (errors.national_id[0]) {
+                    msg = `⚠️ ${errors.national_id[0]}`;
+                }
+            } else if (errors.email) {
+                if (errors.email.includes("has already been taken") || errors.email.some(e => e.includes("مأخوذ"))) {
+                    msg = "⚠️ البريد الإلكتروني هذا مسجل بالفعل لمريض آخر.";
+                } else if (errors.email[0]) {
+                    msg = `⚠️ ${errors.email[0]}`;
+                }
+            } else if (errors.full_name) {
+                msg = "⚠️ الاسم الرباعي غير صالح.";
+            } else if (errors.birth_date) {
+                msg = "⚠️ تاريخ الميلاد غير صالح.";
+            } else {
+                // عرض جميع الأخطاء بشكل عام
+                const errorList = Object.values(errors).flat();
+                if (errorList.length > 0) {
+                    msg = `⚠️ ${errorList[0]}`;
+                } else {
+                    msg = "⚠️ فشل تعديل بيانات المريض.";
+                }
             }
-            if (error.response.data && error.response.data.errors) {
-                msg += `\nالأخطاء: ${JSON.stringify(error.response.data.errors)}`;
-            }
+        } else if (error.response?.status === 404) {
+            msg = "⚠️ المريض غير موجود.";
+        } else if (error.response?.status === 401) {
+            msg = "⚠️ انتهت صلاحية الجلسة.";
+        } else if (error.response?.status === 403) {
+            msg = "⚠️ ليس لديك صلاحية لتعديل بيانات المرضى.";
+        } else if (error.response?.status === 500) {
+            msg = "⚠️ خطأ في الخادم.";
+        } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+            msg = "⚠️ فشل الاتصال بالخادم.";
+        } else {
+            msg = "⚠️ فشل تعديل بيانات المريض.";
         }
+        
         showSuccessAlert(msg);
     }
 };
 
-const deletePatient = async (fileNumber) => {
-    // Find the patient to get the ID
-    const patient = patients.value.find(p => p.fileNumber === fileNumber);
-    if (!patient) return;
-
-    if (!confirm(`هل أنت متأكد من حذف المريض برقم ملف ${fileNumber}؟`)) {
-        return;
-    }
+const confirmDelete = async () => {
+    if (!patientToDelete.value) return;
+    
+    const patient = patientToDelete.value;
     
     try {
         // Use ID for the URL
@@ -300,22 +389,33 @@ const deletePatient = async (fileNumber) => {
             patients.value.splice(index, 1);
         }
         
-        showSuccessAlert(`✅ تم حذف المريض ${fileNumber} بنجاح!`);
+        closeDeleteModal();
+        showSuccessAlert(`✅ تم حذف المريض ${patient.fileNumber} بنجاح!`);
     } catch (error) {
         console.error("Error deleting patient:", error);
-        let msg = "❌ فشل حذف المريض.";
-        if (error.response) {
-            msg += ` (رمز الخطأ: ${error.response.status})`;
-            if (error.response.data && error.response.data.message) {
-                msg += `\nالرسالة: ${error.response.data.message}`;
-            }
+        let msg = "";
+        
+        if (error.response?.status === 404) {
+            msg = "⚠️ المريض غير موجود.";
+        } else if (error.response?.status === 401) {
+            msg = "⚠️ انتهت صلاحية الجلسة.";
+        } else if (error.response?.status === 403) {
+            msg = "⚠️ ليس لديك صلاحية لحذف المرضى.";
+        } else if (error.response?.status === 500) {
+            msg = "⚠️ خطأ في الخادم.";
+        } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+            msg = "⚠️ فشل الاتصال بالخادم.";
+        } else {
+            msg = "⚠️ فشل حذف المريض.";
         }
+        
         showSuccessAlert(msg);
+        closeDeleteModal();
     }
 };
 
 // ----------------------------------------------------
-// 7. منطق الطباعة (لم يتغير)
+// 7. منطق الطباعة
 // ----------------------------------------------------
 const printTable = () => {
     const resultsCount = filteredPatients.value.length;
@@ -323,7 +423,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert("⚠️ فشل عملية الطباعة. الرجاء السماح بفتح النوافذ المنبثقة.");
         return;
     }
 
@@ -334,7 +434,6 @@ const printTable = () => {
                 direction: rtl; 
                 padding: 20px;
             }
-            /* ... (بقية تنسيقات الطباعة) ... */
             table { 
                 width: 100%; 
                 border-collapse: collapse; 
@@ -361,12 +460,22 @@ const printTable = () => {
                 font-weight: bold; 
                 color: #4DA1A9; 
             }
+            .print-date { 
+                text-align: left; 
+                font-size: 14px; 
+                color: #666; 
+                margin-bottom: 20px; 
+            }
         </style>
 
-        <h1>قائمة المرضى (تقرير طباعة)</h1>
+        <h1>قائمة المرضى - تقرير طباعة</h1>
+        
+        <div class="print-date">
+            تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}
+        </div>
         
         <p class="results-info">
-            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
+            عدد المرضى: ${resultsCount}
         </p>
         
         <table>
@@ -397,6 +506,10 @@ const printTable = () => {
     tableHtml += `
             </tbody>
         </table>
+        
+        <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #888;">
+            تم إنشاء هذا التقرير تلقائياً من نظام إدارة المرضى
+        </div>
     `;
 
     printWindow.document.write('<html><head><title>طباعة قائمة المرضى</title>');
@@ -510,13 +623,10 @@ const printTable = () => {
                             </thead>
 
                             <tbody> 
-                                  
-                                      
-                                    
                                 <tr 
                                     v-for="(patient, index) in filteredPatients"
                                     :key="index"
-                                    class="hover:bg-gray-100 border border-gray-300"
+                                    class="hover:bg-gray-100 border border-gray-300 transition-colors duration-150"
                                 >
                                     <td class="file-number-col">{{ patient.fileNumber }}</td>
                                     <td class="name-col">{{ patient.name }}</td>
@@ -528,7 +638,7 @@ const printTable = () => {
                                         <div class="flex gap-3 justify-center items-center">
                                             <button 
                                                 @click="openViewModal(patient)"
-                                                class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                class="p-1 rounded-full hover:bg-green-100 transition-colors duration-200"
                                                 title="عرض البيانات"
                                             >
                                                 <Icon
@@ -539,7 +649,7 @@ const printTable = () => {
 
                                             <button 
                                                 @click="openEditModal(patient)"
-                                                class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                class="p-1 rounded-full hover:bg-yellow-100 transition-colors duration-200"
                                                 title="تعديل البيانات"
                                             >
                                                 <Icon
@@ -549,8 +659,8 @@ const printTable = () => {
                                             </button>
 
                                             <button 
-                                                @click="deletePatient(patient.fileNumber)"
-                                                class="p-1 rounded-full hover:bg-red-100 transition-colors"
+                                                @click="openDeleteModal(patient)"
+                                                class="p-1 rounded-full hover:bg-red-100 transition-colors duration-200"
                                                 title="حذف المريض"
                                             >
                                                 <Icon
@@ -563,8 +673,12 @@ const printTable = () => {
                                 </tr>
                                 
                                 <tr v-if="filteredPatients.length === 0">
-                                    <td colspan="6" class="text-center py-8 text-gray-500">
-                                        لا توجد بيانات لعرضها
+                                    <td colspan="6" class="text-center py-12 text-gray-500">
+                                        <div class="flex flex-col items-center justify-center gap-2">
+                                            <Icon icon="solar:documents-bold-duotone" class="w-12 h-12 text-gray-300" />
+                                            <p class="text-lg font-medium">لا توجد بيانات لعرضها</p>
+                                            <p class="text-sm text-gray-400">حاول تغيير كلمة البحث أو إضافة مرضى جدد</p>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -575,12 +689,14 @@ const printTable = () => {
         </main>
     </DefaultLayout>
 
+    <!-- نافذة إضافة مريض -->
     <PatientAddModal
         :is-open="isAddModalOpen"
         @close="closeAddModal"
         @save="addPatient"
     />
 
+    <!-- نافذة تعديل مريض -->
     <PatientEditModal
         :is-open="isEditModalOpen"
         :patient="selectedPatient"
@@ -588,12 +704,45 @@ const printTable = () => {
         @save="updatePatient"
     />
 
+    <!-- نافذة عرض بيانات المريض -->
     <PatientViewModal
         :is-open="isViewModalOpen"
         :patient="selectedPatient"
         @close="closeViewModal"
     />
 
+    <!-- نافذة تأكيد الحذف -->
+    <div v-if="isDeleteModalOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeDeleteModal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div class="p-6 text-center space-y-4">
+                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-8 h-8 text-red-500" />
+                </div>
+                <h3 class="text-xl font-bold text-[#2E5077]">حذف المريض</h3>
+                <p class="text-gray-500 leading-relaxed">
+                    هل أنت متأكد من حذف هذا المريض من النظام؟
+                    <br>
+                    <span class="text-sm text-red-500">لا يمكن التراجع عن هذا الإجراء</span>
+                </p>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                <button 
+                    @click="closeDeleteModal" 
+                    class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    إلغاء
+                </button>
+                <button 
+                    @click="confirmDelete" 
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors duration-200 shadow-lg shadow-red-500/20"
+                >
+                    حذف نهائي
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Notification -->
     <Transition
         enter-active-class="transition duration-300 ease-out transform"
         enter-from-class="translate-x-full opacity-0"
@@ -604,16 +753,29 @@ const printTable = () => {
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300"
             dir="rtl"
+            :class="{
+                'bg-green-50 border border-green-200 text-green-800': successMessage.includes('✅'),
+                'bg-red-50 border border-red-200 text-red-800': successMessage.includes('⚠️'),
+                'bg-blue-50 border border-blue-200 text-blue-800': !successMessage.includes('✅') && !successMessage.includes('⚠️')
+            }"
         >
-            {{ successMessage }}
+            <div class="flex items-start gap-3">
+                <Icon 
+                    :icon="successMessage.includes('✅') ? 'solar:check-circle-bold' : 'solar:danger-triangle-bold'" 
+                    class="w-5 h-5 mt-0.5 flex-shrink-0"
+                    :class="successMessage.includes('✅') ? 'text-green-600' : 'text-red-600'"
+                />
+                <div>
+                    <p class="font-medium text-sm whitespace-pre-line">{{ successMessage.replace('✅', '').replace('⚠️', '') }}</p>
+                </div>
+            </div>
         </div>
     </Transition>
 </template>
 
 <style>
-/* ... (التنسيقات لم تتغير) ... */
 /* تنسيقات شريط التمرير */
 ::-webkit-scrollbar {
     width: 8px;
@@ -657,5 +819,26 @@ const printTable = () => {
 .name-col {
     width: 170px;
     min-width: 150px;
+}
+
+/* تنسيقات الجدول */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.table th {
+    position: sticky;
+    top: 0;
+    background-color: #9aced2;
+    font-weight: 600;
+    padding: 12px 16px;
+    white-space: nowrap;
+}
+.table td {
+    padding: 10px 16px;
+    vertical-align: middle;
+}
+.table tr:hover {
+    background-color: #f9fafb;
 }
 </style>

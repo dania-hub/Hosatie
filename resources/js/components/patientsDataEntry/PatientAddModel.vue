@@ -17,7 +17,22 @@ const form = ref({
     phone: "",
     email: "",
 });
-
+const validatePhoneInput = () => {
+    form.value.phone = form.value.phone.replace(/\D/g, '');
+    const phone = form.value.phone;
+    const validPrefixes = ['091', '092', '093', '094'];
+    
+    if (phone.length > 0) {
+        const hasValidPrefix = validPrefixes.some(prefix => phone.startsWith(prefix));
+        if (!hasValidPrefix && phone.length >= 3) {
+            errors.value.phone = 'يجب أن يبدأ الرقم بـ 091, 092, 093, 094';
+        } else if (phone.length < 10) {
+            errors.value.phone = 'رقم الهاتف يجب أن يتكون من 10 أرقام';
+        } else {
+            errors.value.phone = '';
+        }
+    }
+};
 // أخطاء التحقق
 const errors = ref({
     nationalId: false,
@@ -128,10 +143,18 @@ const confirmRegistration = () => {
     closeModal();
 };
 
+
 // إغلاق النافذة
 const closeModal = () => {
     resetForm();
     emit('close');
+};
+const dateInput = ref(null);
+const openDatePicker = () => {
+    if (dateInput.value) {
+        // هذه الدالة تفتح منقي التاريخ في المتصفحات الحديثة
+        dateInput.value.showPicker(); 
+    }
 };
 
 // إعادة تعيين النموذج عند فتح النافذة
@@ -145,6 +168,7 @@ const maxDate = computed(() => {
     today.setDate(today.getDate() - 1);
     return today.toISOString().split('T')[0];
 });
+
 </script>
 
 <template>
@@ -210,52 +234,69 @@ const maxDate = computed(() => {
                     </div>
 
                     <!-- Birth Date -->
-                    <div class="space-y-2">
-                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            تاريخ الميلاد
-                        </label>
-                        <div class="relative w-full">
-                            <Input
-                                id="birth-date"
-                                type="date" 
-                                :max="maxDate" 
-                                v-model="form.birthDate"
-                                :class="{ 'border-red-500 hover:border-red-500': errors.birthDate, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.birthDate }"
-                                class="h-9 text-right w-full pr-3 appearance-none rounded-2xl bg-white"
-                            />
-                            <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                <Icon 
-                                    icon="solar:calendar-linear" 
-                                    class="w-5 h-5 transition-colors duration-200"
-                                    :class="errors.birthDate ? 'text-red-500' : 'text-[#79D7BE]'"
-                                />
-                            </div>
-                        </div>
-                        <p v-if="errors.birthDate" class="text-xs text-red-500 mt-1 flex items-center gap-1">
-                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            تاريخ الميلاد مطلوب
-                        </p>
-                    </div>
+                   <div class="space-y-2" dir="rtl">
+    <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+        <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+        تاريخ الميلاد
+    </label>
+    
+    <div class="relative w-full">
+        <input
+            id="birth-date"
+            ref="dateInput"
+            type="date" 
+            :max="maxDate"
+            :min="minDate"
+            v-model="form.birthDate"
+            :class="[
+                'h-9 text-right w-full pl-3 pr-10 appearance-none rounded-2xl bg-white cursor-pointer',
+                'border focus:outline-none transition-colors duration-200',
+                errors.birthDate 
+                    ? 'border-red-500 hover:border-red-500 focus:border-red-500' 
+                    : 'border-gray-200 hover:border-[#4DA1A9] focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+            ]"
+            @change="errors.birthDate = ''"
+        />
+        
+        <div 
+            class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" 
+            @click="openDatePicker"
+        >
+            <Icon 
+                icon="solar:calendar-linear" 
+                class="w-5 h-5 transition-colors duration-200"
+                :class="errors.birthDate ? 'text-red-500' : 'text-[#79D7BE]'"
+            />
+        </div>
+    </div>
+
+    <p v-if="errors.birthDate" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+        <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+        {{ errors.birthDate }}
+    </p>
+</div>
 
                     <!-- Phone -->
-                    <div class="space-y-2">
-                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            رقم الهاتف
-                        </label>
-                        <Input
-                            id="phone"
-                            v-model="form.phone"
-                            placeholder="09XXXXXXXX"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
-                        />
-                        <p v-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
-                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            رقم الهاتف غير صحيح
-                        </p>
-                    </div>
+                    <div class="space-y-2" dir="rtl">
+    <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+        <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+        رقم الهاتف
+    </label>
+    <Input
+        id="phone"
+        v-model="form.phone"
+        type="text"
+        placeholder="09XXXXXXXX"
+        maxlength="10"
+        @input="validatePhoneInput"
+        :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone }"
+        class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right"
+    />
+    <p v-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+        <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+        {{ errors.phone }}
+    </p>
+</div>
 
                     <!-- Email -->
                     <div class="space-y-2 md:col-span-2">

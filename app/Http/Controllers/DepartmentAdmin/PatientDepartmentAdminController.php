@@ -49,12 +49,54 @@ class PatientDepartmentAdminController extends BaseApiController
                 ? Carbon::parse($patient->birth_date)->format('Y/m/d')
                 : null;
             
-            // Find Active Prescription for this Patient in THIS Hospital
-            $activePrescription = Prescription::with(['drugs'])
+            // Find ALL Active Prescriptions for this Patient (from all hospitals)
+            $activePrescriptions = Prescription::with(['drugs', 'doctor'])
                 ->where('patient_id', $patient->id)
-                ->where('hospital_id', $hospitalId)
                 ->where('status', 'active')
-                ->first();
+                ->get();
+
+            // Aggregate medications from all active prescriptions
+            $allMedications = collect();
+            foreach ($activePrescriptions as $prescription) {
+                foreach ($prescription->drugs as $drug) {
+                    $assignmentDate = $drug->pivot->created_at 
+                        ? $drug->pivot->created_at->format('Y-m-d')
+                        : ($prescription->start_date ? (is_object($prescription->start_date) ? $prescription->start_date->format('Y-m-d') : $prescription->start_date) : null);
+
+                    $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+                        ->where('record_id', $drug->pivot->id)
+                        ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
+                        ->with('user')
+                        ->latest()
+                        ->first();
+
+                    $assignedBy = $latestLog && $latestLog->user 
+                        ? $latestLog->user->full_name 
+                        : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
+
+                    $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                    $unit = $this->getDrugUnit($drug);
+                    $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                    $dosageText = $dailyQty > 0 
+                        ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                        : 'غير محدد';
+                    $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
+
+                    $allMedications->push([
+                        'id' => $drug->id,
+                        'pivot_id' => $drug->pivot->id ?? null,
+                        'drugName' => $drug->name,
+                        'strength' => $drug->strength ?? null,
+                        'dosage' => $dosageText,
+                        'monthlyQuantity' => $monthlyQuantityText,
+                        'monthlyQuantityNum' => $monthlyQty,
+                        'unit' => $unit,
+                        'assignmentDate' => $assignmentDate,
+                        'assignedBy' => $assignedBy,
+                        'note' => $drug->pivot->note ?? null,
+                    ]);
+                }
+            }
 
             return [
                 'fileNumber' => $patient->id,
@@ -64,19 +106,10 @@ class PatientDepartmentAdminController extends BaseApiController
                 'birth'      => $birthFormatted ?? 'غير محدد',
                 'phone'      => $patient->phone,
                 'lastUpdated'=> $patient->updated_at->toIso8601String(),
-                
-                // Return Medications List (Formatted for Frontend)
-                'medications' => $activePrescription ? $activePrescription->drugs->map(function($drug) {
-                    return [
-                        'id'       => $drug->id,
-                        'pivot_id' => $drug->pivot->id, // Important for Update/Delete
-                        'drugName' => $drug->name,
-                        'strength' => $drug->strength ?? null,
-                        'dosage'   => $drug->pivot->monthly_quantity,
-                    ];
-                }) : [],
 
-                'hasPrescription' => !!$activePrescription
+                'medications' => $allMedications->toArray(),
+
+                'hasPrescription' => $activePrescriptions->contains('hospital_id', $hospitalId)
             ];
         });
 
@@ -103,18 +136,59 @@ class PatientDepartmentAdminController extends BaseApiController
 
         if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
 
-        // Get active prescription for this department/hospital
-        // تحميل العلاقة doctor للحصول على اسم الدكتور الذي قام بالإسناد
-        $activePrescription = Prescription::with(['drugs', 'doctor'])
+        // Get ALL active prescriptions for this patient (from any hospital) and include doctor
+        $activePrescriptions = Prescription::with(['drugs', 'doctor'])
             ->where('patient_id', $patient->id)
-            ->where('hospital_id', $hospitalId)
             ->where('status', 'active')
-            ->first();
+            ->get();
 
         // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
         $birthFormatted = $patient->birth_date
             ? Carbon::parse($patient->birth_date)->format('Y/m/d')
             : null;
+
+        // Collect all medications from all active prescriptions
+        $allMedications = collect();
+        foreach ($activePrescriptions as $prescription) {
+            foreach ($prescription->drugs as $drug) {
+                $assignmentDate = $drug->pivot->created_at 
+                    ? $drug->pivot->created_at->format('Y-m-d')
+                    : ($prescription->start_date ? (is_object($prescription->start_date) ? $prescription->start_date->format('Y-m-d') : $prescription->start_date) : null);
+
+                $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+                    ->where('record_id', $drug->pivot->id)
+                    ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
+                    ->with('user')
+                    ->latest()
+                    ->first();
+
+                $assignedBy = $latestLog && $latestLog->user 
+                    ? $latestLog->user->full_name 
+                    : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
+
+                $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                $unit = $this->getDrugUnit($drug);
+                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                $dosageText = $dailyQty > 0 
+                    ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                    : 'غير محدد';
+                $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
+
+                $allMedications->push([
+                    'id' => $drug->id,
+                    'pivot_id' => $drug->pivot->id ?? null,
+                    'drugName' => $drug->name,
+                    'strength' => $drug->strength ?? null,
+                    'dosage' => $dosageText,
+                    'monthlyQuantity' => $monthlyQuantityText,
+                    'monthlyQuantityNum' => $monthlyQty,
+                    'unit' => $unit,
+                    'assignmentDate' => $assignmentDate,
+                    'assignedBy' => $assignedBy,
+                    'note' => $drug->pivot->note ?? null,
+                ]);
+            }
+        }
 
         $data = [
             'fileNumber' => $patient->id,
@@ -123,53 +197,7 @@ class PatientDepartmentAdminController extends BaseApiController
             'birth'      => $birthFormatted ?? 'غير محدد',
             'phone'      => $patient->phone,
             'lastUpdated'=> $patient->updated_at->toIso8601String(),
-            'medications' => $activePrescription ? $activePrescription->drugs->map(function($drug) use ($activePrescription) {
-                // استخدام created_at من pivot كتاريخ الإسناد، أو start_date من prescription
-                $assignmentDate = $drug->pivot->created_at 
-                    ? $drug->pivot->created_at->format('Y-m-d')
-                    : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
-                
-                // اسم المستخدم الذي قام بآخر عملية على هذا الدواء (من audit_log)
-                $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
-                    ->where('record_id', $drug->pivot->id)
-                    ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
-                    ->with('user')
-                    ->latest()
-                    ->first();
-                
-                $assignedBy = $latestLog && $latestLog->user 
-                    ? $latestLog->user->full_name 
-                    : ($activePrescription->doctor ? $activePrescription->doctor->full_name : 'غير محدد');
-                
-                // الحصول على الكمية الشهرية من قاعدة البيانات
-                $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
-                
-                // تحديد وحدة القياس من بيانات الدواء
-                $unit = $this->getDrugUnit($drug);
-                
-                // تحويل الجرعة الشهرية إلى جرعة يومية نصية
-                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
-                $dosageText = $dailyQty > 0 
-                    ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
-                    : 'غير محدد';
-                
-                // تنسيق الكمية الشهرية كنص مع الوحدة الصحيحة
-                $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
-                
-                return [
-                    'id' => $drug->id,
-                    'pivot_id' => $drug->pivot->id ?? null, // مهم للتعديل/الحذف
-                    'drugName' => $drug->name,
-                    'strength' => $drug->strength ?? null,
-                    'dosage' => $dosageText, // الجرعة اليومية: "2 مل يومياً" أو "2 حبة يومياً"
-                    'monthlyQuantity' => $monthlyQuantityText, // الكمية الشهرية: "60 مل" أو "60 حبة"
-                    'monthlyQuantityNum' => $monthlyQty, // الكمية الشهرية كرقم للعمليات الحسابية
-                    'unit' => $unit, // وحدة القياس للاستخدام في الواجهة
-                    'assignmentDate' => $assignmentDate,
-                    'assignedBy' => $assignedBy, // اسم الدكتور الفعلي من قاعدة البيانات
-                ];
-            }) : [],
-
+            'medications' => $allMedications->toArray(),
         ];
 
         return $this->sendSuccess($data, 'تم جلب بيانات المريض.');
@@ -207,9 +235,8 @@ class PatientDepartmentAdminController extends BaseApiController
                 return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
             }
 
-            // 1. Find existing active prescription
+            // 1. Find existing active prescription (from any hospital)
             $prescription = Prescription::where('patient_id', $patient->id)
-                ->where('hospital_id', $hospitalId)
                 ->where('status', 'active')
                 ->first();
 
@@ -536,11 +563,15 @@ class PatientDepartmentAdminController extends BaseApiController
         $item = PrescriptionDrug::where('id', $pivotId)->first();
         if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
 
-        // Security: Ensure same hospital
+        // تأكد أن المريض موجود وفي نفس المستشفى (الأذونات تُعطى على مستوى المريض، وليس منشأ الوصفة)
+        $patient = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->where('id', $patientId)
+            ->first();
+        if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+
+        // نسمح بالتعديل حتى لو كانت الوصفة مُنشأة في مستشفى آخر
         $prescription = Prescription::find($item->prescription_id);
-        if ($prescription->hospital_id !== $hospitalId) {
-             return $this->sendError('غير مصرح لك بتعديل هذا السجل (مستشفى مختلف).', [], 403);
-        }
 
         $item->monthly_quantity = $request->dosage;
         $item->save();
@@ -559,11 +590,15 @@ class PatientDepartmentAdminController extends BaseApiController
         $item = PrescriptionDrug::where('id', $pivotId)->first();
         if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
 
-        // Security: Ensure same hospital
+        // تأكد أن المريض موجود وفي نفس المستشفى
+        $patient = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->where('id', $patientId)
+            ->first();
+        if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+
+        // نسمح بالحذف حتى لو كانت الوصفة مُنشأة في مستشفى آخر
         $prescription = Prescription::find($item->prescription_id);
-        if ($prescription->hospital_id !== $hospitalId) {
-             return $this->sendError('غير مصرح لك بحذف هذا السجل (مستشفى مختلف).', [], 403);
-        }
 
         // حذف الدواء (سيتم استدعاء observer تلقائياً)
         $item->delete();

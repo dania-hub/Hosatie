@@ -22,61 +22,103 @@
 
     <form v-else @submit.prevent="savePassword" class="space-y-5">
       
-      <div>
-        <label for="current-password" class="block text-sm font-medium text-gray-700 mb-1 text-right">
-          كلمة المرور الحالية *
-        </label>
-        <input 
-          id="current-password" 
-          v-model="passwords.current"
-          type="password" 
-          required 
-          :minlength="6"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg text-left ltr"
-          autocomplete="current-password"
-        >
-      </div>
+      <!-- كلمة المرور الحالية -->
+     <!-- كلمة المرور الحالية -->
+<div>
+  <label for="current-password" class="block text-sm font-medium text-gray-700 mb-1 text-right">
+    كلمة المرور الحالية *
+  </label>
+  <div class="relative">
+    <input 
+      id="current-password" 
+      v-model="passwords.current"
+      :type="showPassword.current ? 'text' : 'password'" 
+      required 
+      :minlength="6"
+      class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg text-right"
+      autocomplete="current-password"
+      dir="ltr"
+    >
+    <button
+      type="button"
+      @click="togglePasswordVisibility('current')"
+      class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+      aria-label="إظهار/إخفاء كلمة المرور"
+    >
+      <Icon 
+        :icon="showPassword.current ? 'mdi:eye-off' : 'mdi:eye'" 
+        class="w-5 h-5" 
+      />
+    </button>
+  </div>
+</div>
 
-      <div>
-        <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1 text-right">
-          كلمة المرور الجديدة *
-        </label>
-        <input 
-          id="new-password" 
-          v-model="passwords.new"
-          type="password" 
-          required 
-          :minlength="8"
-          pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
-          title="يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل، وتشمل حرف كبير وصغير ورقم ورمز خاص"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg text-left ltr"
-          autocomplete="new-password"
-        >
-        <p class="mt-1 text-xs text-gray-500 text-right">
-          يجب أن تحتوي على 8 أحرف على الأقل، حرف كبير، حرف صغير، رقم، ورمز خاص
-        </p>
-      </div>
+<!-- كلمة المرور الجديدة -->
+<div>
+  <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1 text-right">
+    كلمة المرور الجديدة *
+  </label>
+  <div class="relative">
+    <input 
+      id="new-password" 
+      v-model="passwords.new"
+      :type="showPassword.new ? 'text' : 'password'" 
+      required 
+      :minlength="8"
+      pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+      title="يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل، وتشمل حرف كبير وصغير ورقم ورمز خاص"
+      class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg text-right"
+      autocomplete="new-password"
+      dir="ltr"
+    >
+    <button
+      type="button"
+      @click="togglePasswordVisibility('new')"
+      class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+      aria-label="إظهار/إخفاء كلمة المرور"
+    >
+      <Icon 
+        :icon="showPassword.new ? 'mdi:eye-off' : 'mdi:eye'" 
+        class="w-5 h-5" 
+      />
+    </button>
+  </div>
+  <p class="mt-1 text-xs text-gray-500 text-right">
+    يجب أن تحتوي على 8 أحرف على الأقل، حرف كبير، حرف صغير، رقم، ورمز خاص
+  </p>
+</div>
 
-      <div>
-        <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1 text-right">
-          تأكيد كلمة المرور الجديدة *
-        </label>
-        <input 
-          id="confirm-password" 
-          v-model="passwords.confirm"
-          type="password" 
-          required 
-          :minlength="8"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg text-left ltr"
-          autocomplete="new-password"
-        >
-        <div v-if="validationErrors.length > 0" class="mt-2 space-y-1">
-          <p v-for="error in validationErrors" :key="error" class="text-sm text-red-600 text-right">
-            {{ error }}
-          </p>
-        </div>
-      </div>
+<!-- تأكيد كلمة المرور الجديدة -->
+<div>
+  <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1 text-right">
+    تأكيد كلمة المرور الجديدة *
+  </label>
+  <div class="relative">
+    <input 
+      id="confirm-password" 
+      v-model="passwords.confirm"
+      :type="showPassword.confirm ? 'text' : 'password'" 
+      required 
+      :minlength="8"
+      class="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg text-right"
+      autocomplete="new-password"
+      dir="ltr"
+    >
+    <button
+      type="button"
+      @click="togglePasswordVisibility('confirm')"
+      class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+      aria-label="إظهار/إخفاء كلمة المرور"
+    >
+      <Icon 
+        :icon="showPassword.confirm ? 'mdi:eye-off' : 'mdi:eye'" 
+        class="w-5 h-5" 
+      />
+    </button>
+  </div>
+</div>
 
+      <!-- أزرار التحكم -->
       <div class="flex justify-start gap-3 pt-4 border-t mt-6">
         <button
           type="submit"
@@ -114,11 +156,24 @@ const props = defineProps({
   }
 });
 
+// حالة كلمات المرور
 const passwords = ref({
     current: '',
     new: '',
     confirm: ''
 });
+
+// حالة إظهار/إخفاء كلمات المرور
+const showPassword = ref({
+    current: false,
+    new: false,
+    confirm: false
+});
+
+// دالة تبديل رؤية كلمة المرور
+const togglePasswordVisibility = (field) => {
+    showPassword.value[field] = !showPassword.value[field];
+};
 
 // متابعة التغييرات لإعادة تعيين الأخطاء
 watch(() => passwords.value.new, () => {
@@ -172,6 +227,7 @@ const isFormValid = computed(() => {
          validatePassword().length === 0;
 });
 
+// حفظ كلمة المرور
 const savePassword = () => {
   const errors = validatePassword();
   
@@ -185,7 +241,7 @@ const savePassword = () => {
     return;
   }
   
-  // إرسال البيانات (كلمة المرور الحالية والجديدة) إلى المكون الأب
+  // إرسال البيانات إلى المكون الأب
   emit('passwordSaved', { 
       currentPassword: passwords.value.current, 
       newPassword: passwords.value.new 
@@ -195,13 +251,30 @@ const savePassword = () => {
   passwords.value.current = '';
   passwords.value.new = '';
   passwords.value.confirm = '';
+  
+  // إعادة تعيين حالات الإظهار
+  showPassword.value = {
+    current: false,
+    new: false,
+    confirm: false
+  };
+  
   validationErrors.value = [];
 };
 
+// إلغاء التغيير
 const cancelChange = () => {
   passwords.value.current = '';
   passwords.value.new = '';
   passwords.value.confirm = '';
+  
+  // إعادة تعيين حالات الإظهار
+  showPassword.value = {
+    current: false,
+    new: false,
+    confirm: false
+  };
+  
   validationErrors.value = [];
   emit('cancelChange');
 };
@@ -212,9 +285,37 @@ const cancelChange = () => {
     direction: ltr;
 }
 
+/* تحسين التنسيق لحقول الإدخال مع الأيقونة */
+.relative {
+  position: relative;
+}
+
+.relative input {
+  padding-right: 2.5rem;
+}
+
+.relative button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.relative button:hover {
+  color: #4DA1A9;
+}
+
+.relative button:focus {
+  outline: 2px solid #4DA1A9;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
 .animate-spin {
     animation: spin 1s linear infinite;
 }

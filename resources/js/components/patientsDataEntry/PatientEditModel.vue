@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, nextTick } from "vue";
 import { Icon } from "@iconify/vue";
 import Input from "@/components/ui/input/Input.vue";
 
@@ -30,7 +30,44 @@ const editErrors = ref({
     email: false,
 });
 
-// التحقق من صحة البيانات
+// مرجع لحقل التاريخ
+const editDateInput = ref(null);
+
+// فتح منتقي التاريخ عند النقر على الأيقونة
+const openEditDatePicker = () => {
+    if (editDateInput.value) {
+        editDateInput.value.showPicker();
+    }
+};
+
+// التحقق من صحة رقم الهاتف أثناء الكتابة
+const validateEditPhoneInput = () => {
+    // إزالة جميع الأحرف غير الرقمية
+    editForm.value.phone = editForm.value.phone.replace(/\D/g, '');
+    
+    // تقليل الرقم إلى 10 أرقام كحد أقصى
+    if (editForm.value.phone.length > 10) {
+        editForm.value.phone = editForm.value.phone.substring(0, 10);
+    }
+    
+    const phone = editForm.value.phone;
+    const validPrefixes = ['091', '092', '093', '094'];
+    
+    if (phone.length > 0) {
+        const hasValidPrefix = validPrefixes.some(prefix => phone.startsWith(prefix));
+        if (!hasValidPrefix && phone.length >= 3) {
+            editErrors.value.phone = 'يجب أن يبدأ الرقم بـ 091, 092, 093, 094';
+        } else if (phone.length < 10) {
+            editErrors.value.phone = 'رقم الهاتف يجب أن يتكون من 10 أرقام';
+        } else {
+            editErrors.value.phone = '';
+        }
+    } else {
+        editErrors.value.phone = '';
+    }
+};
+
+// التحقق من صحة البيانات النهائية
 const validateEditForm = () => {
     let isValid = true;
     editErrors.value = {
@@ -44,9 +81,9 @@ const validateEditForm = () => {
         isValid = false;
     }
 
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
+    const phoneRegex = /^(09[1-4])\d{7}$/;
     if (!editForm.value.phone || !phoneRegex.test(editForm.value.phone)) {
-        editErrors.value.phone = true;
+        editErrors.value.phone = 'رقم الهاتف غير صحيح (يجب أن يبدأ بـ 091-094 ويتكون من 10 أرقام)';
         isValid = false;
     }
 
@@ -121,8 +158,14 @@ watch(() => props.isOpen, (newVal) => {
             phone: false,
             email: false,
         };
+        
+        // تحديث مرجع حقل التاريخ بعد تهيئة البيانات
+        nextTick(() => {
+            editDateInput.value = document.getElementById('edit-birth-date');
+        });
     }
 });
+
 const maxDate = computed(() => {
     const today = new Date();
     today.setDate(today.getDate() - 1);
@@ -208,36 +251,49 @@ const maxDate = computed(() => {
                     </div>
 
                     <!-- Birth Date -->
-                    <div class="space-y-2">
+                    <div class="space-y-2" dir="rtl">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             تاريخ الميلاد
                         </label>
-                        <div class="relative w-full sm:w-75">
-                                <Input
-                                    id="edit-birth"
-                                    type="date" 
-                                    :max="maxDate" 
-                                    v-model="editForm.birthDate"
-                                    :class="{ 'border-red-500 hover:border-red-500': editErrors.birthDate, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !editErrors.birthDate }"
-                                    class="h-9 text-right w-full pr-3 appearance-none rounded-2xl bg-white"
+                        
+                        <div class="relative w-full">
+                            <input
+                                id="edit-birth-date"
+                                ref="editDateInput"
+                                type="date" 
+                                :max="maxDate"
+                                v-model="editForm.birthDate"
+                                :class="[
+                                    'h-9 text-right w-full pl-3 pr-10 appearance-none rounded-2xl bg-white cursor-pointer',
+                                    'border focus:outline-none transition-colors duration-200',
+                                    editErrors.birthDate 
+                                        ? 'border-red-500 hover:border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 hover:border-[#4DA1A9] focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
+                                @change="editErrors.birthDate = ''"
+                            />
+                            
+                            <div 
+                                class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" 
+                                @click="openEditDatePicker"
+                            >
+                                <Icon 
+                                    icon="solar:calendar-linear" 
+                                    class="w-5 h-5 transition-colors duration-200"
+                                    :class="editErrors.birthDate ? 'text-red-500' : 'text-[#79D7BE]'"
                                 />
-                                <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <Icon 
-                                        icon="solar:calendar-linear" 
-                                        class="w-5 h-5 transition-colors duration-200"
-                                        :class="editErrors.birthDate ? 'text-red-500' : 'text-[#79D7BE]'"
-                                    />
-                                </div>
                             </div>
-                            <p v-if="editErrors.birthDate" class="text-xs text-red-500 mt-1 flex items-center gap-1">
-                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                                تاريخ الميلاد مطلوب
-                            </p>
+                        </div>
+
+                        <p v-if="editErrors.birthDate" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            تاريخ الميلاد مطلوب
+                        </p>
                     </div>
 
                     <!-- Phone -->
-                    <div class="space-y-2">
+                    <div class="space-y-2" dir="rtl">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             رقم الهاتف
@@ -245,13 +301,16 @@ const maxDate = computed(() => {
                         <Input
                             id="edit-phone"
                             v-model="editForm.phone"
+                            type="text"
                             placeholder="09XXXXXXXX"
+                            maxlength="10"
+                            @input="validateEditPhoneInput"
                             :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': editErrors.phone }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right"
                         />
                         <p v-if="editErrors.phone" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            رقم الهاتف غير صحيح (يجب أن يبدأ بـ 09 ويتكون من 10 أرقام)
+                            {{ editErrors.phone }}
                         </p>
                     </div>
 

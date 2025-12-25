@@ -28,7 +28,7 @@ class PatientDataEntryController extends BaseApiController
             'status'      => 'pending_activation',
         ]);
 
-        // يتم تسجيل العملية تلقائياً من خلال UserObserver
+        // يتم تسجيل العملية تلقائياً من خلال UserObserverب
 
         return response()->json([
             'success' => true,
@@ -57,7 +57,7 @@ class PatientDataEntryController extends BaseApiController
         ]);
     }
 
-    // 3. Update Patient
+    // 3. Update Patient (تم التحديث)
     public function update(UpdatePatientRequest $request, $id)
     {
         $user = User::where('id', $id)
@@ -72,6 +72,7 @@ class PatientDataEntryController extends BaseApiController
         }
 
         $user->update([
+            'full_name'  => $request->full_name, // تمت الإضافة
             'email'      => $request->email,
             'phone'      => $request->phone,
             'birth_date' => $request->birth_date,
@@ -127,9 +128,6 @@ class PatientDataEntryController extends BaseApiController
         return response()->json($data);
     }
 
-
-
-
     // 5. Dashboard Statistics (إحصائيات المرضى)
     public function stats()
     {
@@ -156,7 +154,6 @@ class PatientDataEntryController extends BaseApiController
     public function index(Request $request)
     {
         $query = User::where('type', 'patient')
-            // نرجع البريد الإلكتروني أيضاً حتى يظهر في نماذج العرض/التعديل في الواجهة
             ->select('id', 'full_name', 'national_id', 'birth_date', 'phone', 'email', 'created_at');
 
         if ($request->has('search')) {

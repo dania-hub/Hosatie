@@ -28,21 +28,80 @@ class PrescriptionDoctorController extends BaseApiController
             $hospitalId = $request->user()->hospital_id;
             $doctorId   = $request->user()->id;
 
-            // 1. Find existing active prescription
-            $prescription = Prescription::where('patient_id', $patientId)
+            // التحقق من أن المريض موجود وفي نفس المستشفى
+            $patient = \App\Models\User::where('type', 'patient')
                 ->where('hospital_id', $hospitalId)
+                ->where('id', $patientId)
+                ->first();
+
+            if (!$patient) {
+                DB::rollBack();
+                return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+            }
+
+            // 1. Find existing active prescription for this patient (from any hospital)
+            // بسبب constraint patient_id_unique، يمكن أن يكون هناك وصفة نشطة واحدة فقط للمريض
+            $prescription = Prescription::where('patient_id', $patientId)
                 ->where('status', 'active')
                 ->first();
 
             // 2. If NO prescription, Create one (Start of lifecycle)
             if (!$prescription) {
-                $prescription = Prescription::create([
-                    'patient_id' => $patientId,
-                    'hospital_id'=> $hospitalId,
-                    'doctor_id'  => $doctorId,
-                    'start_date' => now(),
-                    'status'     => 'active',
-                ]);
+                try {
+                    // التأكد من أن hospital_id و doctor_id موجودين
+                    if (!$hospitalId) {
+                        DB::rollBack();
+                        return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+                    }
+                    
+                    if (!$doctorId) {
+                        DB::rollBack();
+                        return $this->sendError('المستخدم غير موجود.', [], 400);
+                    }
+                    
+                    $prescription = Prescription::create([
+                        'patient_id' => (int)$patientId,
+                        'hospital_id'=> (int)$hospitalId,
+                        'doctor_id'  => (int)$doctorId,
+                        'start_date' => \Carbon\Carbon::today()->format('Y-m-d'), // تحويل إلى date format
+                        'status'     => 'active',
+                    ]);
+                } catch (\Illuminate\Database\QueryException $e) {
+                    DB::rollBack();
+                    \Log::error('Database error creating prescription: ' . $e->getMessage(), [
+                        'patient_id' => $patientId,
+                        'hospital_id' => $hospitalId,
+                        'doctor_id' => $doctorId,
+                        'error' => $e->getMessage(),
+                        'sql' => $e->getSql(),
+                        'bindings' => $e->getBindings()
+                    ]);
+                    return $this->sendError('حدث خطأ أثناء إنشاء الوصفة.', [
+                        'error' => config('app.debug') ? $e->getMessage() : 'خطأ في قاعدة البيانات'
+                    ], 500);
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    \Log::error('Error creating prescription: ' . $e->getMessage(), [
+                        'patient_id' => $patientId,
+                        'hospital_id' => $hospitalId,
+                        'doctor_id' => $doctorId,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    return $this->sendError('حدث خطأ أثناء إنشاء الوصفة.', [
+                        'error' => config('app.debug') ? $e->getMessage() . ' في ' . $e->getFile() . ':' . $e->getLine() : 'خطأ في إنشاء الوصفة'
+                    ], 500);
+                }
+            } else {
+                // 3. If prescription exists but from different hospital, update it to current hospital
+                // هذا يحدث عندما يتم نقل المريض من مستشفى لآخر
+                if ($prescription->hospital_id != $hospitalId) {
+                    $prescription->hospital_id = (int)$hospitalId;
+                    $prescription->doctor_id = (int)$doctorId;
+                    $prescription->save();
+                }
             }
 
             // 3. Add Drugs
@@ -54,18 +113,33 @@ class PrescriptionDoctorController extends BaseApiController
                             ->exists();
                 
                 if (!$exists) {
-                    $monthlyQuantity = $med['quantity'];
-                    // استخدام daily_quantity المرسلة من Frontend، أو null إذا لم يتم إرسالها
-                    $dailyQuantity = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
-                        ? (int)$med['daily_quantity'] 
-                        : null;
-                    
-                    $createdDrugs[] = PrescriptionDrug::create([
-                        'prescription_id' => $prescription->id,
-                        'drug_id'         => $med['drug_id'],
-                        'monthly_quantity'=> $monthlyQuantity,
-                        'daily_quantity'  => $dailyQuantity,
-                    ]);
+                    try {
+                        $monthlyQuantity = $med['quantity'];
+                        // استخدام daily_quantity المرسلة من Frontend، أو null إذا لم يتم إرسالها
+                        $dailyQuantity = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
+                            ? (int)$med['daily_quantity'] 
+                            : null;
+                        
+                        $createdDrugs[] = PrescriptionDrug::create([
+                            'prescription_id' => $prescription->id,
+                            'drug_id'         => $med['drug_id'],
+                            'monthly_quantity'=> $monthlyQuantity,
+                            'daily_quantity'  => $dailyQuantity,
+                        ]);
+                    } catch (\Exception $e) {
+                        DB::rollBack();
+                        \Log::error('Error creating prescription drug: ' . $e->getMessage(), [
+                            'prescription_id' => $prescription->id,
+                            'drug_id' => $med['drug_id'] ?? null,
+                            'monthly_quantity' => $med['quantity'] ?? null,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                        return $this->sendError('حدث خطأ أثناء إضافة الدواء.', [
+                            'error' => config('app.debug') ? $e->getMessage() : 'خطأ في إضافة الدواء',
+                            'drug_id' => $med['drug_id'] ?? null
+                        ], 500);
+                    }
                 }
             }
 
@@ -97,9 +171,23 @@ class PrescriptionDoctorController extends BaseApiController
             // Handle general exception - إظهار الخطأ الفعلي للتطوير
             \Log::error('Error adding medications: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
+                'patient_id' => $patientId,
+                'hospital_id' => $hospitalId ?? null,
+                'doctor_id' => $doctorId ?? null
             ]);
-            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', ['error' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 500);
+            // إرجاع رسالة خطأ أكثر تفصيلاً للمطور
+            $errorMessage = config('app.debug') 
+                ? $e->getMessage() . ' في ' . $e->getFile() . ':' . $e->getLine()
+                : 'حدث خطأ أثناء حفظ البيانات.';
+            return $this->sendError('حدث خطأ أثناء حفظ البيانات.', [
+                'error' => $errorMessage,
+                'details' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ] : null
+            ], 500);
         }
     }
 
@@ -117,10 +205,16 @@ class PrescriptionDoctorController extends BaseApiController
         $item = PrescriptionDrug::where('id', $pivotId)->first();
         if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
 
-        // Security: Ensure same hospital
-        $prescription = Prescription::find($item->prescription_id);
-        if ($prescription->hospital_id !== $hospitalId) {
-             return $this->sendError('غير مصرح لك بتعديل هذا السجل (مستشفى مختلف).', [], 403);
+        // التحقق من أن المريض موجود وفي نفس المستشفى
+        $prescription = Prescription::with('patient')->find($item->prescription_id);
+        if (!$prescription) {
+            return $this->sendError('الوصفة غير موجودة.', [], 404);
+        }
+
+        // التحقق من أن المريض في نفس المستشفى (وليس الوصفة)
+        $patient = $prescription->patient;
+        if (!$patient || $patient->hospital_id !== $hospitalId) {
+            return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
         }
 
         // تحديث الكمية الشهرية واليومية (استخدام القيمة المرسلة من Frontend أو الإبقاء على القيمة الحالية)
@@ -151,10 +245,16 @@ class PrescriptionDoctorController extends BaseApiController
         $item = PrescriptionDrug::where('id', $pivotId)->first();
         if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
 
-        // Security: Ensure same hospital
-        $prescription = Prescription::find($item->prescription_id);
-        if ($prescription->hospital_id !== $hospitalId) {
-             return $this->sendError('غير مصرح لك بحذف هذا السجل (مستشفى مختلف).', [], 403);
+        // التحقق من أن المريض موجود وفي نفس المستشفى
+        $prescription = Prescription::with('patient')->find($item->prescription_id);
+        if (!$prescription) {
+            return $this->sendError('الوصفة غير موجودة.', [], 404);
+        }
+
+        // التحقق من أن المريض في نفس المستشفى (وليس الوصفة)
+        $patient = $prescription->patient;
+        if (!$patient || $patient->hospital_id !== $hospitalId) {
+            return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
         }
 
         $item->loadMissing(['prescription.patient', 'drug']);

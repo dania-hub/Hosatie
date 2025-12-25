@@ -41,12 +41,30 @@ class PatientDoctorController extends BaseApiController
                 ? Carbon::parse($patient->birth_date)->format('Y/m/d')
                 : null;
             
-            // Find Active Prescription for this Patient in THIS Hospital
-            $activePrescription = Prescription::with(['drugs'])
+            // Find ALL Active Prescriptions for this Patient (from all hospitals)
+            // This allows doctors to see medications even if patient was transferred
+            $activePrescriptions = Prescription::with(['drugs'])
                 ->where('patient_id', $patient->id)
-                ->where('hospital_id', $hospitalId)
                 ->where('status', 'active')
-                ->first();
+                ->get();
+
+            // Collect all medications from all active prescriptions
+            $allMedications = collect();
+            foreach ($activePrescriptions as $prescription) {
+                foreach ($prescription->drugs as $drug) {
+                    $allMedications->push([
+                        'id'       => $drug->id,
+                        'pivot_id' => $drug->pivot->id, // Important for Update/Delete
+                        'drugName' => $drug->name,
+                        'strength' => $drug->strength ?? null,
+                        'dosage'   => $drug->pivot->monthly_quantity,
+                        'note'     => $drug->pivot->note
+                    ]);
+                }
+            }
+
+            // Check if there's an active prescription in the current hospital
+            $hasPrescriptionInCurrentHospital = $activePrescriptions->contains('hospital_id', $hospitalId);
 
             return [
                 'fileNumber' => $patient->id,
@@ -57,19 +75,10 @@ class PatientDoctorController extends BaseApiController
                 'phone'      => $patient->phone,
                 'lastUpdated'=> $patient->updated_at->toIso8601String(),
                 
-                // Return Medications List (Formatted for Frontend)
-                'medications' => $activePrescription ? $activePrescription->drugs->map(function($drug) {
-                    return [
-                        'id'       => $drug->id,
-                        'pivot_id' => $drug->pivot->id, // Important for Update/Delete
-                        'drugName' => $drug->name,
-                        'strength' => $drug->strength ?? null,
-                        'dosage'   => $drug->pivot->monthly_quantity,
-                        'note'     => $drug->pivot->note
-                    ];
-                }) : [],
+                // Return Medications List from ALL active prescriptions (Formatted for Frontend)
+                'medications' => $allMedications->toArray(),
 
-                'hasPrescription' => !!$activePrescription
+                'hasPrescription' => $hasPrescriptionInCurrentHospital
             ];
         });
 
@@ -88,6 +97,7 @@ class PatientDoctorController extends BaseApiController
             return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
         }
         
+        // السماح بالوصول للمريض إذا كان في نفس المستشفى (بعد النقل)
         $patient = User::where('type', 'patient')
             ->where('hospital_id', $hospitalId)
             ->where('id', $id)
@@ -95,29 +105,26 @@ class PatientDoctorController extends BaseApiController
 
         if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
 
-        $activePrescription = Prescription::with(['drugs', 'doctor'])
+        // Get ALL active prescriptions for this patient (from all hospitals)
+        // This allows doctors to see medications even if patient was transferred
+        $activePrescriptions = Prescription::with(['drugs', 'doctor'])
             ->where('patient_id', $patient->id)
-            ->where('hospital_id', $hospitalId)
             ->where('status', 'active')
-            ->first();
+            ->get();
 
         // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
         $birthFormatted = $patient->birth_date
             ? Carbon::parse($patient->birth_date)->format('Y/m/d')
             : null;
 
-        $data = [
-            'fileNumber' => $patient->id,
-            'name'       => $patient->full_name,
-            'nationalId' => $patient->national_id,
-            'birth'      => $birthFormatted ?? 'غير محدد',
-            'phone'      => $patient->phone,
-            'lastUpdated'=> $patient->updated_at->toIso8601String(),
-            'medications' => $activePrescription ? $activePrescription->drugs->map(function($drug) use ($activePrescription) {
+        // Collect all medications from all active prescriptions
+        $allMedications = collect();
+        foreach ($activePrescriptions as $prescription) {
+            foreach ($prescription->drugs as $drug) {
                 // استخدام created_at من pivot كتاريخ الإسناد، أو start_date من prescription
                 $assignmentDate = $drug->pivot->created_at 
                     ? $drug->pivot->created_at->format('Y-m-d')
-                    : ($activePrescription->start_date ? $activePrescription->start_date->format('Y-m-d') : null);
+                    : ($prescription->start_date ? $prescription->start_date->format('Y-m-d') : null);
                 
                 // اسم المستخدم الذي قام بآخر عملية على هذا الدواء (من audit_log)
                 $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
@@ -129,7 +136,7 @@ class PatientDoctorController extends BaseApiController
                 
                 $assignedBy = $latestLog && $latestLog->user 
                     ? $latestLog->user->full_name 
-                    : ($activePrescription->doctor ? $activePrescription->doctor->full_name : 'غير محدد');
+                    : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
                 
                 // الحصول على الكمية الشهرية
                 $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
@@ -146,7 +153,7 @@ class PatientDoctorController extends BaseApiController
                 // تنسيق الكمية الشهرية كنص مع الوحدة الصحيحة
                 $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
                 
-                return [
+                $allMedications->push([
                     'id'       => $drug->id,
                     'pivot_id' => $drug->pivot->id,
                     'drugName' => $drug->name,
@@ -158,8 +165,18 @@ class PatientDoctorController extends BaseApiController
                     'assignmentDate' => $assignmentDate,
                     'assignedBy' => $assignedBy,
                     'note'     => $drug->pivot->note
-                ];
-            }) : [],
+                ]);
+            }
+        }
+
+        $data = [
+            'fileNumber' => $patient->id,
+            'name'       => $patient->full_name,
+            'nationalId' => $patient->national_id,
+            'birth'      => $birthFormatted ?? 'غير محدد',
+            'phone'      => $patient->phone,
+            'lastUpdated'=> $patient->updated_at->toIso8601String(),
+            'medications' => $allMedications->toArray(),
         ];
 
         return $this->sendSuccess($data, 'تم جلب بيانات المريض بنجاح.');

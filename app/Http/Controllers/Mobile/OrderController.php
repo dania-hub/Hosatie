@@ -19,7 +19,7 @@ class OrderController extends BaseApiController
 
         Log::info('Fetching orders for user ID: ' . $userId);
 
-        // 1. جلب الشكاوى
+        // 1. جلب الشكاوى - ترجمة الحالة
         $complaints = Complaint::where('patient_id', $userId)
             ->latest()
             ->get()
@@ -29,8 +29,8 @@ class OrderController extends BaseApiController
                     'orderNumber' => 'C-' . $item->id,
                     'type'        => 'شكوى',
                     'type_value'  => 'complaint',
-                    'status'      => $item->status, // إرجاع القيمة كما هي
-                    'date'        => $item->created_at->format('Y-m-d H:i:s'),
+                    'status'      => $this->translateComplaintStatus($item->status), // ترجمة الحالة
+                    'date'        => $item->created_at->format('Y-m-d'), // التاريخ فقط بدون وقت
                     'created_at'  => $item->created_at->format('Y-m-d H:i:s'),
                     'content'     => $item->message ?? '',
                     'real_id'     => $item->id,
@@ -41,7 +41,7 @@ class OrderController extends BaseApiController
 
         Log::info('Found ' . $complaints->count() . ' complaints');
 
-        // 2. جلب طلبات النقل
+        // 2. جلب طلبات النقل - ترجمة الحالة
         $transfers = PatientTransferRequest::where('patient_id', $userId)
             ->with('toHospital')
             ->latest()
@@ -52,8 +52,8 @@ class OrderController extends BaseApiController
                     'orderNumber' => 'T-' . $item->id,
                     'type'        => 'نقل',
                     'type_value'  => 'transfer',
-                    'status'      => $this->translateStatus($item->status),
-                    'date'        => $item->created_at->format('Y-m-d H:i:s'),
+                    'status'      => $this->translateTransferStatus($item->status), // ترجمة الحالة
+                    'date'        => $item->created_at->format('Y-m-d'), // التاريخ فقط بدون وقت
                     'created_at'  => $item->created_at->format('Y-m-d H:i:s'),
                     'content'     => $item->reason ?? 'طلب نقل',
                     'real_id'     => $item->id,
@@ -80,6 +80,47 @@ class OrderController extends BaseApiController
         ]);
     }
 
+    // ترجمة حالة الشكاوى
+    private function translateComplaintStatus($status)
+    {
+        // إذا كانت الحالة بالفعل بالعربية، نعيدها كما هي
+        if (in_array($status, ['جديد', 'قيد المراجعة', 'تمت المراجعة', 'مستلم', 'مفتوح', 'مغلق', 'تحت الدراسة', 'مكتمل'])) {
+            return $status;
+        }
+        
+        $translations = [
+            'new' => 'جديد',
+            'pending' => 'قيد المراجعة',
+            'reviewed' => 'تمت المراجعة',
+            'received' => 'مستلم',
+            'open' => 'مفتوح',
+            'closed' => 'مغلق',
+            'under_study' => 'تحت الدراسة',
+            'completed' => 'مكتمل',
+            'in_progress' => 'قيد المعالجة',
+            'resolved' => 'تم الحل',
+        ];
+        
+        return $translations[strtolower($status)] ?? $status;
+    }
+
+    // ترجمة حالة طلبات النقل
+    private function translateTransferStatus($status)
+    {
+        $translations = [
+            'pending' => 'قيد المراجعة',
+            'approved' => 'مقبول',
+            'rejected' => 'مرفوض',
+            'completed' => 'مكتمل',
+            'cancelled' => 'ملغي',
+            'in_review' => 'قيد المراجعة',
+            'under_consideration' => 'قيد الدراسة',
+            'processed' => 'تمت المعالجة',
+        ];
+        
+        return $translations[strtolower($status)] ?? $status;
+    }
+
     // 4.2 إنشاء طلب جديد (توجيه حسب النوع)
     public function store(Request $request)
     {
@@ -96,7 +137,7 @@ class OrderController extends BaseApiController
         $validated = $request->validate([
             'type'    => 'required|in:complaint,transfer',
             'content' => 'required|string|min:5',
-            'transfer_to_hospital_id' => 'required_if:type,transfer|exists:hospital,id',
+            'transfer_to_hospital_id' => 'required_if:type,transfer|exists:hospitals,id',
             'reason'  => 'nullable|string',
         ]);
 
@@ -118,13 +159,12 @@ class OrderController extends BaseApiController
     private function createComplaint($user, $request)
     {
         try {
-            // جرب القيم العربية الأكثر احتمالاً
+            // استخدام حالة باللغة الإنجليزية لتكون موحدة
             $possibleStatuses = [
-                'جديد',           // الأكثر احتمالاً
-                'قيد المراجعة',   // احتمال ثاني
-                'مستلم',          // احتمال ثالث
-                'مفتوح',          // احتمال رابع
-                'تحت الدراسة',    // احتمال خامس
+                'pending',           // الإنجليزية
+                'new',
+                'open',
+                'in_review',
             ];
             
             $inserted = false;
@@ -133,23 +173,22 @@ class OrderController extends BaseApiController
             
             foreach ($possibleStatuses as $status) {
                 try {
-                    $sql = "INSERT INTO complaint (patient_id, message, status, created_at, updated_at) 
-                            VALUES (?, ?, ?, NOW(), NOW())";
+                    $sql = "INSERT INTO complaints (patient_id, message, status, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())";
                     
                     DB::insert($sql, [
                         $user->id,
                         $request->input('content'),
-                        $status
+                        $status // استخدام الإنجليزية
                     ]);
                     
                     $lastId = DB::getPdo()->lastInsertId();
                     $inserted = true;
                     $usedStatus = $status;
-                    Log::info('Complaint created with Arabic status: ' . $status);
+                    Log::info('Complaint created with English status: ' . $status);
                     break;
                     
                 } catch (\Exception $statusError) {
-                    Log::warning('Failed with Arabic status ' . $status . ': ' . $statusError->getMessage());
+                    Log::warning('Failed with status ' . $status . ': ' . $statusError->getMessage());
                     continue;
                 }
             }
@@ -161,14 +200,12 @@ class OrderController extends BaseApiController
                     'data' => [
                         'id' => $lastId,
                         'type' => 'complaint',
-                        'status' => $usedStatus
+                        'status' => $this->translateComplaintStatus($usedStatus) // ترجمة للعرض
                     ]
                 ], 201);
             } else {
-                // جرب عدم إرسال حقل status (ليستخدم القيمة الافتراضية)
                 try {
-                    $sql = "INSERT INTO complaint (patient_id, message, created_at, updated_at) 
-                            VALUES (?, ?, NOW(), NOW())";
+                    $sql = "INSERT INTO complaints (patient_id, message, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
                     
                     DB::insert($sql, [
                         $user->id,
@@ -183,7 +220,8 @@ class OrderController extends BaseApiController
                         'message' => 'تم إرسال الشكوى بنجاح.',
                         'data' => [
                             'id' => $lastId,
-                            'type' => 'complaint'
+                            'type' => 'complaint',
+                            'status' => 'قيد المراجعة' // قيمة افتراضية
                         ]
                     ], 201);
                     
@@ -254,7 +292,7 @@ class OrderController extends BaseApiController
                 'data' => [
                     'id' => $transfer->id,
                     'type' => 'transfer',
-                    'status' => $transfer->status
+                    'status' => $this->translateTransferStatus($transfer->status) // ترجمة للعرض
                 ]
             ], 201);
 
@@ -350,6 +388,7 @@ class OrderController extends BaseApiController
                 $reply = $order->reply_message;
                 $orderType = 'شكوى';
                 $displayId = 'C-' . $order->id;
+                $status = $this->translateComplaintStatus($order->status); // ترجمة الحالة
             } else {
                 $order = PatientTransferRequest::with('toHospital')->find($id);
                 if (!$order) {
@@ -372,6 +411,7 @@ class OrderController extends BaseApiController
                 $reply = $order->rejection_reason;
                 $orderType = 'نقل';
                 $displayId = 'T-' . $order->id;
+                $status = $this->translateTransferStatus($order->status); // ترجمة الحالة
             }
 
             Log::info('Order found:', [
@@ -384,9 +424,9 @@ class OrderController extends BaseApiController
                 'success' => true,
                 'data' => [
                     'id'      => $displayId,
-                    'date'    => $order->created_at->format('Y-m-d H:i:s'),
-                    'status'  => $order->status, // إرجاع القيمة كما هي
-                    'status_raw' => $order->status,
+                    'date'    => $order->created_at->format('Y-m-d'), // التاريخ فقط
+                    'status'  => $status, // الحالة المترجمة
+                    'status_raw' => $order->status, // الحالة الأصلية
                     'content' => $content,
                     'reply'   => $reply ?? null,
                     'type'    => $orderType,
@@ -400,19 +440,5 @@ class OrderController extends BaseApiController
                 'message' => 'حدث خطأ في جلب تفاصيل الطلب.'
             ], 500);
         }
-    }
-
-    // دالة ترجمة الحالة (لطلبات النقل فقط)
-    private function translateStatus($status)
-    {
-        $translations = [
-            'pending' => 'قيد المراجعة',
-            'approved' => 'مقبول',
-            'rejected' => 'مرفوض',
-            'completed' => 'مكتمل',
-            'cancelled' => 'ملغي',
-        ];
-        
-        return $translations[$status] ?? $status;
     }
 }

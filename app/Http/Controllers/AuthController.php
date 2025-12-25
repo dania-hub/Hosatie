@@ -273,7 +273,24 @@ public function forceChangePassword(Request $request)
             return $this->sendError('تم رفض الوصول. المرضى لا يمكنهم عرض ملفات تعريف لوحة التحكم.', [], 403);
         }
 
-        $user->load('hospital');
+        // Load hospital and department so UI can show department when applicable
+        // Load hospital and department relations
+        $user->load('hospital', 'department');
+
+        // If the user is a department head but department is not set via department_id,
+        // try to find the department where this user is recorded as head (head_user_id)
+        if ($user->type === 'department_head' && !$user->department) {
+            try {
+                $department = \App\Models\Department::where('head_user_id', $user->id)->first();
+                if ($department) {
+                    // attach the relation dynamically so UserResource can use it
+                    $user->setRelation('department', $department);
+                }
+            } catch (\Exception $e) {
+                // ignore - if db query fails, we still return profile without department
+                \Log::warning('Failed to resolve department for head user '.$user->id.': '.$e->getMessage());
+            }
+        }
 
         return $this->sendSuccess(new UserResource($user), 'Staff profile retrieved.');
 

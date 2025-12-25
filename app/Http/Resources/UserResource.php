@@ -35,6 +35,20 @@ class UserResource extends JsonResource
                     'phone' => $this->hospital->phone,
                 ];
             }),
+
+            'department_id' => $this->department_id,
+            'department_name' => $this->department ? $this->department->name : null,
+            'department' => $this->whenLoaded('department', function () {
+                return [
+                    'id' => $this->department->id,
+                    'hospital_id' => $this->department->hospital_id,
+                    'head_user_id' => $this->department->head_user_id,
+                    'name' => $this->department->name,
+                    'status' => $this->department->status,
+                    'created_at' => $this->department->created_at ? $this->department->created_at->toDateTimeString() : null,
+                    'updated_at' => $this->department->updated_at ? $this->department->updated_at->toDateTimeString() : null,
+                ];
+            }),
             
             // add other fields as needed
         ];

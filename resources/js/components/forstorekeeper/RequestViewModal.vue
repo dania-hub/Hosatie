@@ -444,20 +444,9 @@ const getSentQuantity = (item) => {
             }
         }
     } else {
-        // لم يتم تأكيد الاستلام بعد، يمكن استخدام fulfilled_qty (الكمية الفعلية المرسلة من المورد)
-        if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
-            const val = Number(item.fulfilled_qty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
-            const val = Number(item.fulfilledQty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        // إذا لم يكن fulfilled_qty موجوداً، نستخدم approved_qty
+        // لم يتم تأكيد الاستلام بعد (قيد الاستلام): نستخدم approved_qty (الكمية المرسلة من المستودع)
+        // approved_qty = الكمية التي أرسلها المستودع (storekeeper)
+        // fulfilled_qty = الكمية المستلمة من الصيدلية (pharmacist) - تكون 0 عند الحالة "قيد الاستلام"
         if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
             const val = Number(item.approved_qty);
             if (!isNaN(val) && val >= 0) {
@@ -472,6 +461,19 @@ const getSentQuantity = (item) => {
         }
         if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
             const val = Number(item.sentQuantity);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        // كحل احتياطي فقط: استخدام fulfilled_qty (لكن هذا يجب ألا يحدث عادة عند الحالة "قيد الاستلام")
+        if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '' && item.fulfilled_qty > 0) {
+            const val = Number(item.fulfilled_qty);
+            if (!isNaN(val) && val >= 0) {
+                return val;
+            }
+        }
+        if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '' && item.fulfilledQty > 0) {
+            const val = Number(item.fulfilledQty);
             if (!isNaN(val) && val >= 0) {
                 return val;
             }

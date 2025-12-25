@@ -415,26 +415,34 @@ watch(
                     isProcessing: isProcessing.value
                 });
 
-                // عند تأكيد الاستلام، نستخدم fulfilled_qty فقط (الكمية الفعلية المرسلة من المورد)
+                // عند تأكيد الاستلام (قيد الاستلام)، نستخدم approved_qty (الكمية المرسلة من المستودع)
                 // وعند الإرسال، نستخدم suggestedQty كقيمة افتراضية
                 let finalSentQty = 0;
                 if (isProcessing.value) {
-                    // عند تأكيد الاستلام: استخدام fulfilled_qty فقط (الكمية الفعلية المرسلة من المورد)
-                    // fulfilled_qty = الكمية الفعلية التي أرسلها المورد
-                    // لا نستخدم fallback إلى approved_qty أو suggestedQty لأننا نريد القيمة الفعلية المرسلة فقط
-                    if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined) {
-                        finalSentQty = Number(item.fulfilled_qty);
-                    } else if (item.fulfilledQty !== null && item.fulfilledQty !== undefined) {
-                        finalSentQty = Number(item.fulfilledQty);
-                    } else if (item.fulfilled !== null && item.fulfilled !== undefined) {
-                        finalSentQty = Number(item.fulfilled);
+                    // عند تأكيد الاستلام (قيد الاستلام): استخدام approved_qty (الكمية المرسلة من المستودع)
+                    // approved_qty = الكمية التي أرسلها المستودع (storekeeper)
+                    // fulfilled_qty = الكمية المستلمة من الصيدلية (pharmacist)
+                    if (item.approved_qty !== null && item.approved_qty !== undefined) {
+                        finalSentQty = Number(item.approved_qty);
+                    } else if (item.approvedQty !== null && item.approvedQty !== undefined) {
+                        finalSentQty = Number(item.approvedQty);
+                    } else if (item.sentQuantity !== null && item.sentQuantity !== undefined) {
+                        finalSentQty = Number(item.sentQuantity);
                     } else {
                         finalSentQty = 0;
                     }
-                    console.log(`✅ Using fulfilled_qty for sentQuantity: ${finalSentQty} (from fulfilled_qty: ${item.fulfilled_qty}, fulfilledQty: ${item.fulfilledQty}, fulfilled: ${item.fulfilled})`);
+                    console.log(`✅ Using approved_qty for sentQuantity: ${finalSentQty} (from approved_qty: ${item.approved_qty}, approvedQty: ${item.approvedQty}, sentQuantity: ${item.sentQuantity})`);
                 } else {
-                    // عند الإرسال: استخدام suggestedQty كقيمة افتراضية
-                    finalSentQty = suggestedQty > 0 ? suggestedQty : 0;
+                    // عند الإرسال: استخدام suggestedQty كقيمة افتراضية، أو approved_qty إذا كان موجوداً
+                    if (item.approved_qty !== null && item.approved_qty !== undefined) {
+                        finalSentQty = Number(item.approved_qty);
+                    } else if (item.approvedQty !== null && item.approvedQty !== undefined) {
+                        finalSentQty = Number(item.approvedQty);
+                    } else if (item.sentQuantity !== null && item.sentQuantity !== undefined) {
+                        finalSentQty = Number(item.sentQuantity);
+                    } else {
+                        finalSentQty = suggestedQty > 0 ? suggestedQty : 0;
+                    }
                 }
                 
                 return {

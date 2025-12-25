@@ -20,7 +20,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
             'storekeeperNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
             'supplierNotes' => null,     // ملاحظة عند إرسال الشحنة من storekeeper
             'confirmationNotes' => null,  // ملاحظة عند تأكيد الاستلام من pharmacist/department
-            'confirmationNotesSource' => null // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'confirmationNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'rejectionReason' => null    // سبب الرفض من storekeeper
         ];
 
         // جلب جميع سجلات audit_log لهذا الطلب
@@ -59,6 +60,12 @@ class ShipmentDepartmentAdminController extends BaseApiController
                 } elseif ($log->action === 'department_confirm_internal_receipt') {
                     $notes['confirmationNotesSource'] = 'department';
                 }
+            }
+
+            // سبب الرفض من storekeeper
+            if (in_array($log->action, ['رفض طلب توريد داخلي', 'storekeeper_reject_internal_request', 'reject'])
+                && isset($newValues['rejectionReason']) && !empty($newValues['rejectionReason'])) {
+                $notes['rejectionReason'] = $newValues['rejectionReason'];
             }
         }
 
@@ -156,6 +163,7 @@ class ShipmentDepartmentAdminController extends BaseApiController
             'supplierNotes' => $notes['supplierNotes'],
             'confirmationNotes' => $notes['confirmationNotes'],
             'confirmationNotesSource' => $notes['confirmationNotesSource'],
+            'rejectionReason' => $notes['rejectionReason'], // جلب سبب الرفض من audit_log
             'items' => $shipment->items->map(function($item) {
                 // الكمية المرسلة من storekeeper هي approved_qty
                 // إذا كانت null، نستخدم requested_qty كقيمة افتراضية (لكن هذا يعني أن الطلب لم يُرسل بعد)

@@ -144,6 +144,19 @@
                     </div>
                 </div>
 
+                <!-- Rejection Reason -->
+                <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                    <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
+                        <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
+                        سبب الرفض
+                    </h3>
+                    <p class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
+                    <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
+                        <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
+                        بتاريخ: {{ formatDate(requestDetails.rejectedAt) }}
+                    </p>
+                </div>
+
                 <!-- Notes -->
                 <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || shouldShowConfirmationNotes || requestDetails.notes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
@@ -258,7 +271,9 @@ const requestDetails = ref({
         confirmationNotes: props.requestData.confirmation.confirmationNotes || props.requestData.confirmationNotes || null
     } : null,
     confirmationNotes: props.requestData.confirmationNotes || (props.requestData.confirmation?.confirmationNotes) || null,
-    confirmationNotesSource: props.requestData.confirmationNotesSource || null
+    confirmationNotesSource: props.requestData.confirmationNotesSource || null,
+    rejectionReason: props.requestData.rejectionReason || null,
+    rejectedAt: props.requestData.rejectedAt || null
 });
 
 // دالة مساعدة لتنسيق التاريخ
@@ -341,7 +356,9 @@ watch(() => props.requestData, (newVal) => {
                 confirmationNotes: newVal.confirmation.confirmationNotes || newVal.confirmationNotes || null
             } : null,
             confirmationNotes: newVal.confirmationNotes || (newVal.confirmation?.confirmationNotes) || null,
-            confirmationNotesSource: newVal.confirmationNotesSource || null
+            confirmationNotesSource: newVal.confirmationNotesSource || null,
+            rejectionReason: newVal.rejectionReason || null,
+            rejectedAt: newVal.rejectedAt || null
         };
     }
 }, { immediate: true, deep: true });

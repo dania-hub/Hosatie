@@ -701,7 +701,7 @@ const openConfirmationModal = async (shipment) => {
                     availableQuantity: item.availableQuantity !== undefined && item.availableQuantity !== null ? item.availableQuantity : (item.stock !== undefined && item.stock !== null ? item.stock : 0), // استخدام القيمة من API
                     stock: item.stock !== undefined && item.stock !== null ? item.stock : (item.availableQuantity !== undefined && item.availableQuantity !== null ? item.availableQuantity : 0),
                     suggestedQuantity: item.suggestedQuantity !== undefined && item.suggestedQuantity !== null ? item.suggestedQuantity : null, // الكمية المقترحة من API
-                    sentQuantity: item.approved_qty || 0,
+                    sentQuantity: item.approved_qty !== null && item.approved_qty !== undefined ? item.approved_qty : (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : 0), // استخدام approved_qty (الكمية المرسلة من المستودع)
                     unit: item.unit || 'وحدة',
                     dosage: item.dosage || item.strength || '',
                     strength: item.strength || item.dosage || '',

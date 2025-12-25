@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Inventory;
 use App\Models\AuditLog;
 use App\Models\Warehouse;
+use App\Models\Department;
 class InternalSupplyRequestController extends BaseApiController
 {
     /**
@@ -21,7 +22,8 @@ class InternalSupplyRequestController extends BaseApiController
             'storekeeperNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
             'supplierNotes' => null,     // ملاحظة عند إرسال الشحنة من storekeeper
             'confirmationNotes' => null,  // ملاحظة عند تأكيد الاستلام من pharmacist/department
-            'confirmationNotesSource' => null // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'confirmationNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'rejectionReason' => null    // سبب الرفض من storekeeper
         ];
 
         // جلب جميع سجلات audit_log لهذا الطلب
@@ -61,6 +63,12 @@ class InternalSupplyRequestController extends BaseApiController
                     $notes['confirmationNotesSource'] = 'department';
                 }
             }
+
+            // سبب الرفض من storekeeper
+            if (in_array($log->action, ['رفض طلب توريد داخلي', 'storekeeper_reject_internal_request', 'reject'])
+                && isset($newValues['rejectionReason']) && !empty($newValues['rejectionReason'])) {
+                $notes['rejectionReason'] = $newValues['rejectionReason'];
+            }
         }
 
         return $notes;
@@ -74,26 +82,75 @@ class InternalSupplyRequestController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
-        $requests = InternalSupplyRequest::with(['pharmacy'])
+        // التأكد من وجود hospital_id للمستخدم
+        if (!$user->hospital_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
+        }
+
+        // عرض الطلبات التي تم إرسالها من الصيدليات التابعة لنفس المستشفى
+        $requests = InternalSupplyRequest::with(['pharmacy', 'requester.department'])
+            ->whereHas('pharmacy', function($query) use ($user) {
+                $query->where('hospital_id', $user->hospital_id);
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
         $data = $requests->map(function ($req) {
+            // جلب الملاحظات من audit_log
+            $notes = $this->getNotesFromAuditLog($req->id);
+            
+            // تحديد اسم الجهة الطالبة حسب نوع المستخدم
+            $requestingDepartmentName = 'غير محدد';
+            
+            // إعادة تحميل العلاقات للتأكد من أنها محملة
+            $req->loadMissing(['requester.department', 'pharmacy']);
+            
+            if ($req->requester) {
+                // إذا كان الطلب من department_head أو department_admin، نعرض اسم القسم
+                if (in_array($req->requester->type, ['department_head', 'department_admin'])) {
+                    // أولاً: البحث عن القسم الذي يكون head_user_id = requester->id (الأولوية للـ department_head)
+                    $department = Department::where('head_user_id', $req->requester->id)->first();
+                    if ($department) {
+                        $requestingDepartmentName = $department->name;
+                    } 
+                    // ثانياً: محاولة جلب القسم من العلاقة
+                    elseif ($req->requester->department) {
+                        $requestingDepartmentName = $req->requester->department->name;
+                    } 
+                    // ثالثاً: محاولة جلب القسم من department_id مباشرة
+                    elseif ($req->requester->department_id) {
+                        $department = Department::find($req->requester->department_id);
+                        if ($department) {
+                            $requestingDepartmentName = $department->name;
+                        }
+                    }
+                } 
+                // إذا كان الطلب من pharmacist، نعرض اسم الصيدلية
+                elseif ($req->requester->type === 'pharmacist' && $req->pharmacy) {
+                    $requestingDepartmentName = $req->pharmacy->name;
+                }
+            }
+            
+            // fallback: إذا لم يتم تحديد الاسم بعد وكان هناك pharmacy، نستخدمه
+            if ($requestingDepartmentName === 'غير محدد' && $req->pharmacy) {
+                $requestingDepartmentName = $req->pharmacy->name;
+            }
+            
             return [
                 'id'                => $req->id,
                 'shipmentNumber'    => 'INT-' . $req->id, // رقم شحنة افتراضي
                 'requestDate'       => $req->created_at,
                 'status'            => $req->status,
                 'requestStatus'     => $this->mapStatusToArabic($req->status),
-                'requestingDepartment' => $req->pharmacy->name ?? 'صيدلية غير محددة',
+                'requestingDepartment' => $requestingDepartmentName,
                 'department'        => [
-                    'name' => $req->pharmacy->name ?? 'صيدلية غير محددة',
+                    'name' => $requestingDepartmentName,
                 ],
                 'items'             => [], // ستُجلب بالتفصيل في show
                 'notes'             => null, // تم إزالة عمود notes من الجدول
                 'createdAt'         => $req->created_at,
                 'updatedAt'         => $req->updated_at,
-                'rejectionReason'   => null, // تم إزالة عمود notes من الجدول
+                'rejectionReason'   => $notes['rejectionReason'], // جلب سبب الرفض من audit_log
                 'confirmedBy'       => null,
                 'confirmedAt'       => null,
             ];
@@ -121,8 +178,35 @@ class InternalSupplyRequestController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
-        $req = InternalSupplyRequest::with(['pharmacy', 'items.drug'])
-            ->findOrFail($id);
+        // التأكد من وجود hospital_id للمستخدم
+        if (!$user->hospital_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
+        }
+
+        try {
+            // التأكد من أن الطلب ينتمي لنفس المستشفى
+            $req = InternalSupplyRequest::with(['pharmacy', 'requester.department', 'items.drug'])
+                ->whereHas('pharmacy', function($query) use ($user) {
+                    $query->where('hospital_id', $user->hospital_id);
+                })
+                ->findOrFail($id);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'الطلب غير موجود أو لا ينتمي لنفس المستشفى'
+            ], 404);
+        } catch (\Exception $e) {
+            \Log::error('Error loading shipment details', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_id' => $id,
+                'user_id' => $user->id,
+                'hospital_id' => $user->hospital_id
+            ]);
+            return response()->json([
+                'message' => 'فشل في تحميل تفاصيل الشحنة',
+                'error' => config('app.debug') ? $e->getMessage() : 'حدث خطأ غير متوقع'
+            ], 500);
+        }
 
         // جلب warehouse_id الصحيح من المستخدم أو من المستشفى
         $warehouseId = null;
@@ -145,10 +229,47 @@ class InternalSupplyRequestController extends BaseApiController
         // جلب الملاحظات من audit_log
         $notes = $this->getNotesFromAuditLog($req->id);
 
+        // إعادة تحميل العلاقات للتأكد من أنها محملة
+        $req->loadMissing(['requester.department', 'pharmacy']);
+
+        // تحديد اسم الجهة الطالبة حسب نوع المستخدم
+        $requestingDepartmentName = 'غير محدد';
+        
+        if ($req->requester) {
+            // إذا كان الطلب من department_head أو department_admin، نعرض اسم القسم
+            if (in_array($req->requester->type, ['department_head', 'department_admin'])) {
+                // أولاً: البحث عن القسم الذي يكون head_user_id = requester->id (الأولوية للـ department_head)
+                $department = Department::where('head_user_id', $req->requester->id)->first();
+                if ($department) {
+                    $requestingDepartmentName = $department->name;
+                } 
+                // ثانياً: محاولة جلب القسم من العلاقة
+                elseif ($req->requester->department) {
+                    $requestingDepartmentName = $req->requester->department->name;
+                } 
+                // ثالثاً: محاولة جلب القسم من department_id مباشرة
+                elseif ($req->requester->department_id) {
+                    $department = Department::find($req->requester->department_id);
+                    if ($department) {
+                        $requestingDepartmentName = $department->name;
+                    }
+                }
+            } 
+            // إذا كان الطلب من pharmacist، نعرض اسم الصيدلية
+            elseif ($req->requester->type === 'pharmacist' && $req->pharmacy) {
+                $requestingDepartmentName = $req->pharmacy->name;
+            }
+        }
+        
+        // fallback: إذا لم يتم تحديد الاسم بعد وكان هناك pharmacy، نستخدمه
+        if ($requestingDepartmentName === 'غير محدد' && $req->pharmacy) {
+            $requestingDepartmentName = $req->pharmacy->name;
+        }
+
         return response()->json([
             'id'             => $req->id,
             'shipmentNumber' => 'INT-' . $req->id,
-            'department'     => $req->pharmacy->name ?? 'صيدلية غير محددة',
+            'department'     => $requestingDepartmentName,
             'date'           => $req->created_at,
             'status'         => $this->mapStatusToArabic($req->status),
             'notes'          => null, // تم إزالة عمود notes من الجدول
@@ -157,6 +278,7 @@ class InternalSupplyRequestController extends BaseApiController
             'supplierNotes' => $notes['supplierNotes'],
             'confirmationNotes' => $notes['confirmationNotes'],
             'confirmationNotesSource' => $notes['confirmationNotesSource'],
+            'rejectionReason' => $notes['rejectionReason'], // جلب سبب الرفض من audit_log
             'items'          => $req->items->map(function ($item) use ($warehouseId, $req) {
                 // جلب المخزون المتاح لهذا الدواء في المستودع
                 $inventory = Inventory::where('warehouse_id', $warehouseId)
@@ -167,12 +289,12 @@ class InternalSupplyRequestController extends BaseApiController
                 $availableStock = $inventory ? (int) $inventory->current_quantity : 0;
                 
                 // جلب جميع الطلبات الأخرى (pending) التي تحتوي نفس الدواء
-                $otherPendingRequests = DB::table('internal_supply_request_item')
-                    ->join('internal_supply_request', 'internal_supply_request_item.request_id', '=', 'internal_supply_request.id')
-                    ->where('internal_supply_request.status', 'pending')
-                    ->where('internal_supply_request_item.drug_id', $item->drug_id)
-                    ->where('internal_supply_request.id', '!=', $req->id)
-                    ->select('internal_supply_request_item.requested_qty')
+                $otherPendingRequests = DB::table('internal_supply_request_items')
+                    ->join('internal_supply_requests', 'internal_supply_request_items.request_id', '=', 'internal_supply_requests.id')
+                    ->where('internal_supply_requests.status', 'pending')
+                    ->where('internal_supply_request_items.drug_id', $item->drug_id)
+                    ->where('internal_supply_requests.id', '!=', $req->id)
+                    ->select('internal_supply_request_items.requested_qty')
                     ->get();
                 
                 // حساب إجمالي الكمية المطلوبة من جميع الطلبات الأخرى
@@ -242,11 +364,20 @@ class InternalSupplyRequestController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
+        // التأكد من وجود hospital_id للمستخدم
+        if (!$user->hospital_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
+        }
+
         $validated = $request->validate([
             'rejectionReason' => 'required|string|max:1000',
         ]);
 
-        $req = InternalSupplyRequest::findOrFail($id);
+        // التأكد من أن الطلب ينتمي لنفس المستشفى
+        $req = InternalSupplyRequest::whereHas('pharmacy', function($query) use ($user) {
+                $query->where('hospital_id', $user->hospital_id);
+            })
+            ->findOrFail($id);
 
         // منع رفض الطلبات في حالة "قيد الاستلام" أو الحالات المغلقة
         if ($req->status !== 'pending') {
@@ -261,6 +392,7 @@ class InternalSupplyRequestController extends BaseApiController
         
         // تسجيل سبب الرفض في audit_log
         try {
+            $rejectedAt = now()->toIso8601String();
             AuditLog::create([
                 'user_id'    => $user->id,
                 'hospital_id'=> $user->hospital_id,
@@ -270,7 +402,8 @@ class InternalSupplyRequestController extends BaseApiController
                 'old_values' => json_encode(['status' => 'pending']),
                 'new_values' => json_encode([
                     'status' => 'rejected',
-                    'rejectionReason' => $validated['rejectionReason']
+                    'rejectionReason' => $validated['rejectionReason'],
+                    'rejectedAt' => $rejectedAt
                 ]),
                 'ip_address' => $request->ip(),
             ]);
@@ -293,13 +426,23 @@ class InternalSupplyRequestController extends BaseApiController
         \Log::info('Validating request data');
         $validated = $request->validate([
             'items'                 => 'required|array|min:1',
-            'items.*.id'            => 'required|exists:internal_supply_request_item,id',
+            'items.*.id'            => 'required|exists:internal_supply_request_items,id',
             'items.*.sentQuantity'  => 'required|integer|min:0',
             'notes'                 => 'nullable|string|max:1000',
         ]);
 
+        // التأكد من وجود hospital_id للمستخدم
+        if (!$user->hospital_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
+        }
+
         \Log::info('Loading request with items', ['id' => $id]);
-        $req = InternalSupplyRequest::with('items.drug')->findOrFail($id);
+        // التأكد من أن الطلب ينتمي لنفس المستشفى
+        $req = InternalSupplyRequest::with('items.drug')
+            ->whereHas('pharmacy', function($query) use ($user) {
+                $query->where('hospital_id', $user->hospital_id);
+            })
+            ->findOrFail($id);
 
         // منع التأكيد إذا كان الطلب في حالة "قيد الاستلام" أو الحالات المغلقة
         if (in_array($req->status, ['rejected', 'cancelled', 'fulfilled', 'approved'])) {

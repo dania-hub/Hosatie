@@ -54,91 +54,91 @@
                                     
                                 </div>
                             </div>
-                            <div class="md:w-2/3 w-full pr-7 space-y-4">
+                            <div class="md:w-2/3 w-full pr-4 md:pr-7 space-y-3">
                                 <div
-                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
-                                        class="text-gray-500 text-base sm:text-lg"
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
+                                    >
+                                        {{ userData.fullName || 'غير محدد' }}
+                                    </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
                                         >الاسم الرباعي</span
                                     >
-                                    <span
-                                        class="font-medium text-gray-800 text-base sm:text-lg"
-                                    >
-                                        {{ userData.fullName }}
-                                    </span>
                                 </div>
 
                                 <div
-                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
-                                        class="text-gray-500 text-base sm:text-lg"
-                                        >الدور الوظيفي</span
-                                    >
-                                    <span
-                                        class="font-medium text-gray-800 text-base sm:text-lg"
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1"
                                     >
                                         {{ translateRole(userData.jobRole) }}
                                     </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
+                                        >الدور الوظيفي</span
+                                    >
                                 </div>
 
                                 <!-- قسم المستشفى - يظهر فقط لرئيس القسم -->
                                 <div
                                     v-if="userData.jobRole === 'department_head' && userData.department"
-                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
-                                        class="text-gray-500 text-base sm:text-lg"
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
+                                    >
+                                        {{ userData.department || 'غير محدد' }}
+                                    </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
                                         >القسم</span
                                     >
-                                    <span
-                                        class="font-medium text-gray-800 text-base sm:text-lg"
-                                    >
-                                        {{ userData.department }}
-                                    </span>
                                 </div>
 
                                 <div
-                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
-                                        class="text-gray-500 text-base sm:text-lg"
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
+                                    >
+                                        {{ userData.healthCenter || 'غير محدد' }}
+                                    </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
                                         >المركز الصحي</span
                                     >
-                                    <span
-                                        class="font-medium text-gray-800 text-base sm:text-lg"
-                                    >
-                                        {{ userData.healthCenter }}
-                                    </span>
                                 </div>
 
                                 <div
-                                    class="flex justify-between items-center py-2 border-b border-[#4DA1A9]"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
-                                        class="text-gray-500 text-base sm:text-lg"
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
+                                    >
+                                        {{ userData.email || 'غير محدد' }}
+                                    </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
                                         >البريد الإلكتروني</span
                                     >
-                                    <span
-                                        class="font-medium text-gray-800 text-base sm:text-lg ltr"
-                                    >
-                                        {{ userData.email }}
-                                    </span>
                                 </div>
 
                                 <div
-                                    class="flex justify-between items-center py-2"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
-                                        class="text-gray-500 text-base sm:text-lg"
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
+                                    >
+                                        {{ userData.phone || 'غير محدد' }}
+                                    </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
                                         >رقم الهاتف</span
                                     >
-                                    <span
-                                        class="font-medium text-gray-800 text-base sm:text-lg ltr"
-                                    >
-                                        {{ userData.phone }}
-                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -388,7 +388,7 @@ const fetchUserData = async () => {
 const translateRole = (role) => {
     const roleTranslations = {
         'hospital_admin': 'مدير نظام المستشفى',
-        'supplier_admin': ' المورد',
+        'supplier_admin': ' مورد',
         'super_admin': 'المدير الأعلى',
         'warehouse_manager': 'مسؤول المخزن',
         'pharmacist': 'صيدلي',
@@ -612,6 +612,14 @@ onMounted(() => {
 /* لتمكين النص بالاتجاه الإنجليزي (LTR) داخل حقل البريد والهاتف */
 .ltr {
     direction: ltr;
+    text-align: left;
+}
+
+/* تحسين محاذاة النصوص على الشاشات الصغيرة */
+@media (max-width: 640px) {
+    .ltr {
+        text-align: right;
+    }
 }
 
 /* أنيميشن التحميل */
@@ -620,5 +628,31 @@ onMounted(() => {
 }
 .animate-spin {
     animation: spin 1s linear infinite;
+}
+
+/* تحسين مظهر البطاقة */
+.bg-white {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* تحسين الخطوط */
+.text-gray-500 {
+    letter-spacing: 0.025em;
+}
+
+.text-gray-800 {
+    letter-spacing: 0.01em;
+}
+
+/* تحسين الانتقالات */
+.transition-colors {
+    transition-duration: 200ms;
+}
+
+/* تحسين الهوامش للشاشات الصغيرة */
+@media (max-width: 640px) {
+    .space-y-3 > * + * {
+        margin-top: 0.75rem;
+    }
 }
 </style>

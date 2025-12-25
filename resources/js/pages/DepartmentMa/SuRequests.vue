@@ -641,6 +641,8 @@ const openRequestViewModal = async (shipment) => {
         supplierNotes: shipment.details.supplierNotes || fetchedData?.supplierNotes || null,
         confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null,
         confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
+        rejectionReason: fetchedData?.rejectionReason || shipment.details.rejectionReason || shipment.rejectionReason || null,
+        rejectedAt: fetchedData?.rejectedAt || shipment.details.rejectedAt || shipment.rejectedAt || null,
         items: (shipment.details.items || []).map(item => ({
             ...item,
             // الكمية المطلوبة
@@ -677,7 +679,9 @@ const openRequestViewModal = async (shipment) => {
             confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString(),
             confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null
         } : null),
-        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null
+        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
+        rejectionReason: fetchedData?.rejectionReason || shipment.details.rejectionReason || shipment.rejectionReason || null,
+        rejectedAt: fetchedData?.rejectedAt || shipment.details.rejectedAt || shipment.rejectedAt || null
     };
     isRequestViewModalOpen.value = true;
 };

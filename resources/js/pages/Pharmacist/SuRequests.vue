@@ -594,6 +594,8 @@ const openRequestViewModal = async (shipment) => {
                 storekeeperNotes: fetchedData.storekeeperNotes || null,
                 supplierNotes: fetchedData.supplierNotes || null,
                 confirmationNotes: fetchedData.confirmationNotes || null,
+                rejectionReason: fetchedData.rejectionReason || null,
+                rejectedAt: fetchedData.rejectedAt || null,
                 ...(fetchedData.confirmationDetails && {
                     confirmationDetails: fetchedData.confirmationDetails
                 })
@@ -611,6 +613,8 @@ const openRequestViewModal = async (shipment) => {
         supplierNotes: shipment.details.supplierNotes || fetchedData?.supplierNotes || null,
         confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null,
         confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
+        rejectionReason: fetchedData?.rejectionReason || shipment.details.rejectionReason || null,
+        rejectedAt: fetchedData?.rejectedAt || shipment.details.rejectedAt || null,
         items: (shipment.details.items || []).map(item => ({
             ...item,
             // الكمية المطلوبة

@@ -20,9 +20,14 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
-        // نعتبر أن كل سطر له warehouse_id يخص مخزن المستشفى
+        // التأكد من وجود warehouse_id للمستخدم
+        if (!$user->warehouse_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
+        }
+
+        // عرض الأدوية التي تنتمي فقط لمخزن الـ storekeeper
         $items = Inventory::with('drug')
-            ->whereNotNull('warehouse_id')
+            ->where('warehouse_id', $user->warehouse_id)
             ->get();
 
         // تحويل النتيجة للفورمات الذي يحتاجه الـ frontend
@@ -74,16 +79,21 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
+        // التأكد من وجود warehouse_id للمستخدم
+        if (!$user->warehouse_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
+        }
+
         $validated = $request->validate([
             'drug_id'         => 'required|exists:drugs,id',
-            'warehouse_id'    => 'required|integer',
             'current_quantity'=> 'required|integer|min:0',
             'minimum_level'   => 'nullable|integer|min:0',
         ]);
 
+        // استخدام warehouse_id الخاص بالـ storekeeper تلقائياً
         $item = Inventory::create([
             'drug_id'         => $validated['drug_id'],
-            'warehouse_id'    => $validated['warehouse_id'],
+            'warehouse_id'    => $user->warehouse_id,
             'current_quantity'=> $validated['current_quantity'],
             'minimum_level'   => $validated['minimum_level'] ?? 50,
         ]);
@@ -99,13 +109,18 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
+        // التأكد من وجود warehouse_id للمستخدم
+        if (!$user->warehouse_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
+        }
+
         $validated = $request->validate([
             'current_quantity' => 'nullable|integer|min:0',
             'minimum_level'    => 'nullable|integer|min:0',
         ]);
 
         $item = Inventory::with('drug')
-            ->whereNotNull('warehouse_id')
+            ->where('warehouse_id', $user->warehouse_id)
             ->findOrFail($id);
 
         if (isset($validated['current_quantity'])) {
@@ -140,7 +155,12 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
-        $item = Inventory::whereNotNull('warehouse_id')->findOrFail($id);
+        // التأكد من وجود warehouse_id للمستخدم
+        if (!$user->warehouse_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
+        }
+
+        $item = Inventory::where('warehouse_id', $user->warehouse_id)->findOrFail($id);
         $item->delete();
 
         return response()->json(['message' => 'تم حذف الصنف من مخزون المستودع']);

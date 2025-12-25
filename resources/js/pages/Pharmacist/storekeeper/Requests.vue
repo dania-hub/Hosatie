@@ -603,14 +603,28 @@ const openRequestViewModal = async (shipment) => {
         // جلب التفاصيل الكاملة من API
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
         
+        // التعامل مع response structure من BaseApiController
+        // الـ interceptor يُرجع response.data، والـ API يُرجع {success: true, data: {...}}
+        // إذا كان response.data موجوداً وله خاصية data، نستخدم response.data.data
+        let data = response;
+        if (response && response.data && typeof response.data === 'object' && 'data' in response.data) {
+            data = response.data.data;
+        } else if (response && response.data) {
+            data = response.data;
+        }
+        
+        console.log('📋 Response:', response);
+        console.log('📋 Response data:', data);
+        console.log('📋 Rejection reason:', data.rejectionReason);
+        
         // تحويل البيانات لتتوافق مع ما يتوقعه مكون المعاينة
         selectedRequestDetails.value = {
-            id: response.id,
-            shipmentNumber: response.shipmentNumber || `INT-${response.id}`,
-            department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
-            date: response.date || response.requestDate || response.createdAt,
-            status: response.status || shipment.requestStatus,
-            items: (response.items || []).map(item => ({
+            id: data.id,
+            shipmentNumber: data.shipmentNumber || `INT-${data.id}`,
+            department: data.department || shipment.requestingDepartment || 'قسم غير محدد',
+            date: data.date || data.requestDate || data.createdAt,
+            status: data.status || shipment.requestStatus,
+            items: (data.items || []).map(item => ({
                 id: item.id,
                 drug_id: item.drug_id,
                 name: item.drug_name || item.name || 'دواء غير محدد',
@@ -624,16 +638,28 @@ const openRequestViewModal = async (shipment) => {
                 dosage: item.dosage || item.strength || '',
                 type: item.type || item.form || ''
             })),
-            notes: response.notes || '',
-            confirmationDetails: response.confirmationDetails || null,
-            confirmation: response.confirmationDetails ? {
-                confirmedBy: response.confirmationDetails.confirmedBy,
-                confirmedAt: response.confirmationDetails.confirmedAt,
-                notes: response.confirmationDetails.notes,
-                items: response.items || []
-            } : null,
-            rejectionReason: response.rejectionReason || null
+            notes: data.notes || '',
+            storekeeperNotes: data.storekeeperNotes || null,
+            storekeeperNotesSource: data.storekeeperNotesSource || null,
+            supplierNotes: data.supplierNotes || null,
+            confirmationDetails: data.confirmationDetails || null,
+            confirmation: data.confirmationDetails ? {
+                confirmedBy: data.confirmationDetails.confirmedBy,
+                confirmedAt: data.confirmationDetails.confirmedAt,
+                notes: data.confirmationDetails.notes,
+                confirmationNotes: data.confirmationNotes || null,
+                items: data.items || []
+            } : (data.confirmationNotes ? {
+                confirmationNotes: data.confirmationNotes,
+                confirmedAt: data.confirmationDetails?.confirmedAt || null
+            } : null),
+            confirmationNotes: data.confirmationNotes || null,
+            confirmationNotesSource: data.confirmationNotesSource || null,
+            rejectionReason: data.rejectionReason || shipment.rejectionReason || null,
+            rejectedAt: data.rejectedAt || shipment.rejectedAt || null
         };
+        
+        console.log('✅ Selected request details:', selectedRequestDetails.value);
         isRequestViewModalOpen.value = true;
     } catch (err) {
         showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
@@ -649,7 +675,9 @@ const closeRequestViewModal = () => {
         department: '', 
         date: '', 
         status: '', 
-        items: [] 
+        items: [],
+        rejectionReason: null,
+        rejectedAt: null
     };
 };
 

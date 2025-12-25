@@ -21,7 +21,9 @@ class ShipmentPharmacistController extends BaseApiController
             'storekeeperNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
             'supplierNotes' => null,     // ملاحظة عند إرسال الشحنة من storekeeper
             'confirmationNotes' => null,  // ملاحظة عند تأكيد الاستلام من pharmacist/department
-            'confirmationNotesSource' => null // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'confirmationNotesSource' => null, // مصدر الملاحظة: 'pharmacist' أو 'department'
+            'rejectionReason' => null,    // سبب الرفض من storekeeper
+            'rejectedAt' => null         // تاريخ الرفض من storekeeper
         ];
 
         // جلب جميع سجلات audit_log لهذا الطلب
@@ -59,6 +61,19 @@ class ShipmentPharmacistController extends BaseApiController
                     $notes['confirmationNotesSource'] = 'pharmacist';
                 } elseif ($log->action === 'department_confirm_internal_receipt') {
                     $notes['confirmationNotesSource'] = 'department';
+                }
+            }
+
+            // سبب الرفض من storekeeper
+            if (in_array($log->action, ['رفض طلب توريد داخلي', 'storekeeper_reject_internal_request', 'reject'])
+                && isset($newValues['rejectionReason']) && !empty($newValues['rejectionReason'])) {
+                $notes['rejectionReason'] = $newValues['rejectionReason'];
+                // جلب تاريخ الرفض من audit_log
+                if (isset($newValues['rejectedAt'])) {
+                    $notes['rejectedAt'] = $newValues['rejectedAt'];
+                } else {
+                    // إذا لم يكن موجوداً في new_values، نستخدم created_at من audit_log
+                    $notes['rejectedAt'] = $log->created_at->toIso8601String();
                 }
             }
         }
@@ -145,6 +160,8 @@ class ShipmentPharmacistController extends BaseApiController
             'supplierNotes' => $notes['supplierNotes'],
             'confirmationNotes' => $notes['confirmationNotes'],
             'confirmationNotesSource' => $notes['confirmationNotesSource'],
+            'rejectionReason' => $notes['rejectionReason'], // جلب سبب الرفض من audit_log
+            'rejectedAt' => $notes['rejectedAt'], // جلب تاريخ الرفض من audit_log
             'items' => $shipment->items->map(function($item) {
                 return [
                     'id' => $item->id,

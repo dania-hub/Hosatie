@@ -79,7 +79,7 @@
                                     <span
                                         class="font-medium text-gray-800 text-base sm:text-lg"
                                     >
-                                        {{ userData.jobRole }}
+                                        {{ translateRole(userData.jobRole) }}
                                     </span>
                                 </div>
 
@@ -382,6 +382,24 @@ const fetchUserData = async () => {
     } finally {
         loading.value = false;
     }
+};
+
+// دالة تعريب الدور الرئيسي
+const translateRole = (role) => {
+    const roleTranslations = {
+        'hospital_admin': 'مدير نظام المستشفى',
+        'supplier_admin': ' المورد',
+        'super_admin': 'المدير الأعلى',
+        'warehouse_manager': 'مسؤول المخزن',
+        'pharmacist': 'صيدلي',
+        'doctor': 'طبيب',
+        'department_head': 'مدير القسم',
+        'patient': 'مريض',
+        'data_entry': 'مدخل بيانات',
+        'department_admin': 'مدير القسم'
+    };
+    
+    return roleTranslations[role] || role || 'غير محدد';
 };
 
 // دالة مساعدة لجلب اسم القسم

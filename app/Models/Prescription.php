@@ -16,7 +16,7 @@ class Prescription extends Model
         'doctor_id',
         'hospital_id',
         'status',
-        // 'start_date',
+        'start_date',
         // 'end_date',
         // 'cancelled_at',
     ];
@@ -42,10 +42,10 @@ class Prescription extends Model
         return $this->belongsTo(Hospital::class);
     }
 
-    // Relationship to Drugs (Many-to-Many via prescription_drug)
+    // Relationship to Drugs (Many-to-Many via prescription_drugs)
     public function drugs()
     {
-        return $this->belongsToMany(Drug::class, 'prescription_drug', 'prescription_id', 'drug_id')
+        return $this->belongsToMany(Drug::class, 'prescription_drugs', 'prescription_id', 'drug_id')
                     // نضيف حقل id من جدول pivot حتى يصل للواجهة ويُستخدم كمعرّف للتعديل/الحذف
                     ->withPivot('id', 'monthly_quantity', 'daily_quantity')
                     ->withTimestamps();

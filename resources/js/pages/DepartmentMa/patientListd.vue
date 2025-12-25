@@ -482,27 +482,31 @@ const getCurrentUserName = () => {
 
 const addMedicationToPatient = async (medicationsData) => {
   try {
-    // تحويل البيانات إلى التنسيق الذي يتوقعه الـ API
+    // تحويل البيانات إلى التنسيق الذي يتوقعه الـ API (مثل doctor/patients)
     const medicationsPayload = medicationsData.map(med => {
-      // حساب الكمية الشهرية من الجرعة اليومية
+      // تحويل الجرعة اليومية إلى شهرية
       const dailyQty = med.quantity || med.dailyQuantity || 0;
       const monthlyQuantity = Math.round(dailyQty * 30);
       
-      return {
-        drugId: med.drugId || med.id || null,
-        drugName: med.name || med.drugName || '',
-        dosage: `${dailyQty} ${med.unit || 'حبة'} يومياً`,
-        monthlyQuantity: monthlyQuantity,
-        note: med.note || med.notes || null
+      // بناء payload - فقط أضف daily_quantity إذا كانت موجودة وقيمة أكبر من 0
+      const payload = {
+        drug_id: med.drugId || med.id,
+        quantity: monthlyQuantity, // الكمية الشهرية
       };
+      
+      // إضافة daily_quantity فقط إذا كانت موجودة وقيمة أكبر من 0
+      if (dailyQty && dailyQty > 0) {
+        payload.daily_quantity = Math.round(dailyQty);
+      }
+      
+      return payload;
     });
 
     try {
-      // إرسال الأدوية إلى API
-      const updatedPatient = await updatePatientMedications(
-        selectedPatient.value.fileNumber,
-        [...(selectedPatient.value.medications || []), ...medicationsPayload]
-      );
+      // استخدام POST /patients/{id}/medications (store) مثل doctor/patients
+      await api.post(`/patients/${selectedPatient.value.fileNumber}/medications`, {
+        medications: medicationsPayload
+      });
 
       // إعادة جلب بيانات المريض المحدثة من API
       const freshPatientData = await fetchPatientDetails(selectedPatient.value.fileNumber);

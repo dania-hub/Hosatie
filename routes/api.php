@@ -343,6 +343,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('patients', [PatientDoctorController::class, 'index']);
         Route::get('patients/{id}', [PatientDoctorController::class, 'show']);
         Route::get('drugs', [DrugDoctorController::class, 'index']);
+        Route::get('drugs/{id}', [DrugDoctorController::class, 'show']);
         Route::get('drug-categories', [DrugDoctorController::class, 'categories']);
         Route::post('patients/{id}/medications', [PrescriptionDoctorController::class, 'store']);
         Route::put('patients/{id}/medications/{pivotId}', [PrescriptionDoctorController::class, 'update']);
@@ -350,6 +351,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('patients/{id}/dispensations', [DispensationDoctorController::class, 'history']);
         Route::get('dashboard/stats', [DashboardDoctorController::class, 'stats']);
         Route::get('dashboard/activity-log', [DashboardDoctorController::class, 'activityLog']);
+        Route::get('operations', [DashboardDoctorController::class, 'operations']);
     });
 
     // =====================================================================
@@ -494,6 +496,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Patient Management (For View 2)
         Route::get('patients', [PatientDepartmentAdminController::class, 'index']);
         Route::get('patients/{id}', [PatientDepartmentAdminController::class, 'show']);
+        Route::post('patients/{id}/medications', [PatientDepartmentAdminController::class, 'store']);
         Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);
         Route::put('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'update']);
         Route::delete('patients/{id}/medications/{pivotId}', [PatientDepartmentAdminController::class, 'destroy']);//للتعديل

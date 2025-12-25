@@ -478,11 +478,23 @@ const addMedicationToPatient = async (medicationsData) => {
       const dailyQty = med.dailyQuantity || med.quantity || 0;
       const monthlyQuantity = Math.round(dailyQty * 30);
       
-      return {
+      // بناء payload - فقط أضف daily_quantity إذا كانت موجودة وقيمة أكبر من 0
+      const payload = {
         drug_id: med.drugId || med.id,
         quantity: monthlyQuantity, // الكمية الشهرية
-        note: med.note || med.notes || null
       };
+      
+      // إضافة daily_quantity فقط إذا كانت موجودة وقيمة أكبر من 0
+      if (dailyQty && dailyQty > 0) {
+        payload.daily_quantity = Math.round(dailyQty);
+      }
+      
+      // إضافة note إذا كانت موجودة
+      if (med.note || med.notes) {
+        payload.note = med.note || med.notes;
+      }
+      
+      return payload;
     });
 
     try {
@@ -504,7 +516,15 @@ const addMedicationToPatient = async (medicationsData) => {
       showSuccessAlert(`✅ تم إضافة ${medicationsData.length} دواء بنجاح للمريض ${selectedPatient.value.name}`);
     } catch (apiError) {
       console.error('خطأ في إضافة الأدوية:', apiError);
-      const errorMessage = apiError.response?.data?.message || apiError.message || 'حدث خطأ غير معروف';
+      console.error('تفاصيل الخطأ:', apiError.response?.data);
+      const errorData = apiError.response?.data || {};
+      let errorMessage = errorData.message || apiError.message || 'حدث خطأ غير معروف';
+      
+      // إضافة تفاصيل الخطأ إذا كانت موجودة
+      if (errorData.error) {
+        errorMessage += ` (${errorData.error})`;
+      }
+      
       showInfoAlert(`فشل في إضافة الأدوية: ${errorMessage}`);
     }
   } catch (err) {
@@ -532,7 +552,8 @@ const handleEditMedication = async (medIndex, newDosage) => {
     }
 
     const medicationPayload = {
-      dosage: monthlyQuantity // API يتوقع integer
+      dosage: monthlyQuantity, // API يتوقع integer (الكمية الشهرية)
+      daily_quantity: Math.round(newDosage) // الجرعة اليومية (القيمة الأصلية)
     };
 
     try {

@@ -16,7 +16,7 @@ class CreateSupplyRequestRequest extends FormRequest
         return [
             'hospital_id' => 'required|exists:hospital,id',
             'items' => 'required|array|min:1',
-            'items.*.drug_id' => 'required|exists:drug,id',
+            'items.*.drug_id' => 'required|exists:drugs,id',
             'items.*.quantity' => 'required|integer|min:1',
             'notes' => 'nullable|string|max:1000',
             'priority' => 'nullable|in:low,normal,high,urgent',

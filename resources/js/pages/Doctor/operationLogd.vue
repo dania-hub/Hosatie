@@ -39,7 +39,7 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await api.get('/dashboard/activity-log');
+        const response = await api.get('/operations');
         
         // BaseApiController يُرجع البيانات في response.data.data
         const operationsData = response.data.data || response.data;

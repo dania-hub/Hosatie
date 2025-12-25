@@ -75,7 +75,7 @@ class WarehouseInventoryController extends BaseApiController
         }
 
         $validated = $request->validate([
-            'drug_id'         => 'required|exists:drug,id',
+            'drug_id'         => 'required|exists:drugs,id',
             'warehouse_id'    => 'required|integer',
             'current_quantity'=> 'required|integer|min:0',
             'minimum_level'   => 'nullable|integer|min:0',

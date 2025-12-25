@@ -20,7 +20,7 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
     {
         $request->validate([
             'items' => 'required|array|min:1',
-            'items.*.drugId' => 'required|exists:drug,id',
+            'items.*.drugId' => 'required|exists:drugs,id',
             'items.*.quantity' => 'required|integer|min:1',
             // notes يتم حفظها في audit_log فقط (لا يوجد عمود notes في الجدول)
             'notes' => 'nullable|string'

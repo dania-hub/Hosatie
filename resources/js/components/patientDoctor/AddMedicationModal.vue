@@ -109,10 +109,10 @@
                                             </span>
                                         </div>
                                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                            <span>{{ drug.dosage }}</span>
-                                            <span class="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                            <span :class="drug.type === 'Tablet' ? 'text-blue-500' : 'text-green-500'">
-                                                {{ drug.type === 'Tablet' ? 'أقراص' : 'سائل' }}
+                                            <span>{{ drug.dosage || drug.strength || '' }}</span>
+                                            <span v-if="drug.dosage || drug.strength" class="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                            <span class="text-[#4DA1A9] font-medium">
+                                                {{ getDrugUnit(drug) }}
                                             </span>
                                         </div>
                                     </li>
@@ -135,7 +135,7 @@
                             <input
                                 type="number"
                                 min="0"
-                                step="0.5"
+                                :step="quantityUnit === 'مل' ? '0.5' : '1'"
                                 v-model.number="dailyQuantity"
                                 class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
                                 placeholder="0"
@@ -310,6 +310,8 @@ const searchTermDrug = ref('');
 const selectedDrugName = ref('');
 const selectedDrugType = ref('');
 const selectedDrugId = ref(null);
+const selectedDrugUnit = ref('');
+const selectedDrugForm = ref('');
 const dailyQuantity = ref(null); 
 const showResults = ref(false);
 const dailyDosageList = ref([]); 
@@ -366,12 +368,89 @@ const fetchDrugDetails = async (drugId) => {
     }
 };
 
+// ------------ وظائف المساعدة لتحديد الوحدة ------------
+const getDrugUnit = (drug) => {
+    // أولاً: استخدام وحدة القياس المباشرة من جدول الدواء
+    if (drug.unit) {
+        const unit = drug.unit.toLowerCase().trim();
+        
+        // تحويل الوحدات الشائعة إلى التنسيق المطلوب
+        // للأدوية الصلبة (حبوب/أقراص)
+        if (['قرص', 'حبة', 'tablet', 'capsule', 'pill', 'tab', 'cap'].includes(unit)) {
+            return 'حبة';
+        }
+        // للأدوية السائلة
+        if (['مل', 'ml', 'milliliter', 'millilitre', 'ملل', 'ملليلتر'].includes(unit)) {
+            return 'مل';
+        }
+        // للحقن
+        if (['أمبول', 'ampoule', 'ampule', 'vial', 'حقنة', 'amp'].includes(unit)) {
+            return 'أمبول';
+        }
+        // للمراهم والكريمات
+        if (['جرام', 'gram', 'gm', 'g', 'غرام'].includes(unit)) {
+            return 'جرام';
+        }
+        // إذا كانت الوحدة موجودة ولكن غير معروفة، نستخدمها كما هي
+        return drug.unit;
+    }
+    
+    // ثانياً: استخدام form لتحديد الوحدة
+    if (drug.form) {
+        const form = drug.form.toLowerCase().trim();
+        
+        // للأدوية الصلبة
+        if (['tablet', 'capsule', 'pill', 'tab', 'cap', 'قرص', 'حبة', 'كبسولة'].includes(form)) {
+            return 'حبة';
+        }
+        // للأدوية السائلة
+        if (['liquid', 'syrup', 'suspension', 'solution', 'elixir', 'drops', 'قطرة', 'سائل', 'شراب', 'معلق', 'محلول'].includes(form)) {
+            return 'مل';
+        }
+        // للحقن
+        if (['injection', 'ampoule', 'ampule', 'vial', 'amp', 'حقن', 'أمبول', 'حقنة'].includes(form)) {
+            return 'أمبول';
+        }
+        // للمراهم والكريمات
+        if (['ointment', 'cream', 'gel', 'lotion', 'مرهم', 'كريم', 'جل', 'لوشن'].includes(form)) {
+            return 'جرام';
+        }
+    }
+    
+    // ثالثاً: البحث في اسم الدواء عن إشارات للنوع
+    if (drug.name) {
+        const name = drug.name.toLowerCase();
+        
+        // البحث عن كلمات تشير إلى سائل
+        if (/syrup|suspension|solution|liquid|drops|شراب|معلق|محلول|قطرة|سائل|شرب/i.test(name)) {
+            return 'مل';
+        }
+        // البحث عن كلمات تشير إلى حقن
+        if (/injection|ampoule|vial|amp|حقن|أمبول|حقنة/i.test(name)) {
+            return 'أمبول';
+        }
+        // البحث عن كلمات تشير إلى مرهم
+        if (/ointment|cream|gel|lotion|مرهم|كريم|جل|لوشن/i.test(name)) {
+            return 'جرام';
+        }
+    }
+    
+    // افتراضياً: حبة (للأدوية الصلبة)
+    return 'حبة';
+};
+
 // ------------ Computed Properties ------------
 const quantityUnit = computed(() => {
-    if (selectedDrugType.value === 'Tablet') return 'حبة/قرص';
+    // إذا كان لدينا وحدة محددة من الدواء، نستخدمها
+    if (selectedDrugUnit.value) {
+        return selectedDrugUnit.value;
+    }
+    
+    // خلفية احتياطية بناءً على النوع (للتوافق مع الكود القديم)
+    if (selectedDrugType.value === 'Tablet') return 'حبة';
     if (selectedDrugType.value === 'Liquid') return 'مل';
-    if (selectedDrugType.value === 'Injection') return 'وحدة';
-    return 'وحدة';
+    if (selectedDrugType.value === 'Injection') return 'أمبول';
+    return 'حبة';
 });
 
 const quantityInputId = computed(() => {
@@ -390,14 +469,12 @@ const quantityError = computed(() => {
         return "يجب أن تكون الكمية أكبر من الصفر.";
     }
 
-    if (selectedDrugType.value === 'Tablet') {
-        if (numericQuantity > MAX_PILL_QTY) {
-            return `لا يمكن أن تتجاوز الكمية اليومية ${MAX_PILL_QTY} حبة/قرص.`;
-        }
-    } else if (selectedDrugType.value === 'Liquid') {
-        if (numericQuantity > MAX_LIQUID_QTY) {
-            return `لا يمكن أن تتجاوز الكمية اليومية ${MAX_LIQUID_QTY} مل.`;
-        }
+    const unit = quantityUnit.value;
+    const maxQty = unit === 'مل' ? MAX_LIQUID_QTY : MAX_PILL_QTY;
+    const unitName = unit === 'مل' ? 'مل' : 'حبة/قرص';
+
+    if (numericQuantity > maxQty) {
+        return `لا يمكن أن تتجاوز الكمية اليومية ${maxQty} ${unitName}.`;
     }
     
     return null;
@@ -431,6 +508,8 @@ const clearForm = () => {
     selectedDrugName.value = '';
     selectedDrugType.value = '';
     selectedDrugId.value = null;
+    selectedDrugUnit.value = '';
+    selectedDrugForm.value = '';
     dailyQuantity.value = null;
     dailyDosageList.value = [];
     filteredDrugs.value = [];
@@ -448,6 +527,8 @@ const handleInput = () => {
     selectedDrugName.value = '';
     selectedDrugType.value = '';
     selectedDrugId.value = null;
+    selectedDrugUnit.value = '';
+    selectedDrugForm.value = '';
     dailyQuantity.value = null;
 
     clearTimeout(debounceTimer);
@@ -465,8 +546,29 @@ const selectDrug = async (drug) => {
     // جلب تفاصيل إضافية للدواء
     const drugDetails = await fetchDrugDetails(drug.id);
     if (drugDetails) {
-        selectedDrugType.value = drugDetails.type || 'Tablet';
+        // استخدام البيانات من API
+        selectedDrugForm.value = drugDetails.form || drug.form || '';
+        // تحديد الوحدة باستخدام الدالة
+        selectedDrugUnit.value = getDrugUnit(drugDetails);
+        // تحديد النوع بناءً على form للتوافق
+        if (drugDetails.form) {
+            const form = drugDetails.form.toLowerCase().trim();
+            if (['tablet', 'capsule', 'pill', 'tab', 'cap', 'قرص', 'حبة', 'كبسولة'].includes(form)) {
+                selectedDrugType.value = 'Tablet';
+            } else if (['liquid', 'syrup', 'suspension', 'solution', 'elixir', 'drops', 'قطرة', 'سائل', 'شراب', 'معلق', 'محلول'].includes(form)) {
+                selectedDrugType.value = 'Liquid';
+            } else if (['injection', 'ampoule', 'ampule', 'vial', 'amp', 'حقن', 'أمبول', 'حقنة'].includes(form)) {
+                selectedDrugType.value = 'Injection';
+            } else {
+                selectedDrugType.value = 'Tablet';
+            }
+        } else {
+            selectedDrugType.value = drug.type || 'Tablet';
+        }
     } else {
+        // استخدام البيانات من القائمة المباشرة
+        selectedDrugForm.value = drug.form || '';
+        selectedDrugUnit.value = getDrugUnit(drug);
         selectedDrugType.value = drug.type || 'Tablet';
     }
 
@@ -488,6 +590,7 @@ const addNewDrug = () => {
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
             type: selectedDrugType.value,
+            form: selectedDrugForm.value,
         });
 
         searchTermDrug.value = '';
@@ -495,6 +598,8 @@ const addNewDrug = () => {
         selectedDrugName.value = '';
         selectedDrugType.value = '';
         selectedDrugId.value = null;
+        selectedDrugUnit.value = '';
+        selectedDrugForm.value = '';
         dailyQuantity.value = null;
         
         // إعادة عرض جميع الأدوية بعد الإضافة
@@ -537,6 +642,7 @@ const handleConfirmation = async () => {
                 quantity: dailyQuantity.value,
                 unit: quantityUnit.value,
                 type: selectedDrugType.value,
+                form: selectedDrugForm.value,
             });
         }
 

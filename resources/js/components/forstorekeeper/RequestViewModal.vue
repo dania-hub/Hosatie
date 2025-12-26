@@ -81,7 +81,7 @@
                         <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                         سبب الرفض
                     </h3>
-                    <p v-if="requestDetails.rejectionReason" class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
+                    <p v-if="requestDetails.rejectionReason && requestDetails.rejectionReason.trim() !== ''" class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
                     <p v-else class="text-red-600 font-medium leading-relaxed italic">لم يتم تحديد سبب الرفض</p>
                     <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
                         <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
@@ -335,7 +335,10 @@ watch(() => props.requestData, (newVal) => {
         // التأكد من نسخ جميع البيانات بشكل صحيح
         requestDetails.value = {
             ...newVal,
-            rejectionReason: newVal.rejectionReason || null,
+            // التأكد من نسخ rejectionReason بشكل صحيح (حتى لو كان string فارغاً)
+            rejectionReason: (newVal.rejectionReason && typeof newVal.rejectionReason === 'string' && newVal.rejectionReason.trim() !== '') 
+                ? newVal.rejectionReason.trim() 
+                : null,
             rejectedAt: newVal.rejectedAt || null,
             notes: newVal.notes || '',
             storekeeperNotes: newVal.storekeeperNotes || null,
@@ -350,7 +353,9 @@ watch(() => props.requestData, (newVal) => {
             notes: requestDetails.value.notes,
             storekeeperNotes: requestDetails.value.storekeeperNotes,
             supplierNotes: requestDetails.value.supplierNotes,
-            hasRejectionReason: !!requestDetails.value.rejectionReason
+            hasRejectionReason: !!requestDetails.value.rejectionReason,
+            rejectionReasonType: typeof requestDetails.value.rejectionReason,
+            rejectionReasonLength: requestDetails.value.rejectionReason ? requestDetails.value.rejectionReason.length : 0
         });
     }
 }, { immediate: true, deep: true });

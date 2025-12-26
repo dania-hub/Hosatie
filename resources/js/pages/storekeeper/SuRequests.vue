@@ -486,49 +486,69 @@ const fetchShipments = async () => {
         console.log('First item (if exists):', data[0]);
         
         // طباعة بيانات الطلبات المرفوضة للتأكد من وجود rejectionReason
-        const rejectedShipments = data.filter(s => s.status === 'rejected' || s.requestStatus === 'مرفوضة');
+        const rejectedShipments = data.filter(s => s.status === 'rejected' || s.requestStatus === 'مرفوضة' || s.requestStatus === 'مرفوض');
         if (rejectedShipments.length > 0) {
             console.log('🔴 Rejected shipments:', rejectedShipments.map(s => ({
                 id: s.id,
                 status: s.status,
                 requestStatus: s.requestStatus,
                 rejectionReason: s.rejectionReason,
-                rejectedAt: s.rejectedAt
+                rejectedAt: s.rejectedAt,
+                fullData: s // إضافة البيانات الكاملة للتحقق
             })));
         }
         
-        shipmentsData.value = data.map(shipment => ({
-            id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
-            requestStatus: shipment.requestStatus || shipment.status,
-            received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
-            details: {
+        shipmentsData.value = data.map(shipment => {
+            // طباعة معلومات rejectionReason للطلبات المرفوضة
+            if (shipment.status === 'rejected' || shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض') {
+                console.log('🔴 Mapping rejected shipment:', {
+                    id: shipment.id,
+                    status: shipment.status,
+                    requestStatus: shipment.requestStatus,
+                    rejectionReason: shipment.rejectionReason,
+                    rejectedAt: shipment.rejectedAt,
+                    hasRejectionReason: !!shipment.rejectionReason,
+                    rejectionReasonType: typeof shipment.rejectionReason,
+                    fullShipment: shipment
+                });
+            }
+            
+            return {
                 id: shipment.id,
-                date: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
-                status: shipment.requestStatus || shipment.status,
-                items: (shipment.items || []).map(item => ({
-                    ...item,
-                    // التأكد من وجود جميع الحقول المطلوبة
-                    requested_qty: item.requested_qty || item.requested || item.quantity || 0,
-                    requestedQty: item.requestedQty || item.requested || item.quantity || 0,
-                    quantity: item.quantity || item.requested || item.requested_qty || 0,
-                    unit: item.unit || 'وحدة'
-                })),
-                notes: shipment.notes || '',
-                storekeeperNotes: shipment.storekeeperNotes || null,
-                supplierNotes: shipment.supplierNotes || null,
+                shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+                requestDate: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
+                requestStatus: shipment.requestStatus || shipment.status,
+                received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
+                // إضافة rejectionReason على مستوى shipment أيضاً (بالإضافة إلى details)
                 rejectionReason: shipment.rejectionReason || null,
                 rejectedAt: shipment.rejectedAt || null,
-                department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
-                ...(shipment.confirmationDetails && {
-                    confirmationDetails: {
-                        ...shipment.confirmationDetails,
-                        confirmationNotes: shipment.confirmationDetails.confirmationNotes || null
-                    }
-                })
-            }
-        }));
+                details: {
+                    id: shipment.id,
+                    date: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
+                    status: shipment.requestStatus || shipment.status,
+                    items: (shipment.items || []).map(item => ({
+                        ...item,
+                        // التأكد من وجود جميع الحقول المطلوبة
+                        requested_qty: item.requested_qty || item.requested || item.quantity || 0,
+                        requestedQty: item.requestedQty || item.requested || item.quantity || 0,
+                        quantity: item.quantity || item.requested || item.requested_qty || 0,
+                        unit: item.unit || 'وحدة'
+                    })),
+                    notes: shipment.notes || '',
+                    storekeeperNotes: shipment.storekeeperNotes || null,
+                    supplierNotes: shipment.supplierNotes || null,
+                    rejectionReason: shipment.rejectionReason || null,
+                    rejectedAt: shipment.rejectedAt || null,
+                    department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
+                    ...(shipment.confirmationDetails && {
+                        confirmationDetails: {
+                            ...shipment.confirmationDetails,
+                            confirmationNotes: shipment.confirmationDetails.confirmationNotes || null
+                        }
+                    })
+                }
+            };
+        });
         
         if (shipmentsData.value.length === 0) {
             console.log('لا توجد بيانات متاحة');
@@ -757,15 +777,32 @@ const handleSupplyConfirm = async (data) => {
 };
 
 const openRequestViewModal = (shipment) => {
+    console.log('📋 Opening modal for shipment:', {
+        shipmentId: shipment.id,
+        shipmentStatus: shipment.requestStatus,
+        shipmentRejectionReason: shipment.rejectionReason,
+        detailsRejectionReason: shipment.details?.rejectionReason,
+        fullShipment: shipment
+    });
+    
     // إعداد البيانات للعرض في الـ modal
+    // محاولة جلب rejectionReason من عدة مصادر
+    const rejectionReason = shipment.details?.rejectionReason || 
+                           shipment.rejectionReason || 
+                           null;
+    
+    const rejectedAt = shipment.details?.rejectedAt || 
+                      shipment.rejectedAt || 
+                      null;
+    
     selectedRequestDetails.value = {
         ...shipment.details,
-        rejectionReason: shipment.details.rejectionReason || shipment.rejectionReason || null,
-        rejectedAt: shipment.details.rejectedAt || shipment.rejectedAt || null,
-        notes: shipment.details.notes || '',
-        storekeeperNotes: shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
-        supplierNotes: shipment.details.supplierNotes || shipment.supplierNotes || null,
-        confirmation: shipment.details.confirmationDetails || shipment.confirmationDetails || null
+        rejectionReason: rejectionReason,
+        rejectedAt: rejectedAt,
+        notes: shipment.details?.notes || '',
+        storekeeperNotes: shipment.details?.storekeeperNotes || shipment.storekeeperNotes || null,
+        supplierNotes: shipment.details?.supplierNotes || shipment.supplierNotes || null,
+        confirmation: shipment.details?.confirmationDetails || shipment.confirmationDetails || null
     };
     
     // التأكد من أن confirmation يحتوي على confirmationNotes
@@ -798,7 +835,11 @@ const openRequestViewModal = (shipment) => {
         confirmationNotes: selectedRequestDetails.value.confirmation?.confirmationNotes,
         confirmation: selectedRequestDetails.value.confirmation,
         rejectionReason: selectedRequestDetails.value.rejectionReason,
-        rejectedAt: selectedRequestDetails.value.rejectedAt
+        rejectedAt: selectedRequestDetails.value.rejectedAt,
+        hasRejectionReason: !!selectedRequestDetails.value.rejectionReason,
+        rejectionReasonType: typeof selectedRequestDetails.value.rejectionReason,
+        rejectionReasonLength: selectedRequestDetails.value.rejectionReason ? selectedRequestDetails.value.rejectionReason.length : 0,
+        fullSelectedRequestDetails: selectedRequestDetails.value
     });
     
     isRequestViewModalOpen.value = true;

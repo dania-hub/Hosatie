@@ -136,15 +136,15 @@ const formatDate = (dateString) => {
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="space-y-2">
                             <label class="text-sm font-semibold text-gray-500">الاسم الرباعي</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nameDisplay }}</div>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.name || patient.nameDisplay || '-' }}</div>
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-semibold text-gray-500">الرقم الوطني</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nationalIdDisplay }}</div>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nationalId || patient.nationalIdDisplay || '-' }}</div>
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ formatDate(patient.birthDisplay) }}</div>
+                            <div class="font-bold text-[#2E5077] text-lg">{{ formatDate(patient.birth || patient.birthDisplay) }}</div>
                         </div>
                     </div>
                 </div>

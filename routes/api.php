@@ -453,12 +453,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('requests/{id}/respond', [ComplaintHospitalAdminController::class, 'respond']);//الرد على الشكوى
         Route::post('requests/{id}/reject', [ComplaintHospitalAdminController::class, 'reject']);//رفض الشكوى
 
-        Route::get('/admin-hospital/stats',  [StatsAdminHospitalController::class, 'index']);// إحصائيات المدير
+        Route::get('/stats', [StatsAdminHospitalController::class, 'index']);// إحصائيات المدير
         Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);//قائمة الشحنات (تُستخدم في الواجهتين)
         Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);// تفاصيل الشحنة
-        Route::get('/stats', [StatsAdminHospitalController::class, 'index']);
-        Route::get('/shipments', [ExternalShipmentAdminHospitalController::class, 'index']);
-        Route::get('/shipments/{id}', [ExternalShipmentAdminHospitalController::class, 'show']);
 
         // للواجهة الأولى (المدير)
         Route::put('/shipments/{id}/confirm', [ExternalShipmentAdminHospitalController::class, 'confirm']);// تأكيد الشحنة

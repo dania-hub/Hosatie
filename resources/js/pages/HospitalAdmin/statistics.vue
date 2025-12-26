@@ -68,7 +68,8 @@ const fetchStats = async () => {
 
     try {
         const response = await api.get('/admin-hospital/stats');
-        const data = response.data || response;
+        // Handle both wrapped (data.data) and direct response formats
+        const data = response.data?.data || response.data || response;
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
         stats.value.patientsCount = data.patientsCount || 0;

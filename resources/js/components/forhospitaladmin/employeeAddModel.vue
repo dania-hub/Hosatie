@@ -134,18 +134,8 @@ const validateForm = () => {
     errors.value.role = !data.role || !roleList.includes(data.role);
     if (errors.value.role) isValid = false;
 
-    // التحقق من حقل القسم إذا كان الدور هو "مدير القسم"
-    if (isDepartmentManagerRole(data.role)) {
-        errors.value.department = !data.department;
-        if (errors.value.department) isValid = false;
-        
-        // التحقق من أن القسم ليس لديه مدير بالفعل
-        const deptName = typeof data.department === 'object' ? data.department.name : data.department;
-        if (props.departmentsWithManager.includes(deptName)) {
-            errors.value.department = true;
-            isValid = false;
-        }
-    }
+    // لا يوجد حقل قسم في نموذج الإضافة
+    errors.value.department = false;
 
     // التحقق من وجود مدير مخزن إذا كان الدور هو "مدير المخزن"
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
@@ -178,16 +168,7 @@ const isFormValid = computed(() => {
     // التحقق من حقل الدور الوظيفي
     if (!data.role || !roleList.includes(data.role)) return false;
 
-    // التحقق من حقل القسم إذا كان الدور هو "مدير القسم"
-    if (isDepartmentManagerRole(data.role)) {
-        if (!data.department) return false;
-        
-        // التحقق من أن القسم ليس لديه مدير بالفعل
-        const deptName = typeof data.department === 'object' ? data.department.name : data.department;
-        if (props.departmentsWithManager.includes(deptName)) {
-            return false;
-        }
-    }
+    // لا يوجد حقل قسم في نموذج الإضافة
 
     // التحقق من وجود مدير مخزن
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
@@ -223,7 +204,7 @@ const confirmRegistration = () => {
         phone: form.value.phone,
         email: form.value.email,
         role: form.value.role,
-        department: isDepartmentManagerRole(form.value.role) ? (typeof form.value.department === 'object' ? form.value.department.name : form.value.department) : "",
+        department: null, // لا يوجد قسم في نموذج الإضافة
     };
     
     emit('save', newEmployee);
@@ -244,12 +225,7 @@ watch(() => props.isOpen, (newVal) => {
     }
 });
 
-// مراقبة تغيير الدور لإعادة تعيين حقل القسم
-watch(() => form.value.role, (newRole) => {
-    if (!isDepartmentManagerRole(newRole)) {
-        form.value.department = "";
-    }
-});
+// لا يوجد حقل قسم في نموذج الإضافة
 </script>
 
 <template>
@@ -352,55 +328,6 @@ watch(() => form.value.role, (newRole) => {
                             <p v-if="errors.birth" class="text-sm text-red-500 font-medium">الرجاء تحديد تاريخ الميلاد.</p>
                         </div>
 
-                        <!-- حقل القسم (مشروط) -->
-                        <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 md:col-span-2 animate-in fade-in slide-in-from-top-2">
-                            <label class="text-sm font-semibold text-gray-500">اسم القسم</label>
-                            <div class="relative">
-                                <select
-                                    required
-                                    v-model="form.department"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.department, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.department }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
-                                >
-                                    <option value="" disabled selected>اختر القسم</option>
-                                    <option 
-                                        v-for="dept in filteredDepartments" 
-                                        :key="typeof dept === 'object' ? dept.id : dept" 
-                                        :value="typeof dept === 'object' ? dept.name : dept"
-                                        :disabled="props.departmentsWithManager.includes(typeof dept === 'object' ? dept.name : dept)"
-                                    >
-                                        {{ typeof dept === 'object' ? dept.name : dept }}
-                                        <template v-if="props.departmentsWithManager.includes(typeof dept === 'object' ? dept.name : dept)">
-                                            (لديه مدير)
-                                        </template>
-                                    </option>
-                                </select>
-                                <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
-                            </div>
-                            <p v-if="errors.department" class="text-sm text-red-500 font-medium">
-                                {{ form.department && props.departmentsWithManager.includes(typeof form.department === 'object' ? form.department.name : form.department) 
-                                    ? 'هذا القسم لديه مدير بالفعل!' 
-                                    : 'الرجاء اختيار القسم.' }}
-                            </p>
-                        </div>
-
-                        <!-- تنبيهات -->
-                        <div v-if="isDepartmentManagerRole(form.role)" class="md:col-span-2">
-                            <div v-if="props.departmentsWithManager && props.departmentsWithManager.length > 0" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
-                                <Icon icon="solar:info-circle-bold" class="w-6 h-6 text-blue-600 flex-shrink-0" />
-                                <div class="text-sm text-blue-700">
-                                    <span class="font-bold block mb-1">ملاحظة:</span>
-                                    الأقسام التالية لها مدير بالفعل:
-                                    <ul class="mt-1 list-disc list-inside">
-                                        <li v-for="dept in props.departmentsWithManager" :key="dept">{{ dept }}</li>
-                                    </ul>
-                                </div>
-                            </div>
-                            <div v-else class="bg-green-50 border border-green-100 rounded-xl p-4 flex gap-3">
-                                <Icon icon="solar:check-circle-bold" class="w-6 h-6 text-green-600 flex-shrink-0" />
-                                <p class="text-sm text-green-700 font-medium">جميع الأقسام متاحة لتولي منصب المدير.</p>
-                            </div>
-                        </div>
 
                         <div v-if="isWarehouseManagerRole(form.role)" class="md:col-span-2">
                             <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex gap-3">

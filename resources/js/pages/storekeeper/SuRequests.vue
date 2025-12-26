@@ -485,6 +485,18 @@ const fetchShipments = async () => {
         console.log('Final data count:', data.length);
         console.log('First item (if exists):', data[0]);
         
+        // طباعة بيانات الطلبات المرفوضة للتأكد من وجود rejectionReason
+        const rejectedShipments = data.filter(s => s.status === 'rejected' || s.requestStatus === 'مرفوضة');
+        if (rejectedShipments.length > 0) {
+            console.log('🔴 Rejected shipments:', rejectedShipments.map(s => ({
+                id: s.id,
+                status: s.status,
+                requestStatus: s.requestStatus,
+                rejectionReason: s.rejectionReason,
+                rejectedAt: s.rejectedAt
+            })));
+        }
+        
         shipmentsData.value = data.map(shipment => ({
             id: shipment.id,
             shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
@@ -748,8 +760,8 @@ const openRequestViewModal = (shipment) => {
     // إعداد البيانات للعرض في الـ modal
     selectedRequestDetails.value = {
         ...shipment.details,
-        rejectionReason: shipment.details.rejectionReason || null,
-        rejectedAt: shipment.details.rejectedAt || null,
+        rejectionReason: shipment.details.rejectionReason || shipment.rejectionReason || null,
+        rejectedAt: shipment.details.rejectedAt || shipment.rejectedAt || null,
         notes: shipment.details.notes || '',
         storekeeperNotes: shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
         supplierNotes: shipment.details.supplierNotes || shipment.supplierNotes || null,
@@ -784,7 +796,9 @@ const openRequestViewModal = (shipment) => {
         storekeeperNotes: selectedRequestDetails.value.storekeeperNotes,
         supplierNotes: selectedRequestDetails.value.supplierNotes,
         confirmationNotes: selectedRequestDetails.value.confirmation?.confirmationNotes,
-        confirmation: selectedRequestDetails.value.confirmation
+        confirmation: selectedRequestDetails.value.confirmation,
+        rejectionReason: selectedRequestDetails.value.rejectionReason,
+        rejectedAt: selectedRequestDetails.value.rejectedAt
     });
     
     isRequestViewModalOpen.value = true;

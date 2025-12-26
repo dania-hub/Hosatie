@@ -107,7 +107,10 @@ const fetchPatients = async () => {
   
   try {
     const response = await api.get('/admin-hospital/patients');
-    patients.value = (response.data || response || []).map(patient => ({
+    // The interceptor returns response.data, so response is already the data object
+    // Handle both wrapped (data.data) and direct array formats
+    const data = response?.data || response || [];
+    patients.value = (Array.isArray(data) ? data : []).map(patient => ({
       ...patient,
       lastUpdated: patient.lastUpdated || new Date().toISOString(),
       // إضافة خصائص العرض إذا لم تكن موجودة
@@ -170,7 +173,8 @@ const formatDateForDisplay = (dateString) => {
 const fetchPatientDetails = async (patientId) => {
   try {
     const response = await api.get(`/admin-hospital/patients/${patientId}`);
-    const patientData = response.data || response;
+    // The interceptor returns response.data, so response is already the data object
+    const patientData = response?.data || response;
     
     // تنسيق البيانات للعرض
     return {
@@ -192,7 +196,8 @@ const updatePatientMedications = async (patientId, medications) => {
     const response = await api.put(`/admin-hospital/patients/${patientId}/medications`, {
       medications
     });
-    return response.data || response;
+    // The interceptor returns response.data, so response is already the data object
+    return response?.data || response;
   } catch (err) {
     console.error('فشل تحديث الأدوية:', err);
     throw err;
@@ -203,7 +208,9 @@ const updatePatientMedications = async (patientId, medications) => {
 const fetchDispensationHistory = async (patientId) => {
   try {
     const response = await api.get(`/admin-hospital/patients/${patientId}/dispensation-history`);
-    return response.data || response || [];
+    // The interceptor returns response.data, so response is already the data object
+    const data = response?.data || response || [];
+    return Array.isArray(data) ? data : [];
   } catch (err) {
     console.error('فشل جلب سجل الصرف:', err);
     throw err;

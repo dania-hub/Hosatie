@@ -103,13 +103,13 @@ const fetchDepartments = async () => {
     }
 };
 
-// جلب بيانات الموظفين
+// جلب بيانات الموظفين (مدراء الأقسام فقط)
 const fetchEmployees = async () => {
     loadingEmployees.value = true;
     employeesError.value = null;
     
     try {
-        const response = await api.get('/admin-hospital/staff');
+        const response = await api.get('/admin-hospital/employees');
         
         // التحقق من بنية الاستجابة
         let data = [];
@@ -123,7 +123,15 @@ const fetchEmployees = async () => {
             }
         }
         
-        availableEmployees.value = data;
+        // تحويل البيانات إلى الشكل المطلوب
+        availableEmployees.value = data.map(emp => ({
+            id: emp.id,
+            fileNumber: emp.id,
+            name: emp.fullName || emp.name,
+            full_name: emp.fullName || emp.name,
+            nameDisplay: emp.fullName || emp.name,
+            isActive: emp.isActive !== undefined ? emp.isActive : true,
+        }));
     } catch (err) {
         console.error("Error fetching employees:", err);
         availableEmployees.value = [];
@@ -374,6 +382,7 @@ const updateDepartment = async (updatedDepartment) => {
         const departmentData = {
             name: updatedDepartment.name,
             managerId: updatedDepartment.managerId || null,
+            isActive: updatedDepartment.isActive !== undefined ? updatedDepartment.isActive : true,
         };
 
         const response = await api.put(

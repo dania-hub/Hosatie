@@ -152,15 +152,12 @@
                     <div class="overflow-x-auto h-full">
                         <table
                             dir="rtl"
-                            class="table w-full text-right min-w-[750px] border-collapse"
+                            class="table w-full text-right min-w-[550px] border-collapse"
                         >
                             <thead
                                 class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                             >
                                 <tr>
-                                    <th class="department-col">
-                                        الجهة الطالبة
-                                    </th>
                                     <th class="shipment-number-col">
                                         رقم الشحنة
                                     </th>
@@ -179,7 +176,7 @@
                                     v-if="filteredShipments.length === 0"
                                     class="text-center py-8"
                                 >
-                                    <td colspan="5" class="py-8 text-gray-500">
+                                    <td colspan="4" class="py-8 text-gray-500">
                                         لا توجد شحنات لعرضها
                                     </td>
                                 </tr>
@@ -189,9 +186,6 @@
                                     :key="shipment.id"
                                     class="hover:bg-gray-100 bg-white border-b border-gray-200"
                                 >
-                                    <td class="font-semibold text-gray-700">
-                                        {{ shipment.requestingDepartment }}
-                                    </td>
                                     <td class="font-semibold text-gray-700">
                                         {{ shipment.shipmentNumber }}
                                     </td>
@@ -489,8 +483,7 @@ const filteredShipments = computed(() => {
         list = list.filter(
             (shipment) =>
                 (shipment.shipmentNumber?.toLowerCase() || '').includes(search) ||
-                (shipment.status?.includes(search) || false) ||
-                (shipment.requestingDepartment?.includes(search) || false)
+                (shipment.status?.includes(search) || false)
         );
     }
 
@@ -686,7 +679,6 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 <table>
 <thead>
     <tr>
-    <th>الجهة الطالبة</th>
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
@@ -699,7 +691,6 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
         const receivedIcon = shipment.received ? '✅' : '❌';
         tableHtml += `
 <tr>
-    <td>${shipment.requestingDepartment || 'غير محدد'}</td>
     <td>${shipment.shipmentNumber || 'غير محدد'}</td>
     <td>${formatDate(shipment.requestDate)}</td>
     <td>${shipment.status || 'غير محدد'}</td>
@@ -778,12 +769,6 @@ onMounted(() => {
     background-color: #3a8c94;
 }
 
-/* نمط العمود: الجهة الطالبة */
-.department-col {
-    width: 200px; 
-    min-width: 200px;
-}
-
 .shipment-number-col {
     width: 120px;
     min-width: 120px;
@@ -804,10 +789,6 @@ onMounted(() => {
 
 /* تحسينات للجوال */
 @media (max-width: 640px) {
-    .department-col {
-        width: 150px;
-        min-width: 150px;
-    }
     .status-col {
         width: 120px;
         min-width: 120px;

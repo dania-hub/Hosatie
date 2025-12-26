@@ -66,6 +66,12 @@ class User extends Authenticatable
         return $this->belongsTo(Department::class);
     }
 
+    // علاقة عكسية: القسم الذي يكون المستخدم مديراً له
+    public function managedDepartment()
+    {
+        return $this->hasOne(Department::class, 'head_user_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

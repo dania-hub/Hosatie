@@ -120,11 +120,11 @@ const fetchPatientDetails = async (patientId) => {
         if (typeof med.monthlyQuantity === 'number') {
           med.monthlyQuantity = med.monthlyQuantity > 0 ? med.monthlyQuantity + ' ' + unit : 'غير محدد';
         }
-        // إذا كانت dosage غير موجودة أو "غير محدد" ولكن monthlyQuantityNum موجودة
-        if ((!med.dosage || med.dosage === 'غير محدد') && med.monthlyQuantityNum) {
-          const dailyQty = med.monthlyQuantityNum > 0 ? Math.round((med.monthlyQuantityNum / 30) * 10) / 10 : 0;
+        // استخدام daily_quantity مباشرة من البيانات
+        if ((!med.dosage || med.dosage === 'غير محدد')) {
+          const dailyQty = med.dailyQuantity || med.daily_quantity || 0;
           if (dailyQty > 0) {
-            med.dosage = (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' ' + unit + ' يومياً';
+            med.dosage = dailyQty + ' ' + unit + ' يومياً';
           }
         }
         // التأكد من وجود وحدة القياس في الكائن

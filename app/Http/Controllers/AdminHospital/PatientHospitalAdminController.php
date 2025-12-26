@@ -62,29 +62,69 @@ class PatientHospitalAdminController extends BaseApiController
             ->where('hospital_id', $hospitalId)
             ->findOrFail($id);
 
-        // آخر وصفة للمريض في هذا المستشفى (يمكنك إضافة شرط status لو عندك قيم محددة)
-        $prescription = Prescription::where('patient_id', $u->id)
+        // جلب جميع الوصفات للمريض (من أي مستشفى) - لإظهار الأدوية للمرضى المنقولين حديثاً
+        // نحاول أولاً الحصول على وصفات من المستشفى الحالي، وإذا لم توجد نأخذ وصفات من أي مستشفى
+        $prescriptions = Prescription::with('doctor')
+            ->where('patient_id', $u->id)
             ->where('hospital_id', $hospitalId)
             ->latest('start_date')
-            ->first();
+            ->get();
+        
+        // إذا لم توجد وصفات في المستشفى الحالي، نبحث في جميع المستشفيات (للمرضى المنقولين)
+        if ($prescriptions->isEmpty()) {
+            $prescriptions = Prescription::with('doctor')
+                ->where('patient_id', $u->id)
+                ->latest('start_date')
+                ->get();
+        }
 
         $medications = [];
 
-        if ($prescription) {
+        // جلب الأدوية من جميع الوصفات النشطة
+        if ($prescriptions->isNotEmpty()) {
+            $prescriptionIds = $prescriptions->pluck('id');
             $medications = PrescriptionDrug::with('drug')
-                ->where('prescription_id', $prescription->id)
+                ->whereIn('prescription_id', $prescriptionIds)
                 ->get()
-                ->map(function ($pd) use ($u, $prescription) {
+                ->map(function ($pd) use ($u, $prescriptions) {
+                    // البحث عن الوصفة المرتبطة بهذا الدواء
+                    $prescription = $prescriptions->firstWhere('id', $pd->prescription_id);
                     $drug = $pd->drug;
                     $monthlyQty = (int)($pd->monthly_quantity ?? 0);
                     
                     // تحديد وحدة القياس من بيانات الدواء
-                    $unit = $drug?->unit ?? 'حبة';
+                    // التأكد من أن drug محمّل بشكل صحيح
+                    if (!$drug) {
+                        // إذا لم يكن drug محمّلاً، نحاول تحميله
+                        $drug = \App\Models\Drug::find($pd->drug_id);
+                    }
+                    
+                    // استخدام unit من الدواء، مع تنظيف القيمة إذا كانت موجودة
+                    $unit = 'حبة'; // القيمة الافتراضية
+                    if ($drug && !empty($drug->unit)) {
+                        $unit = trim($drug->unit);
+                        // تحويل بعض الوحدات الشائعة إلى العربية إذا لزم الأمر
+                        $unitMap = [
+                            'vial' => 'قارورة',
+                            'ampoule' => 'قارورة',
+                            'ampule' => 'قارورة',
+                            'tablet' => 'قرص',
+                            'capsule' => 'كبسولة',
+                            'ml' => 'مل',
+                            'mg' => 'ملغ',
+                            'g' => 'جرام',
+                            'gram' => 'جرام',
+                        ];
+                        $unitLower = strtolower($unit);
+                        if (isset($unitMap[$unitLower])) {
+                            $unit = $unitMap[$unitLower];
+                        }
+                    }
                     
                     // تاريخ الإسناد (من pivot created_at أو start_date من الوصفة)
                     $assignmentDate = $pd->created_at
                         ? Carbon::parse($pd->created_at)->format('Y/m/d')
-                        : ($prescription->start_date ? Carbon::parse($prescription->start_date)->format('Y/m/d') : null);
+                        : ($prescription && $prescription->start_date ? Carbon::parse($prescription->start_date)->format('Y/m/d') : null);
                     
                     // آخر عملية صرف لهذا الدواء
                     $lastDispense = Dispensing::where('patient_id', $u->id)
@@ -115,33 +155,50 @@ class PatientHospitalAdminController extends BaseApiController
                     $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
                     
                     // اسم من قام بالإسناد (من audit_log أو اسم الطبيب كبديل)
-                    $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                    // البحث في كلا الاسمين: 'prescription_drug' و 'prescription_drugs'
+                    $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
                         ->where('record_id', $pd->id)
                         ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
                         ->with('user')
                         ->latest()
                         ->first();
                     
-                    $assignedBy = $latestLog && $latestLog->user 
-                        ? $latestLog->user->full_name 
-                        : ($prescription->doctor 
-                            ? ($prescription->doctor->full_name ?? $prescription->doctor->name ?? 'غير محدد')
-                            : 'غير محدد');
+                    $assignedBy = 'غير محدد';
                     
-                    // حساب الجرعة اليومية من الكمية الشهرية
-                    $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                    // أولوية: اسم المستخدم من audit_log
+                    if ($latestLog && $latestLog->user) {
+                        $assignedBy = $latestLog->user->full_name ?? $latestLog->user->name ?? 'غير محدد';
+                    } 
+                    // بديل: اسم الطبيب من الوصفة
+                    elseif ($prescription && $prescription->doctor) {
+                        $assignedBy = $prescription->doctor->full_name ?? $prescription->doctor->name ?? 'غير محدد';
+                    }
                     
-                    // تحويل الجرعة اليومية إلى نص (مثل: "5 قرص" أو "قرصين")
+                    // حساب الجرعة اليومية: استخدام daily_quantity إذا كان موجوداً، وإلا حسابها من monthly_quantity
+                    $dailyQty = (int)($pd->daily_quantity ?? 0);
+                    if ($dailyQty === 0 && $monthlyQty > 0) {
+                        $dailyQty = round($monthlyQty / 30, 1);
+                    }
+                    
+                    // تحويل الجرعة اليومية إلى نص مع استخدام وحدة القياس الصحيحة من بيانات الدواء
                     if ($dailyQty > 0) {
-                        $dosageInt = (int)$dailyQty;
-                        if ($dosageInt == 1) {
-                            $dosageText = 'قرص واحد';
-                        } elseif ($dosageInt == 2) {
-                            $dosageText = 'قرصين';
+                        // إذا كانت الجرعة عدد صحيح، نعرضها كرقم
+                        if ($dailyQty == (int)$dailyQty) {
+                            $dosageInt = (int)$dailyQty;
+                            if ($dosageInt === 1) {
+                                $dosageText = '1 ' . $unit;
+                            } elseif ($dosageInt === 2) {
+                                $dosageText = '2 ' . $unit;
+                            } else {
+                                $dosageText = $dosageInt . ' ' . $unit;
+                            }
                         } else {
-                            $dosageText = $dosageInt . ' قرص';
+                            // إذا كانت الجرعة عدد عشري، نعرضها كما هي
+                            $dosageText = $dailyQty . ' ' . $unit;
                         }
+                        $dosageText .= ' يومياً';
                     } else {
+                        // إذا لم توجد جرعة، نعرض strength أو "غير محدد"
                         $dosageText = $drug?->strength ?? 'غير محدد';
                     }
                     
@@ -169,7 +226,7 @@ class PatientHospitalAdminController extends BaseApiController
             'nationalId'    => $u->national_id,
             'birth'         => optional($u->birth_date)->toDateString(),
             'phone'         => $u->phone,
-            'prescriptionId'=> $prescription?->id,
+            'prescriptionId'=> $prescriptions->first()?->id,
             'medications'   => $medications,
         ]);
     }

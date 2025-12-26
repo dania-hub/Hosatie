@@ -23,8 +23,11 @@ class OperationLogController extends BaseApiController
             // إضافة تفاصيل الدواء إذا كانت العملية متعلقة بدواء
             $operationType = $this->addDrugDetails($log, $translatedAction);
 
+            // الحصول على رقم الملف المناسب (رقم ملف الشحنة للشحنات، رقم المريض للمرضى)
+            $fileNumber = $this->getFileNumber($log);
+
             return [
-                'fileNumber'    => $log->record_id,                       // أو صيغة أخرى
+                'fileNumber'    => $fileNumber,
                 'name'          => $user->full_name ?? 'غير معروف',
                 'patientName'   => $patientName,                          // اسم المريض أو "-"
                 'operationType' => $operationType,                       // نوع العملية معرّب مع تفاصيل الدواء إن وجدت
@@ -43,8 +46,21 @@ class OperationLogController extends BaseApiController
      */
     private function getPatientName($log)
     {
-        // إذا لم يكن هناك table_name أو record_id، لا يوجد مريض
-        if (!$log->table_name || !$log->record_id) {
+        // إذا لم يكن هناك table_name، لا يمكن تحديد المريض
+        if (!$log->table_name) {
+            // محاولة أخيرة - البحث في JSON عن patient_id أو patient_name
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            if (is_array($values)) {
+                if (isset($values['patient_name'])) {
+                    return $values['patient_name'];
+                }
+                if (isset($values['patient_id'])) {
+                    $patient = User::find($values['patient_id']);
+                    if ($patient && $patient->type === 'patient') {
+                        return $patient->full_name ?? '-';
+                    }
+                }
+            }
             return '-';
         }
 
@@ -92,8 +108,8 @@ class OperationLogController extends BaseApiController
             return '-';
         }
 
-        // الحالة 3: العملية مرتبطة بدواء في وصفة (table_name = 'prescription_drug')
-        if ($log->table_name === 'prescription_drug') {
+        // الحالة 3: العملية مرتبطة بدواء في وصفة (table_name = 'prescription_drug' أو 'prescription_drugs')
+        if ($log->table_name === 'prescription_drug' || $log->table_name === 'prescription_drugs') {
             $prescriptionDrug = PrescriptionDrug::with('prescription.patient')->find($log->record_id);
             
             if ($prescriptionDrug && $prescriptionDrug->prescription && $prescriptionDrug->prescription->patient) {
@@ -114,9 +130,57 @@ class OperationLogController extends BaseApiController
                         return $prescription->patient->full_name ?? '-';
                     }
                 }
+                // إذا كان هناك patient_name مباشرة في JSON (مثل في حالة صرف الأدوية)
+                if (isset($values['patient_name'])) {
+                    return $values['patient_name'];
+                }
             }
             
             return '-';
+        }
+
+        // الحالة 4: العملية مرتبطة بصرف دواء (table_name = 'dispensings')
+        // في هذه الحالة، record_id هو patient_id مباشرة
+        if ($log->table_name === 'dispensings') {
+            // محاولة استخراج اسم المريض من JSON أولاً
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            if (is_array($values)) {
+                if (isset($values['patient_name'])) {
+                    return $values['patient_name'];
+                }
+                if (isset($values['patient_id'])) {
+                    $patient = User::find($values['patient_id']);
+                    if ($patient && $patient->type === 'patient') {
+                        return $patient->full_name ?? '-';
+                    }
+                }
+            }
+            
+            // إذا لم نجد في JSON، جرب استخدام record_id كـ patient_id
+            if ($log->record_id) {
+                $patient = User::find($log->record_id);
+                if ($patient && $patient->type === 'patient') {
+                    return $patient->full_name ?? '-';
+                }
+            }
+            
+            return '-';
+        }
+
+        // الحالة 5: محاولة أخيرة - البحث في JSON عن patient_id أو patient_name لأي جدول آخر
+        $values = json_decode($log->new_values ?? $log->old_values, true);
+        if (is_array($values)) {
+            // إذا كان هناك patient_name مباشرة
+            if (isset($values['patient_name'])) {
+                return $values['patient_name'];
+            }
+            // إذا كان هناك patient_id، جرب جلب المريض
+            if (isset($values['patient_id'])) {
+                $patient = User::find($values['patient_id']);
+                if ($patient && $patient->type === 'patient') {
+                    return $patient->full_name ?? '-';
+                }
+            }
         }
 
         // في جميع الحالات الأخرى، لا يوجد مريض مرتبط
@@ -141,15 +205,27 @@ class OperationLogController extends BaseApiController
             'إضافة دواء' => 'إضافة دواء للمريض',
             'تعديل دواء' => 'تعديل دواء للمريض',
             'حذف دواء' => 'حذف دواء من المريض',
+            'تراجع عن صرف وصفة طبية' => 'تراجع عن صرف وصفة طبية',
             
-            // عمليات طلبات التوريد
+            // عمليات طلبات التوريد الداخلية
             'إنشاء طلب توريد' => 'إنشاء طلب توريد',
-            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            'department_create_supply_request' => 'إنشاء طلب توريد داخلي (قسم)',
+            'pharmacist_create_supply_request' => 'إنشاء طلب توريد داخلي (صيدلي)',
             'storekeeper_confirm_internal_request' => 'تأكيد طلب توريد داخلي',
+            'رفض طلب توريد داخلي' => 'رفض طلب توريد داخلي',
             
-            // عمليات الشحنات
+            // عمليات الشحنات الداخلية
             'استلام شحنة' => 'استلام شحنة',
             'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية',
+            'department_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (قسم)',
+            
+            // عمليات طلبات التوريد الخارجية
+            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            'storekeeper_confirm_external_delivery' => 'تأكيد استلام توريد خارجي',
+            'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
+            'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي (مورد)',
+            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
+            'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
             
             // عمليات عامة
             'create' => 'إنشاء',
@@ -163,6 +239,10 @@ class OperationLogController extends BaseApiController
             'dispensed' => 'صرف وصفة طبية',
             'approved' => 'موافقة',
             'rejected' => 'رفض',
+            'confirm' => 'تأكيد',
+            'confirmed' => 'تم التأكيد',
+            'reject' => 'رفض',
+            'rejection' => 'رفض',
         ];
 
         // إذا كانت الترجمة موجودة، استخدمها
@@ -170,11 +250,60 @@ class OperationLogController extends BaseApiController
             return $translations[$action];
         }
 
-        // إذا كانت العملية بالفعل بالعربية، أعدها كما هي
-        // (يمكن إضافة فحص بسيط هنا إذا لزم الأمر)
+        // التحقق من إذا كانت النص يحتوي على أحرف عربية (نسبة بسيطة من الأحرف العربية)
+        // إذا كانت النص يحتوي على أحرف عربية أكثر من الإنجليزية، أعدها كما هي
+        $arabicChars = preg_match_all('/[\x{0600}-\x{06FF}]/u', $action);
+        $totalChars = mb_strlen($action);
+        if ($totalChars > 0 && ($arabicChars / $totalChars) > 0.3) {
+            return $action;
+        }
         
-        // في حالة عدم وجود ترجمة، أعد النص الأصلي
+        // في حالة عدم وجود ترجمة والنص ليس عربي، أعد النص الأصلي
+        // (يمكن إضافة ترجمة تلقائية هنا في المستقبل)
         return $action;
+    }
+
+    /**
+     * الحصول على رقم الملف المناسب حسب نوع العملية
+     * 
+     * @param AuditLog $log
+     * @return string|int
+     */
+    private function getFileNumber($log)
+    {
+        // للعمليات المتعلقة بالشحنات الداخلية (internal_supply_request)
+        if ($log->table_name === 'internal_supply_request') {
+            // محاولة استخراج request_id من JSON أولاً
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            $requestId = null;
+            if (is_array($values) && isset($values['request_id'])) {
+                $requestId = $values['request_id'];
+            } elseif ($log->record_id) {
+                $requestId = $log->record_id;
+            }
+            return $requestId ? 'INT-' . $requestId : ($log->record_id ?? '-');
+        }
+        
+        // للعمليات المتعلقة بالطلبات الخارجية (external_supply_request)
+        if ($log->table_name === 'external_supply_request') {
+            // محاولة استخراج request_id من JSON أولاً
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            $requestId = null;
+            if (is_array($values) && isset($values['request_id'])) {
+                $requestId = $values['request_id'];
+            } elseif ($log->record_id) {
+                $requestId = $log->record_id;
+            }
+            return $requestId ? 'EXT-' . $requestId : ($log->record_id ?? '-');
+        }
+        
+        // للعمليات المتعلقة بالمرضى، استخدم record_id كرقم ملف
+        if (in_array($log->table_name, ['users', 'prescription', 'prescription_drug', 'prescription_drugs', 'dispensings'])) {
+            return $log->record_id ?? '-';
+        }
+        
+        // في جميع الحالات الأخرى، استخدم record_id
+        return $log->record_id ?? '-';
     }
 
     /**
@@ -187,7 +316,7 @@ class OperationLogController extends BaseApiController
     private function addDrugDetails($log, $translatedAction)
     {
         // فقط للعمليات المتعلقة بالأدوية في الوصفات
-        if ($log->table_name !== 'prescription_drug') {
+        if ($log->table_name !== 'prescription_drug' && $log->table_name !== 'prescription_drugs') {
             return $translatedAction;
         }
 

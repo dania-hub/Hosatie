@@ -58,39 +58,62 @@ class DrugHospitalAdminController extends BaseApiController
                 'warehouse_ids' => $warehouseIds,
             ]);
 
-            // جلب جميع الأدوية من قاعدة البيانات
-            $drugs = Drug::orderBy('name')->get();
-
-            // جلب المخزون من جميع الصيدليات والمستودعات في المستشفى
-            $inventoriesQuery = Inventory::where(function($query) use ($pharmacyIds, $warehouseIds) {
-                // المخزون من الصيدليات
-                if (!empty($pharmacyIds)) {
-                    $query->where(function($q) use ($pharmacyIds) {
-                        $q->whereIn('pharmacy_id', $pharmacyIds)
-                          ->whereNotNull('pharmacy_id')
-                          ->whereNull('warehouse_id');
-                    });
-                }
-                
-                // المخزون من المستودعات
-                if (!empty($warehouseIds)) {
+            // جلب المخزون من جميع الصيدليات والمستودعات في المستشفى فقط
+            // استخدام joins للتأكد من أن الصيدليات والمستودعات تتبع المستشفى الصحيح
+            $inventoriesQuery = Inventory::query()
+                ->where(function($query) use ($hospitalId, $pharmacyIds, $warehouseIds) {
+                    // المخزون من الصيدليات التابعة للمستشفى
                     if (!empty($pharmacyIds)) {
-                        $query->orWhere(function($q) use ($warehouseIds) {
-                            $q->whereIn('warehouse_id', $warehouseIds)
-                              ->whereNotNull('warehouse_id')
-                              ->whereNull('pharmacy_id');
-                        });
-                    } else {
-                        $query->where(function($q) use ($warehouseIds) {
-                            $q->whereIn('warehouse_id', $warehouseIds)
-                              ->whereNotNull('warehouse_id')
-                              ->whereNull('pharmacy_id');
+                        $query->where(function($q) use ($hospitalId, $pharmacyIds) {
+                            $q->whereNotNull('pharmacy_id')
+                              ->whereNull('warehouse_id')
+                              ->whereIn('pharmacy_id', $pharmacyIds)
+                              // تأكيد إضافي: التأكد من أن الصيدلية تتبع المستشفى الصحيح
+                              ->whereHas('pharmacy', function($pharmacyQuery) use ($hospitalId) {
+                                  $pharmacyQuery->where('hospital_id', $hospitalId)
+                                                 ->where('status', 'active');
+                              });
                         });
                     }
-                }
-            });
+                    
+                    // المخزون من المستودعات التابعة للمستشفى
+                    if (!empty($warehouseIds)) {
+                        if (!empty($pharmacyIds)) {
+                            $query->orWhere(function($q) use ($hospitalId, $warehouseIds) {
+                                $q->whereNotNull('warehouse_id')
+                                  ->whereNull('pharmacy_id')
+                                  ->whereIn('warehouse_id', $warehouseIds)
+                                  // تأكيد إضافي: التأكد من أن المستودع يتبع المستشفى الصحيح
+                                  ->whereHas('warehouse', function($warehouseQuery) use ($hospitalId) {
+                                      $warehouseQuery->where('hospital_id', $hospitalId)
+                                                      ->where('status', 'active');
+                                  });
+                            });
+                        } else {
+                            $query->where(function($q) use ($hospitalId, $warehouseIds) {
+                                $q->whereNotNull('warehouse_id')
+                                  ->whereNull('pharmacy_id')
+                                  ->whereIn('warehouse_id', $warehouseIds)
+                                  // تأكيد إضافي: التأكد من أن المستودع يتبع المستشفى الصحيح
+                                  ->whereHas('warehouse', function($warehouseQuery) use ($hospitalId) {
+                                      $warehouseQuery->where('hospital_id', $hospitalId)
+                                                      ->where('status', 'active');
+                                  });
+                            });
+                        }
+                    }
+                });
             
-            $inventories = $inventoriesQuery->with(['pharmacy', 'warehouse'])->get()->groupBy('drug_id');
+            $inventories = $inventoriesQuery->with(['pharmacy', 'warehouse', 'drug'])->get()->groupBy('drug_id');
+            
+            // جلب الأدوية فقط التي لها مخزون في الصيدليات أو المستودعات التابعة للمستشفى
+            $drugIds = $inventories->keys()->toArray();
+            
+            if (empty($drugIds)) {
+                return $this->sendSuccess([], 'لا توجد أدوية في مخزون المستشفى حالياً.');
+            }
+            
+            $drugs = Drug::whereIn('id', $drugIds)->orderBy('name')->get();
             
             // تسجيل للمساعدة في التصحيح
             $allInventories = $inventoriesQuery->get();
@@ -127,10 +150,10 @@ class DrugHospitalAdminController extends BaseApiController
                     return $carry + (int)($inventory->current_quantity ?? 0);
                 }, 0);
                 
-                // حساب الحد الأدنى الإجمالي (نأخذ أعلى قيمة)
-                $maxMinimumLevel = $drugInventories->reduce(function ($carry, $inventory) {
+                // حساب الحد الأدنى الإجمالي (نجمع جميع القيم)
+                $totalMinimumLevel = $drugInventories->reduce(function ($carry, $inventory) {
                     $minLevel = (int)($inventory->minimum_level ?? 0);
-                    return max($carry, $minLevel);
+                    return $carry + $minLevel;
                 }, 0);
                 
                 // معلومات الصيدليات والمستودعات التي تحتوي على هذا الدواء
@@ -187,14 +210,19 @@ class DrugHospitalAdminController extends BaseApiController
                     'country' => $drug->country,
                     'utilizationType' => $drug->utilization_type,
                     'quantity' => $totalQuantity, // الكمية الإجمالية من جميع الصيدليات
-                    'neededQuantity' => $maxMinimumLevel, // الحد الأدنى المطلوب
+                    'neededQuantity' => $totalMinimumLevel, // الحد الأدنى المطلوب (مجموع من جميع الصيدليات والمستودعات)
                     'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
                     'description' => $drug->description ?? '',
                     'type' => $drug->form ?? 'Tablet',
                     'pharmacies' => $pharmaciesInfo, // معلومات الصيدليات التي تحتوي على الدواء
                     'pharmacyCount' => $pharmaciesInfo->count(), // عدد الصيدليات التي تحتوي على الدواء
                 ];
-            })->values(); // إعادة فهرسة المصفوفة
+            })
+            ->filter(function($drug) {
+                // استبعاد الأدوية التي ليس لها مخزون (quantity = 0)
+                return $drug['quantity'] > 0;
+            })
+            ->values(); // إعادة فهرسة المصفوفة
 
             return $this->sendSuccess($result, 'تم جلب قائمة الأدوية من جميع الصيدليات بنجاح.');
 

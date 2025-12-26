@@ -138,16 +138,16 @@ class PatientDoctorController extends BaseApiController
                     ? $latestLog->user->full_name 
                     : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
                 
-                // الحصول على الكمية الشهرية
+                // الحصول على الكمية الشهرية والجرعة اليومية
                 $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                $dailyQty = (int)($drug->pivot->daily_quantity ?? 0);
                 
                 // تحديد وحدة القياس من بيانات الدواء
                 $unit = $this->getDrugUnit($drug);
                 
-                // تحويل الجرعة الشهرية إلى جرعة يومية نصية
-                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                // استخدام daily_quantity مباشرة للجرعة اليومية
                 $dosageText = $dailyQty > 0 
-                    ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                    ? $dailyQty . ' ' . $unit . ' يومياً'
                     : 'غير محدد';
                 
                 // تنسيق الكمية الشهرية كنص مع الوحدة الصحيحة
@@ -159,6 +159,7 @@ class PatientDoctorController extends BaseApiController
                     'drugName' => $drug->name,
                     'strength' => $drug->strength ?? null,
                     'dosage'   => $dosageText, // الجرعة اليومية: "2 مل يومياً" أو "2 حبة يومياً"
+                    'dailyQuantity' => $dailyQty, // الجرعة اليومية كرقم
                     'monthlyQuantity' => $monthlyQuantityText, // الكمية الشهرية: "60 مل" أو "60 حبة"
                     'monthlyQuantityNum' => $monthlyQty, // الكمية الشهرية كرقم للعمليات الحسابية
                     'unit' => $unit, // وحدة القياس

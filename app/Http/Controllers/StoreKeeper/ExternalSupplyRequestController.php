@@ -252,8 +252,49 @@ class ExternalSupplyRequestController extends BaseApiController
                 }
             }
             
+            // جلب سبب الرفض من audit_log (إذا كان الطلب مرفوضاً)
+            $rejectionReason = null;
+            $rejectedAt = null;
+            // التحقق من حالة الطلب مباشرة من status
+            if ($requestData['status'] === 'rejected') {
+                $rejectionAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                    ->where('record_id', $reqId)
+                    ->where(function($query) {
+                        $query->where('action', 'supplier_reject_external_supply_request')
+                              ->orWhere('action', 'hospital_admin_reject_external_supply_request')
+                              ->orWhere('action', 'like', '%reject%');
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                if ($rejectionAuditLog) {
+                    $rejectedAt = $rejectionAuditLog->created_at ? $rejectionAuditLog->created_at->toIso8601String() : null;
+                    
+                    // محاولة استخراج سبب الرفض من new_values
+                    if ($rejectionAuditLog->new_values) {
+                        $newValues = json_decode($rejectionAuditLog->new_values, true);
+                        if (isset($newValues['rejectionReason']) && !empty(trim($newValues['rejectionReason']))) {
+                            $rejectionReason = trim($newValues['rejectionReason']);
+                        } elseif (isset($newValues['reason']) && !empty(trim($newValues['reason']))) {
+                            $rejectionReason = trim($newValues['reason']);
+                        }
+                    }
+                    // محاولة استخراج من old_values أيضاً (للتوافق مع بعض الحالات)
+                    if (!$rejectionReason && $rejectionAuditLog->old_values) {
+                        $oldValues = json_decode($rejectionAuditLog->old_values, true);
+                        if (isset($oldValues['rejectionReason']) && !empty(trim($oldValues['rejectionReason']))) {
+                            $rejectionReason = trim($oldValues['rejectionReason']);
+                        } elseif (isset($oldValues['reason']) && !empty(trim($oldValues['reason']))) {
+                            $rejectionReason = trim($oldValues['reason']);
+                        }
+                    }
+                }
+            }
+            
             $requestData['storekeeperNotes'] = $storekeeperNotes;
             $requestData['supplierNotes'] = $supplierNotes;
+            $requestData['rejectionReason'] = $rejectionReason;
+            $requestData['rejectedAt'] = $rejectedAt;
         }
 
         return response()->json($data);

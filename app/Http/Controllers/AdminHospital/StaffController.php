@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use App\Mail\StaffActivationMail;
@@ -41,25 +42,73 @@ class StaffController extends BaseApiController
                 'data_entry' => 'مدخل بيانات',
             ];
 
-            $staff = User::with(['department'])
-                ->where('hospital_id', $hospitalId)
-                ->whereIn('type', ['doctor', 'pharmacist', 'warehouse_manager', 'department_head', 'data_entry'])
+            // جلب الموظفين مع التأكد من أنهم ينتمون للمستشفى الصحيح فقط
+            // والتأكد من أن القسم (إن وجد) ينتمي لنفس المستشفى
+            $query = User::where('hospital_id', $hospitalId)
+                ->whereIn('type', ['doctor', 'pharmacist', 'warehouse_manager', 'department_head', 'data_entry']);
+            
+            // إذا كان department_id موجوداً في الجدول، نضيف فلتر للقسم
+            if (Schema::hasColumn('users', 'department_id')) {
+                $query->where(function($q) use ($hospitalId) {
+                    // التأكد من أن القسم (إن وجد) ينتمي لنفس المستشفى
+                    // أو أن الموظف ليس له قسم
+                    $q->whereNull('department_id')
+                      ->orWhereHas('department', function($deptQuery) use ($hospitalId) {
+                          $deptQuery->where('hospital_id', $hospitalId);
+                      });
+                });
+            }
+            
+            $staff = $query
+                ->with([
+                    'department' => function($query) use ($hospitalId) {
+                        // التأكد من أن القسم المنقول ينتمي لنفس المستشفى
+                        $query->where('hospital_id', $hospitalId);
+                    },
+                    'managedDepartment' => function($query) use ($hospitalId) {
+                        // جلب القسم الذي يكون المستخدم مديراً له (لـ department_head)
+                        $query->where('hospital_id', $hospitalId);
+                    }
+                ])
                 ->latest()
                 ->get()
-                ->map(function ($user) use ($roleMap) {
+                ->map(function ($user) use ($roleMap, $hospitalId) {
+                    // التحقق من القسم: إما من department_id أو من managedDepartment
+                    $departmentName = null;
+                    $departmentId = null;
+                    
+                    // إذا كان المستخدم من نوع department_head، نبحث عن القسم من خلال managedDepartment
+                    if ($user->type === 'department_head') {
+                        if ($user->managedDepartment && $user->managedDepartment->hospital_id == $hospitalId) {
+                            $departmentName = $user->managedDepartment->name;
+                            $departmentId = $user->managedDepartment->id;
+                        }
+                    } 
+                    // وإلا نبحث من خلال department_id
+                    else if ($user->department && $user->department->hospital_id == $hospitalId) {
+                        $departmentName = $user->department->name;
+                        $departmentId = $user->department->id;
+                    }
+                    
                     return [
                         'fileNumber' => $user->id,
-                        'name' => $user->full_name,
-                        'nationalId' => $user->national_id,
+                        'name' => $user->full_name ?? '',
+                        'nationalId' => $user->national_id ?? '',
                         'birth' => $user->birth_date ? $user->birth_date->format('Y/m/d') : null,
-                        'phone' => $user->phone,
-                        'email' => $user->email,
+                        'phone' => $user->phone ?? '',
+                        'email' => $user->email ?? '',
                         'role' => $roleMap[$user->type] ?? $user->type, // تحويل إلى العربية
-                        'department' => $user->department?->name ?? null,
+                        'department' => $departmentName,
+                        'departmentId' => $departmentId,
                         'isActive' => $user->status === 'active',
                         'lastUpdated' => $user->updated_at?->toIso8601String(),
                     ];
-                });
+                })
+                ->filter(function($employee) {
+                    // إزالة أي موظفين بدون بيانات أساسية
+                    return !empty($employee['name']) && !empty($employee['email']);
+                })
+                ->values();
 
             return $this->sendSuccess($staff, 'تم جلب قائمة الموظفين بنجاح.');
         } catch (\Exception $e) {
@@ -94,16 +143,25 @@ class StaffController extends BaseApiController
                 'phone'     => 'nullable|string|unique:users,phone',
                 'national_id' => 'nullable|string|unique:users,national_id',
                 'birth_date' => 'nullable|date',
+                'department_id' => 'nullable|integer|exists:departments,id',
+            ]);
+            
+            // تسجيل البيانات للتحقق
+            Log::info('Creating employee', [
+                'role' => $validated['role'],
+                'department_id' => $validated['department_id'] ?? null,
+                'hospital_id' => $hospitalId
             ]);
 
             DB::beginTransaction();
 
             // 2. Create User (Inactive, No Password yet)
+            // ملاحظة: department_id لا يوجد في جدول users، العلاقة تتم من خلال head_user_id في جدول departments
             $user = User::create([
                 'full_name'   => $validated['full_name'],
                 'email'       => $validated['email'],
                 'type'        => $validated['role'],
-                'hospital_id' => $hospitalId, // إضافة hospital_id
+                'hospital_id' => $hospitalId,
                 'phone'       => $validated['phone'] ?? null,
                 'national_id' => $validated['national_id'] ?? null,
                 'birth_date'  => $validated['birth_date'] ?? null,
@@ -112,14 +170,60 @@ class StaffController extends BaseApiController
                 'created_by'  => $currentUser->id,
             ]);
 
-            // 3. Generate Secure Token
+            // 3. إذا كان الموظف مدير قسم وتم اختيار قسم، تحديث القسم
+            if ($validated['role'] === 'department_head' && isset($validated['department_id']) && $validated['department_id'] !== null) {
+                try {
+                    $departmentId = (int)$validated['department_id'];
+                    $department = \App\Models\Department::where('hospital_id', $hospitalId)
+                        ->find($departmentId);
+                    
+                    if ($department) {
+                        // التحقق من أن القسم لا يملك مديراً بالفعل
+                        if ($department->head_user_id && $department->head_user_id != $user->id) {
+                            DB::rollBack();
+                            Log::warning('Department already has a manager', [
+                                'department_id' => $departmentId,
+                                'existing_manager_id' => $department->head_user_id,
+                                'new_manager_id' => $user->id
+                            ]);
+                            return $this->sendError('هذا القسم لديه مدير بالفعل.', [], 400);
+                        }
+                        
+                        // تحديث القسم بربطه بالمدير الجديد
+                        $department->head_user_id = $user->id;
+                        $department->save();
+                        
+                        Log::info('Department updated with new manager', [
+                            'department_id' => $departmentId,
+                            'manager_id' => $user->id
+                        ]);
+                    } else {
+                        DB::rollBack();
+                        Log::warning('Department not found', [
+                            'department_id' => $departmentId,
+                            'hospital_id' => $hospitalId
+                        ]);
+                        return $this->sendError('القسم المحدد غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+                    }
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    Log::error('Error updating department', [
+                        'error' => $e->getMessage(),
+                        'department_id' => $validated['department_id'] ?? null,
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    return $this->sendError('حدث خطأ أثناء تحديث القسم: ' . $e->getMessage(), [], 500);
+                }
+            }
+
+            // 4. Generate Secure Token
             $token = Str::random(60);
 
-            // 4. Store Token in Cache
+            // 5. Store Token in Cache
             $key = 'activation_token_' . $user->email;
             \Illuminate\Support\Facades\Cache::put($key, $token, 86400); // 24 hours
             
-            // 5. Send Email (مع معالجة الأخطاء)
+            // 6. Send Email (مع معالجة الأخطاء)
             try {
                 Mail::to($user->email)->send(new StaffActivationMail($token, $user->email, $user->full_name));
             } catch (\Exception $mailException) {

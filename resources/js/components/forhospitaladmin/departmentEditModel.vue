@@ -17,6 +17,7 @@ const form = ref({
     id: "",
     name: "",
     managerId: "",
+    isActive: true,
 });
 
 // البيانات الأصلية للمقارنة
@@ -59,6 +60,7 @@ const hasChanges = computed(() => {
 
     if (current.name !== original.name) return true;
     if (current.managerId !== original.managerId) return true;
+    if (current.isActive !== original.isActive) return true;
 
     return false;
 });
@@ -86,6 +88,7 @@ const confirmUpdate = () => {
         id: form.value.id,
         name: form.value.name,
         managerId: form.value.managerId || null,
+        isActive: form.value.isActive,
     };
     
     emit('save', updatedDepartment);
@@ -100,6 +103,7 @@ watch(() => props.isOpen, (newVal) => {
             id: props.department.id,
             name: props.department.name || "",
             managerId: props.department.managerId || "",
+            isActive: props.department.isActive !== undefined ? props.department.isActive : true,
         };
 
         originalForm.value = { ...initialData };
@@ -179,6 +183,37 @@ watch(() => props.isOpen, (newVal) => {
                                 <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- حالة القسم -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:settings-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        حالة القسم
+                    </h3>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-gray-500 block mb-2">حالة القسم</label>
+                        <div class="flex gap-4">
+                            <label class="cursor-pointer relative">
+                                <input type="radio" v-model="form.isActive" :value="true" class="peer sr-only" />
+                                <div class="px-6 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-500 peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:text-green-700 transition-all flex items-center gap-2">
+                                    <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
+                                    <span class="font-bold">مفعل</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer relative">
+                                <input type="radio" v-model="form.isActive" :value="false" class="peer sr-only" />
+                                <div class="px-6 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-500 peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:text-red-700 transition-all flex items-center gap-2">
+                                    <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
+                                    <span class="font-bold">معطل</span>
+                                </div>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">
+                            {{ form.isActive ? 'القسم نشط ويمكن استخدامه' : 'القسم معطل ولن يظهر في القوائم' }}
+                        </p>
                     </div>
                 </div>
             </form>

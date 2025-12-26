@@ -75,10 +75,11 @@ class PatientDepartmentAdminController extends BaseApiController
                         : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
 
                     $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                    $dailyQty = (int)($drug->pivot->daily_quantity ?? 0);
                     $unit = $this->getDrugUnit($drug);
-                    $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                    // استخدام daily_quantity مباشرة للجرعة اليومية
                     $dosageText = $dailyQty > 0 
-                        ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                        ? $dailyQty . ' ' . $unit . ' يومياً'
                         : 'غير محدد';
                     $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
 
@@ -88,6 +89,7 @@ class PatientDepartmentAdminController extends BaseApiController
                         'drugName' => $drug->name,
                         'strength' => $drug->strength ?? null,
                         'dosage' => $dosageText,
+                        'dailyQuantity' => $dailyQty,
                         'monthlyQuantity' => $monthlyQuantityText,
                         'monthlyQuantityNum' => $monthlyQty,
                         'unit' => $unit,
@@ -167,10 +169,11 @@ class PatientDepartmentAdminController extends BaseApiController
                     : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
 
                 $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                $dailyQty = (int)($drug->pivot->daily_quantity ?? 0);
                 $unit = $this->getDrugUnit($drug);
-                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                // استخدام daily_quantity مباشرة للجرعة اليومية
                 $dosageText = $dailyQty > 0 
-                    ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                    ? $dailyQty . ' ' . $unit . ' يومياً'
                     : 'غير محدد';
                 $monthlyQuantityText = $monthlyQty > 0 ? $monthlyQty . ' ' . $unit : 'غير محدد';
 
@@ -180,6 +183,7 @@ class PatientDepartmentAdminController extends BaseApiController
                     'drugName' => $drug->name,
                     'strength' => $drug->strength ?? null,
                     'dosage' => $dosageText,
+                    'dailyQuantity' => $dailyQty,
                     'monthlyQuantity' => $monthlyQuantityText,
                     'monthlyQuantityNum' => $monthlyQty,
                     'unit' => $unit,
@@ -493,9 +497,12 @@ class PatientDepartmentAdminController extends BaseApiController
 
                     // تحديد وحدة القياس من بيانات الدواء
                     $unit = $this->getDrugUnit($drug);
-                    $dailyQty = $monthlyQuantity > 0 ? round($monthlyQuantity / 30, 1) : 0;
+                    // استخدام daily_quantity من البيانات المرسلة مباشرة
+                    $dailyQty = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
+                        ? (int)$med['daily_quantity'] 
+                        : 0;
                     $dosageText = $dailyQty > 0 
-                        ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
+                        ? $dailyQty . ' ' . $unit . ' يومياً'
                         : 'غير محدد';
                     $monthlyQuantityText = $monthlyQuantity > 0 ? $monthlyQuantity . ' ' . $unit : 'غير محدد';
 

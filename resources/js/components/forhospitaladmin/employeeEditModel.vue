@@ -109,18 +109,8 @@ const validateForm = () => {
     errors.value.role = !data.role || !roleList.includes(data.role);
     if (errors.value.role) isValid = false;
 
-    if (isDepartmentManagerRole(data.role)) {
-        errors.value.department = !data.department;
-        if (errors.value.department) isValid = false;
-        
-        // التحقق من أن القسم ليس لديه مدير بالفعل (باستثناء القسم الحالي للموظف)
-        const deptName = typeof data.department === 'object' ? data.department.name : data.department;
-        const currentDepartment = props.patient?.department || "";
-        if (props.departmentsWithManager.includes(deptName) && deptName !== currentDepartment) {
-            errors.value.department = true;
-            isValid = false;
-        }
-    }
+    // لا يوجد حقل قسم في نموذج التعديل
+    errors.value.department = false;
 
     // التحقق من وجود مدير مخزن آخر
     const currentRole = props.patient?.role || "";
@@ -153,14 +143,7 @@ const isFormValid = computed(() => {
 
     if (!data.role || !roleList.includes(data.role)) return false;
 
-    if (isDepartmentManagerRole(data.role)) {
-        if (!data.department) return false;
-        const deptName = typeof data.department === 'object' ? data.department.name : data.department;
-        const currentDepartment = props.patient?.department || "";
-        if (props.departmentsWithManager.includes(deptName) && deptName !== currentDepartment) {
-            return false;
-        }
-    }
+    // لا يوجد حقل قسم في نموذج التعديل
 
     const currentRole = props.patient?.role || "";
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager && currentRole !== "مدير المخزن") {
@@ -177,10 +160,19 @@ const isFormValid = computed(() => {
         phone: emp.phone || "",
         email: emp.email || "",
         role: emp.role || "",
-        department: emp.department || "",
         isActive: emp.isActive !== undefined ? emp.isActive : true,
     };
-    const hasChanges = JSON.stringify(form.value) !== JSON.stringify(originalData);
+    const currentData = {
+        id: form.value.id,
+        nationalId: form.value.nationalId,
+        name: form.value.name,
+        birth: form.value.birth,
+        phone: form.value.phone,
+        email: form.value.email,
+        role: form.value.role,
+        isActive: form.value.isActive,
+    };
+    const hasChanges = JSON.stringify(currentData) !== JSON.stringify(originalData);
 
     return hasChanges;
 });
@@ -203,7 +195,7 @@ const confirmUpdate = () => {
     const updatedEmployee = {
         ...form.value,
         birth: form.value.birth.replace(/-/g, "/"),
-        department: isDepartmentManagerRole(form.value.role) ? (typeof form.value.department === 'object' ? form.value.department.name : form.value.department) : "",
+        department: "", // لا يوجد حقل قسم في نموذج التعديل
     };
     
     emit('save', updatedEmployee);
@@ -211,11 +203,7 @@ const confirmUpdate = () => {
     emit('close');
 };
 
-watch(() => form.value.role, (newRole) => {
-    if (!isDepartmentManagerRole(newRole)) {
-        form.value.department = "";
-    }
-});
+// لا يوجد حقل قسم في نموذج التعديل
 </script>
 
 <template>
@@ -318,37 +306,6 @@ watch(() => form.value.role, (newRole) => {
                             <p v-if="errors.birth" class="text-sm text-red-500 font-medium">الرجاء تحديد تاريخ الميلاد.</p>
                         </div>
 
-                        <!-- حقل القسم (مشروط) -->
-                        <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 md:col-span-2 animate-in fade-in slide-in-from-top-2">
-                            <label class="text-sm font-semibold text-gray-500">اسم القسم</label>
-                            <div class="relative">
-                                <select
-                                    required
-                                    v-model="form.department"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.department, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.department }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
-                                >
-                                    <option value="" disabled>اختر القسم</option>
-                                    <option 
-                                        v-for="dept in filteredDepartments" 
-                                        :key="typeof dept === 'object' ? dept.id : dept" 
-                                        :value="typeof dept === 'object' ? dept.name : dept"
-                                        :disabled="props.departmentsWithManager.includes(typeof dept === 'object' ? dept.name : dept) && (typeof dept === 'object' ? dept.name : dept) !== (props.patient?.department || '')"
-                                    >
-                                        {{ typeof dept === 'object' ? dept.name : dept }}
-                                        <template v-if="props.departmentsWithManager.includes(typeof dept === 'object' ? dept.name : dept) && (typeof dept === 'object' ? dept.name : dept) !== (props.patient?.department || '')">
-                                            (لديه مدير)
-                                        </template>
-                                    </option>
-                                </select>
-                                <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
-                            </div>
-                            <p v-if="errors.department" class="text-sm text-red-500 font-medium">
-                                {{ form.department && props.departmentsWithManager.includes(typeof form.department === 'object' ? form.department.name : form.department) && (typeof form.department === 'object' ? form.department.name : form.department) !== (props.patient?.department || "")
-                                    ? 'هذا القسم لديه مدير بالفعل!' 
-                                    : 'الرجاء اختيار القسم.' }}
-                            </p>
-                        </div>
                     </div>
                 </div>
 

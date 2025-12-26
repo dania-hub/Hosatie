@@ -169,25 +169,16 @@ const fetchEmployeeRoles = async () => {
     loadingRoles.value = true;
     rolesError.value = null;
     
-    try {
-        const response = await api.get('/employee-roles');
-        // التحقق من بنية الاستجابة
-        const data = response.data.data || response.data;
-        employeeRoles.value = data;
-    } catch (err) {
-        console.error("Error fetching employee roles:", err);
-        // إذا فشل جلب الأدوار من API، استخدم قائمة افتراضية
-        employeeRoles.value = [
-            'طبيب',
-            'صيدلي',
-            'مدير المخزن',
-            'مدير القسم',
-            'مدخل بيانات',
-        ];
-        rolesError.value = null; // لا نعرض خطأ لأننا استخدمنا قائمة افتراضية
-    } finally {
-        loadingRoles.value = false;
-    }
+    // استخدام قائمة الأدوار الافتراضية مباشرة
+    employeeRoles.value = [
+        'طبيب',
+        'صيدلي',
+        'مدير المخزن',
+        'مدير القسم',
+        'مدخل بيانات',
+    ];
+    
+    loadingRoles.value = false;
 };
 
 // ----------------------------------------------------
@@ -560,6 +551,9 @@ const addEmployee = async (newEmployee) => {
             birth_date: birthDate,
         };
 
+        // تسجيل البيانات المرسلة للتشخيص
+        console.log("Sending employee data:", employeeData);
+        
         const response = await api.post('/admin-hospital/staff', employeeData);
         
         // التحقق من بنية الاستجابة
@@ -578,6 +572,8 @@ const addEmployee = async (newEmployee) => {
     } catch (error) {
         console.error("Error adding employee:", error);
         console.error("Error response:", error.response?.data);
+        console.error("Error status:", error.response?.status);
+        console.error("Error headers:", error.response?.headers);
         
         let errorMessage = "❌ فشل تسجيل الموظف.";
         
@@ -595,6 +591,17 @@ const addEmployee = async (newEmployee) => {
             }
         } else if (error.message) {
             errorMessage = "❌ " + error.message;
+        }
+        
+        // إضافة تفاصيل إضافية للخطأ
+        if (error.response?.status === 422) {
+            errorMessage += " (خطأ في التحقق من البيانات)";
+        } else if (error.response?.status === 400) {
+            errorMessage += " (طلب غير صحيح)";
+        } else if (error.response?.status === 404) {
+            errorMessage += " (المورد غير موجود)";
+        } else if (error.response?.status === 500) {
+            errorMessage += " (خطأ في الخادم)";
         }
         
         showSuccessAlert(errorMessage);

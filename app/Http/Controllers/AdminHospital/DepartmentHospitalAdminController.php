@@ -48,24 +48,40 @@ class DepartmentHospitalAdminController extends BaseApiController
     }
 }
 
-    // 2) قائمة الموظفين (الأطباء) لاختيارهم كمديرين
+    // 2) قائمة الموظفين (مدراء الأقسام فقط) لاختيارهم كمديرين
  public function employees(Request $request)
 {
-    $hospitalId = $request->user()->hospital_id;
+    try {
+        $user = $request->user();
+        
+        if (!$user) {
+            return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+        }
 
-    $employees = User::where('hospital_id', $hospitalId)
-        ->where('type', 'doctor')
-        ->where('status', 'active')
-        ->get()
-        ->map(function ($u) {
-            return [
-                'id'       => $u->id,
-                'fullName' => $u->full_name,
-                'isActive' => $u->status === 'active',
-            ];
-        });
+        $hospitalId = $user->hospital_id;
+        
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
 
-    return response()->json($employees);
+        // جلب مدراء الأقسام فقط (department_head)
+        $employees = User::where('hospital_id', $hospitalId)
+            ->where('type', 'department_head')
+            ->where('status', 'active')
+            ->get()
+            ->map(function ($u) {
+                return [
+                    'id'       => $u->id,
+                    'fullName' => $u->full_name,
+                    'isActive' => $u->status === 'active',
+                ];
+            });
+
+        return $this->sendSuccess($employees, 'تم جلب قائمة مدراء الأقسام بنجاح.');
+    } catch (\Exception $e) {
+        Log::error('Get Employees Error: ' . $e->getMessage(), ['exception' => $e]);
+        return $this->sendError('فشل في جلب قائمة الموظفين.', [], 500);
+    }
 }
 
 
@@ -135,14 +151,20 @@ class DepartmentHospitalAdminController extends BaseApiController
             $data = $request->validate([
                 'name'      => 'required|string|max:255',
                 'managerId' => 'nullable|exists:users,id',
+                'isActive'  => 'nullable|boolean',
             ]);
 
             $dep->update([
                 'name'         => $data['name'],
                 'head_user_id' => $data['managerId'] ?? null,
+                'status'       => isset($data['isActive']) ? ($data['isActive'] ? 'active' : 'inactive') : $dep->status,
             ]);
 
             $dep->load('head');
+
+            $action = isset($data['isActive']) && $data['isActive'] !== ($dep->getOriginal('status') === 'active') 
+                ? ($data['isActive'] ? ' وتم تفعيله' : ' وتم تعطيله') 
+                : '';
 
             return $this->sendSuccess([
                 'id'          => $dep->id,
@@ -151,7 +173,7 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'managerName' => $dep->head?->full_name ?? null,
                 'isActive'    => $dep->status === 'active',
                 'lastUpdated' => $dep->updated_at?->toIso8601String(),
-            ], 'تم تحديث بيانات القسم بنجاح.');
+            ], 'تم تحديث بيانات القسم بنجاح.' . $action);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
         } catch (\Exception $e) {

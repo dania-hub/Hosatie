@@ -76,12 +76,13 @@
                 </div>
 
                 <!-- Rejection Reason -->
-                <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                <div v-if="isRejectedStatus" class="bg-red-50 border border-red-100 rounded-2xl p-6">
                     <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
                         <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                         سبب الرفض
                     </h3>
-                    <p class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
+                    <p v-if="requestDetails.rejectionReason" class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
+                    <p v-else class="text-red-600 font-medium leading-relaxed italic">لم يتم تحديد سبب الرفض</p>
                     <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
                         <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
                         بتاريخ: {{ formatDate(requestDetails.rejectedAt) }}
@@ -535,6 +536,17 @@ const isReceivedStatus = computed(() => {
         status.includes('تم الاستلام') ||
         status === 'تم الإستلام' ||
         status === 'fulfilled'
+    );
+});
+
+// تحديد حالة الرفض
+const isRejectedStatus = computed(() => {
+    const status = requestDetails.value.status;
+    return status && (
+        status.includes('مرفوضة') ||
+        status.includes('مرفوض') ||
+        status === 'rejected' ||
+        status.includes('ملغي')
     );
 });
 

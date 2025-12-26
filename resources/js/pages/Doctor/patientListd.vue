@@ -163,10 +163,10 @@ const fetchPatientDetails = async (patientId) => {
           };
         }
         
-        // إذا لم يكن dosage موجوداً، نحسبه من monthlyQuantity
-        const dailyQty = monthlyQty > 0 ? Math.round((monthlyQty / 30) * 10) / 10 : 0;
+        // استخدام daily_quantity مباشرة من البيانات
+        const dailyQty = med.dailyQuantity || med.daily_quantity || 0;
         const dosageText = dailyQty > 0 
-          ? (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' ' + unit + ' يومياً'
+          ? dailyQty + ' ' + unit + ' يومياً'
           : 'غير محدد';
         
         return {
@@ -382,12 +382,12 @@ const openViewModal = async (patient) => {
           const unit = med.unit || 'حبة';
           const monthlyQty = med.monthlyQuantityNum || med.monthlyQuantity || 0;
           
-          // إذا كان dosage موجوداً من API، نستخدمه مباشرة
+          // استخدام daily_quantity مباشرة من البيانات
           let dosageText = med.dosage;
           if (!dosageText || typeof dosageText === 'number') {
-            const dailyQty = monthlyQty > 0 ? Math.round((monthlyQty / 30) * 10) / 10 : 0;
+            const dailyQty = med.dailyQuantity || med.daily_quantity || 0;
             dosageText = dailyQty > 0 
-              ? (dailyQty % 1 === 0 ? dailyQty.toString() : dailyQty.toFixed(1)) + ' ' + unit + ' يومياً'
+              ? dailyQty + ' ' + unit + ' يومياً'
               : 'غير محدد';
           }
           

@@ -98,11 +98,13 @@ class PatientPharmacistController extends BaseApiController
             return $this->sendError('المريض غير موجود.', [], 404);
         }
 
-        // الوصفة النشطة للمريض في هذا المستشفى
+        // البحث عن الوصفة النشطة: أولاً في المستشفى الحالي، ثم في جميع المستشفيات
+        // هذا يسمح بعرض الأدوية للمرضى المنقولين حديثاً
         $activePrescription = Prescription::with(['drugs', 'doctor'])
             ->where('patient_id', $patient->id)
-            ->where('hospital_id', $hospitalId)
             ->where('status', 'active')
+            ->orderByRaw("CASE WHEN hospital_id = ? THEN 0 ELSE 1 END", [$hospitalId])
+            ->latest('start_date')
             ->first();
 
         // تنسيق تاريخ الميلاد بشكل موحد Y/m/d
@@ -134,8 +136,10 @@ class PatientPharmacistController extends BaseApiController
                 $unit = $this->getDrugUnit($drug);
 
                 // آخر عملية صرف لهذا الدواء (لتحديد أخر إستلام)
+                // البحث في جميع سجلات الصرف بغض النظر عن المستشفى (للمرضى المنقولين)
                 $lastDispense = Dispensing::where('patient_id', $patient->id)
                     ->where('drug_id', $drug->id)
+                    ->where('reverted', false) // استبعاد السجلات الملغاة
                     ->latest('created_at')
                     ->first();
 
@@ -204,8 +208,11 @@ class PatientPharmacistController extends BaseApiController
                 $startOfMonth = Carbon::now()->startOfMonth();
                 $endOfMonth = Carbon::now()->endOfMonth();
                 
+                // حساب الكمية المصروفة في الشهر الحالي من جميع المستشفيات
+                // هذا يضمن حساب دقيق للمرضى المنقولين
                 $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $patient->id)
                     ->where('drug_id', $drug->id)
+                    ->where('reverted', false) // استبعاد السجلات الملغاة
                     ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
                     ->sum('quantity_dispensed');
                 
@@ -240,18 +247,22 @@ class PatientPharmacistController extends BaseApiController
                 }
 
                 // اسم من قام بالإسناد (من audit_log أو اسم الطبيب كبديل)
-                $latestLog = \App\Models\AuditLog::where('table_name', 'prescription_drug')
+                // البحث في كلا الحالتين prescription_drug و prescription_drugs لضمان التوافق
+                $latestLog = \App\Models\AuditLog::whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
                     ->where('record_id', $pivot->id)
                     ->whereIn('action', ['إضافة دواء', 'تعديل دواء'])
                     ->with('user')
                     ->latest()
                     ->first();
                 
-                $assignedBy = $latestLog && $latestLog->user 
-                    ? $latestLog->user->full_name 
-                    : ($activePrescription->doctor 
-                        ? ($activePrescription->doctor->full_name ?? $activePrescription->doctor->name)
-                        : 'غير محدد');
+                $assignedBy = 'غير محدد';
+                if ($latestLog && $latestLog->user) {
+                    // استخدام full_name أولاً، ثم name كبديل
+                    $assignedBy = $latestLog->user->full_name ?? $latestLog->user->name ?? 'غير محدد';
+                } elseif ($activePrescription->doctor) {
+                    // إذا لم يكن هناك سجل audit log، استخدم اسم الطبيب
+                    $assignedBy = $activePrescription->doctor->full_name ?? $activePrescription->doctor->name ?? 'غير محدد';
+                }
 
                 $medications[] = [
                     'id' => $drug->id,
@@ -259,6 +270,7 @@ class PatientPharmacistController extends BaseApiController
                     'drugName' => $drug->name,
                     'strength' => $drug->strength ?? null,
                     'dosage' => $dosageText,
+                    'dailyQuantity' => $dailyQty,
                     'monthlyQuantity' => $monthlyQuantityText,
                     'monthlyQuantityNum' => $monthlyQty,
                     'unit' => $unit,
@@ -638,22 +650,34 @@ class PatientPharmacistController extends BaseApiController
             return $this->sendError('المريض غير موجود.', [], 404);
         }
 
-        $dispensations = Dispensing::with(['drug', 'pharmacist'])
+        // جلب جميع سجلات الصرف للمريض بغض النظر عن المستشفى
+        // هذا يضمن عرض سجل الصرف الكامل للمرضى المنقولين
+        $dispensations = Dispensing::with(['drug', 'pharmacist', 'pharmacy'])
             ->where('patient_id', $patient->id)
+            ->where('reverted', false) // استبعاد السجلات الملغاة
             ->orderBy('created_at', 'desc')
             ->get();
 
         $formattedHistory = $dispensations->map(function ($d) {
+            // تحديد تاريخ الصرف (أولوية: created_at > dispense_month)
+            $dispenseDate = null;
+            if ($d->created_at) {
+                $dispenseDate = Carbon::parse($d->created_at)->format('Y/m/d');
+            } elseif ($d->dispense_month) {
+                $dispenseDate = Carbon::parse($d->dispense_month)->format('Y/m/d');
+            }
+            
             return [
                 'id' => $d->id,
-                'date' => $d->created_at,
+                'date' => $dispenseDate ?? ($d->created_at ? Carbon::parse($d->created_at)->format('Y/m/d') : 'غير محدد'),
                 'pharmacistName' => $d->pharmacist ? ($d->pharmacist->full_name ?? $d->pharmacist->name) : 'غير معروف',
+                'pharmacyName' => $d->pharmacy ? ($d->pharmacy->name ?? 'غير محدد') : null,
                 'totalItems' => 1,
                 'items' => [
                     [
                         'drugName' => $d->drug ? $d->drug->name : 'غير معروف', 
-                        'quantity' => $d->quantity_dispensed,
-                        'unit' => $d->drug->unit ?? 'علبة'
+                        'quantity' => $d->quantity_dispensed ?? 0,
+                        'unit' => $d->drug ? ($d->drug->unit ?? 'حبة') : 'حبة'
                     ]
                 ]
             ];

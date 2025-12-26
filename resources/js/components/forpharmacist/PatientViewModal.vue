@@ -32,13 +32,14 @@ const toggleDispensingInput = (medIndex) => {
     dispensingStates.value[drugKey] = !dispensingStates.value[drugKey];
 };
 
-// دالة لتحويل الكمية الرقمية إلى نص الجرعة المطابق للصورة (باقي كما هو)
+// دالة لتنسيق الجرعة (استخدام النص الكامل من الـ API الذي يحتوي على الوحدة الصحيحة)
 const formatDosage = (dosage) => {
-    const numDosage = parseInt(dosage);
-    if (numDosage === 1) return 'قرص واحد';
-    if (numDosage === 2) return 'قرصين';
-    if (numDosage > 0) return `${numDosage} قرص`;
-    return dosage;
+    // إذا كان dosage نصاً جاهزاً (يحتوي على الوحدة مثل "5 حبة يومياً" أو "10 مل يومياً")
+    if (typeof dosage === 'string') {
+        return dosage;
+    }
+    // إذا كان رقم فقط أو قيمة غير صحيحة
+    return dosage || 'غير محدد';
 };
 
 // حساب قائمة الأدوية المستحقة للصرف (بغض النظر عن تحديد الكمية)

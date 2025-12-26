@@ -224,17 +224,11 @@ const fetchPatientDetails = async (fileNumber) => {
 
                 let dosageText = med.dosage;
                 if (!dosageText || typeof dosageText === "number") {
-                    const dailyQty =
-                        monthlyQty > 0
-                            ? Math.round((monthlyQty / 30) * 10) / 10
-                            : 0;
+                    // استخدام daily_quantity مباشرة من البيانات
+                    const dailyQty = med.dailyQuantity || med.daily_quantity || 0;
                     dosageText =
                         dailyQty > 0
-                            ? `${
-                                  dailyQty % 1 === 0
-                                      ? dailyQty.toString()
-                                      : dailyQty.toFixed(1)
-                              } ${unit} يومياً`
+                            ? `${dailyQty} ${unit} يومياً`
                             : "غير محدد";
                 }
 

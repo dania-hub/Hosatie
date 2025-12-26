@@ -11,16 +11,25 @@ const emit = defineEmits(['close', 'dispensation-record']);
 // دالة لتحويل الجرعة إلى نص الجرعة المطابق للصورة
 const formatDosage = (dosage) => {
     if (!dosage) return '-';
-    // إذا كانت الجرعة نصاً جاهزاً (مثل "5 قرص" أو "قرصين")، نعيدها كما هي
-    if (typeof dosage === 'string' && (dosage.includes('قرص') || dosage.includes('حبة'))) {
-        return dosage;
+    
+    // إذا كانت الجرعة نصاً جاهزاً من الـ API (يحتوي على وحدة قياس)، نعيدها كما هي
+    if (typeof dosage === 'string') {
+        // التحقق من وجود وحدة قياس في النص (قرص، حبة، قارورة، كبسولة، مل، ملغ، جرام، إلخ)
+        // أو وجود "يومياً" مما يعني أن النص كامل من الـ API
+        const hasUnit = /(قرص|حبة|قارورة|كبسولة|مل|ملغ|جرام|غرام|وحدة|يومياً|ampoule|vial|tablet|capsule|ml|mg|g|unit)/i.test(dosage);
+        if (hasUnit) {
+            return dosage; // إرجاع النص كما هو لأنه يحتوي على الوحدة الصحيحة
+        }
     }
-    // إذا كانت رقماً، نحولها إلى نص
+    
+    // إذا كانت رقماً فقط أو نصاً بدون وحدة، نحاول تحويلها
     const numDosage = parseInt(dosage);
     if (isNaN(numDosage)) return dosage;
-    if (numDosage === 1) return 'قرص واحد';
-    if (numDosage === 2) return 'قرصين';
-    if (numDosage > 0) return `${numDosage} قرص`;
+    
+    // إذا كان رقم فقط بدون وحدة، نستخدم "حبة" كافتراضي (يجب ألا يحدث هذا في الوضع الطبيعي)
+    if (numDosage === 1) return '1 حبة';
+    if (numDosage === 2) return '2 حبة';
+    if (numDosage > 0) return `${numDosage} حبة`;
     return dosage;
 };
 </script>

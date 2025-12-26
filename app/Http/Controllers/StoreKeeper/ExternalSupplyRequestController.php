@@ -253,41 +253,58 @@ class ExternalSupplyRequestController extends BaseApiController
             }
             
             // جلب سبب الرفض من audit_log (إذا كان الطلب مرفوضاً)
+            // نبحث دائماً عن rejectionReason بغض النظر عن الحالة الحالية (لضمان عدم فقدان البيانات)
             $rejectionReason = null;
             $rejectedAt = null;
-            // التحقق من حالة الطلب مباشرة من status
-            if ($requestData['status'] === 'rejected') {
-                $rejectionAuditLog = AuditLog::where('table_name', 'external_supply_request')
-                    ->where('record_id', $reqId)
-                    ->where(function($query) {
-                        $query->where('action', 'supplier_reject_external_supply_request')
-                              ->orWhere('action', 'hospital_admin_reject_external_supply_request')
-                              ->orWhere('action', 'like', '%reject%');
-                    })
-                    ->orderBy('created_at', 'desc')
-                    ->first();
+            
+            // البحث عن audit log للرفض
+            $rejectionAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                ->where('record_id', $reqId)
+                ->where(function($query) {
+                    $query->where('action', 'supplier_reject_external_supply_request')
+                          ->orWhere('action', 'hospital_admin_reject_external_supply_request')
+                          ->orWhere('action', 'like', '%reject%');
+                })
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            if ($rejectionAuditLog) {
+                $rejectedAt = $rejectionAuditLog->created_at ? $rejectionAuditLog->created_at->toIso8601String() : null;
                 
-                if ($rejectionAuditLog) {
-                    $rejectedAt = $rejectionAuditLog->created_at ? $rejectionAuditLog->created_at->toIso8601String() : null;
-                    
-                    // محاولة استخراج سبب الرفض من new_values
-                    if ($rejectionAuditLog->new_values) {
-                        $newValues = json_decode($rejectionAuditLog->new_values, true);
-                        if (isset($newValues['rejectionReason']) && !empty(trim($newValues['rejectionReason']))) {
+                // محاولة استخراج سبب الرفض من new_values
+                if ($rejectionAuditLog->new_values) {
+                    $newValues = json_decode($rejectionAuditLog->new_values, true);
+                    // التحقق من أن json_decode نجح (لا يرجع null بسبب خطأ في JSON)
+                    if ($newValues !== null && (is_array($newValues) || is_object($newValues))) {
+                        if (isset($newValues['rejectionReason']) && is_string($newValues['rejectionReason']) && !empty(trim($newValues['rejectionReason']))) {
                             $rejectionReason = trim($newValues['rejectionReason']);
-                        } elseif (isset($newValues['reason']) && !empty(trim($newValues['reason']))) {
+                        } elseif (isset($newValues['reason']) && is_string($newValues['reason']) && !empty(trim($newValues['reason']))) {
                             $rejectionReason = trim($newValues['reason']);
                         }
                     }
-                    // محاولة استخراج من old_values أيضاً (للتوافق مع بعض الحالات)
-                    if (!$rejectionReason && $rejectionAuditLog->old_values) {
-                        $oldValues = json_decode($rejectionAuditLog->old_values, true);
-                        if (isset($oldValues['rejectionReason']) && !empty(trim($oldValues['rejectionReason']))) {
+                }
+                // محاولة استخراج من old_values أيضاً (للتوافق مع بعض الحالات)
+                if (!$rejectionReason && $rejectionAuditLog->old_values) {
+                    $oldValues = json_decode($rejectionAuditLog->old_values, true);
+                    // التحقق من أن json_decode نجح (لا يرجع null بسبب خطأ في JSON)
+                    if ($oldValues !== null && (is_array($oldValues) || is_object($oldValues))) {
+                        if (isset($oldValues['rejectionReason']) && is_string($oldValues['rejectionReason']) && !empty(trim($oldValues['rejectionReason']))) {
                             $rejectionReason = trim($oldValues['rejectionReason']);
-                        } elseif (isset($oldValues['reason']) && !empty(trim($oldValues['reason']))) {
+                        } elseif (isset($oldValues['reason']) && is_string($oldValues['reason']) && !empty(trim($oldValues['reason']))) {
                             $rejectionReason = trim($oldValues['reason']);
                         }
                     }
+                }
+                
+                // Log للتحقق من سبب الرفض (يمكن حذفه لاحقاً)
+                if (!$rejectionReason) {
+                    \Log::warning('Rejection reason not found in audit log', [
+                        'request_id' => $reqId,
+                        'audit_log_id' => $rejectionAuditLog->id,
+                        'action' => $rejectionAuditLog->action,
+                        'new_values' => $rejectionAuditLog->new_values,
+                        'old_values' => $rejectionAuditLog->old_values
+                    ]);
                 }
             }
             

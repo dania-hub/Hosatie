@@ -9,6 +9,7 @@ use App\Models\Dispensing;
 use App\Models\Inventory;
 use App\Models\Drug;
 use App\Models\Prescription;
+use App\Models\PrescriptionDrug;
 use App\Models\Pharmacy;
 use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
@@ -133,6 +134,7 @@ class PatientPharmacistController extends BaseApiController
                 $pivot = $drug->pivot;
 
                 $monthlyQty = (int)($pivot->monthly_quantity ?? 0);
+                $dailyQty = (float)($pivot->daily_quantity ?? 0);
                 $unit = $this->getDrugUnit($drug);
 
                 // آخر عملية صرف لهذا الدواء (لتحديد أخر إستلام)
@@ -229,8 +231,7 @@ class PatientPharmacistController extends BaseApiController
                     }
                 }
 
-                // تحويل الجرعة الشهرية إلى جرعة يومية نصية
-                $dailyQty = $monthlyQty > 0 ? round($monthlyQty / 30, 1) : 0;
+                // استخدام الجرعة اليومية مباشرة من daily_quantity
                 $dosageText = $dailyQty > 0
                     ? (($dailyQty % 1 === 0) ? (int)$dailyQty : $dailyQty) . ' ' . $unit . ' يومياً'
                     : 'غير محدد';
@@ -409,12 +410,18 @@ class PatientPharmacistController extends BaseApiController
                 // =========================================================
                 // ب. التحقق الأمني: هل الدواء موجود في الوصفة فعلاً؟
                 // =========================================================
-                $isPrescribed = \App\Models\PrescriptionDrug::where('prescription_id', $prescription->id)
+                $prescriptionDrug = PrescriptionDrug::where('prescription_id', $prescription->id)
                     ->where('drug_id', $drug->id)
-                    ->exists();
+                    ->first();
 
-                if (!$isPrescribed) {
+                if (!$prescriptionDrug) {
                     throw new \Exception("عفواً، الدواء (" . $item['drugName'] . ") غير موجود في وصفة المريض الحالية.");
+                }
+
+                // التحقق من أن الكمية الشهرية المتبقية كافية
+                $currentMonthlyQuantity = (int)($prescriptionDrug->monthly_quantity ?? 0);
+                if ($currentMonthlyQuantity < $item['quantity']) {
+                    throw new \Exception("الكمية المتبقية من الدواء (" . $item['drugName'] . ") في الوصفة غير كافية. المتبقي: " . $currentMonthlyQuantity);
                 }
 
                 // ج. فحص المخزون في الصيدلية المحددة
@@ -429,7 +436,7 @@ class PatientPharmacistController extends BaseApiController
                 // حفظ الكمية الأصلية للمخزون للتراجع
                 $originalQuantity = $inventory->current_quantity;
                 
-                // د. خصم الكمية والحفظ
+                // د. خصم الكمية من المخزون والحفظ
                 $inventory->current_quantity -= $item['quantity'];
                 $inventory->save();
                 
@@ -439,6 +446,16 @@ class PatientPharmacistController extends BaseApiController
                     'drug_id' => $drug->id,
                     'quantity_added_back' => $item['quantity'],
                 ];
+
+                // و. خصم الكمية من monthly_quantity في prescription_drugs
+                $originalMonthlyQuantity = $prescriptionDrug->monthly_quantity;
+                $prescriptionDrug->monthly_quantity = max(0, $prescriptionDrug->monthly_quantity - $item['quantity']);
+                $prescriptionDrug->save();
+                
+                // حفظ معلومات تغيير monthly_quantity للتراجع
+                $inventoryChanges[count($inventoryChanges) - 1]['prescription_drug_id'] = $prescriptionDrug->id;
+                $inventoryChanges[count($inventoryChanges) - 1]['original_monthly_quantity'] = $originalMonthlyQuantity;
+                $inventoryChanges[count($inventoryChanges) - 1]['monthly_quantity_to_restore'] = $item['quantity'];
 
                 // هـ. إنشاء أو تحديث سجل الصرف
                 // إذا كان هناك سجل موجود لنفس الدواء في نفس الشهر، نضيف الكمية الجديدة
@@ -521,6 +538,9 @@ class PatientPharmacistController extends BaseApiController
             'inventory_changes' => 'required|array',
             'inventory_changes.*.inventory_id' => 'required|exists:inventories,id',
             'inventory_changes.*.quantity_added_back' => 'required|integer|min:1',
+            'inventory_changes.*.prescription_drug_id' => 'nullable|exists:prescription_drugs,id',
+            'inventory_changes.*.original_monthly_quantity' => 'nullable|integer|min:0',
+            'inventory_changes.*.monthly_quantity_to_restore' => 'nullable|integer|min:1',
         ]);
 
         DB::beginTransaction();
@@ -533,14 +553,23 @@ class PatientPharmacistController extends BaseApiController
                 throw new \Exception("المستخدم غير مرتبط بمستشفى.");
             }
 
-            // 1. التراجع عن تغييرات المخزون
+            // 1. التراجع عن تغييرات المخزون و monthly_quantity
             foreach ($request->inventory_changes as $change) {
                 $inventory = Inventory::find($change['inventory_id']);
                 
                 if ($inventory) {
-                    // إرجاع الكمية المخصومة
+                    // إرجاع الكمية المخصومة من المخزون
                     $inventory->current_quantity += $change['quantity_added_back'];
                     $inventory->save();
+                }
+
+                // إرجاع الكمية المخصومة من monthly_quantity إذا كانت موجودة
+                if (isset($change['prescription_drug_id']) && isset($change['monthly_quantity_to_restore'])) {
+                    $prescriptionDrug = PrescriptionDrug::find($change['prescription_drug_id']);
+                    if ($prescriptionDrug) {
+                        $prescriptionDrug->monthly_quantity += $change['monthly_quantity_to_restore'];
+                        $prescriptionDrug->save();
+                    }
                 }
             }
 

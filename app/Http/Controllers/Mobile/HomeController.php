@@ -21,6 +21,17 @@ class HomeController extends BaseApiController
         
         $hospitalName = $user->hospital ? $user->hospital->name : 'غير محدد';
 
+        // 🔥 البيانات الشخصية الجديدة 🔥
+        $personalInfo = [
+            'full_name'   => $user->full_name ?? 'غير محدد',
+            'national_id' => $user->national_id ?? 'غير محدد',
+            'birth_date'  => $user->birth_date ? Carbon::parse($user->birth_date)->format('Y-m-d') : 'غير محدد',
+            'phone'       => $user->phone ?? 'غير محدد',
+            'email'       => $user->email ?? 'غير محدد',
+            'type'        => $user->type ?? 'patient',
+            'status'      => $user->status ?? 'active',
+        ];
+
         $healthFile = [
             'file_number' => $user->id,
             'hospital'    => $hospitalName, 
@@ -38,6 +49,9 @@ class HomeController extends BaseApiController
         Log::info('======= HOME API - DATABASE VALUES FIX =======');
         Log::info('User ID: ' . $user->id);
         Log::info('Current date: ' . $now->format('Y-m-d'));
+        Log::info('User Full Name: ' . $user->full_name);
+        Log::info('User National ID: ' . $user->national_id);
+        Log::info('User Birth Date: ' . $user->birth_date);
 
         foreach ($activePrescriptions as $prescription) {
             Log::info('=== Prescription ID: ' . $prescription->id . ' ===');
@@ -153,8 +167,9 @@ class HomeController extends BaseApiController
         return response()->json([
             'success' => true,
             'data' => [
-                'health_file' => $healthFile,
-                'drug_status' => $drugStatus,
+                'user_info'    => $personalInfo,    // 🔥 الجديد
+                'health_file'  => $healthFile,
+                'drug_status'  => $drugStatus,
             ]
         ]);
     }

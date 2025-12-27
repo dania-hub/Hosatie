@@ -456,7 +456,10 @@ const openViewModal = async (patient) => {
       // جلب البيانات المحدثة للمريض من API
       const patientData = await fetchPatientDetails(patientId);
       if (patientData) {
-        selectedPatient.value = patientData;
+        selectedPatient.value = {
+        ...patientData,
+        nameDisplay: patientData.name || patientData.nameDisplay || 'غير متوفر',
+      };
         isViewModalOpen.value = true;
       }
     } else {

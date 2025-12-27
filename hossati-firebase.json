@@ -1,0 +1,19 @@
+{
+  "type": "service_account",
+  "project_id": "hossati-app",
+  "private_key_id": "0ad50d729f50d710de7ad830326f87c1150e616d",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC4xqoJ3KG6iBPk\nysN2+ClLln4nCHz4YoAQ97vCc9oqW+2C6CDAOLOqHTwOLZ7p044h2lNmiG/6U3Vz\nTt//G8CmGtFXQTi69FLQtZQB67gd/wm56mtBUWC4unus2ETJmQQ9evf/VCZkywuV\nwIEO0gadBIL2Dr8x7bukZgehz+fIzB3rMR7Gud9yGC888UamgJ53rrX6YnzYBNcA\njLx+ibSofbj6ekmFs64syn0vnLGwt67DXU2A/cM1HmjL9GSDbYiiuH80HVgxpTax\nha2wU94xhbCNSe6tkQXaIUfjhtQSNQ2WZl3Z8rxgJR97Laa5rV4x6th13LCHKf83\n8MO0DU/JAgMBAAECggEAAfioxThqJRcVrWSC5wcMgnPZdCrDGv1dCapyqr4pNm66\n5NgyZtMsCoi92R+EzKLfFOog3eh6fBLgHzaCFpnDJP8ZJFbwdOpNfz4SsLlXa4s4\nlCWu38qvYYm6OE8FTP89H65vupTdxRFFI9FQgpoFfiX3cROQYRlc1K+ge0D7yAVJ\nOBEwRzJZ5+1+XRZva29wfEPKolqamQ+L2ZEZtr0scg+ZJFsa36uIvktSEYBNYpfs\nBlRWfk4CxB7OW29L8mLowiSxzP/xKmGclznVkwhken5WSLb3+TGysp3LSBVRrVj8\noFoTP1WyUHAmBUwrC8p5HgptXvXFZGgnYHxbmhN1QQKBgQD3xMcX9Q1E4bDxH1/l\nvfE0eVfYSy+Of0gJHLQJGwBgbkxTW8BVnriHZaHEiLs6Q8+L0YHsoMeh77DLMCy2\nyW9fZZaUSi1jJp0Wc9uF3fdhUsnIo+unT6NY2sNz2LsZg+tNSKNc7vPPBXnXCz9y\nfWTlszTIbVwPbH5uQRss5UpcQQKBgQC+6iWdumWe/i0DGU6HuGgBUL4PtODegNrc\nKsbwQ+MsdH83wJhNTvOFQFAp7LWceCaraGdzVu3WlYNoreSiL2REJL4xTCR56Pb3\nkwwZB2QZvdsg31F154uauDIRGc2dS6nZ91HEKoIMAFh1yScEyk9lPDIXIronSUUl\nuijfSzmxiQKBgQDLVdpudtVk6jNkLvNsf+0ru0m0YD+vGhXsJHo73sT4XoyU/H9j\nxNZ7h5SyzeOZdX0mqdGOeIRdCXB10BtiBv43tA9Xs2h8LnxMqNhHjFowrNicqKoE\nrP7JNP+iWwNxdSnuSuaGpjPAeiX7rWdsdiwPtnpi4hzjK462vQeoWKQmAQKBgFRx\nxQmrNN/KlaZVP0MQ8hAC4s6Xtw8z95qC4VPM82LqdIr4iWVIkrZR6CNjLEF1c8VF\nfNyriq/rmiBnKkYCqFrr1aSAhXHW9cY0KJm5hzFLpO05WhLIxBs/dgXSX/w/R3W9\ny1D1bGhajsYqnzOjONMSeSV6mtRduFQjr4h1AaPhAoGARi2vq5YEGtFhoKlAb1CM\n+pe0Pya4g1LrH1HZV5dds08w0HMFpWGVE3dov3rtuzaaEt7dzkKtvG5gropjx0Qn\n7EI1Ji94gIXC/b14VtOl5g5+D/rjYiYnQwP7d9cxLgonLsQEswVCcUvf5ge7DkC6\nbzwUJ2lrVe7M7PHZCF3hIwI=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@hossati-app.iam.gserviceaccount.com",
+  "client_id": "102378553646346104906",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40hossati-app.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com",
+  "application": {
+    "meta-data": {
+      "android:name": "com.google.firebase.messaging.default_notification_channel_id",
+      "android:value": "hossati_channel"
+    }
+  }
+}

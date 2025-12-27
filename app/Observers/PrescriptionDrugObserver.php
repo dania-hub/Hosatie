@@ -10,17 +10,39 @@ use Illuminate\Support\Facades\Log;
 class PrescriptionDrugObserver
 {
     /**
+     * متغير ثابت (static) لمنع الإشعارات المكررة
+     * عندما يكون true، يتخطى Observer إرسال الإشعارات
+     * يقوم Controller بتعيينه مؤقتاً أثناء إرسال الإشعار
+     */
+    public static $skipNotification = false;
+
+    /**
+     * Handle the PrescriptionDrug "creating" event.
+     * يتم تنفيذ هذا الحدث قبل حفظ السجل في قاعدة البيانات
+     */
+    public function creating(PrescriptionDrug $prescriptionDrug)
+    {
+        // ✅ حساب monthly_quantity قبل الإنشاء
+        if ($prescriptionDrug->daily_quantity && !$prescriptionDrug->monthly_quantity) {
+            $prescriptionDrug->monthly_quantity = $prescriptionDrug->daily_quantity * 30;
+        }
+    }
+
+    /**
      * Handle the PrescriptionDrug "created" event.
      */
     public function created(PrescriptionDrug $prescriptionDrug)
     {
-        // ✅ إضافة منطق daily_quantity → monthly_quantity عند الإنشاء
-        if ($prescriptionDrug->daily_quantity && !$prescriptionDrug->monthly_quantity) {
-            $prescriptionDrug->monthly_quantity = $prescriptionDrug->daily_quantity * 30;
-            $prescriptionDrug->save(); // حفظ التغيير
+        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر - تم الإضافة
+        if (self::$skipNotification) {
+            Log::info('Observer Created: SKIPPING notification - Controller will send it', [
+                'id' => $prescriptionDrug->id,
+                'skipNotification' => self::$skipNotification
+            ]);
+            return;
         }
 
-        Log::info('Observer Created Triggered', ['id' => $prescriptionDrug->id]);
+        Log::info('Observer Created Triggered - Sending notification', ['id' => $prescriptionDrug->id]);
         $this->logAction('إضافة دواء', $prescriptionDrug);
     }
 
@@ -29,10 +51,19 @@ class PrescriptionDrugObserver
      */
     public function updated(PrescriptionDrug $prescriptionDrug)
     {
+        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر - تم الإضافة
+        if (self::$skipNotification) {
+            Log::info('Observer Updated: SKIPPING notification - Controller will send it', [
+                'id' => $prescriptionDrug->id,
+                'skipNotification' => self::$skipNotification
+            ]);
+            return;
+        }
+
         // ✅ عند التحديث: لا نغيّر monthly_quantity حتى لو تغيّر daily_quantity
         // هذا المنطق يطبّق على الإنشاء فقط
         
-        Log::info('Observer Updated Triggered', ['id' => $prescriptionDrug->id]);
+        Log::info('Observer Updated Triggered - Sending notification', ['id' => $prescriptionDrug->id]);
         $this->logAction('تعديل دواء', $prescriptionDrug, $prescriptionDrug->getOriginal());
     }
 
@@ -41,7 +72,16 @@ class PrescriptionDrugObserver
      */
     public function deleted(PrescriptionDrug $prescriptionDrug)
     {
-        Log::info('Observer Deleted Triggered', ['id' => $prescriptionDrug->id]);
+        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر - تم الإضافة
+        if (self::$skipNotification) {
+            Log::info('Observer Deleted: SKIPPING notification - Controller will send it', [
+                'id' => $prescriptionDrug->id,
+                'skipNotification' => self::$skipNotification
+            ]);
+            return;
+        }
+        
+        Log::info('Observer Deleted Triggered - Sending notification', ['id' => $prescriptionDrug->id]);
         
         // عند الحذف، يجب حفظ معلومات المريض قبل أن يتم حذف السجل
         $patientInfo = null;

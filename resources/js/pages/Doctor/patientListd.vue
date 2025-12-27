@@ -653,6 +653,7 @@ const openViewModal = async (patient) => {
     if (patientData) {
       selectedPatient.value = {
         ...patientData,
+        nameDisplay: patientData.name || patientData.nameDisplay || 'غير متوفر',
         medications: (patientData.medications || []).map(med => ({
           ...med,
           monthlyQuantity: med.dosage || med.monthlyQuantity || 'غير محدد',

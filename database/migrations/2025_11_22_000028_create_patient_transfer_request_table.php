@@ -15,7 +15,6 @@ class CreatePatientTransferRequestTable extends Migration
             $table->unsignedBigInteger('requested_by');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('reason');
-            $table->enum('transfer_reason', ['تغير مكان السكن', 'الحاجة إلى تخصص طبي غير متوفر في المستشفى الحالي', 'عدم رضا عن جودة الخدمة الطبية المقدمة', 'صعوبة الوصول إلى المستشفى','غير ذلك'])->default('غير ذلك');
             $table->unsignedBigInteger('handeled_by')->nullable();
             $table->dateTime('handeled_at')->nullable();
            

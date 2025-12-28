@@ -136,9 +136,10 @@ class OrderController extends BaseApiController
         // التحقق من صحة البيانات
         $validated = $request->validate([
             'type'    => 'required|in:complaint,transfer',
-            'content' => 'required|string|min:5',
+            'content' => 'required_if:type,complaint|nullable|string|min:5',
             'transfer_to_hospital_id' => 'required_if:type,transfer|exists:hospitals,id',
             'reason'  => 'nullable|string',
+            'transfer_reason' => 'required_if:type,transfer|string', // تم إزالة القيم الثابتة لأن العمود أزيل
         ]);
 
         Log::info('Validation passed:', $validated);
@@ -268,13 +269,27 @@ class OrderController extends BaseApiController
         }
 
         try {
+            // تحديد محتوى الطلب: تخزين سبب النقل في حقل reason
+            $requestContent = '';
+            
+            if (!empty($request->input('reason'))) {
+                // إذا كان هناك سبب مخصص (مثل "غير ذلك" مع نص مخصص)
+                $requestContent = $request->input('reason');
+            } elseif (!empty($request->input('transfer_reason'))) {
+                // إذا كان هناك سبب النقل المختار من القائمة
+                $requestContent = $request->input('transfer_reason');
+            } else {
+                // القيمة الافتراضية
+                $requestContent = 'طلب نقل';
+            }
+
             // إنشاء طلب نقل
             $transfer = PatientTransferRequest::create([
                 'patient_id'       => $user->id,
                 'from_hospital_id' => $user->hospital_id,
                 'to_hospital_id'   => $request->transfer_to_hospital_id,
                 'requested_by'     => $user->id,
-                'reason'           => $request->input('reason') ?? $request->input('content'),
+                'reason'           => $requestContent, // تخزين سبب النقل هنا
                 'status'           => 'pending',
             ]);
 
@@ -283,7 +298,8 @@ class OrderController extends BaseApiController
                 'patient_id' => $transfer->patient_id,
                 'from_hospital' => $transfer->from_hospital_id,
                 'to_hospital' => $transfer->to_hospital_id,
-                'status' => $transfer->status
+                'status' => $transfer->status,
+                'reason' => $transfer->reason,
             ]);
 
             return response()->json([
@@ -292,7 +308,7 @@ class OrderController extends BaseApiController
                 'data' => [
                     'id' => $transfer->id,
                     'type' => 'transfer',
-                    'status' => $this->translateTransferStatus($transfer->status) // ترجمة للعرض
+                    'status' => $this->translateTransferStatus($transfer->status),
                 ]
             ], 201);
 
@@ -330,6 +346,23 @@ class OrderController extends BaseApiController
         return response()->json([
             'success' => true, 
             'data' => $hospitals
+        ]);
+    }
+
+    // 4.4 جلب قيم سبب النقل المتاحة
+    public function transferReasons(Request $request)
+    {
+        $reasons = [
+            ['id' => 1, 'value' => 'تغير مكان السكن', 'label' => 'تغير مكان السكن'],
+            ['id' => 2, 'value' => 'الحاجة إلى تخصص طبي غير متوفر في المستشفى الحالي', 'label' => 'الحاجة إلى تخصص طبي غير متوفر في المستشفى الحالي'],
+            ['id' => 3, 'value' => 'عدم رضا عن جودة الخدمة الطبية المقدمة', 'label' => 'عدم رضا عن جودة الخدمة الطبية المقدمة'],
+            ['id' => 4, 'value' => 'صعوبة الوصول إلى المستشفى', 'label' => 'صعوبة الوصول إلى المستشفى'],
+            ['id' => 5, 'value' => 'غير ذلك', 'label' => 'غير ذلك'],
+        ];
+
+        return response()->json([
+            'success' => true, 
+            'data' => $reasons
         ]);
     }
 
@@ -402,11 +435,8 @@ class OrderController extends BaseApiController
                 $hospitalName = $order->toHospital->name ?? 'مستشفى';
                 $requestReason = $order->reason ?? '';
                 
-                if (!empty(trim($requestReason))) {
-                    $content = "طلب نقل إلى: $hospitalName\n\nسبب الطلب:\n$requestReason";
-                } else {
-                    $content = "طلب نقل إلى: $hospitalName";
-                }
+                // عرض المحتوى المخزن في حقل reason
+                $content = "طلب نقل إلى: $hospitalName\n\nسبب النقل: $requestReason";
                 
                 $reply = $order->rejection_reason;
                 $orderType = 'نقل';

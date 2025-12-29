@@ -15,20 +15,33 @@ import RegistrationModal from "@/components/forSu/registration.vue";
 // 1. تهيئة axios مع base URL
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: "http://localhost:3000/api", // تغيير هذا حسب عنوان API الخاص بك
-  timeout: 10000,
+  baseURL: '/api',
+  timeout: 30000,
   headers: {
-    "Content-Type": "application/json",
-    "Accept": "application/json"
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 });
+
+// إضافة interceptor لإضافة التوكن تلقائيًا
+api.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);
 
 // إضافة interceptor لمعالجة الأخطاء
 api.interceptors.response.use(
   response => response,
   error => {
     console.error("API Error:", error.response?.data || error.message);
-    // إزالة showErrorAlert من هنا لتجنب ظهور رسائل الخطأ
     return Promise.reject(error);
   }
 );
@@ -53,18 +66,28 @@ const closeRegistrationModal = () => {
 
 const handleRegistrationConfirm = async (registrationData) => {
   try {
-    // هنا يمكنك إضافة منطق تسجيل الاستلام
-    console.log("Registration data:", registrationData);
-    showSuccessAlert("✅ تم تسجيل الاستلام بنجاح");
+    // إرسال البيانات إلى API لتسجيل الاستلام
+    const response = await api.post("/supplier/drugs/register", {
+      items: registrationData.items.map(item => ({
+        drugId: item.drugId,
+        quantity: item.quantity
+      }))
+    });
+    
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
+    
+    showSuccessAlert(`✅ تم تسجيل الاستلام بنجاح (${responseData?.length || 0} دواء)`);
     
     // إغلاق النافذة
     closeRegistrationModal();
     
-    // تحديث البيانات إذا لزم الأمر
+    // تحديث البيانات
     await fetchDrugs();
     
   } catch (error) {
-    showErrorAlert("❌ فشل في تسجيل الاستلام");
+    const errorMessage = error.response?.data?.message || 'فشل في تسجيل الاستلام';
+    showErrorAlert(`❌ ${errorMessage}`);
     console.error("Error handling registration:", error);
   }
 };
@@ -137,15 +160,16 @@ const fetchDrugs = async () => {
   isLoading.value = true;
   
   try {
-    const response = await api.get("/drugs");
-    drugsData.value = response.data;
-    hasData.value = response.data.length > 0;
-    if (response.data.length > 0) {
+    const response = await api.get("/supplier/drugs");
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
+    drugsData.value = responseData || [];
+    hasData.value = (responseData || []).length > 0;
+    if (responseData && responseData.length > 0) {
       showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
     }
   } catch (error) {
-    // لا نعرض رسالة خطأ، فقط نترك الجدول فارغًا
-    console.warn("Warning: Could not fetch drugs data from API");
+    console.warn("Warning: Could not fetch drugs data from API", error);
     hasData.value = false;
   } finally {
     isLoading.value = false;
@@ -155,33 +179,39 @@ const fetchDrugs = async () => {
 // جلب الفئات
 const fetchCategories = async () => {
   try {
-    const response = await api.get("/categories");
-    categories.value = response.data;
+    const response = await api.get("/supplier/categories");
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
+    categories.value = responseData || [];
   } catch (error) {
-    console.warn("Warning: Could not fetch categories from API");
+    console.warn("Warning: Could not fetch categories from API", error);
   }
 };
 
 // جلب جميع بيانات الأدوية للبحث
 const fetchAllDrugsData = async () => {
   try {
-    const response = await api.get("/drugs/all");
-    allDrugsData.value = response.data;
+    const response = await api.get("/supplier/drugs/all");
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
+    allDrugsData.value = responseData || [];
   } catch (error) {
-    console.warn("Warning: Could not fetch all drugs data from API");
+    console.warn("Warning: Could not fetch all drugs data from API", error);
   }
 };
 
 // تحديث دواء
 const updateDrug = async (drugId, updatedData) => {
   try {
-    const response = await api.put(`/drugs/${drugId}`, updatedData);
+    const response = await api.put(`/supplier/drugs/${drugId}`, updatedData);
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
     const index = drugsData.value.findIndex(drug => drug.id === drugId);
     if (index !== -1) {
-      drugsData.value[index] = { ...drugsData.value[index], ...response.data };
+      drugsData.value[index] = { ...drugsData.value[index], ...responseData };
     }
     showSuccessAlert("✅ تم تحديث بيانات الدواء بنجاح");
-    return response.data;
+    return responseData;
   } catch (error) {
     showErrorAlert("❌ فشل في تحديث بيانات الدواء");
     throw error;
@@ -191,7 +221,7 @@ const updateDrug = async (drugId, updatedData) => {
 // حذف دواء
 const deleteDrug = async (drugId) => {
   try {
-    await api.delete(`/drugs/${drugId}`);
+    await api.delete(`/supplier/drugs/${drugId}`);
     drugsData.value = drugsData.value.filter(drug => drug.id !== drugId);
     hasData.value = drugsData.value.length > 0;
     showSuccessAlert("✅ تم حذف الدواء بنجاح");
@@ -204,11 +234,13 @@ const deleteDrug = async (drugId) => {
 // إضافة دواء جديد
 const addDrug = async (newDrug) => {
   try {
-    const response = await api.post("/drugs", newDrug);
-    drugsData.value.push(response.data);
+    const response = await api.post("/supplier/drugs", newDrug);
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
+    drugsData.value.push(responseData);
     hasData.value = true;
     showSuccessAlert("✅ تم إضافة الدواء الجديد بنجاح");
-    return response.data;
+    return responseData;
   } catch (error) {
     showErrorAlert("❌ فشل في إضافة الدواء");
     throw error;
@@ -218,13 +250,15 @@ const addDrug = async (newDrug) => {
 // إرسال طلب توريد
 const submitSupplyRequest = async (requestData) => {
   try {
-    const response = await api.post("/supply-requests", requestData);
+    const response = await api.post("/supplier/supply-requests", requestData);
+    // BaseApiController يُرجع البيانات بداخل data
+    const responseData = response.data?.data ?? response.data;
     showSuccessAlert("✅ تم إرسال طلب التوريد بنجاح");
     
     // تحديث كميات الأدوية بعد الطلب
     await fetchDrugs();
     
-    return response.data;
+    return responseData;
   } catch (error) {
     showErrorAlert("❌ فشل في إرسال طلب التوريد");
     throw error;

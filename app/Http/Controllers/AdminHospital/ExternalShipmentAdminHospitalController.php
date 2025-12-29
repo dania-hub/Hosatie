@@ -5,6 +5,7 @@ namespace App\Http\Controllers\AdminHospital;
 use App\Http\Controllers\BaseApiController;
 use App\Models\ExternalSupplyRequest;
 use App\Models\ExternalSupplyRequestItem;
+use App\Models\Hospital;
 use App\Models\Inventory;
 use App\Models\Pharmacy;
 use App\Models\Warehouse;
@@ -319,7 +320,7 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
 
         $data = $request->validate([
             'items'        => 'required|array',
-            'items.*.id'   => 'required|integer|exists:external_supply_request_item,id',
+            'items.*.id'   => 'required|integer|exists:external_supply_request_items,id',
             'items.*.sent' => 'nullable|numeric|min:0', // جعل sent اختياري للقبول المبدئي
             'notes'        => 'nullable|string|max:1000',
         ]);
@@ -336,7 +337,13 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
             return response()->json(['message' => 'لا يمكن تعديل طلب تم إغلاقه مسبقاً'], 409);
         }
 
-        DB::transaction(function () use ($r, $data, $adminUser) {
+        // جلب المستشفى للحصول على supplier_id
+        $hospital = Hospital::find($hospitalId);
+        if (!$hospital || !$hospital->supplier_id) {
+            return response()->json(['message' => 'المستشفى غير مرتبط بمورد. يرجى التحقق من إعدادات المستشفى.'], 400);
+        }
+
+        DB::transaction(function () use ($r, $data, $adminUser, $hospital) {
             // ملاحظة: العلاقة الصحيحة للكميات:
             // - requested_qty: الكمية المطلوبة من StoreKeeper
             // - approved_qty: الكمية المعتمدة من Supplier (سيتم تحديدها لاحقاً من Supplier)
@@ -345,9 +352,11 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
             // الكميات ستُحدد من قبل Supplier عند الموافقة والإرسال
             
             // تغيير الحالة إلى "approved" (موافقة من HospitalAdmin)
-            // الآن سيظهر الطلب للـ Supplier للموافقة وتحديد الكميات
+            // تعيين supplier_id من المستشفى لإرسال الطلب للمورد
             $r->status = 'approved';
-            $r->approved_by = $adminUser->id; // تسجيل من وافق على الطلب (HospitalAdmin)
+            $r->supplier_id = $hospital->supplier_id; // تعيين المورد المرتبط بنفس المستشفى
+            $r->handeled_by = $adminUser->id; // تسجيل من وافق على الطلب (HospitalAdmin)
+            $r->handeled_at = now(); // تسجيل وقت الموافقة
             $r->save();
         });
 

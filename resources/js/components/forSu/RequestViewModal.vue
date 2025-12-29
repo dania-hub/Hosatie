@@ -9,7 +9,7 @@
         ></div>
 
         <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
             dir="rtl"
             role="dialog"
             aria-modal="true"
@@ -85,7 +85,9 @@
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:box-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الأدوية المطلوبة
-                        <span v-if="isSentStatus" class="text-sm font-normal text-gray-400 mr-2">(مطلوب / مُرسل)</span>
+                        <span v-if="hasAnySentOrReceived" class="text-sm font-normal text-gray-400 mr-2">
+                            (مطلوب<span v-if="hasAnySent"> / مرسل</span><span v-if="hasAnyReceived"> / مستلم</span>)
+                        </span>
                     </h3>
 
                     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -110,19 +112,35 @@
                                 <div class="flex items-center gap-6 w-full md:w-auto justify-end">
                                     <div class="text-center">
                                         <span class="text-xs text-gray-400 block mb-1">مطلوب</span>
-                                        <span class="font-bold text-[#4DA1A9] text-lg">{{ item.quantity }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
+                                        <span class="font-bold text-[#4DA1A9] text-lg">{{ item.quantity || item.requestedQuantity || item.requested_qty || 0 }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
                                     </div>
                                     
-                                    <div v-if="isSentStatus" class="text-center pl-4 border-r border-gray-100">
+                                    <div v-if="hasSentQuantity(item)" class="text-center pl-4 border-r border-gray-100">
                                         <span class="text-xs text-gray-400 block mb-1">مرسل</span>
                                         <div class="flex items-center gap-1">
                                             <span 
                                                 class="font-bold text-lg"
-                                                :class="getSentQuantity(item) >= item.quantity ? 'text-green-600' : 'text-amber-600'"
+                                                :class="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0) ? 'text-green-600' : 'text-amber-600'"
                                             >
                                                 {{ getSentQuantity(item) || 0 }}
                                             </span>
-                                            <Icon v-if="getSentQuantity(item) >= item.quantity" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
+                                            <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                            <Icon v-if="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
+                                            <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
+                                        </div>
+                                    </div>
+                                    
+                                    <div v-if="hasReceivedQuantity(item)" class="text-center pl-4 border-r border-gray-100">
+                                        <span class="text-xs text-gray-400 block mb-1">مستلم</span>
+                                        <div class="flex items-center gap-1">
+                                            <span 
+                                                class="font-bold text-lg"
+                                                :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-amber-600'"
+                                            >
+                                                {{ getReceivedQuantity(item) || 0 }}
+                                            </span>
+                                            <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                            <Icon v-if="getReceivedQuantity(item) >= getSentQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                             <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
                                         </div>
                                     </div>
@@ -326,9 +344,24 @@ const getPriorityClass = (priority) => {
     }
 };
 
+// دالة للتحقق من وجود كمية مرسلة
+const hasSentQuantity = (item) => {
+    const sentQty = getSentQuantity(item);
+    return sentQty > 0;
+};
+
 // دالة لاستخراج الكمية المرسلة
 const getSentQuantity = (item) => {
-    // محاولة الحصول من confirmation أولاً
+    // محاولة الحصول من confirmationDetails أولاً
+    if (requestDetails.value.confirmationDetails?.receivedItems) {
+        const sentItem = requestDetails.value.confirmationDetails.receivedItems.find(
+            si => si.id === item.id || si.drugId === item.id
+        );
+        if (sentItem && sentItem.sentQuantity) {
+            return sentItem.sentQuantity;
+        }
+    }
+    // محاولة الحصول من confirmation
     if (requestDetails.value.confirmation?.items) {
         const sentItem = requestDetails.value.confirmation.items.find(
             si => si.id === item.id || si.drugId === item.id
@@ -337,20 +370,100 @@ const getSentQuantity = (item) => {
             return sentItem.sentQuantity || sentItem.receivedQuantity || 0;
         }
     }
-    // ثم من الحقول المباشرة
-    return item.sentQuantity || item.receivedQuantity || item.provided || 0;
+    // ثم من الحقول المباشرة في item
+    return item.sentQuantity || item.fulfilled_qty || item.approved_qty || 0;
+};
+
+// دالة للتحقق من وجود كمية مستلمة
+const hasReceivedQuantity = (item) => {
+    const receivedQty = getReceivedQuantity(item);
+    return receivedQty > 0;
+};
+
+// دالة لاستخراج الكمية المستلمة
+const getReceivedQuantity = (item) => {
+    // أولاً: محاولة الحصول من الحقول المباشرة في item (الأولوية الأولى)
+    if (item.receivedQuantity !== null && item.receivedQuantity !== undefined) {
+        return item.receivedQuantity;
+    }
+    
+    // ثانياً: محاولة الحصول من confirmationDetails
+    if (requestDetails.value.confirmationDetails?.receivedItems) {
+        const receivedItem = requestDetails.value.confirmationDetails.receivedItems.find(
+            ri => ri.id === item.id || ri.drugId === item.id
+        );
+        if (receivedItem && receivedItem.receivedQuantity !== null && receivedItem.receivedQuantity !== undefined) {
+            return receivedItem.receivedQuantity;
+        }
+    }
+    
+    // ثالثاً: محاولة الحصول من confirmation
+    if (requestDetails.value.confirmation?.items) {
+        const receivedItem = requestDetails.value.confirmation.items.find(
+            ri => ri.id === item.id || ri.drugId === item.id
+        );
+        if (receivedItem && receivedItem.receivedQuantity !== null && receivedItem.receivedQuantity !== undefined) {
+            return receivedItem.receivedQuantity;
+        }
+    }
+    
+    // أخيراً: إذا لم نجد receivedQuantity، نرجع 0
+    return 0;
 };
 
 // تحديد حالة الإرسال
 const isSentStatus = computed(() => {
     const status = requestDetails.value.status;
+    const statusOriginal = requestDetails.value.statusOriginal;
     return status && (
         status.includes('تم الإرسال') || 
         status.includes('مُرسَل') || 
         status.includes('مؤكد') || 
         status.includes('تم الاستلام') ||
-        status === 'تم الإستلام'
+        status === 'تم الإستلام' ||
+        statusOriginal === 'fulfilled' ||
+        statusOriginal === 'approved'
     );
+});
+
+// تحديد حالة الاستلام
+const isReceivedStatus = computed(() => {
+    const status = requestDetails.value.status;
+    const statusOriginal = requestDetails.value.statusOriginal;
+    const confirmationDetails = requestDetails.value.confirmationDetails;
+    const confirmation = requestDetails.value.confirmation;
+    
+    // التحقق من وجود تفاصيل التأكيد
+    if (confirmationDetails?.receivedItems && confirmationDetails.receivedItems.length > 0) {
+        return true;
+    }
+    if (confirmation?.receivedItems && confirmation.receivedItems.length > 0) {
+        return true;
+    }
+    
+    // التحقق من الحالة
+    return status && (
+        status.includes('تم الاستلام') ||
+        status === 'تم الإستلام' ||
+        statusOriginal === 'delivered'
+    );
+});
+
+// التحقق من وجود أي كمية مرسلة في أي item
+const hasAnySent = computed(() => {
+    if (!requestDetails.value.items || requestDetails.value.items.length === 0) return false;
+    return requestDetails.value.items.some(item => hasSentQuantity(item));
+});
+
+// التحقق من وجود أي كمية مستلمة في أي item
+const hasAnyReceived = computed(() => {
+    if (!requestDetails.value.items || requestDetails.value.items.length === 0) return false;
+    return requestDetails.value.items.some(item => hasReceivedQuantity(item));
+});
+
+// التحقق من وجود أي كمية مرسلة أو مستلمة
+const hasAnySentOrReceived = computed(() => {
+    return hasAnySent.value || hasAnyReceived.value;
 });
 
 // تنسيق فئة الحالة

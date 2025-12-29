@@ -519,6 +519,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('drugs', [DrugSupplierController::class, 'index']);
         Route::get('drugs/all', [DrugSupplierController::class, 'all']);
         Route::get('drugs/search', [DrugSupplierController::class, 'search']);
+        Route::post('drugs/register', [DrugSupplierController::class, 'register']);
         Route::get('categories', [DrugSupplierController::class, 'categories']);
 
         // 3. Supply Requests (طلبات التوريد)

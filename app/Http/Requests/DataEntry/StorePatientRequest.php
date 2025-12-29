@@ -23,7 +23,7 @@ class StorePatientRequest extends FormRequest
                 'regex:/^(002189|09|\+2189)[1-6]\d{7}$/',
                 'unique:users,phone',
             ],
-            'email'       => 'required|email|unique:users,email',
+            'email'       => 'nullable|email|unique:users,email',
         ];
     }
 

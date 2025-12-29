@@ -190,7 +190,7 @@ const printTable = () => {
             }
         </style>
 
-        <h1>سجل العمليات (تقرير طباعة)</h1>
+        <h1>سجل العمليات</h1>
         
         <p class="results-info">
             عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
@@ -209,11 +209,15 @@ const printTable = () => {
     `;
 
     filteredOperations.value.forEach(op => {
+        const desc = getOperationDescription(op);
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
                 <td>${op.name}</td>
-                <td>${op.operationType}</td>
+                <td>
+                    <strong>${desc.title}</strong><br>
+                    <span style="font-size: 12px; color: #666;">${desc.detail}</span>
+                </td>
                 <td>${op.operationDate}</td>
             </tr>
         `;
@@ -238,8 +242,50 @@ const printTable = () => {
 };
 
 
+const getOperationDescription = (op) => {
+    if (op.operationType === 'إضافة') {
+        return {
+            title: 'إضافة',
+            detail: `تم اضافة ملف مريض ${op.name} رقم الملف ${op.fileNumber}`
+        };
+    } else if (op.operationType === 'حذف') {
+        return {
+            title: 'حذف',
+            detail: `تم حذف ملف المريض ${op.name} رقم ملفه ${op.fileNumber}`
+        };
+    } else if (op.operationType === 'تعديل') {
+        // analyze changes
+        let details = [];
+        const oldVals = op.changes?.old || {};
+        const newVals = op.changes?.new || {};
+
+        if (newVals.phone && oldVals.phone !== newVals.phone) {
+            details.push(`تعديل الرقم إلى ${newVals.phone}`);
+        }
+        if (newVals.full_name && oldVals.full_name !== newVals.full_name) {
+             details.push(`تعديل الاسم إلى ${newVals.full_name}`);
+        }
+        if (newVals.national_id && oldVals.national_id !== newVals.national_id) {
+             details.push(`تعديل الرقم الوطني إلى ${newVals.national_id}`);
+        }
+        
+        // If no specific change detected, fallback or generic
+        if (details.length === 0) {
+             return { title: 'تعديل', detail: 'تم تعديل بيانات الملف' };
+        }
+
+        return {
+            title: 'تعديل',
+            detail: details.join('، ')
+        };
+    }
+
+    return { title: op.operationType, detail: '' };
+};
+
 const openViewModal = (op) => console.log('عرض العملية:', op);
 const openEditModal = (op) => console.log('تعديل العملية:', op);
+
 
 </script>
 <template>
@@ -361,7 +407,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                     >
                                         <td class="file-number-col">{{ op.fileNumber }}</td>
                                         <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
+                                        <td class="operation-type-col">
+                                            <div class="flex flex-col">
+                                                <span class="font-bold text-[#2E5077]">{{ getOperationDescription(op).title }}</span>
+                                                <span class="text-xs text-gray-500 font-medium">{{ getOperationDescription(op).detail }}</span>
+                                            </div>
+                                        </td>
                                         <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
@@ -384,10 +435,13 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
             dir="rtl"
+            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#4DA1A9]'"
         >
-            {{ successMessage }}
+            <div class="flex-1 font-bold text-sm">
+                {{ successMessage }}
+            </div>
         </div>
     </Transition>
 
@@ -416,8 +470,8 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     min-width: 90px;
 }
 .operation-type-col {
-    width: 120px;
-    min-width: 120px;
+    width: 250px;
+    min-width: 250px;
 }
 .operation-date-col {
     width: 120px;

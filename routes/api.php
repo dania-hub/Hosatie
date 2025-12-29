@@ -334,6 +334,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('patients/{id}', [PatientDataEntryController::class, 'destroy']);
         Route::get('activity-log', [PatientDataEntryController::class, 'activityLog']);
         Route::get('stats', [PatientDataEntryController::class, 'stats']);
+        Route::post('patients/check-unique', [PatientDataEntryController::class, 'checkUnique']);
     });
 
     // =====================================================================

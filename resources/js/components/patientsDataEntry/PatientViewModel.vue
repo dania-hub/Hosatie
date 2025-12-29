@@ -138,7 +138,7 @@ const emit = defineEmits(['close']);
                         <div class="relative">
                             <input 
                                 type="text" 
-                                :value="patient.email || 'غير متوفر'" 
+                                :value="patient.email && !patient.email.includes('@example.com') ? patient.email : 'غير متوفر'" 
                                 readonly 
                                 class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
                             />

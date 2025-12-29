@@ -659,9 +659,9 @@ const openConfirmationModal = async (shipment) => {
                 unit: item.unit || 'وحدة',
                 dosage: item.dosage || item.strength,
                 strength: item.strength || item.dosage,
-                // للـ ConfirmationModal
+                // للـ ConfirmationModal - استخدام الكمية المتوفرة الفعلية من API (من مخزون المورد)
                 originalQuantity: item.requestedQuantity || item.requested_qty || 0,
-                availableQuantity: item.approvedQuantity || item.approved_qty || item.requestedQuantity || item.requested_qty || 0
+                availableQuantity: item.availableQuantity !== undefined && item.availableQuantity !== null ? item.availableQuantity : 0
             }))
         };
         isConfirmationModalOpen.value = true;

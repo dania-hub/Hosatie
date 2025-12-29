@@ -287,13 +287,12 @@ watch(
                     0
                 );
                 
-                // الحصول على الكمية المعتمدة (التي يجب إرسالها)
-                // في حالة Supplier، الكمية المتاحة هي الكمية المعتمدة من HospitalAdmin
+                // الحصول على الكمية المتوفرة الفعلية من مخزون المورد
+                // يجب أن تأتي من API (availableQuantity) - الكمية الفعلية في مخزون المورد
                 const available = Number(
-                    item.approvedQuantity ||
-                    item.approved_qty ||
-                    item.availableQuantity ||
-                    requested
+                    item.availableQuantity !== undefined && item.availableQuantity !== null 
+                        ? item.availableQuantity 
+                        : 0
                 );
 
                 return {

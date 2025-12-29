@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Supplier;
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\ExternalSupplyRequest;
+use App\Models\Inventory;
 use App\Http\Requests\Supplier\ConfirmShipmentRequest;
 use App\Http\Requests\Supplier\RejectShipmentRequest;
 use Illuminate\Http\Request;
@@ -25,15 +26,30 @@ class ShipmentSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
+            // التأكد من أن المستخدم مرتبط بمورد
+            if (!$user->supplier_id) {
+                return $this->sendError('المستخدم غير مرتبط بمورد', null, 400);
+            }
+
             // جلب جميع الشحنات (approved, fulfilled, rejected)
             // هذه الطلبات جاءت من StoreKeeper وتم اعتمادها من HospitalAdmin
+            // وتم تعيين supplier_id لها عند القبول من قبل HospitalAdmin
+            // البحث عن الطلبات التي لها supplier_id مطابق لـ supplier_id الخاص بالمستخدم المورد
+            // أو الطلبات من المستشفيات المرتبطة بنفس المورد (في حالة عدم تطابق supplier_id مباشرة)
             $shipments = ExternalSupplyRequest::with([
-                'hospital:id,name,city',
+                'hospital:id,name,city,supplier_id',
                 'requester:id,full_name',
                 'approver:id,full_name',
                 'items:id,request_id,drug_id,requested_qty,approved_qty,fulfilled_qty,updated_at'
             ])
-                ->where('supplier_id', $user->supplier_id)
+                ->where(function($query) use ($user) {
+                    // البحث عن الطلبات التي لها supplier_id مطابق لـ supplier_id الخاص بالمستخدم المورد
+                    $query->where('supplier_id', $user->supplier_id)
+                          // أو البحث عن الطلبات من المستشفيات المرتبطة بنفس المورد
+                          ->orWhereHas('hospital', function($q) use ($user) {
+                              $q->where('supplier_id', $user->supplier_id);
+                          });
+                })
                 ->whereIn('status', ['approved', 'fulfilled', 'rejected']) // جميع الحالات المعتمدة والمكتملة والمرفوضة
                 ->orderBy('created_at', 'desc')
                 ->get()
@@ -176,6 +192,46 @@ class ShipmentSupplierController extends BaseApiController
             // إعداد confirmationDetails إذا تم تأكيد الاستلام
             $confirmationDetails = null;
             $isDelivered = false;
+            $originalSentQuantities = [];
+            $actualReceivedQuantities = [];
+            
+            // جلب الكميات المرسلة والمستلمة من audit_log في جميع الحالات (ليس فقط عند isDelivered)
+            $confirmationNotes = null;
+            $auditLog = \App\Models\AuditLog::where('table_name', 'external_supply_request')
+                ->where('record_id', $shipment->id)
+                ->where('action', 'storekeeper_confirm_external_delivery')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            if ($auditLog) {
+                // جلب الكميات المرسلة الأصلية من old_values
+                if ($auditLog->old_values) {
+                    $oldValues = json_decode($auditLog->old_values, true);
+                    if (isset($oldValues['items']) && is_array($oldValues['items'])) {
+                        foreach ($oldValues['items'] as $auditItem) {
+                            if (isset($auditItem['item_id']) && isset($auditItem['sentQuantity'])) {
+                                $originalSentQuantities[$auditItem['item_id']] = $auditItem['sentQuantity'];
+                            }
+                        }
+                    }
+                }
+                
+                // جلب الكميات المستلمة الفعلية من new_values
+                if ($auditLog->new_values) {
+                    $newValues = json_decode($auditLog->new_values, true);
+                    if (isset($newValues['items']) && is_array($newValues['items'])) {
+                        foreach ($newValues['items'] as $auditItem) {
+                            if (isset($auditItem['id']) && isset($auditItem['receivedQuantity'])) {
+                                $actualReceivedQuantities[$auditItem['id']] = $auditItem['receivedQuantity'];
+                            }
+                        }
+                    }
+                    // جلب ملاحظة تأكيد الاستلام
+                    if (isset($newValues['confirmationNotes']) && !empty($newValues['confirmationNotes'])) {
+                        $confirmationNotes = $newValues['confirmationNotes'];
+                    }
+                }
+            }
             
             // التحقق من أن الطلب تم استلامه (fulfilled + تم تأكيد الاستلام من storekeeper)
             if ($shipment->status === 'fulfilled') {
@@ -197,46 +253,6 @@ class ShipmentSupplierController extends BaseApiController
             }
             
             if ($isDelivered) {
-                // جلب الكميات المرسلة والمستلمة من audit_log
-                $originalSentQuantities = [];
-                $actualReceivedQuantities = [];
-                $confirmationNotes = null;
-                $auditLog = \App\Models\AuditLog::where('table_name', 'external_supply_request')
-                    ->where('record_id', $shipment->id)
-                    ->where('action', 'storekeeper_confirm_external_delivery')
-                    ->orderBy('created_at', 'desc')
-                    ->first();
-                
-                if ($auditLog) {
-                    // جلب الكميات المرسلة الأصلية من old_values
-                    if ($auditLog->old_values) {
-                        $oldValues = json_decode($auditLog->old_values, true);
-                        if (isset($oldValues['items']) && is_array($oldValues['items'])) {
-                            foreach ($oldValues['items'] as $auditItem) {
-                                if (isset($auditItem['item_id']) && isset($auditItem['sentQuantity'])) {
-                                    $originalSentQuantities[$auditItem['item_id']] = $auditItem['sentQuantity'];
-                                }
-                            }
-                        }
-                    }
-                    
-                    // جلب الكميات المستلمة الفعلية من new_values
-                    if ($auditLog->new_values) {
-                        $newValues = json_decode($auditLog->new_values, true);
-                        if (isset($newValues['items']) && is_array($newValues['items'])) {
-                            foreach ($newValues['items'] as $auditItem) {
-                                if (isset($auditItem['id']) && isset($auditItem['receivedQuantity'])) {
-                                    $actualReceivedQuantities[$auditItem['id']] = $auditItem['receivedQuantity'];
-                                }
-                            }
-                        }
-                        // جلب ملاحظة تأكيد الاستلام
-                        if (isset($newValues['confirmationNotes']) && !empty($newValues['confirmationNotes'])) {
-                            $confirmationNotes = $newValues['confirmationNotes'];
-                        }
-                    }
-                }
-                
                 // جلب تاريخ الاستلام من audit_log
                 $deliveryDate = null;
                 if ($auditLog && $auditLog->created_at) {
@@ -291,7 +307,21 @@ class ShipmentSupplierController extends BaseApiController
                 'storekeeperNotes' => $storekeeperNotes,
                 'supplierNotes' => $supplierNotes,
                 'confirmationDetails' => $confirmationDetails,
-                'items' => $shipment->items->map(function ($item) {
+                'items' => $shipment->items->map(function ($item) use ($originalSentQuantities, $actualReceivedQuantities, $user) {
+                    // جلب الكميات المرسلة والمستلمة من confirmationDetails إذا كانت موجودة
+                    $sentQty = $originalSentQuantities[$item->id] ?? $item->fulfilled_qty ?? $item->approved_qty ?? 0;
+                    $receivedQty = $actualReceivedQuantities[$item->id] ?? null;
+                    
+                    // التحقق من وجود الدواء في مخزون المورد والحصول على الكمية المتوفرة الفعلية
+                    $availableQuantity = 0;
+                    $inventory = Inventory::where('drug_id', $item->drug_id)
+                        ->where('supplier_id', $user->supplier_id)
+                        ->first();
+                    
+                    if ($inventory) {
+                        $availableQuantity = (int) $inventory->current_quantity;
+                    }
+                    
                     return [
                         'id' => $item->id,
                         'drugId' => $item->drug_id,
@@ -309,6 +339,9 @@ class ShipmentSupplierController extends BaseApiController
                         'approvedQuantity' => $item->approved_qty ?? $item->approved_quantity ?? 0,
                         'approved_qty' => $item->approved_qty ?? 0,
                         'fulfilled_qty' => $item->fulfilled_qty ?? null,
+                        'availableQuantity' => $availableQuantity, // الكمية المتوفرة الفعلية من مخزون المورد
+                        'sentQuantity' => $sentQty,
+                        'receivedQuantity' => $receivedQty,
                         'unit' => $item->drug->unit ?? 'وحدة',
                         'dosage' => $item->drug->strength ?? null,
                         'strength' => $item->drug->strength ?? null,

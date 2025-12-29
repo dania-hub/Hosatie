@@ -36,7 +36,56 @@ public function sendOtpMobile(ForgotMobilePasswordRequest $request)
         \Log::info('=== SENDING OTP VIA RESALA ===');
         \Log::info('Phone: ' . $phone);
         
-        // 1. أرسل الطلب لـ Resala (بدون OTP محلي، دع Resala يولد)
+        // ======================> 1. التحقق من وجود المستخدم في قاعدة البيانات <=======================
+        \Log::info('🔍 Checking if user exists in database...');
+        $user = User::where('phone', $phone)->first();
+        
+        if (!$user) {
+            \Log::warning('❌ User not found in database for phone: ' . $phone);
+            
+            // محاولة العثور على الرقم بصيغ مختلفة
+            $alternativeFormats = $this->getPhoneFormats($phone);
+            $foundInAlternative = false;
+            $alternativePhone = '';
+            
+            foreach ($alternativeFormats as $format) {
+                $alternativeUser = User::where('phone', $format)->first();
+                if ($alternativeUser) {
+                    $foundInAlternative = true;
+                    $alternativePhone = $format;
+                    \Log::info('Found user with alternative phone format: ' . $format);
+                    break;
+                }
+            }
+            
+            if (!$foundInAlternative) {
+                return $this->sendError(
+                    'رقم الهاتف غير مسجل في النظام. يرجى التحقق من الرقم أو إنشاء حساب جديد.',
+                    ['phone_not_registered' => true],
+                    404
+                );
+            } else {
+                // إذا وجد المستخدم بصيغة مختلفة، تحديث الرقم المطلوب
+                $phone = $alternativePhone;
+                $user = User::where('phone', $phone)->first();
+                \Log::info('✅ Using alternative phone format: ' . $phone);
+            }
+        }
+        
+        \Log::info('✅ User found: ID ' . $user->id . ', Name: ' . ($user->name ?? 'N/A'));
+        
+        // ======================> 2. التحقق من حالة المستخدم <=======================
+        if ($user->status !== 'active' && $user->status !== 'pending_activation') {
+            \Log::warning('❌ User status is not active: ' . $user->status);
+            return $this->sendError(
+                'حسابك غير نشط، يرجى مراجعة الإدارة.',
+                ['account_inactive' => true],
+                403
+            );
+        }
+        
+        // ======================> 3. أرسل الطلب لـ Resala <=======================
+        \Log::info('📤 Sending OTP request to Resala...');
         $result = $this->resalaService->sendOtp($phone);  // أعدل الدالة لتعيد array مع 'success' و 'otp'
         
         if ($result['success']) {
@@ -47,7 +96,9 @@ public function sendOtpMobile(ForgotMobilePasswordRequest $request)
                 'dev_otp' => (string) $realOtp, // الـ OTP الحقيقي من Resala
                 'real_sms' => true,
                 'message' => 'تم إرسال رمز التحقق إلى هاتفك',
-                'note' => 'استخدم الرمز الذي وصل لهاتفك'
+                'note' => 'استخدم الرمز الذي وصل لهاتفك',
+                'user_name' => $user->name ?? 'مستخدم',
+                'user_exists' => true
             ], 'تم إرسال رمز التحقق');
         } else {
             // fallback: توليد محلي إذا فشل Resala
@@ -59,13 +110,16 @@ public function sendOtpMobile(ForgotMobilePasswordRequest $request)
             return $this->sendSuccess([
                 'dev_otp' => (string) $otp,
                 'real_sms' => false,
-                'message' => 'فشل الإرسال، استخدم الرمز أدناه'
+                'message' => 'فشل الإرسال، استخدم الرمز أدناه',
+                'user_name' => $user->name ?? 'مستخدم',
+                'user_exists' => true
             ], 'تم إنشاء رمز التحقق');
         }
         
     } catch (\Exception $e) {
-        \Log::error('Error: ' . $e->getMessage());
-        return $this->sendError('حدث خطأ', [], 500);
+        \Log::error('Error in sendOtpMobile: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        return $this->sendError('حدث خطأ في النظام. يرجى المحاولة لاحقاً.', [], 500);
     }
 }
 
@@ -74,15 +128,7 @@ public function sendOtpMobile(ForgotMobilePasswordRequest $request)
  */
 private function saveOtpToCacheManually($phone, $otp)
 {
-    $formats = [
-        $phone,
-        '218' . substr($phone, 1),
-        '+218' . substr($phone, 1),
-        ltrim($phone, '0'),
-        '0' . ltrim($phone, '218'),
-    ];
-    
-    $formats = array_unique($formats);
+    $formats = $this->getPhoneFormats($phone);
     
     foreach ($formats as $format) {
         $key = 'otp_mobile_' . $format;
@@ -90,7 +136,47 @@ private function saveOtpToCacheManually($phone, $otp)
     }
 }
 
- public function resetPasswordMobile(ResetMobilePasswordRequest $request)
+/**
+ * دالة مساعدة للحصول على جميع صيغ الرقم
+ */
+private function getPhoneFormats($phone)
+{
+    $formats = [];
+    
+    // 1. الرقم كما هو
+    $formats[] = $phone;
+    
+    // 2. بدون علامة + إذا كانت موجودة
+    if (str_starts_with($phone, '+')) {
+        $formats[] = substr($phone, 1);
+    }
+    
+    // 3. مع 218 في البداية
+    if (str_starts_with($phone, '0')) {
+        $formats[] = '218' . substr($phone, 1);
+        $formats[] = '+218' . substr($phone, 1);
+    }
+    
+    // 4. بدون الصفر الأول
+    if (str_starts_with($phone, '0')) {
+        $formats[] = substr($phone, 1);
+    }
+    
+    // 5. مع 0 في البداية إذا بدأ بـ 218
+    if (str_starts_with($phone, '218')) {
+        $formats[] = '0' . substr($phone, 3);
+    }
+    
+    // 6. الحصول على آخر 9 أرقام
+    $formats[] = substr($phone, -9);
+    
+    // 7. الحصول على آخر 10 أرقام
+    $formats[] = substr($phone, -10);
+    
+    return array_unique(array_filter($formats));
+}
+
+public function resetPasswordMobile(ResetMobilePasswordRequest $request)
 {
     $data = $request->validated();
     $phone = $data['phone'];
@@ -100,6 +186,34 @@ private function saveOtpToCacheManually($phone, $otp)
     \Log::info('Phone from request: ' . $phone);
     \Log::info('OTP from user: ' . $submittedOtp);
     \Log::info('Current time: ' . now()->format('Y-m-d H:i:s'));
+    
+    // ======================> 0. التحقق من وجود المستخدم أولاً <=======================
+    \Log::info('🔍 Checking if user exists before OTP verification...');
+    $user = User::where('phone', $phone)->first();
+    
+    if (!$user) {
+        // محاولة العثور على الرقم بصيغ مختلفة
+        $alternativeFormats = $this->getPhoneFormats($phone);
+        $foundInAlternative = false;
+        
+        foreach ($alternativeFormats as $format) {
+            $alternativeUser = User::where('phone', $format)->first();
+            if ($alternativeUser) {
+                $foundInAlternative = true;
+                $phone = $format;
+                $user = $alternativeUser;
+                \Log::info('Found user with alternative phone format: ' . $format);
+                break;
+            }
+        }
+        
+        if (!$foundInAlternative) {
+            \Log::error('❌ User not found with phone: ' . $phone);
+            return $this->sendError('المستخدم غير موجود.', [], 404);
+        }
+    }
+    
+    \Log::info('✅ User found: ID ' . $user->id);
     
     // ======================> 1. استخدم ResalaService للتحقق <=======================
     \Log::info('Using ResalaService::verifyOtpFromDatabase...');
@@ -122,13 +236,6 @@ private function saveOtpToCacheManually($phone, $otp)
     \Log::info('✅ OTP VERIFIED SUCCESSFULLY via ResalaService');
     
     // ======================> 2. تحديث كلمة المرور <=======================
-    $user = User::where('phone', $phone)->first();
-    
-    if (!$user) {
-        \Log::error('User not found with phone: ' . $phone);
-        return $this->sendError('المستخدم غير موجود.', [], 404);
-    }
-    
     $user->password = Hash::make($data['password']);
     $user->save();
     
@@ -140,17 +247,22 @@ private function saveOtpToCacheManually($phone, $otp)
     return $this->sendSuccess([], 'تم إعادة تعيين كلمة المرور بنجاح.');
 }
 
-
-
-    /* -----------------------------------------------------------------
-     * دالة جديدة: اختبار Resala مباشرة
-     * ----------------------------------------------------------------- */
-    
-   public function testResala(Request $request)
+public function testResala(Request $request)
 {
     $phone = $request->input('phone', '0944980957');
     
     \Log::info('Testing Resala API', ['phone' => $phone]);
+    
+    // التحقق من وجود المستخدم أولاً
+    $user = User::where('phone', $phone)->first();
+    
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'رقم الهاتف غير مسجل في النظام',
+            'phone_not_registered' => true
+        ], 404);
+    }
     
     $result = $this->resalaService->sendOtp($phone);
     
@@ -159,7 +271,8 @@ private function saveOtpToCacheManually($phone, $otp)
             'success' => true,
             'message' => 'تم إرسال رسالة اختبار إلى ' . $phone,
             'otp' => $result['otp'],
-            'note' => 'تحقق من هاتفك'
+            'note' => 'تحقق من هاتفك',
+            'user_name' => $user->name ?? 'مستخدم'
         ]);
     } else {
         return response()->json([

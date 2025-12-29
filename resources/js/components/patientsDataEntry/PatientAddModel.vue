@@ -3,89 +3,191 @@ import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import Input from "@/components/ui/input/Input.vue";
 
+import axios from 'axios';
+
 const props = defineProps({
-    isOpen: Boolean
+    isOpen: Boolean,
 });
 
 const emit = defineEmits(['close', 'save']);
 
-// نموذج البيانات
 const form = ref({
     nationalId: "",
-    fullName: "",
+    name: "",
     birthDate: "",
     phone: "",
     email: "",
 });
-const validatePhoneInput = () => {
-    form.value.phone = form.value.phone.replace(/\D/g, '');
-    const phone = form.value.phone;
-    const validPrefixes = ['091', '092', '093', '094'];
-    
-    if (phone.length > 0) {
-        const hasValidPrefix = validPrefixes.some(prefix => phone.startsWith(prefix));
-        if (!hasValidPrefix && phone.length >= 3) {
-            errors.value.phone = 'يجب أن يبدأ الرقم بـ 091, 092, 093, 094';
-        } else if (phone.length < 10) {
-            errors.value.phone = 'رقم الهاتف يجب أن يتكون من 10 أرقام';
-        } else {
-            errors.value.phone = '';
-        }
-    }
-};
+
 // أخطاء التحقق
 const errors = ref({
     nationalId: false,
-    fullName: false,
+    name: false,
     birthDate: false,
     phone: false,
     email: false,
 });
 
-// حالة نافذة التأكيد
-const isConfirmationModalOpen = ref(false);
+const duplicateError = ref("");
+let debounceTimeout = null;
 
-// إعادة تعيين النموذج
-const resetForm = () => {
-    form.value = { 
-        nationalId: "", 
-        fullName: "", 
-        birthDate: "", 
-        phone: "", 
-        email: "" 
-    };
-    errors.value = { 
-        nationalId: false, 
-        fullName: false, 
-        birthDate: false, 
-        phone: false, 
-        email: false 
+// Helper to get headers with token
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('auth_token');
+    return {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
     };
 };
 
-// التحقق من صحة النموذج
+const minDate = "1900-01-01";
+const maxDate = computed(() => {
+    const today = new Date();
+    today.setDate(today.getDate() - 1); // Set to yesterday
+    return today.toISOString().split('T')[0];
+});
+
+const checkUniqueness = async () => {
+    // Clear previous timeout
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    
+    // Clear error initially
+    duplicateError.value = "";
+
+    // Validation prerequisites for check
+    const nationalId = form.value.nationalId;
+    const phone = form.value.phone;
+    
+    // Quick invalid check
+    if ((!nationalId || nationalId.length < 12) && (!phone || phone.length < 10)) return;
+
+    debounceTimeout = setTimeout(async () => {
+        try {
+            const response = await axios.post('/api/data-entry/patients/check-unique', {
+                national_id: nationalId.length === 12 ? nationalId : null,
+                phone: phone.length === 10 ? phone : null
+            }, getAuthHeaders());
+
+            if (response.data.exists) {
+                duplicateError.value = response.data.message;
+            }
+        } catch (error) {
+            console.error("Check unique error", error);
+        }
+    }, 500); // 500ms debounce
+};
+
+// حالة نافذة التأكيد
+const isConfirmationModalOpen = ref(false);
+ // التحقق من صحة الرقم الوطني أثناء الكتابة
+const validateNationalIdInput = () => {
+    // إزالة جميع الأحرف غير الرقمية
+    form.value.nationalId = form.value.nationalId.replace(/\D/g, '');
+    
+    // تقليل الرقم إلى 12 رقم كحد أقصى
+    if (form.value.nationalId.length > 12) {
+        form.value.nationalId = form.value.nationalId.substring(0, 12);
+    }
+
+    // Strict validation
+    if (form.value.nationalId.length > 0) {
+        if (!/^[12]/.test(form.value.nationalId)) {
+            errors.value.nationalId = 'يجب أن يبدأ الرقم الوطني بـ 1 أو 2';
+        } else if (form.value.nationalId.length < 12) {
+            errors.value.nationalId = 'الرقم الوطني يجب أن يتكون من 12 رقم';
+        } else {
+            errors.value.nationalId = "";
+        }
+    } else {
+        errors.value.nationalId = "";
+    }
+
+    checkUniqueness();
+};
+
+// التحقق من صحة رقم الهاتف أثناء الكتابة
+const validatePhoneInput = () => {
+    // إزالة جميع الأحرف غير الرقمية
+    form.value.phone = form.value.phone.replace(/\D/g, '');
+    
+    // تقليل الرقم إلى 10 أرقام كحد أقصى
+    if (form.value.phone.length > 10) {
+        form.value.phone = form.value.phone.substring(0, 10);
+    }
+    
+    // Strict validation
+    if (form.value.phone.length > 0) {
+        const validPrefixes = ['091', '092', '093', '094'];
+        const hasValidPrefix = validPrefixes.some(prefix => form.value.phone.startsWith(prefix));
+
+        if (!hasValidPrefix && form.value.phone.length >= 3) {
+            errors.value.phone = 'يجب أن يبدأ الرقم بـ 091, 092, 093, 094';
+        } else if (form.value.phone.length < 10) {
+            errors.value.phone = 'رقم الهاتف يجب أن يتكون من 10 أرقام';
+        } else {
+            errors.value.phone = "";
+        }
+    } else {
+        errors.value.phone = "";
+    }
+
+    checkUniqueness();
+};
+
+const validateNameInput = () => {
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
+    if (form.value.name && form.value.name.length > 0) {
+        if (!nameRegex.test(form.value.name.trim())) {
+            errors.value.name = 'الاسم يجب أن يكون ثلاثياً على الأقل ويحوي حروفاً فقط';
+        } else {
+            errors.value.name = "";
+        }
+    } else {
+        errors.value.name = "";
+    }
+};
+
+// التحقق من صحة البيانات النهائية
 const validateForm = () => {
-    let isValid = true;
     const data = form.value;
+    let isValid = true;
+    
+    // Reset errors
+    errors.value = {
+        nationalId: "",
+        name: "",
+        birthDate: "",
+        phone: "",
+        email: "",
+    };
+    
+    // 1. National ID Validation
+    const nidRegex = /^[12]\d{11}$/;
+    if (!data.nationalId) {
+        errors.value.nationalId = 'الرقم الوطني مطلوب';
+        isValid = false;
+    } else if (!nidRegex.test(data.nationalId)) {
+        errors.value.nationalId = 'الرقم الوطني غير صحيح';
+        isValid = false;
+    }
 
-    const nationalIdRegex = /^\d{12}$/;
-    errors.value.nationalId = !nationalIdRegex.test(data.nationalId);
-    if (errors.value.nationalId) isValid = false;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
+    if (!data.name) {
+        errors.value.name = 'الاسم مطلوب';
+        isValid = false;
+    } else if (!nameRegex.test(data.name.trim())) {
+        errors.value.name = 'الاسم غير صحيح';
+        isValid = false;
+    }
 
-    const fullNameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    errors.value.fullName = !fullNameRegex.test(data.fullName.trim());
-    if (errors.value.fullName) isValid = false;
-
-    errors.value.birthDate = !data.birthDate;
-    if (errors.value.birthDate) isValid = false;
-
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
-    errors.value.phone = !phoneRegex.test(data.phone.trim());
-    if (errors.value.phone) isValid = false;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    errors.value.email = !emailRegex.test(data.email.trim());
-    if (errors.value.email) isValid = false;
+    if (!data.birthDate) {
+        errors.value.birthDate = 'تاريخ الميلاد مطلوب';
+        isValid = false;
+    }
+// ...
+    // Prevent submit if duplicate found
+    if (duplicateError.value) return false;
 
     return isValid;
 };
@@ -94,36 +196,49 @@ const validateForm = () => {
 const isFormValid = computed(() => {
     const data = form.value;
     
-    const nationalIdRegex = /^\d{12}$/;
+    const nationalIdRegex = /^[12]\d{11}$/;
     if (!nationalIdRegex.test(data.nationalId)) return false;
 
-    const fullNameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    if (!fullNameRegex.test(data.fullName.trim())) return false;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
+    if (!data.name || !nameRegex.test(data.name.trim())) return false;
 
     if (!data.birthDate) return false;
 
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
+    const phoneRegex = /^(09[1-4])\d{7}$/; 
     if (!phoneRegex.test(data.phone.trim())) return false;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email.trim())) return false;
+    if (data.email && data.email.trim() !== '' && !emailRegex.test(data.email.trim())) return false;
+
+    if (duplicateError.value) return false;
 
     return true;
 });
-
-// إرسال النموذج
+// ... 
+const resetForm = () => {
+    form.value = { 
+        nationalId: "", 
+        name: "", 
+        birthDate: "", 
+        phone: "", 
+        email: "" 
+    };
+    errors.value = { 
+        nationalId: false, 
+        name: false, 
+        birthDate: false, 
+        phone: false, 
+        email: false 
+    };
+};
+// ...
+// فتح نافذة التأكيد
 const submitForm = () => {
     if (validateForm()) {
-        showConfirmationModal();
+        isConfirmationModalOpen.value = true;
     }
 };
 
-// عرض نافذة التأكيد
-const showConfirmationModal = () => {
-    isConfirmationModalOpen.value = true;
-};
-
-// إغلاق نافذة التأكيد
 const closeConfirmationModal = () => {
     isConfirmationModalOpen.value = false;
 };
@@ -131,7 +246,7 @@ const closeConfirmationModal = () => {
 // تأكيد التسجيل
 const confirmRegistration = () => {
     const newPatient = {
-        name: form.value.fullName,
+        name: form.value.name,
         nationalId: form.value.nationalId,
         birth: form.value.birthDate.replace(/-/g, "/"),
         phone: form.value.phone,
@@ -143,12 +258,12 @@ const confirmRegistration = () => {
     closeModal();
 };
 
-
 // إغلاق النافذة
 const closeModal = () => {
     resetForm();
     emit('close');
 };
+
 const dateInput = ref(null);
 const openDatePicker = () => {
     if (dateInput.value) {
@@ -163,12 +278,6 @@ watch(() => props.isOpen, (newVal) => {
         resetForm();
     }
 });
-const maxDate = computed(() => {
-    const today = new Date();
-    today.setDate(today.getDate() - 1);
-    return today.toISOString().split('T')[0];
-});
-
 </script>
 
 <template>
@@ -202,15 +311,23 @@ const maxDate = computed(() => {
                             الرقم الوطني
                         </label>
                         <Input
-                            id="national-id"
+                            id="nationalId"
                             v-model="form.nationalId"
-                            placeholder="أدخل الرقم الوطني (12 رقم)"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.nationalId }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            placeholder="XXXXXXXXXXXX"
+                            maxlength="12"
+                            @input="validateNationalIdInput"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                (errors.nationalId || (duplicateError && duplicateError.includes('الرقم'))) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
                         />
-                        <p v-if="errors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
+                        <div v-if="duplicateError && duplicateError.includes('الرقم')" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم)
+                            {{ duplicateError }}
+                        </div>
+                        <p v-else-if="errors.nationalId" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.nationalId }}
                         </p>
                     </div>
 
@@ -222,14 +339,15 @@ const maxDate = computed(() => {
                         </label>
                         <Input
                             id="full-name"
-                            v-model="form.fullName"
+                            v-model="form.name"
                             placeholder="أدخل الاسم الرباعي"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.fullName }"
+                            @input="validateNameInput"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.name }"
                             class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
                         />
-                        <p v-if="errors.fullName" class="text-xs text-red-500 flex items-center gap-1">
+                        <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال الاسم الرباعي بشكل صحيح
+                            {{ errors.name }}
                         </p>
                     </div>
 
@@ -289,10 +407,16 @@ const maxDate = computed(() => {
         placeholder="09XXXXXXXX"
         maxlength="10"
         @input="validatePhoneInput"
-        :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone }"
-        class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right"
+        :class="[
+            'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
+            (errors.phone || (duplicateError && duplicateError.includes('الهاتف'))) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+        ]"
     />
-    <p v-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+    <div v-if="duplicateError && duplicateError.includes('الهاتف')" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
+        <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+        {{ duplicateError }}
+    </div>
+    <p v-else-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
         <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
         {{ errors.phone }}
     </p>
@@ -302,7 +426,7 @@ const maxDate = computed(() => {
                     <div class="space-y-2 md:col-span-2">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:letter-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            البريد الإلكتروني
+                            البريد الإلكتروني <span class="text-gray-400 text-xs">(اختياري)</span>
                         </label>
                         <Input
                             id="email"
@@ -314,7 +438,7 @@ const maxDate = computed(() => {
                         />
                         <p v-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            البريد الإلكتروني غير صحيح
+                            {{ errors.email }}
                         </p>
                     </div>
                 </div>
@@ -330,13 +454,7 @@ const maxDate = computed(() => {
                 </button>
                 <button 
                     @click="submitForm" 
-                    :disabled="!isFormValid"
-                    :class="[
-                        'px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200',
-                        isFormValid 
-                            ? 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-0.5' 
-                            : 'bg-gray-300 cursor-not-allowed shadow-none'
-                    ]"
+                    class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-0.5"
                 >
                     <Icon icon="solar:check-read-bold" class="w-5 h-5" />
                     حفظ البيانات

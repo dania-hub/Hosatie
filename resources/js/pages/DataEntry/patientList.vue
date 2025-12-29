@@ -162,7 +162,17 @@ const showSuccessAlert = (message) => {
         clearTimeout(alertTimeout);
     }
     
-    successMessage.value = message;
+    // Auto-detect type if emoji is missing
+    let finalMessage = message;
+    if (!message.includes('✅') && !message.includes('⚠️') && !message.includes('❌')) {
+        if (message.includes('فشل') || message.includes('خطأ') || message.includes('تعذر') || message.includes('already')) {
+           finalMessage = `❌ ${message}`;
+        } else {
+           finalMessage = `✅ ${message}`;
+        }
+    }
+
+    successMessage.value = finalMessage;
     isSuccessAlertVisible.value = true;
     
     alertTimeout = setTimeout(() => {
@@ -210,7 +220,9 @@ const addPatient = async (newPatient) => {
             full_name: newPatient.name,
             national_id: newPatient.nationalId,
             phone: newPatient.phone,
-            email: newPatient.email || `patient${newPatient.nationalId}@example.com`, // Fallback email
+            email: newPatient.email && newPatient.email.trim() !== '' 
+                ? newPatient.email.trim() 
+                : `patient${newPatient.nationalId}@example.com`,
             birth_date: newPatient.birth.replace(/\//g, '-') // Ensure YYYY-MM-DD format
         };
 
@@ -291,7 +303,10 @@ const updatePatient = async (updatedPatient) => {
             full_name: updatedPatient.name,
             national_id: updatedPatient.nationalId,
             phone: updatedPatient.phone,
-            email: updatedPatient.email,
+            phone: updatedPatient.phone,
+            email: updatedPatient.email && updatedPatient.email.trim() !== '' 
+                ? updatedPatient.email.trim() 
+                : `patient${updatedPatient.nationalId}@example.com`,
             birth_date: updatedPatient.birth.replace(/\//g, '-') // Ensure YYYY-MM-DD format
         };
 
@@ -402,7 +417,7 @@ const confirmDelete = async () => {
         } else if (error.response?.status === 403) {
             msg = " ليس لديك صلاحية لحذف المرضى.";
         } else if (error.response?.status === 500) {
-            msg = " خطأ في الخادم.";
+            msg = "لا يمكن حذف هذا الملف لديه عمليات نشطة عالج العمليات اولا";
         } else if (error.code === 'NETWORK_ERROR' || !error.response) {
             msg = " فشل الاتصال بالخادم.";
         } else {
@@ -468,7 +483,7 @@ const printTable = () => {
             }
         </style>
 
-        <h1>قائمة المرضى - تقرير طباعة</h1>
+        <h1>قائمة المرضى </h1>
         
         <div class="print-date">
             تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}
@@ -753,23 +768,12 @@ const printTable = () => {
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
             dir="rtl"
-            :class="{
-                'bg-green-50 border border-green-200 text-green-800': successMessage.includes('✅'),
-                'bg-red-50 border border-red-200 text-red-800': successMessage.includes('⚠️'),
-                'bg-blue-50 border border-blue-200 text-blue-800': !successMessage.includes('✅') && !successMessage.includes('⚠️')
-            }"
+            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#4DA1A9]'"
         >
-            <div class="flex items-start gap-3">
-                <Icon 
-                    :icon="successMessage.includes('✅') ? 'solar:check-circle-bold' : 'solar:danger-triangle-bold'" 
-                    class="w-5 h-5 mt-0.5 flex-shrink-0"
-                    :class="successMessage.includes('✅') ? 'text-green-600' : 'text-red-600'"
-                />
-                <div>
-                    <p class="font-medium text-sm whitespace-pre-line">{{ successMessage.replace('✅', '').replace('⚠️', '') }}</p>
-                </div>
+            <div class="flex-1 font-bold text-sm">
+                {{ successMessage }}
             </div>
         </div>
     </Transition>

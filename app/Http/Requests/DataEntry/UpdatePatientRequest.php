@@ -25,7 +25,7 @@ class UpdatePatientRequest extends FormRequest
                 Rule::unique('users', 'phone')->ignore($id),
             ],
             'email'      => [
-                'required',
+                'nullable',
                 'email',
                 Rule::unique('users', 'email')->ignore($id),
             ],

@@ -16,56 +16,55 @@ class OrderController extends BaseApiController
     public function index(Request $request)
     {
         $userId = $request->user()->id;
-
         Log::info('Fetching orders for user ID: ' . $userId);
 
-        // 1. جلب الشكاوى - ترجمة الحالة
+        // 1. جلب الشكاوى - ترتيب حسب التاريخ والوقت
         $complaints = Complaint::where('patient_id', $userId)
-            ->latest()
+            ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($item) {
                 return [
-                    'id'          => (string) $item->id,
+                    'id' => (string) $item->id,
                     'orderNumber' => 'C-' . $item->id,
-                    'type'        => 'شكوى',
-                    'type_value'  => 'complaint',
-                    'status'      => $this->translateComplaintStatus($item->status), // ترجمة الحالة
-                    'date'        => $item->created_at->format('Y-m-d'), // التاريخ فقط بدون وقت
-                    'created_at'  => $item->created_at->format('Y-m-d H:i:s'),
-                    'content'     => $item->message ?? '',
-                    'real_id'     => $item->id,
-                    'order_type'  => 'complaint',
-                    'status_raw'  => $item->status
+                    'type' => 'شكوى',
+                    'type_value' => 'complaint',
+                    'status' => $this->translateComplaintStatus($item->status),
+                    'date' => $item->created_at->format('Y-m-d'),
+                    'created_at' => $item->created_at->format('Y-m-d H:i:s'),
+                    'content' => $item->message ?? '',
+                    'real_id' => $item->id,
+                    'order_type' => 'complaint',
+                    'status_raw' => $item->status
                 ];
             });
 
         Log::info('Found ' . $complaints->count() . ' complaints');
 
-        // 2. جلب طلبات النقل - ترجمة الحالة
+        // 2. جلب طلبات النقل - ترتيب حسب التاريخ والوقت
         $transfers = PatientTransferRequest::where('patient_id', $userId)
             ->with('toHospital')
-            ->latest()
+            ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($item) {
                 return [
-                    'id'          => (string) $item->id,
+                    'id' => (string) $item->id,
                     'orderNumber' => 'T-' . $item->id,
-                    'type'        => 'نقل',
-                    'type_value'  => 'transfer',
-                    'status'      => $this->translateTransferStatus($item->status), // ترجمة الحالة
-                    'date'        => $item->created_at->format('Y-m-d'), // التاريخ فقط بدون وقت
-                    'created_at'  => $item->created_at->format('Y-m-d H:i:s'),
-                    'content'     => $item->reason ?? 'طلب نقل',
-                    'real_id'     => $item->id,
-                    'order_type'  => 'transfer',
+                    'type' => 'نقل',
+                    'type_value' => 'transfer',
+                    'status' => $this->translateTransferStatus($item->status),
+                    'date' => $item->created_at->format('Y-m-d'),
+                    'created_at' => $item->created_at->format('Y-m-d H:i:s'),
+                    'content' => $item->reason ?? 'طلب نقل',
+                    'real_id' => $item->id,
+                    'order_type' => 'transfer',
                     'hospital_name' => $item->toHospital->name ?? 'مستشفى',
-                    'status_raw'   => $item->status
+                    'status_raw' => $item->status
                 ];
             });
 
         Log::info('Found ' . $transfers->count() . ' transfer requests');
 
-        // 3. دمج القائمتين وترتيبهم بالتاريخ
+        // 3. دمج القائمتين وترتيبهم بالتاريخ والوقت معاً
         $allOrders = $complaints->concat($transfers)
             ->sortByDesc('created_at')
             ->values()
@@ -73,8 +72,13 @@ class OrderController extends BaseApiController
 
         Log::info('Total orders to return: ' . count($allOrders));
 
+        // تسجيل ترتيب الطلبات للتحقق
+        foreach ($allOrders as $index => $order) {
+            Log::info("Order #{$index}: ID {$order['id']} - Created at: {$order['created_at']}");
+        }
+
         return response()->json([
-            'success' => true, 
+            'success' => true,
             'data' => $allOrders,
             'count' => count($allOrders)
         ]);
@@ -83,11 +87,10 @@ class OrderController extends BaseApiController
     // ترجمة حالة الشكاوى
     private function translateComplaintStatus($status)
     {
-        // إذا كانت الحالة بالفعل بالعربية، نعيدها كما هي
         if (in_array($status, ['جديد', 'قيد المراجعة', 'تمت المراجعة', 'مستلم', 'مفتوح', 'مغلق', 'تحت الدراسة', 'مكتمل'])) {
             return $status;
         }
-        
+
         $translations = [
             'new' => 'جديد',
             'pending' => 'قيد المراجعة',
@@ -100,7 +103,7 @@ class OrderController extends BaseApiController
             'in_progress' => 'قيد المعالجة',
             'resolved' => 'تم الحل',
         ];
-        
+
         return $translations[strtolower($status)] ?? $status;
     }
 
@@ -117,7 +120,7 @@ class OrderController extends BaseApiController
             'under_consideration' => 'قيد الدراسة',
             'processed' => 'تمت المعالجة',
         ];
-        
+
         return $translations[strtolower($status)] ?? $status;
     }
 
@@ -125,7 +128,7 @@ class OrderController extends BaseApiController
     public function store(Request $request)
     {
         Log::info('Order Store Request Received:', $request->all());
-        
+
         $user = $request->user();
         Log::info('User making request:', [
             'id' => $user->id,
@@ -133,13 +136,12 @@ class OrderController extends BaseApiController
             'hospital_id' => $user->hospital_id
         ]);
 
-        // التحقق من صحة البيانات
         $validated = $request->validate([
-            'type'    => 'required|in:complaint,transfer',
+            'type' => 'required|in:complaint,transfer',
             'content' => 'required_if:type,complaint|nullable|string|min:5',
             'transfer_to_hospital_id' => 'required_if:type,transfer|exists:hospitals,id',
-            'reason'  => 'nullable|string',
-            'transfer_reason' => 'required_if:type,transfer|string', // تم إزالة القيم الثابتة لأن العمود أزيل
+            'reason' => 'nullable|string',
+            'transfer_reason' => 'required_if:type,transfer|string',
         ]);
 
         Log::info('Validation passed:', $validated);
@@ -151,7 +153,7 @@ class OrderController extends BaseApiController
         }
 
         return response()->json([
-            'success' => false, 
+            'success' => false,
             'message' => 'نوع الطلب غير معروف.'
         ], 400);
     }
@@ -160,138 +162,108 @@ class OrderController extends BaseApiController
     private function createComplaint($user, $request)
     {
         try {
-            // استخدام حالة باللغة الإنجليزية لتكون موحدة
-            $possibleStatuses = [
-                'pending',           // الإنجليزية
-                'new',
-                'open',
-                'in_review',
-            ];
-            
+            $possibleStatuses = ['pending', 'new', 'open', 'in_review'];
             $inserted = false;
             $lastId = null;
             $usedStatus = null;
-            
+
             foreach ($possibleStatuses as $status) {
                 try {
                     $sql = "INSERT INTO complaints (patient_id, message, status, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())";
-                    
-                    DB::insert($sql, [
-                        $user->id,
-                        $request->input('content'),
-                        $status // استخدام الإنجليزية
-                    ]);
-                    
+                    DB::insert($sql, [$user->id, $request->input('content'), $status]);
                     $lastId = DB::getPdo()->lastInsertId();
                     $inserted = true;
                     $usedStatus = $status;
                     Log::info('Complaint created with English status: ' . $status);
                     break;
-                    
                 } catch (\Exception $statusError) {
                     Log::warning('Failed with status ' . $status . ': ' . $statusError->getMessage());
                     continue;
                 }
             }
-            
+
             if ($inserted) {
                 return response()->json([
-                    'success' => true, 
+                    'success' => true,
                     'message' => 'تم إرسال الشكوى بنجاح.',
                     'data' => [
                         'id' => $lastId,
                         'type' => 'complaint',
-                        'status' => $this->translateComplaintStatus($usedStatus) // ترجمة للعرض
+                        'status' => $this->translateComplaintStatus($usedStatus)
                     ]
                 ], 201);
             } else {
-                try {
-                    $sql = "INSERT INTO complaints (patient_id, message, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
-                    
-                    DB::insert($sql, [
-                        $user->id,
-                        $request->input('content')
-                    ]);
-                    
-                    $lastId = DB::getPdo()->lastInsertId();
-                    Log::info('Complaint created without status field (using default)');
-                    
-                    return response()->json([
-                        'success' => true, 
-                        'message' => 'تم إرسال الشكوى بنجاح.',
-                        'data' => [
-                            'id' => $lastId,
-                            'type' => 'complaint',
-                            'status' => 'قيد المراجعة' // قيمة افتراضية
-                        ]
-                    ], 201);
-                    
-                } catch (\Exception $e3) {
-                    Log::error('Failed to create complaint even without status: ' . $e3->getMessage());
-                    return response()->json([
-                        'success' => false, 
-                        'message' => 'حدث خطأ في إنشاء الشكوى. الرجاء الاتصال بالدعم.'
-                    ], 500);
-                }
+                $sql = "INSERT INTO complaints (patient_id, message, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
+                DB::insert($sql, [$user->id, $request->input('content')]);
+                $lastId = DB::getPdo()->lastInsertId();
+                Log::info('Complaint created without status field (using default)');
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم إرسال الشكوى بنجاح.',
+                    'data' => [
+                        'id' => $lastId,
+                        'type' => 'complaint',
+                        'status' => 'قيد المراجعة'
+                    ]
+                ], 201);
             }
-            
         } catch (\Exception $e) {
             Log::error('Error creating complaint: ' . $e->getMessage());
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'حدث خطأ في إنشاء الشكوى: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    // إنشاء طلب نقل
+    // إنشاء طلب نقل (التعديل الرئيسي هنا)
     private function createTransferRequest($user, $request)
     {
-        // تأكد من وجود المستشفى الحالي للمريض
         if (!$user->hospital_id) {
             Log::warning('User has no hospital_id', ['user_id' => $user->id]);
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'المريض غير مسجل في أي مستشفى حالياً للنقل منه.'
             ], 400);
         }
 
-        // التحقق من أن المستشفى المراد النقل إليه مختلف عن المستشفى الحالي
         if ($user->hospital_id == $request->transfer_to_hospital_id) {
             Log::warning('User trying to transfer to same hospital', [
                 'current_hospital' => $user->hospital_id,
                 'requested_hospital' => $request->transfer_to_hospital_id
             ]);
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'لا يمكن النقل إلى نفس المستشفى الحالي.'
             ], 400);
         }
 
         try {
-            // تحديد محتوى الطلب: تخزين سبب النقل في حقل reason
-            $requestContent = '';
-            
-            if (!empty($request->input('reason'))) {
-                // إذا كان هناك سبب مخصص (مثل "غير ذلك" مع نص مخصص)
-                $requestContent = $request->input('reason');
-            } elseif (!empty($request->input('transfer_reason'))) {
-                // إذا كان هناك سبب النقل المختار من القائمة
-                $requestContent = $request->input('transfer_reason');
-            } else {
-                // القيمة الافتراضية
-                $requestContent = 'طلب نقل';
-            }
+            // تحديد سبب النقل
+            $requestContent = $request->input('reason') ?: $request->input('transfer_reason') ?: 'طلب نقل';
 
-            // إنشاء طلب نقل
-            $transfer = PatientTransferRequest::create([
-                'patient_id'       => $user->id,
-                'from_hospital_id' => $user->hospital_id,
-                'to_hospital_id'   => $request->transfer_to_hospital_id,
-                'requested_by'     => $user->id,
-                'reason'           => $requestContent, // تخزين سبب النقل هنا
-                'status'           => 'pending',
-            ]);
+            // تسجيل وقت البدء للتحقق
+            Log::info('Start creating transfer request at: ' . now()->format('Y-m-d H:i:s'));
+
+            // إنشاء باستخدام DB::insert مع NOW() لضمان الوقت الدقيق
+            DB::insert(
+                "INSERT INTO patient_transfer_requests 
+                (patient_id, from_hospital_id, to_hospital_id, requested_by, reason, status, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                [
+                    $user->id,
+                    $user->hospital_id,
+                    $request->transfer_to_hospital_id,
+                    $user->id,
+                    $requestContent,
+                    'pending'
+                ]
+            );
+
+            $lastId = DB::getPdo()->lastInsertId();
+
+            // جلب السجل الجديد مع العلاقة
+            $transfer = PatientTransferRequest::with('toHospital')->find($lastId);
 
             Log::info('Transfer request created successfully:', [
                 'id' => $transfer->id,
@@ -300,10 +272,11 @@ class OrderController extends BaseApiController
                 'to_hospital' => $transfer->to_hospital_id,
                 'status' => $transfer->status,
                 'reason' => $transfer->reason,
+                'created_at' => $transfer->created_at
             ]);
 
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'message' => 'تم إرسال طلب النقل بنجاح.',
                 'data' => [
                     'id' => $transfer->id,
@@ -311,11 +284,10 @@ class OrderController extends BaseApiController
                     'status' => $this->translateTransferStatus($transfer->status),
                 ]
             ], 201);
-
         } catch (\Exception $e) {
             Log::error('Error creating transfer request: ' . $e->getMessage());
             return response()->json([
-                'success' => false, 
+                'success' => false,
                 'message' => 'حدث خطأ في إنشاء طلب النقل: ' . $e->getMessage()
             ], 500);
         }
@@ -334,7 +306,6 @@ class OrderController extends BaseApiController
 
         $query = Hospital::where('status', 'active')->select('id', 'name');
 
-        // إذا كان المريض مسجل في مستشفى، نستثنيه
         if ($currentHospitalId) {
             $query->where('id', '!=', $currentHospitalId);
         }
@@ -344,7 +315,7 @@ class OrderController extends BaseApiController
         Log::info('Found ' . $hospitals->count() . ' hospitals');
 
         return response()->json([
-            'success' => true, 
+            'success' => true,
             'data' => $hospitals
         ]);
     }
@@ -361,7 +332,7 @@ class OrderController extends BaseApiController
         ];
 
         return response()->json([
-            'success' => true, 
+            'success' => true,
             'data' => $reasons
         ]);
     }
@@ -375,7 +346,6 @@ class OrderController extends BaseApiController
             $id = $orderId;
             $type = null;
 
-            // تحديد نوع الطلب بناءً على البادئة
             if (strpos($orderId, 'C-') === 0) {
                 $type = 'complaint';
                 $id = substr($orderId, 2);
@@ -383,7 +353,6 @@ class OrderController extends BaseApiController
                 $type = 'transfer';
                 $id = substr($orderId, 2);
             } else {
-                // إذا لم يكن هناك بادئة، نحاول التخمين
                 $transfer = PatientTransferRequest::find($orderId);
                 if ($transfer) {
                     $type = 'transfer';
@@ -400,7 +369,7 @@ class OrderController extends BaseApiController
             if (!$type) {
                 Log::warning('Could not determine order type for ID: ' . $orderId);
                 return response()->json([
-                    'success' => false, 
+                    'success' => false,
                     'message' => 'الطلب غير موجود.'
                 ], 404);
             }
@@ -412,36 +381,31 @@ class OrderController extends BaseApiController
                 if (!$order) {
                     Log::warning('Complaint not found: ' . $id);
                     return response()->json([
-                        'success' => false, 
+                        'success' => false,
                         'message' => 'الشكوى غير موجودة.'
                     ], 404);
                 }
-                
                 $content = $order->message;
                 $reply = $order->reply_message;
                 $orderType = 'شكوى';
                 $displayId = 'C-' . $order->id;
-                $status = $this->translateComplaintStatus($order->status); // ترجمة الحالة
+                $status = $this->translateComplaintStatus($order->status);
             } else {
                 $order = PatientTransferRequest::with('toHospital')->find($id);
                 if (!$order) {
                     Log::warning('Transfer request not found: ' . $id);
                     return response()->json([
-                        'success' => false, 
+                        'success' => false,
                         'message' => 'طلب النقل غير موجود.'
                     ], 404);
                 }
-                
                 $hospitalName = $order->toHospital->name ?? 'مستشفى';
                 $requestReason = $order->reason ?? '';
-                
-                // عرض المحتوى المخزن في حقل reason
                 $content = "طلب نقل إلى: $hospitalName\n\nسبب النقل: $requestReason";
-                
                 $reply = $order->rejection_reason;
                 $orderType = 'نقل';
                 $displayId = 'T-' . $order->id;
-                $status = $this->translateTransferStatus($order->status); // ترجمة الحالة
+                $status = $this->translateTransferStatus($order->status);
             }
 
             Log::info('Order found:', [
@@ -453,13 +417,13 @@ class OrderController extends BaseApiController
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'id'      => $displayId,
-                    'date'    => $order->created_at->format('Y-m-d'), // التاريخ فقط
-                    'status'  => $status, // الحالة المترجمة
-                    'status_raw' => $order->status, // الحالة الأصلية
+                    'id' => $displayId,
+                    'date' => $order->created_at->format('Y-m-d'),
+                    'status' => $status,
+                    'status_raw' => $order->status,
                     'content' => $content,
-                    'reply'   => $reply ?? null,
-                    'type'    => $orderType,
+                    'reply' => $reply ?? null,
+                    'type' => $orderType,
                     'real_id' => $order->id,
                 ]
             ]);

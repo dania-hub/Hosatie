@@ -52,52 +52,57 @@ class AuthController extends BaseApiController
      * 1. MOBILE LOGIN (Patients Only)
      */
        public function loginMobile(MobileLoginRequest $request)
-    {
-        try {
-            // استخدم البيانات التي تم التحقق منها بالفعل في Request Class
-            $credentials = $request->validated();
+{
+    try {
+        // استخدم البيانات التي تم التحقق منها بالفعل في Request Class
+        $credentials = $request->validated();
 
-            // Find by PHONE
-            $user = User::where('phone', $credentials['phone'])->first();
+        // Find by PHONE
+        $user = User::where('phone', $credentials['phone'])->first();
 
-            // Check Credentials
-            if (!$user || !Hash::check($credentials['password'], $user->password)) {
-                return $this->sendError('رقم الهاتف أو كلمة المرور غير صحيحة.', [], 401);
-            }
-
-            // Check User Type
-            if ($user->type !== 'patient') {
-                return $this->sendError('عذراً، هذا التطبيق مخصص للمرضى فقط.', [], 403);
-            }
-
-            // FR-3 Logic: Force Password Change
-            $requiresPasswordChange = false;
-            if ($user->status === 'pending_activation') {
-                $requiresPasswordChange = true;
-            } elseif ($user->status !== 'active') {
-                return $this->sendError('حسابك غير نشط، يرجى مراجعة الإدارة.', [], 403);
-            }
-
-            // Update FCM
-            if (!empty($credentials['fcm_token'])) {
-                $user->fcm_token = $credentials['fcm_token'];
-                $user->save();
-            }
-
-            $token = $user->createToken('mobile_app')->plainTextToken;
-
-            $data = [
-                'token' => $token,
-                'user'  => new UserResource($user),
-                'requires_password_change' => $requiresPasswordChange,
-            ];
-
-            return $this->sendSuccess($data, 'تم تسجيل الدخول بنجاح.');
-
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'خطأ في تسجيل دخول المريض');
+        // Check if user exists - FR-2: إظهار رسالة خطأ للمستخدم غير المسجل
+        if (!$user) {
+            return $this->sendError('رقم الهاتف غير مسجل في النظام. يرجى التسجيل أولاً.', [], 404);
         }
+
+        // Check Credentials
+        if (!Hash::check($credentials['password'], $user->password)) {
+            return $this->sendError('كلمة المرور غير صحيحة.', [], 401);
+        }
+
+        // Check User Type
+        if ($user->type !== 'patient') {
+            return $this->sendError('عذراً، هذا التطبيق مخصص للمرضى فقط.', [], 403);
+        }
+
+        // FR-3 Logic: Force Password Change
+        $requiresPasswordChange = false;
+        if ($user->status === 'pending_activation') {
+            $requiresPasswordChange = true;
+        } elseif ($user->status !== 'active') {
+            return $this->sendError('حسابك غير نشط، يرجى مراجعة الإدارة.', [], 403);
+        }
+
+        // Update FCM
+        if (!empty($credentials['fcm_token'])) {
+            $user->fcm_token = $credentials['fcm_token'];
+            $user->save();
+        }
+
+        $token = $user->createToken('mobile_app')->plainTextToken;
+
+        $data = [
+            'token' => $token,
+            'user'  => new UserResource($user),
+            'requires_password_change' => $requiresPasswordChange,
+        ];
+
+        return $this->sendSuccess($data, 'تم تسجيل الدخول بنجاح.');
+
+    } catch (\Exception $e) {
+        return $this->handleException($e, 'خطأ في تسجيل دخول المريض');
     }
+}
 
 
     /**

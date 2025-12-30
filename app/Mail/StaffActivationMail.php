@@ -16,13 +16,16 @@ class StaffActivationMail extends Mailable
     public function __construct($token, $email, $name)
     {
         $this->name = $name;
-        // This URL points to your Frontend React Dashboard
-        $this->url = "http://localhost:3000/set-password?token=" . $token . "&email=" . urlencode($email);
+        
+        // 👇 استخدام رابط Frontend الصحيح
+        $frontendUrl = config('app.frontend_url', 'http://localhost:8000');
+
+        $this->url = $frontendUrl . "/set-password?token=" . urlencode($token) . "&email=" . urlencode($email);
     }
 
     public function build()
     {
-        return $this->subject('Welcome to Hosatie - Activate Your Account')
-                    ->view('emails.staff_activation'); // We will create this view next
+        return $this->subject('تفعيل حسابك في نظام حُصتي')
+                    ->view('emails.staff_activation');
     }
 }

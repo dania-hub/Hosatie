@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\BaseApiController;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -287,17 +287,35 @@ public function testResala(Request $request)
      * DASHBOARD (Staff - Email)
      * ----------------------------------------------------------------- */
 
-    public function sendOtpDashboard(ForgotDashboardPasswordRequest $request)
-    {
-        $email = $request->validated()['email'];
-        $key = 'otp_dashboard_' . $email;
+  public function sendOtpDashboard(ForgotDashboardPasswordRequest $request)
+{
+    $email = $request->validated()['email'];
+    $key = 'otp_dashboard_' . $email;
 
-        $otp = rand(100000, 999999);
-        Cache::put($key, $otp, 900);
+    $otp = rand(1000, 9999);
+    Cache::put($key, $otp, 900);
 
-        // Email Simulation
-        return $this->sendSuccess(['dev_otp' => $otp], 'تم إرسال رمز التحقق إلى البريد الإلكتروني .');
+    // الحصول على بيانات المستخدم
+    $user = User::where('email', $email)->first();
+
+    // إرسال الإيميل بالقالب الاحترافي
+    try {
+        Mail::send('emails.otp-reset', [
+            'user' => $user,
+            'otp' => $otp
+        ], function ($message) use ($email) {
+            $message->to($email);
+            $message->subject('رمز إعادة تعيين كلمة المرور - نظام حصتي');
+        });
+    } catch (\Exception $e) {
+        \Log::error('فشل إرسال OTP: ' . $e->getMessage());
     }
+
+    // للتطوير فقط - يمكن حذف dev_otp لاحقاً
+    return $this->sendSuccess(['dev_otp' => $otp], 'تم إرسال رمز التحقق إلى البريد الإلكتروني.');
+}
+
+
 
     public function resetPasswordDashboard(ResetDashboardPasswordRequest $request)
     {

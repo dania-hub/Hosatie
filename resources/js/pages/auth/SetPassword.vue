@@ -9,14 +9,10 @@
       <div
         class="w-full max-w-[470px] grid gap-6 text-center relative custom-container mx-auto"
       >
-      
-
         <div
           class="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
         >
-         <!--         <img src="/assets/logo2.png" alt="logo" class="h-15 w-15 object-contain flex-shrink-0" />
- -->
-          <img src="/assets/logo4.png" alt="logo" class="w-25 h-29 sm:w-12 sm:h-12 " />
+          <img src="/assets/logo4.png" alt="logo" class="w-25 h-29 sm:w-12 sm:h-12" />
         </div>
 
         <div class="flex flex-col items-center gap-2 mt-4 sm:mt-0">
@@ -37,7 +33,7 @@
                 v-model="newPassword"
                 @blur="validateField('newPassword')"
                 @input="newPasswordError = ''"
-                placeholder="أدخل كلمة المرور "
+                placeholder="أدخل كلمة المرور"
                 class="custom-input text-right text-sm sm:text-base"
                 :class="{ 'input-error': newPasswordError }"
               />
@@ -65,7 +61,7 @@
                 v-model="confirmPassword"
                 @blur="validateField('confirmPassword')"
                 @input="confirmPasswordError = ''"
-                placeholder="تأكيد كلمة المرور "
+                placeholder="تأكيد كلمة المرور"
                 class="custom-input text-right text-sm sm:text-base"
                 :class="{ 'input-error': confirmPasswordError }"
               />
@@ -86,9 +82,37 @@
           </div>
 
           <div class="flex flex-col items-center mt-2 w-full">
-            <button type="submit" class="button w-full sm:w-3/4">
-              تأكــــــيـد
+            <button 
+              type="submit" 
+              class="button w-full sm:w-3/4"
+              :disabled="loading"
+              :class="{ 'opacity-60 cursor-not-allowed': loading }"
+            >
+              <span v-if="!loading">تأكــــــيـد</span>
+              <span v-else class="flex items-center gap-2">
+                <Icon icon="eos-icons:loading" class="w-5 h-5" />
+                جاري المعالجة...
+              </span>
             </button>
+
+            <!-- رسالة النجاح -->
+            <div
+              v-if="successMessage"
+              class="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center gap-2 w-full"
+            >
+              <Icon icon="mdi:check-circle" class="w-6 h-6" />
+              <span>{{ successMessage }}</span>
+            </div>
+
+            <!-- رسالة الخطأ -->
+            <div
+              v-if="errorMessage"
+              class="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2 w-full"
+            >
+              <Icon icon="mdi:alert-circle" class="w-6 h-6" />
+              <span>{{ errorMessage }}</span>
+            </div>
+
             <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
               2024© حصتي. جميع الحقوق محفوظة
             </p>
@@ -100,24 +124,44 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { Lock, Stethoscope } from "lucide-vue-next";
+import { ref, onMounted } from "vue";
+import axios from "axios";
+import { Lock } from "lucide-vue-next";
 import { Icon } from "@iconify/vue";
+import { usePage } from '@inertiajs/vue3';
+import { router } from '@inertiajs/vue3';
+
+// الحصول على البيانات من URL
+const page = usePage();
+const token = ref("");
+const email = ref("");
+
+onMounted(() => {
+  // الحصول على token و email من query parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  token.value = urlParams.get('token') || "";
+  email.value = urlParams.get('email') || "";
+  
+  console.log("Token:", token.value);
+  console.log("Email:", email.value);
+});
 
 // تعريف المتغيرات
 const newPassword = ref("");
 const confirmPassword = ref("");
-
 const newPasswordError = ref("");
 const confirmPasswordError = ref("");
+const loading = ref(false);
+const successMessage = ref("");
+const errorMessage = ref("");
 
 // دالة التحقق الشاملة للحد الأدنى للطول
 const validatePassword = (passwordValue, errorRef, fieldName) => {
   if (!passwordValue) {
     errorRef.value = `حقل ${fieldName} مطلوب`;
     return false;
-  } else if (passwordValue.length < 6) {
-    errorRef.value = "كلمة المرور يجب أن تكون 6 أحرف على الأقل";
+  } else if (passwordValue.length < 8) {
+    errorRef.value = "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
     return false;
   } else {
     errorRef.value = "";
@@ -127,16 +171,13 @@ const validatePassword = (passwordValue, errorRef, fieldName) => {
 
 // دالة منفصلة للتحقق من تطابق كلمتي المرور
 const validateConfirmMatch = () => {
-    // إذا كان هناك خطأ بالفعل (مثل خطأ الطول)، نتركه أولاً
     if (confirmPasswordError.value && confirmPasswordError.value !== "كلمتا المرور غير متطابقتين") {
         return;
     }
 
-    // التحقق من التطابق فقط
     if (newPassword.value !== confirmPassword.value && confirmPassword.value.length > 0) {
       confirmPasswordError.value = "كلمتا المرور غير متطابقتين";
     } else if (newPassword.value === confirmPassword.value && confirmPassword.value.length > 0) {
-      // إذا تساويا، نزيل رسالة الخطأ الخاصة بالتطابق
       if (confirmPasswordError.value === "كلمتا المرور غير متطابقتين") {
           confirmPasswordError.value = "";
       }
@@ -146,53 +187,90 @@ const validateConfirmMatch = () => {
 // دالة لمعالجة حدث الخروج من الحقل (Blur)
 const validateField = (field) => {
   if (field === "newPassword") {
-    // التحقق من حقل كلمة المرور الجديدة
     if (newPassword.value.length > 0) {
       validatePassword(newPassword.value, newPasswordError, "كلمة المرور الجديدة");
     }
 
-    // التحقق من التطابق فوراً إذا كان حقل التأكيد مملوءاً
     if (confirmPassword.value.length > 0) {
       validateConfirmMatch();
     }
 
   } else if (field === "confirmPassword") {
-    // التحقق من حقل تأكيد كلمة المرور
     if (confirmPassword.value.length > 0) {
       validatePassword(confirmPassword.value, confirmPasswordError, "تأكيد كلمة المرور");
     }
-    // التحقق الإضافي للتطابق
     validateConfirmMatch();
   }
 };
 
-// دالة الإرسال النهائية
-const handleResetPassword = () => {
-  // نجبر التحقق على جميع الحقول
+// دالة الإرسال النهائية مع الاتصال بالـ API
+const handleResetPassword = async () => {
+  successMessage.value = "";
+  errorMessage.value = "";
+
   const isNewPasswordValid = validatePassword(newPassword.value, newPasswordError, "كلمة المرور الجديدة");
   let isConfirmPasswordValid = validatePassword(confirmPassword.value, confirmPasswordError, "تأكيد كلمة المرور");
 
-  // التحقق من التطابق كخطوة أخيرة في الإرسال
   if (isNewPasswordValid && newPassword.value !== confirmPassword.value) {
       confirmPasswordError.value = "كلمتا المرور غير متطابقتين";
-      isConfirmPasswordValid = false; // فشل التحقق
+      isConfirmPasswordValid = false;
   }
 
-  // يتم الإرسال فقط إذا كانت جميع التحققات ناجحة
+  if (!token.value || !email.value) {
+    errorMessage.value = "رابط غير صالح. يرجى طلب رابط جديد.";
+    return;
+  }
+
   if (isNewPasswordValid && isConfirmPasswordValid) {
-    // ****** هنا يتم وضع كود الاتصال بالـ API لإعادة تعيين كلمة المرور ******
-    console.log("تمت إعادة تعيين كلمة المرور بنجاح");
-    // مثال: router.push('/success');
+    loading.value = true;
+
+    try {
+      console.log("إرسال البيانات:", {
+        email: email.value,
+        token: token.value,
+        password: newPassword.value
+      });
+
+      // 👇 استخدام activate-account API
+      const response = await axios.post('/api/activate-account', {
+        email: email.value,
+        token: token.value,
+        password: newPassword.value,
+        password_confirmation: confirmPassword.value
+      });
+
+      console.log("الاستجابة:", response.data);
+
+      if (response.data.success) {
+        successMessage.value = response.data.message || "تم تفعيل حسابك بنجاح!";
+        
+       setTimeout(() => {
+  router.visit('/');   // أو route('login') إذا كنت تستخدم named routes
+}, 2000);
+
+      }
+
+    } catch (error) {
+      console.error("خطأ:", error);
+      
+      if (error.response) {
+        console.error("استجابة الخطأ:", error.response.data);
+        errorMessage.value = error.response.data.message || "حدث خطأ أثناء التفعيل";
+      } else if (error.request) {
+        errorMessage.value = "لا يمكن الاتصال بالخادم";
+      } else {
+        errorMessage.value = "حدث خطأ غير متوقع";
+      }
+    } finally {
+      loading.value = false;
+    }
   } else {
-    console.log("خطأ في التحقق، يرجى مراجعة البيانات المدخلة.");
+    console.log("خطأ في التحقق من البيانات");
   }
 };
 </script>
 
 <style>
-/* التنسيقات (CSS) تستخدم Tailwind CSS ومُضافة للتصميم الجمالي.
-  هذا الجزء لم يتم تعديله بناءً على طلبك، ولكنه جزء أساسي من شكل النموذج.
-*/
 .custom-container {
   background: linear-gradient(0deg, #ffffff 0%, #f4f7fb 100%);
   border-radius: 35px;

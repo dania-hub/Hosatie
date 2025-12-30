@@ -25,16 +25,15 @@ class SupplyRequestSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            // جلب فقط الطلبات المعتمدة من HospitalAdmin (status = 'approved')
-            // هذه الطلبات جاءت من StoreKeeper وتم اعتمادها من HospitalAdmin
+            // جلب الطلبات التي أنشأها المورد (الطلبات التي قام المورد بطلب توريد لها)
             $requests = ExternalSupplyRequest::with([
                 'hospital:id,name,city',
                 'requester:id,full_name',
                 'approver:id,full_name',
                 'items.drug:id,name'
             ])
-                ->where('supplier_id', $user->supplier_id)
-                ->where('status', 'approved') // فقط الطلبات المعتمدة من HospitalAdmin
+                ->where('requested_by', $user->id)
+                ->whereIn('status', ['pending', 'approved', 'fulfilled', 'rejected'])
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->map(function ($request) {
@@ -72,9 +71,9 @@ class SupplyRequestSupplierController extends BaseApiController
             $supplyRequest = ExternalSupplyRequest::with([
                 'hospital:id,name,city,address,phone',
                 'requester:id,full_name,email,phone',
-                'items.drug:id,name,category',
+                'items.drug:id,name,category,form,strength,unit',
             ])
-                ->where('supplier_id', $user->supplier_id)
+                ->where('requested_by', $user->id)
                 ->findOrFail($id);
 
             $data = [
@@ -91,23 +90,42 @@ class SupplyRequestSupplierController extends BaseApiController
                     'email' => $supplyRequest->requester->email ?? '',
                     'phone' => $supplyRequest->requester->phone ?? '',
                 ],
+                'department' => $supplyRequest->hospital->name ?? 'غير محدد',
                 'status' => $this->translateStatus($supplyRequest->status),
                 'statusOriginal' => $supplyRequest->status,
                 'items' => $supplyRequest->items->map(function ($item) {
+                    $drug = $item->drug;
+                    // التأكد من استخراج الكمية بشكل صحيح
+                    // الحقل في قاعدة البيانات هو requested_qty
+                    $requestedQty = (int) ($item->requested_qty ?? 0);
+                    $approvedQty = $item->approved_qty !== null ? (int) $item->approved_qty : null;
+                    
                     return [
                         'id' => $item->id,
                         'drugId' => $item->drug_id,
-                        'drugName' => $item->drug->name ?? 'غير محدد',
-                        'category' => $item->drug
-                            ? (is_object($item->drug->category)
-                                ? ($item->drug->category->name ?? $item->drug->category)
-                                : ($item->drug->category ?? 'غير محدد'))
+                        'name' => $drug->name ?? 'غير محدد',
+                        'drugName' => $drug->name ?? 'غير محدد',
+                        'category' => $drug
+                            ? (is_object($drug->category)
+                                ? ($drug->category->name ?? $drug->category)
+                                : ($drug->category ?? 'غير محدد'))
                             : 'غير محدد',
-                        'requestedQuantity' => $item->requested_quantity,
-                        'approvedQuantity' => $item->approved_quantity,
+                        'requestedQuantity' => (int) $requestedQty,
+                        'requested_qty' => (int) $requestedQty,
+                        'requestedQty' => (int) $requestedQty,
+                        'approvedQuantity' => $approvedQty !== null ? (int) $approvedQty : null,
+                        'approved_qty' => $approvedQty !== null ? (int) $approvedQty : null,
+                        'approvedQty' => $approvedQty !== null ? (int) $approvedQty : null,
+                        'quantity' => (int) $requestedQty,
+                        'strength' => $drug->strength ?? null,
+                        'dosage' => $drug->strength ?? null,
+                        'form' => $drug->form ?? null,
+                        'type' => $drug->form ?? 'Tablet',
+                        'unit' => $drug->unit ?? 'وحدة',
                     ];
                 }),
                 'createdAt' => $supplyRequest->created_at->format('Y/m/d H:i'),
+                'notes' => $supplyRequest->notes ?? '',
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الطلب بنجاح');

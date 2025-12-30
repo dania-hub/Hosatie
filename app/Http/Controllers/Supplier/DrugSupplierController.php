@@ -62,17 +62,23 @@ class DrugSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $drugs = Drug::select('id', 'name', 'category')
+            $drugs = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit', 'status')
                 ->where('status', 'متوفر')
                 ->get()
                 ->map(function ($drug) {
                     return [
                         'id' => $drug->id,
                         'name' => $drug->name,
+                        'genericName' => $drug->generic_name,
+                        'strength' => $drug->strength,
+                        'form' => $drug->form,
+                        'type' => $drug->form, // للتوافق مع الواجهة
                         'category' => is_object($drug->category)
                             ? ($drug->category->name ?? 'غير مصنف')
                             : ($drug->category ?? 'غير مصنف'),
-                        'categoryId' => null,
+                        'categoryId' => $drug->category, // استخدام category مباشرة
+                        'unit' => $drug->unit ?? 'قرص',
+                        'status' => $drug->status,
                     ];
                 });
 
@@ -155,6 +161,66 @@ class DrugSupplierController extends BaseApiController
             return $this->sendSuccess($categories, 'تم جلب الفئات بنجاح');
         } catch (\Exception $e) {
             return $this->handleException($e, 'Supplier Categories Error');
+        }
+    }
+
+    /**
+     * تسجيل استلام الأدوية وإضافتها للمخزون
+     * POST /api/supplier/drugs/register
+     */
+    public function register(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if ($user->type !== 'supplier_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $request->validate([
+                'items' => 'required|array|min:1',
+                'items.*.drugId' => 'required|exists:drugs,id',
+                'items.*.quantity' => 'required|integer|min:1',
+            ]);
+
+            $supplierId = $user->supplier_id;
+            $registeredItems = [];
+
+            foreach ($request->items as $item) {
+                // البحث عن سجل المخزون الحالي
+                $inventory = Inventory::where('drug_id', $item['drugId'])
+                    ->where('supplier_id', $supplierId)
+                    ->whereNull('warehouse_id')
+                    ->whereNull('pharmacy_id')
+                    ->first();
+
+                if ($inventory) {
+                    // إذا كان موجود، نضيف الكمية للكمية الحالية
+                    $inventory->current_quantity += $item['quantity'];
+                    $inventory->save();
+                } else {
+                    // إذا لم يكن موجود، ننشئ سجل جديد
+                    $inventory = Inventory::create([
+                        'drug_id' => $item['drugId'],
+                        'supplier_id' => $supplierId,
+                        'warehouse_id' => null,
+                        'pharmacy_id' => null,
+                        'current_quantity' => $item['quantity'],
+                        'minimum_level' => 50, // القيمة الافتراضية
+                    ]);
+                }
+
+                $registeredItems[] = [
+                    'drugId' => $item['drugId'],
+                    'drugName' => $inventory->drug->name ?? 'غير معروف',
+                    'quantity' => $item['quantity'],
+                    'currentQuantity' => $inventory->current_quantity,
+                ];
+            }
+
+            return $this->sendSuccess($registeredItems, 'تم تسجيل الاستلام وإضافة الأدوية للمخزون بنجاح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Supplier Register Error');
         }
     }
 }

@@ -63,6 +63,7 @@ const routeNames = {
     '/superAdmin/AllemployeesList': 'الموظفين',
     '/superAdmin/requests': 'الطلبات',
     '/superAdmin/hospital': 'المستشفيات',
+    '/superAdmin/Supply': 'شركات التوريد',
     // Hospital Admin
     '/admin/medications': 'قائمة الأدوية',
     '/admin/operations': 'سجل العمليات',

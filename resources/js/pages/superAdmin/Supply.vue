@@ -4,11 +4,11 @@ import axios from "axios";
 import { Icon } from "@iconify/vue";
 import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
-import inputadd from "@/components/btnaddhos.vue";
+import inputadd from "@/components/btnaddsu.vue";
 import btnprint from "@/components/btnprint.vue";
-import hospitalAddModel from "@/components/forsuperadmin/hospitalAddModel.vue";
-import hospitalEditModel from "@/components/forsuperadmin/hospitalEditModel.vue";
-import hospitalViewModel from "@/components/forsuperadmin/hospitalViewModel.vue";
+import supplyAddModel from "@/components/forsuperadmin/supplyAddModel.vue";
+import supplyEditModel from "@/components/forsuperadmin/supplyEditModel.vue";
+import supplyViewModel from "@/components/forsuperadmin/supplyViewModel.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -37,10 +37,9 @@ api.interceptors.request.use(
 );
 
 // بيانات التطبيق
-const availableSuppliers = ref([]);
-const availableManagers = ref([]);
 const statusFilter = ref("all");
-const hospitals = ref([]);
+const suppliers = ref([]);
+const availableManagers = ref([]);
 
 // ----------------------------------------------------
 // 2. الحالة العامة للتطبيق
@@ -58,59 +57,33 @@ const fetchAllData = async () => {
     error.value = null;
     
     try {
-        // جلب البيانات بشكل متوازي
-        const [hospitalsResponse, suppliersResponse, usersResponse] = await Promise.all([
-            api.get('/super-admin/hospitals'),
+        const [suppliersResponse, usersResponse] = await Promise.all([
             api.get('/super-admin/suppliers'),
             api.get('/super-admin/users')
         ]);
         
-        // معالجة بيانات المستشفيات
-        const hospitalsData = hospitalsResponse.data.data || [];
-        hospitals.value = hospitalsData.map(hospital => ({
-            ...hospital,
-            id: hospital.id,
-            name: hospital.name,
-            nameDisplay: hospital.name || "",
-            code: hospital.code,
-            type: hospital.type,
-            city: hospital.city,
-            address: hospital.address,
-            phone: hospital.phone,
-            isActive: hospital.status === 'active',
-            status: hospital.status,
-            supplierNameDisplay: hospital.supplier?.name || "",
-            supplierId: hospital.supplier?.id || null,
-            supplier: hospital.supplier || null,
-            managerNameDisplay: hospital.admin?.name || "",
-            managerId: hospital.admin?.id || null,
-            admin: hospital.admin || null,
-            region: hospital.city || "", // للتوافق مع الكود الحالي
-            lastUpdated: hospital.createdAt || new Date().toISOString()
+        // معالجة بيانات الموردين
+        const suppliersData = suppliersResponse.data.data || [];
+        suppliers.value = suppliersData.map(supplier => ({
+            ...supplier,
+            id: supplier.id,
+            name: supplier.name,
+            code: supplier.code,
+            city: supplier.city,
+            address: supplier.address,
+            phone: supplier.phone,
+            isActive: supplier.status === 'active',
+            status: supplier.status,
+            admin: supplier.admin || null,
+            managerName: supplier.admin?.name || '',
+            managerId: supplier.admin?.id || null,
+            lastUpdated: supplier.createdAt || new Date().toISOString()
         }));
         
-        // معالجة بيانات الموردين (فقط الذين لم يتم تعيينهم في مستشفى)
-        const suppliersData = suppliersResponse.data.data || [];
-        // الحصول على قائمة IDs الموردين المعينين في مستشفيات
-        const assignedSupplierIds = new Set(
-            hospitalsData
-                .filter(h => h.supplier && h.supplier.id)
-                .map(h => h.supplier.id)
-        );
-        
-        availableSuppliers.value = suppliersData
-            .filter(supplier => !assignedSupplierIds.has(supplier.id))
-            .map(supplier => ({
-                ...supplier,
-                id: supplier.id,
-                name: supplier.name,
-                isActive: supplier.status === 'active' || supplier.status === true
-            }));
-        
-        // معالجة بيانات المدراء (فقط hospital_admin الذين لم يتم تعيينهم في مستشفى)
+        // معالجة بيانات المدراء (فقط supplier_admin الذين لم يتم تعيينهم في مورد)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'hospital_admin' && !user.hospital)
+            .filter(user => user.type === 'supplier_admin' && !user.supplier)
             .map(user => ({
                 ...user,
                 id: user.id,
@@ -121,7 +94,7 @@ const fetchAllData = async () => {
             }));
         
     } catch (err) {
-        console.error("Error fetching all data:", err);
+        console.error("Error fetching suppliers data:", err);
         error.value = err.response?.data?.message || "فشل في تحميل البيانات من الخادم.";
     } finally {
         loading.value = false;
@@ -144,41 +117,20 @@ onMounted(async () => {
 // 5. دوال الحساب
 // ----------------------------------------------------
 
-// الحصول على قائمة الموردين المتاحين (غير المعينين في مستشفى)
-const availableSuppliersForHospitals = computed(() => {
-    // الحصول على قائمة IDs الموردين المعينين في المستشفيات الحالية
-    // استثناء المستشفى الحالي عند التعديل
-    const currentHospitalId = selectedHospital.value?.id;
-    const assignedSupplierIds = new Set(
-        hospitals.value
-            .filter(h => h.supplierId && h.id !== currentHospitalId)
-            .map(h => h.supplierId)
-    );
-    
-    // إضافة المورد الحالي للمستشفى إذا كان موجوداً (للسماح بالاحتفاظ به)
-    if (selectedHospital.value?.supplierId) {
-        assignedSupplierIds.delete(selectedHospital.value.supplierId);
-    }
-    
-    return availableSuppliers.value.filter(supplier => 
-        supplier.isActive && !assignedSupplierIds.has(supplier.id)
-    );
-});
-
-// الحصول على قائمة المدراء المتاحين (غير المعينين في مستشفى)
-const availableManagersForHospitals = computed(() => {
-    // الحصول على قائمة IDs المدراء المعينين في المستشفيات الحالية
-    // استثناء المستشفى الحالي عند التعديل
-    const currentHospitalId = selectedHospital.value?.id;
+// الحصول على قائمة المدراء المتاحين (غير المعينين في مورد)
+const availableManagersForSuppliers = computed(() => {
+    // الحصول على قائمة IDs المدراء المعينين في الموردين الحالية
+    // استثناء المورد الحالي عند التعديل
+    const currentSupplierId = selectedSupplier.value?.id;
     const assignedManagerIds = new Set(
-        hospitals.value
-            .filter(h => h.managerId && h.id !== currentHospitalId)
-            .map(h => h.managerId)
+        suppliers.value
+            .filter(s => s.managerId && s.id !== currentSupplierId)
+            .map(s => s.managerId)
     );
     
-    // إضافة المدير الحالي للمستشفى إذا كان موجوداً (للسماح بالاحتفاظ به)
-    if (selectedHospital.value?.managerId) {
-        assignedManagerIds.delete(selectedHospital.value.managerId);
+    // إضافة المدير الحالي للمورد إذا كان موجوداً (للسماح بالاحتفاظ به)
+    if (selectedSupplier.value?.managerId) {
+        assignedManagerIds.delete(selectedSupplier.value.managerId);
     }
     
     return availableManagers.value.filter(manager => 
@@ -189,86 +141,82 @@ const availableManagersForHospitals = computed(() => {
 // ----------------------------------------------------
 // 6. متغيرات نافذة تأكيد التفعيل/التعطيل
 // ----------------------------------------------------
+
 const isStatusConfirmationModalOpen = ref(false);
-const hospitalToToggle = ref(null);
+const supplierToToggle = ref(null);
 const statusAction = ref("");
 
-const openStatusConfirmationModal = (hospital) => {
-    hospitalToToggle.value = hospital;
-    statusAction.value = hospital.isActive ? "تعطيل" : "تفعيل";
+const openStatusConfirmationModal = (supplier) => {
+    supplierToToggle.value = supplier;
+    statusAction.value = supplier.isActive ? "تعطيل" : "تفعيل";
     isStatusConfirmationModalOpen.value = true;
 };
 
 const closeStatusConfirmationModal = () => {
     isStatusConfirmationModalOpen.value = false;
-    hospitalToToggle.value = null;
+    supplierToToggle.value = null;
     statusAction.value = "";
 };
 
 const confirmStatusToggle = async () => {
-    if (!hospitalToToggle.value) return;
+    if (!supplierToToggle.value) return;
 
-    const newStatus = !hospitalToToggle.value.isActive;
-    const hospitalId = hospitalToToggle.value.id;
-
-    const isActivating = !hospitalToToggle.value.isActive;
+    const supplierId = supplierToToggle.value.id;
+    const isActivating = !supplierToToggle.value.isActive;
 
     try {
-        // استخدام endpoint مختلف حسب العملية
         const endpoint = isActivating 
-            ? `/super-admin/hospitals/${hospitalId}/activate`
-            : `/super-admin/hospitals/${hospitalId}/deactivate`;
+            ? `/super-admin/suppliers/${supplierId}/activate`
+            : `/super-admin/suppliers/${supplierId}/deactivate`;
         
         const response = await api.patch(endpoint);
 
-        // تحديث البيانات من الخادم للحصول على البيانات الكاملة
         await fetchAllData();
 
         showSuccessAlert(
-            response.data.message || `✅ تم ${statusAction.value} المستشفى ${hospitalToToggle.value.name} بنجاح!`
+            response.data.message || `✅ تم ${statusAction.value} المورد ${supplierToToggle.value.name} بنجاح!`
         );
         closeStatusConfirmationModal();
     } catch (error) {
-        console.error(`Error ${statusAction.value} hospital:`, error);
-        const errorMessage = error.response?.data?.message || `فشل ${statusAction.value} المستشفى.`;
+        console.error(`Error ${statusAction.value} supplier:`, error);
+        const errorMessage = error.response?.data?.message || `فشل ${statusAction.value} المورد.`;
         showSuccessAlert(`❌ ${errorMessage}`);
         closeStatusConfirmationModal();
     }
 };
 
 // ----------------------------------------------------
-// 7. منطق البحث والفرز
+// 6. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
 const sortKey = ref("lastUpdated");
 const sortOrder = ref("desc");
 
-const sortHospitals = (key, order) => {
+const sortSuppliers = (key, order) => {
     sortKey.value = key;
     sortOrder.value = order;
 };
 
-const filteredHospitals = computed(() => {
-    let list = hospitals.value;
+const filteredSuppliers = computed(() => {
+    let list = suppliers.value;
 
     // فلتر حسب الحالة
     if (statusFilter.value !== "all") {
         const isActiveFilter = statusFilter.value === "active";
-        list = list.filter((hospital) => hospital.isActive === isActiveFilter);
+        list = list.filter((supplier) => supplier.isActive === isActiveFilter);
     }
 
     // فلتر حسب البحث
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
-            (hospital) =>
-                hospital.id?.toString().includes(search) ||
-                hospital.name?.toLowerCase().includes(search) ||
-                hospital.managerNameDisplay?.toLowerCase().includes(search) ||
-                hospital.supplierNameDisplay?.toLowerCase().includes(search) ||
-                hospital.city?.toLowerCase().includes(search) ||
-                hospital.region?.toLowerCase().includes(search) ||
-                hospital.phone?.includes(search)
+            (supplier) =>
+                supplier.id?.toString().includes(search) ||
+                supplier.name?.toLowerCase().includes(search) ||
+                supplier.code?.toLowerCase().includes(search) ||
+                supplier.city?.toLowerCase().includes(search) ||
+                supplier.phone?.includes(search) ||
+                supplier.managerName?.toLowerCase().includes(search)
         );
     }
 
@@ -281,14 +229,10 @@ const filteredHospitals = computed(() => {
                 comparison = (a.name || "").localeCompare(b.name || "", "ar");
             } else if (sortKey.value === "city") {
                 comparison = (a.city || "").localeCompare(b.city || "", "ar");
+            } else if (sortKey.value === "code") {
+                comparison = (a.code || "").localeCompare(b.code || "", "ar");
             } else if (sortKey.value === "managerName") {
-                comparison = (a.managerNameDisplay || "").localeCompare(b.managerNameDisplay || "", "ar");
-            } else if (sortKey.value === "region") {
-                comparison = (a.region || "").localeCompare(b.region || "", "ar");
-            } else if (sortKey.value === "supplier") {
-                const supplierA = a.supplierNameDisplay || "";
-                const supplierB = b.supplierNameDisplay || "";
-                comparison = supplierA.localeCompare(supplierB, "ar");
+                comparison = (a.managerName || "").localeCompare(b.managerName || "", "ar");
             } else if (sortKey.value === "lastUpdated") {
                 const dateA = new Date(a.lastUpdated || 0);
                 const dateB = new Date(b.lastUpdated || 0);
@@ -307,7 +251,7 @@ const filteredHospitals = computed(() => {
 });
 
 // ----------------------------------------------------
-// 8. منطق رسالة النجاح
+// 7. منطق رسالة النجاح
 // ----------------------------------------------------
 const isSuccessAlertVisible = ref(false);
 const successMessage = ref("");
@@ -328,31 +272,31 @@ const showSuccessAlert = (message) => {
 };
 
 // ----------------------------------------------------
-// 9. حالة الـ Modals
+// 8. حالة الـ Modals
 // ----------------------------------------------------
 const isViewModalOpen = ref(false);
 const isEditModalOpen = ref(false);
 const isAddModalOpen = ref(false);
-const selectedHospital = ref({});
+const selectedSupplier = ref({});
 
-const openViewModal = (hospital) => {
-    selectedHospital.value = { ...hospital };
+const openViewModal = (supplier) => {
+    selectedSupplier.value = { ...supplier };
     isViewModalOpen.value = true;
 };
 
 const closeViewModal = () => {
     isViewModalOpen.value = false;
-    selectedHospital.value = {};
+    selectedSupplier.value = {};
 };
 
-const openEditModal = (hospital) => {
-    selectedHospital.value = { ...hospital };
+const openEditModal = (supplier) => {
+    selectedSupplier.value = { ...supplier };
     isEditModalOpen.value = true;
 };
 
 const closeEditModal = () => {
     isEditModalOpen.value = false;
-    selectedHospital.value = {};
+    selectedSupplier.value = {};
 };
 
 const openAddModal = () => {
@@ -364,79 +308,73 @@ const closeAddModal = () => {
 };
 
 // ----------------------------------------------------
-// 10. دوال إدارة البيانات
+// 9. دوال إدارة البيانات
 // ----------------------------------------------------
 
-// إضافة مستشفى جديد
-const addHospital = async (newHospital) => {
+// إضافة مورد جديد
+const addSupplier = async (newSupplier) => {
     try {
-        // تحضير البيانات للـ API
-        const hospitalData = {
-            name: newHospital.name,
-            code: newHospital.code,
-            type: newHospital.type,
-            city: newHospital.city,
-            address: newHospital.address || null,
-            phone: newHospital.phone || null,
-            supplier_id: newHospital.supplierId || null
+        const supplierData = {
+            name: newSupplier.name,
+            code: newSupplier.code,
+            city: newSupplier.city,
+            address: newSupplier.address || null,
+            phone: newSupplier.phone || null,
+            admin_id: newSupplier.managerId || null,
         };
 
-        const response = await api.post('/super-admin/hospitals', hospitalData);
+        const response = await api.post('/super-admin/suppliers', supplierData);
         
-        // تحديث البيانات من الخادم للحصول على البيانات الكاملة
         await fetchAllData();
         
         closeAddModal();
-        showSuccessAlert(response.data.message || "✅ تم إنشاء المستشفى بنجاح!");
+        showSuccessAlert(response.data.message || "✅ تم إنشاء المورد بنجاح!");
     } catch (error) {
-        console.error("Error adding hospital:", error);
-        const errorMessage = error.response?.data?.message || "فشل إنشاء المستشفى. تحقق من البيانات.";
+        console.error("Error adding supplier:", error);
+        const errorMessage = error.response?.data?.message || "فشل إنشاء المورد. تحقق من البيانات.";
         showSuccessAlert("❌ " + errorMessage);
     }
 };
 
-// تحديث بيانات مستشفى
-const updateHospital = async (updatedHospital) => {
+// تحديث بيانات مورد
+const updateSupplier = async (updatedSupplier) => {
     try {
-        // تحضير البيانات للـ API
-        const hospitalData = {
-            name: updatedHospital.name,
-            code: updatedHospital.code,
-            type: updatedHospital.type,
-            city: updatedHospital.city,
-            address: updatedHospital.address || null,
-            phone: updatedHospital.phone || null,
-            supplier_id: updatedHospital.supplierId || null
+        const supplierData = {
+            name: updatedSupplier.name,
+            code: updatedSupplier.code,
+            city: updatedSupplier.city,
+            address: updatedSupplier.address || null,
+            phone: updatedSupplier.phone || null,
+            admin_id: updatedSupplier.managerId || null,
         };
 
         const response = await api.put(
-            `/super-admin/hospitals/${updatedHospital.id}`,
-            hospitalData
+            `/super-admin/suppliers/${updatedSupplier.id}`,
+            supplierData
         );
 
-        // تحديث البيانات من الخادم للحصول على البيانات الكاملة
         await fetchAllData();
 
         closeEditModal();
         showSuccessAlert(
-            response.data.message || `✅ تم تعديل بيانات المستشفى ${updatedHospital.name} بنجاح!`
+            response.data.message || `✅ تم تعديل بيانات المورد ${updatedSupplier.name} بنجاح!`
         );
     } catch (error) {
-        console.error("Error updating hospital:", error);
-        const errorMessage = error.response?.data?.message || "فشل تعديل بيانات المستشفى.";
+        console.error("Error updating supplier:", error);
+        const errorMessage = error.response?.data?.message || "فشل تعديل بيانات المورد.";
         showSuccessAlert("❌ " + errorMessage);
     }
 };
 
 const getStatusTooltip = (isActive) => {
-    return isActive ? "تعطيل المستشفى" : "تفعيل المستشفى";
+    return isActive ? "تعطيل المورد" : "تفعيل المورد";
 };
 
 // ----------------------------------------------------
-// 11. منطق الطباعة
+// 10. منطق الطباعة
 // ----------------------------------------------------
 const printTable = () => {
-    const resultsCount = filteredHospitals.value.length;
+    const resultsCount = filteredSuppliers.value.length;
 
     if (resultsCount === 0) {
         showSuccessAlert("❌ لا توجد بيانات للطباعة.");
@@ -495,7 +433,7 @@ const printTable = () => {
             }
         </style>
 
-        <h1>قائمة المستشفيات (تقرير طباعة)</h1>
+        <h1>قائمة شركات التوريد (تقرير طباعة)</h1>
         
         <p class="results-info">
             عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
@@ -504,12 +442,12 @@ const printTable = () => {
         <table>
             <thead>
                 <tr>
-                    <th>رقم المستشفى</th>
-                    <th>اسم المستشفى</th>
-                    <th>مدير المستشفى</th> 
+                    <th>رقم المورد</th>
                     <th>اسم المورد</th>
+                    <th>كود المورد</th>
                     <th>المدينة</th>
-                    <th>المنطقة</th>
+                    <th>المسؤول</th>
+                    <th>العنوان</th>
                     <th>رقم الهاتف</th>
                     <th>الحالة</th>
                     <th>تاريخ التحديث</th>
@@ -518,20 +456,20 @@ const printTable = () => {
             <tbody>
     `;
 
-    filteredHospitals.value.forEach((hospital) => {
+    filteredSuppliers.value.forEach((supplier) => {
         tableHtml += `
             <tr>
-                <td>${hospital.id || ''}</td>
-                <td>${hospital.name || ''}</td>
-                <td>${hospital.managerNameDisplay || 'لا يوجد'}</td>
-                <td>${hospital.supplierNameDisplay || 'لا يوجد'}</td>
-                <td>${hospital.city || '-'}</td>
-                <td>${hospital.region || '-'}</td>
-                <td>${hospital.phone || '-'}</td>
-                <td class="${hospital.isActive ? "status-active" : "status-inactive"}">
-                    ${hospital.isActive ? "مفعل" : "معطل"}
+                <td>${supplier.id || ''}</td>
+                <td>${supplier.name || ''}</td>
+                <td>${supplier.code || '-'}</td>
+                <td>${supplier.city || '-'}</td>
+                <td>${supplier.managerName || '-'}</td>
+                <td>${supplier.address || '-'}</td>
+                <td>${supplier.phone || '-'}</td>
+                <td class="${supplier.isActive ? "status-active" : "status-inactive"}">
+                    ${supplier.isActive ? "مفعل" : "معطل"}
                 </td>
-                <td>${new Date(hospital.lastUpdated).toLocaleDateString('ar-SA')}</td>
+                <td>${new Date(supplier.lastUpdated).toLocaleDateString('ar-SA')}</td>
             </tr>
         `;
     });
@@ -541,7 +479,7 @@ const printTable = () => {
         </table>
     `;
 
-    printWindow.document.write("<html><head><title>طباعة قائمة المستشفيات</title>");
+    printWindow.document.write("<html><head><title>طباعة قائمة شركات التوريد</title>");
     printWindow.document.write("</head><body>");
     printWindow.document.write(tableHtml);
     printWindow.document.write("</body></html>");
@@ -558,10 +496,8 @@ const printTable = () => {
 <template>
     <DefaultLayout>
         <main class="flex-1 p-4 sm:p-5 pt-3">
-           
-
             <!-- المحتوى الرئيسي -->
-            <div >
+            <div>
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
@@ -640,11 +576,11 @@ const printTable = () => {
                                 class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
                             >
                                 <li class="menu-title text-gray-700 font-bold text-sm">
-                                    حسب اسم المستشفى:
+                                    حسب اسم المورد:
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('name', 'asc')"
+                                        @click="sortSuppliers('name', 'asc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'name' &&
@@ -656,7 +592,7 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('name', 'desc')"
+                                        @click="sortSuppliers('name', 'desc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'name' &&
@@ -672,7 +608,7 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('city', 'asc')"
+                                        @click="sortSuppliers('city', 'asc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'city' &&
@@ -684,7 +620,7 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('city', 'desc')"
+                                        @click="sortSuppliers('city', 'desc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'city' &&
@@ -696,39 +632,39 @@ const printTable = () => {
                                 </li>
 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">
-                                    حسب المورد:
+                                    حسب المسؤول:
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('supplier', 'asc')"
+                                        @click="sortSuppliers('managerName', 'asc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
-                                                sortKey === 'supplier' &&
+                                                sortKey === 'managerName' &&
                                                 sortOrder === 'asc',
                                         }"
                                     >
-                                        المورد (أ - ي)
+                                        المسؤول (أ - ي)
                                     </a>
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('supplier', 'desc')"
+                                        @click="sortSuppliers('managerName', 'desc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
-                                                sortKey === 'supplier' &&
+                                                sortKey === 'managerName' &&
                                                 sortOrder === 'desc',
                                         }"
                                     >
-                                        المورد (ي - أ)
+                                        المسؤول (ي - أ)
                                     </a>
                                 </li>
 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">
-                                    حسب حالة المستشفى:
+                                    حسب حالة المورد:
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('status', 'asc')"
+                                        @click="sortSuppliers('status', 'asc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'status' &&
@@ -740,7 +676,7 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('status', 'desc')"
+                                        @click="sortSuppliers('status', 'desc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'status' &&
@@ -756,7 +692,7 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('lastUpdated', 'desc')"
+                                        @click="sortSuppliers('lastUpdated', 'desc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'lastUpdated' &&
@@ -768,7 +704,7 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortHospitals('lastUpdated', 'asc')"
+                                        @click="sortSuppliers('lastUpdated', 'asc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
                                                 sortKey === 'lastUpdated' &&
@@ -783,7 +719,7 @@ const printTable = () => {
                         <p class="text-sm font-semibold text-gray-600 self-end sm:self-center">
                             عدد النتائج :
                             <span class="text-[#4DA1A9] text-lg font-bold">{{
-                                filteredHospitals.length
+                                filteredSuppliers.length
                             }}</span>
                         </p>
                     </div>
@@ -812,11 +748,12 @@ const printTable = () => {
                                     class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                                 >
                                     <tr>
-                                        <th class="id-col">رقم المستشفى</th>
-                                        <th class="name-col">اسم المستشفى</th>
-                                        <th class="manager-col">مدير المستشفى</th>
-                                        <th class="supplier-col">اسم المورد</th>
-                                        <th class="region-col">المنطقة</th>
+                                        <th class="id-col">رقم المورد</th>
+                                        <th class="name-col">اسم المورد</th>
+                                        <th class="code-col">كود المورد</th>
+                                        <th class="city-col">المدينة</th>
+                                        <th class="manager-col">المسؤول</th>
+                                        <th class="phone-col">رقم الهاتف</th>
                                         <th class="status-col">الحالة</th>
                                         <th class="actions-col">الإجراءات</th>
                                     </tr>
@@ -824,36 +761,39 @@ const printTable = () => {
 
                                 <tbody>
                                     <tr
-                                        v-for="(hospital, index) in filteredHospitals"
-                                        :key="hospital.id || index"
+                                        v-for="(supplier, index) in filteredSuppliers"
+                                        :key="supplier.id || index"
                                         class="hover:bg-gray-100 border border-gray-300"
                                     >
                                         <td class="id-col">
-                                            {{ hospital.id }}
+                                            {{ supplier.id }}
                                         </td>
                                         <td class="name-col">
-                                            {{ hospital.name }}
+                                            {{ supplier.name }}
+                                        </td>
+                                        <td class="code-col">
+                                            {{ supplier.code }}
+                                        </td>
+                                        <td class="city-col">
+                                            {{ supplier.city }}
                                         </td>
                                         <td class="manager-col">
-                                            {{ hospital.managerNameDisplay || '-' }}
+                                            {{ supplier.managerName || '-' }}
                                         </td>
-                                        <td class="supplier-col">
-                                            {{ hospital.supplierNameDisplay || '-' }}
-                                        </td>
-                                        <td class="region-col">
-                                            {{ hospital.region}}
+                                        <td class="phone-col">
+                                            {{ supplier.phone || '-' }}
                                         </td>
                                         <td class="status-col">
                                             <span
                                                 :class="[
                                                     'px-2 py-1 rounded-full text-xs font-semibold',
-                                                    hospital.isActive
+                                                    supplier.isActive
                                                         ? 'bg-green-100 text-green-800 border border-green-200'
                                                         : 'bg-red-100 text-red-800 border border-red-200',
                                                 ]"
                                             >
                                                 {{
-                                                    hospital.isActive
+                                                    supplier.isActive
                                                         ? "مفعل"
                                                         : "معطل"
                                                 }}
@@ -863,7 +803,7 @@ const printTable = () => {
                                         <td class="actions-col">
                                             <div class="flex gap-3 justify-center items-center">
                                                 <button
-                                                    @click="openViewModal(hospital)"
+                                                    @click="openViewModal(supplier)"
                                                     class="p-1 rounded-full hover:bg-green-100 transition-colors"
                                                     title="عرض البيانات"
                                                 >
@@ -874,7 +814,7 @@ const printTable = () => {
                                                 </button>
 
                                                 <button
-                                                    @click="openEditModal(hospital)"
+                                                    @click="openEditModal(supplier)"
                                                     class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
                                                     title="تعديل البيانات"
                                                 >
@@ -884,19 +824,19 @@ const printTable = () => {
                                                     />
                                                 </button>
 
-                                                <!-- زر تفعيل/تعطيل المستشفى -->
+                                                <!-- زر تفعيل/تعطيل المورد -->
                                                 <button
-                                                    @click="openStatusConfirmationModal(hospital)"
+                                                    @click="openStatusConfirmationModal(supplier)"
                                                     :class="[
                                                         'p-1 rounded-full transition-colors',
-                                                        hospital.isActive
+                                                        supplier.isActive
                                                             ? 'hover:bg-red-100'
                                                             : 'hover:bg-green-100',
                                                     ]"
-                                                    :title="getStatusTooltip(hospital.isActive)"
+                                                    :title="getStatusTooltip(supplier.isActive)"
                                                 >
                                                     <Icon
-                                                        v-if="hospital.isActive"
+                                                        v-if="supplier.isActive"
                                                         icon="pepicons-pop:power-off"
                                                         class="w-5 h-5 text-red-600"
                                                     />
@@ -910,7 +850,7 @@ const printTable = () => {
                                         </td>
                                     </tr>
 
-                                    <tr v-if="filteredHospitals.length === 0">
+                                    <tr v-if="filteredSuppliers.length === 0">
                                         <td
                                             colspan="8"
                                             class="text-center py-8 text-gray-500"
@@ -928,26 +868,24 @@ const printTable = () => {
     </DefaultLayout>
 
     <!-- Modals -->
-    <hospitalAddModel
+    <supplyAddModel
         :is-open="isAddModalOpen"
-        :available-suppliers="availableSuppliersForHospitals"
-        :available-managers="availableManagersForHospitals"
+        :available-managers="availableManagersForSuppliers"
         @close="closeAddModal"
-        @save="addHospital"
+        @save="addSupplier"
     />
 
-    <hospitalEditModel
+    <supplyEditModel
         :is-open="isEditModalOpen"
-        :available-suppliers="availableSuppliersForHospitals"
-        :available-managers="availableManagersForHospitals"
-        :hospital="selectedHospital"
+        :supplier="selectedSupplier"
+        :available-managers="availableManagersForSuppliers"
         @close="closeEditModal"
-        @save="updateHospital"
+        @save="updateSupplier"
     />
 
-    <hospitalViewModel
+    <supplyViewModel
         :is-open="isViewModalOpen"
-        :hospital="selectedHospital"
+        :supplier="selectedSupplier"
         @close="closeViewModal"
     />
 
@@ -972,13 +910,13 @@ const printTable = () => {
                 <p class="text-xl font-bold text-[#2E5077] mb-3">
                     {{
                         statusAction === "تفعيل"
-                            ? "تفعيل المستشفى"
-                            : "تعطيل المستشفى"
+                            ? "تفعيل المورد"
+                            : "تعطيل المورد"
                     }}
                 </p>
                 <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في {{ statusAction }} المستشفى
-                    <strong>{{ hospitalToToggle?.name }}</strong
+                    هل أنت متأكد من رغبتك في {{ statusAction }} المورد
+                    <strong>{{ supplierToToggle?.name }}</strong
                     >؟
                 </p>
                 <div class="flex gap-4 justify-center w-full">
@@ -1018,11 +956,6 @@ const printTable = () => {
 </template>
 
 <style>
-.manager-col {
-    width: 150px;
-    min-width: 150px;
-}
-
 /* تنسيقات شريط التمرير */
 ::-webkit-scrollbar {
     width: 8px;
@@ -1055,9 +988,9 @@ const printTable = () => {
     width: 100px;
     min-width: 100px;
 }
-.supplier-col {
-    width: 150px;
-    min-width: 150px;
+.code-col {
+    width: 120px;
+    min-width: 120px;
 }
 .name-col {
     width: 200px;
@@ -1067,9 +1000,9 @@ const printTable = () => {
     width: 120px;
     min-width: 120px;
 }
-.region-col {
-    width: 120px;
-    min-width: 120px;
+.manager-col {
+    width: 150px;
+    min-width: 150px;
 }
 .phone-col {
     width: 140px;

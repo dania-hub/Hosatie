@@ -18,22 +18,21 @@ const api = axios.create({
 
 // إضافة interceptor لإضافة التوكن تلقائيًا
 api.interceptors.request.use(
-    config => {
-        const token = localStorage.getItem('auth_token');
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     },
-    error => {
+    (error) => {
         return Promise.reject(error);
     }
 );
 
 const props = defineProps({
     isOpen: Boolean,
-    hospital: Object,
-    availableSuppliers: Array,
+    supplier: Object,
     availableManagers: Array
 });
 
@@ -41,15 +40,13 @@ const emit = defineEmits(['close', 'save']);
 
 // نموذج البيانات
 const editForm = ref({
-   id: "",
-  name: "",
-  code: "",
-  address: "",
-  city: "",
-  phone: "",
-  managerId: "",
-  supplierId: "",
-  isActive: true,
+    id: "",
+    name: "",
+    code: "",
+    address: "",
+    city: "",
+    phone: "",
+    managerId: "",
 });
 
 // البيانات الأصلية للمقارنة
@@ -63,13 +60,13 @@ const editErrors = ref({
     phone: false,
 });
 
-// حالة نافذة التأكيد
-const isEditConfirmationModalOpen = ref(false);
-
 // حالة التحقق من رقم الهاتف
 const phoneExists = ref(false);
 const checkingPhone = ref(false);
 const phoneMessage = ref("");
+
+// حالة نافذة التأكيد
+const isEditConfirmationModalOpen = ref(false);
 
 // التحقق من صحة النموذج
 const validateEditForm = () => {
@@ -91,9 +88,9 @@ const validateEditForm = () => {
         const isValidFormat = phoneRegex.test(data.phone.trim());
         editErrors.value.phone = !isValidFormat;
         if (editErrors.value.phone) isValid = false;
-        // التحقق من وجود الرقم فقط إذا تغير عن القيمة الأصلية
-        if (isValidFormat && data.phone.trim() !== originalEditForm.value.phone) {
-            if (phoneExists.value) isValid = false;
+        // التحقق من وجود الرقم فقط إذا تغير عن الرقم الأصلي
+        if (isValidFormat && data.phone !== originalEditForm.value.phone && phoneExists.value) {
+            isValid = false;
         }
     } else {
         editErrors.value.phone = false;
@@ -108,7 +105,14 @@ const isEditFormValid = computed(() => {
     
     if (!data.name || data.name.trim().length < 2) return false;
     if (!data.code || data.code.trim().length < 1) return false;
-    if (!data.city || data.city.trim().length < 2) return false;
+    if (!data.city || (data.city !== 'طرابلس' && data.city !== 'بنغازي')) return false;
+    
+    // التحقق من رقم الهاتف إذا كان موجوداً وتغير عن الأصلي
+    if (data.phone && data.phone.trim() !== "") {
+        const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+        if (!phoneRegex.test(data.phone.trim())) return false;
+        if (data.phone !== originalEditForm.value.phone && phoneExists.value) return false;
+    }
     
     return true;
 });
@@ -124,12 +128,8 @@ const isEditFormModified = computed(() => {
     if (current.code !== original.code) return true;
     if (current.address !== original.address) return true;
     if (current.city !== original.city) return true;
-
     if (current.phone !== original.phone) return true;
-    
     if (current.managerId !== original.managerId) return true;
-    if (current.supplierId !== original.supplierId) return true;
-    if (current.isActive !== original.isActive) return true;
 
     return false;
 });
@@ -143,47 +143,17 @@ const submitEdit = () => {
 
 // تأكيد التعديل
 const confirmEdit = () => {
-    // البحث عن اسم المورد إذا تم اختياره
-    let supplierName = "";
-    if (editForm.value.supplierId) {
-        const selectedSupplier = props.availableSuppliers.find(
-            supplier => supplier.id === editForm.value.supplierId
-        );
-        supplierName = selectedSupplier ? selectedSupplier.name : "";
-    }
-
-    // البحث عن اسم المدير إذا تم اختياره
-    let managerName = "";
-    let managerEmail = "";
-    let managerPhone = "";
-    if (editForm.value.managerId) {
-        const selectedManager = props.availableManagers.find(
-            manager => manager.id === editForm.value.managerId
-        );
-        if (selectedManager) {
-            managerName = selectedManager.name || "";
-            managerEmail = selectedManager.email || "";
-            managerPhone = selectedManager.phone || "";
-        }
-    }
-    
-    const updatedHospital = {
+    const updatedSupplier = {
         id: editForm.value.id,
         name: editForm.value.name,
         code: editForm.value.code,
         address: editForm.value.address,
         city: editForm.value.city,
-        phone: editForm.value.phone,
+        phone: editForm.value.phone || null,
         managerId: editForm.value.managerId || null,
-        managerName: managerName,
-        managerEmail: managerEmail,
-        managerPhone: managerPhone,
-        supplierId: editForm.value.supplierId || null,
-        supplierName: supplierName,
-        isActive: editForm.value.isActive,
     };
     
-    emit('save', updatedHospital);
+    emit('save', updatedSupplier);
     closeEditConfirmationModal();
     closeEditModal();
 };
@@ -198,8 +168,38 @@ const closeEditConfirmationModal = () => {
     isEditConfirmationModalOpen.value = false;
 };
 
+// تهيئة البيانات عند فتح النافذة
+watch(() => props.isOpen, (newVal) => {
+    if (newVal && props.supplier) {
+        const initialData = {
+            id: props.supplier.id,
+            name: props.supplier.name || "",
+            code: props.supplier.code || "",
+            address: props.supplier.address || "",
+            city: props.supplier.city || "",
+            phone: props.supplier.phone || "",
+            managerId: props.supplier.managerId || props.supplier.admin?.id || "",
+        };
+
+        originalEditForm.value = { ...initialData };
+        editForm.value = initialData;
+
+        // إعادة تعيين الأخطاء
+        editErrors.value = {
+            name: false,
+            code: false,
+            city: false,
+            phone: false,
+        };
+        
+        // إعادة تعيين حالة التحقق من رقم الهاتف
+        phoneExists.value = false;
+        phoneMessage.value = "";
+    }
+});
+
 // التحقق من وجود رقم الهاتف
-const checkPhoneExists = async (phone, currentHospitalId) => {
+const checkPhoneExists = async (phone) => {
     if (!phone || phone.trim() === "") {
         phoneExists.value = false;
         phoneMessage.value = "";
@@ -214,7 +214,7 @@ const checkPhoneExists = async (phone, currentHospitalId) => {
         return;
     }
 
-    // إذا كان الرقم هو نفسه الأصلي، لا حاجة للتحقق
+    // إذا كان الرقم هو نفسه الرقم الأصلي، لا نحتاج للتحقق
     if (phone.trim() === originalEditForm.value.phone) {
         phoneExists.value = false;
         phoneMessage.value = "";
@@ -223,10 +223,10 @@ const checkPhoneExists = async (phone, currentHospitalId) => {
 
     checkingPhone.value = true;
     try {
-        const response = await api.get(`/super-admin/hospitals/check-phone/${phone.trim()}`);
+        const response = await api.get(`/super-admin/suppliers/check-phone/${phone.trim()}`);
         if (response.data && response.data.data) {
             phoneExists.value = response.data.data.exists;
-            phoneMessage.value = response.data.data.exists ? "رقم الهاتف موجود بالفعل" : "";
+            phoneMessage.value = response.data.data.exists ? "رقم الهاتف موجود بالفعل في النظام" : "";
         }
     } catch (error) {
         console.error("Error checking phone:", error);
@@ -237,47 +237,27 @@ const checkPhoneExists = async (phone, currentHospitalId) => {
     }
 };
 
-// مراقبة تغييرات رقم الهاتف
+// متغير للـ timeout
 let phoneCheckTimeout = null;
+
+// مراقبة تغييرات رقم الهاتف للتحقق من الصيغة فوراً
 watch(() => editForm.value.phone, (newPhone) => {
+    // التحقق من الصيغة فوراً
+    if (newPhone && newPhone.trim() !== "") {
+        const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+        editErrors.value.phone = !phoneRegex.test(newPhone.trim());
+    } else {
+        editErrors.value.phone = false;
+    }
+    
+    // التحقق من وجود الرقم بعد 500ms
     if (phoneCheckTimeout) {
         clearTimeout(phoneCheckTimeout);
     }
     
     phoneCheckTimeout = setTimeout(() => {
-        checkPhoneExists(newPhone, editForm.value.id);
+        checkPhoneExists(newPhone);
     }, 500); // انتظار 500ms بعد توقف المستخدم عن الكتابة
-});
-
-// تهيئة البيانات عند فتح النافذة
-watch(() => props.isOpen, (newVal) => {
-    if (newVal && props.hospital) {
-        const initialData = {
-            id: props.hospital.id,
-            name: props.hospital.name || "",
-            code: props.hospital.code || "",
-            address: props.hospital.address || "",
-            city: props.hospital.city || "",
-            phone: props.hospital.phone || "",
-            email: props.hospital.email || "",
-            managerId: props.hospital.managerId || "",
-            supplierId: props.hospital.supplierId || "",
-            isActive: props.hospital.isActive !== undefined ? props.hospital.isActive : true,
-        };
-
-        originalEditForm.value = { ...initialData };
-        editForm.value = initialData;
-
-        // إعادة تعيين الأخطاء
-        editErrors.value = {
-            name: false,
-            code: false,
-            city: false,
-            phone: false,
-        };
-        phoneExists.value = false;
-        phoneMessage.value = "";
-    }
 });
 </script>
 
@@ -292,7 +272,7 @@ watch(() => props.isOpen, (newVal) => {
             class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         ></div>
 
-       <div
+        <div
             class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto transform transition-all scale-100"
             dir="rtl"
         >
@@ -305,7 +285,7 @@ watch(() => props.isOpen, (newVal) => {
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
                         <Icon icon="solar:pen-new-square-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
-                    تعديل بيانات المستشفى
+                    تعديل بيانات المورد
                 </h2>
                 <button @click="closeEditModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
                     <Icon icon="mingcute:close-fill" class="w-6 h-6" />
@@ -316,17 +296,17 @@ watch(() => props.isOpen, (newVal) => {
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    <!-- اسم المستشفى -->
+                    <!-- اسم المورد -->
                     <div class="space-y-2">
                         <Label for="edit-name" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:hospital-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            اسم المستشفى
+                            <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            اسم المورد
                         </Label>
                         <div class="relative">
                             <Input
                                 id="edit-name"
                                 v-model="editForm.name"
-                                placeholder="أدخل اسم المستشفى"
+                                placeholder="أدخل اسم المورد"
                                 type="text"
                                 :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.name, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.name }"
                                 class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
@@ -334,21 +314,21 @@ watch(() => props.isOpen, (newVal) => {
                         </div>
                         <p v-if="editErrors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال اسم المستشفى (على الأقل حرفين)
+                            الرجاء إدخال اسم المورد (على الأقل حرفين)
                         </p>
                     </div>
 
-                    <!-- كود المستشفى -->
+                    <!-- كود المورد -->
                     <div class="space-y-2">
                         <Label for="edit-code" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:hashtag-circle-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            كود المستشفى
+                            كود المورد
                         </Label>
                         <div class="relative">
                             <Input
                                 id="edit-code"
                                 v-model="editForm.code"
-                                placeholder="أدخل كود المستشفى"
+                                placeholder="أدخل كود المورد"
                                 type="text"
                                 :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.code, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.code }"
                                 class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
@@ -356,7 +336,7 @@ watch(() => props.isOpen, (newVal) => {
                         </div>
                         <p v-if="editErrors.code" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال كود المستشفى
+                            الرجاء إدخال كود المورد
                         </p>
                     </div>
                     
@@ -385,12 +365,11 @@ watch(() => props.isOpen, (newVal) => {
                         </p>
                     </div>
 
-                 
- <!-- العنوان-->
+                    <!-- العنوان -->
                     <div class="space-y-2">
-                        <Label for="edit-city" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:city-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                       العنوان
+                        <Label for="edit-address" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:map-point-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            العنوان (اختياري)
                         </Label>
                         <div class="relative">
                             <Input
@@ -398,14 +377,9 @@ watch(() => props.isOpen, (newVal) => {
                                 v-model="editForm.address"
                                 placeholder="أدخل العنوان"
                                 type="text"
-                                :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.city, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.city }"
                                 class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
                             />
                         </div>
-                        <p v-if="editErrors.city" class="text-xs text-red-500 flex items-center gap-1">
-                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                         الرجاء إدخال العنوان
-                        </p>
                     </div>
 
                     <!-- رقم الهاتف -->
@@ -418,37 +392,34 @@ watch(() => props.isOpen, (newVal) => {
                             <Input
                                 id="edit-phone"
                                 v-model="editForm.phone"
-                                placeholder="مثال: 0211234567 أو 0921234567"
+                                placeholder="مثال: 0211234567"
                                 type="tel"
                                 maxlength="10"
                                 :class="{ 'border-red-500 focus:ring-red-500/20': editErrors.phone || phoneExists, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !editErrors.phone && !phoneExists }"
                                 class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
                             />
-                            <span v-if="checkingPhone" class="absolute left-3 top-2.5 text-gray-400 text-sm">
-                                <Icon icon="solar:refresh-circle-bold-duotone" class="w-5 h-5 animate-spin" />
+                            <span v-if="checkingPhone" class="absolute left-3 top-2.5 text-xs text-gray-400">
+                                جاري التحقق...
                             </span>
                         </div>
-                        <p v-if="editErrors.phone && editForm.phone && !phoneExists" class="text-xs text-red-500 flex items-center gap-1">
+                        <p v-if="editErrors.phone" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            رقم الهاتف يجب أن يبدأ بـ 021 أو 092 أو 091 أو 093 أو 094 ويتبعها 7 أرقام
+                            يجب أن يبدأ الرقم بـ 021 أو 092 أو 091 أو 093 أو 094 متبوعاً بـ 7 أرقام
                         </p>
-                        <p v-if="phoneExists && editForm.phone && !editErrors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                        <p v-if="phoneExists && !editErrors.phone" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             {{ phoneMessage }}
                         </p>
                     </div>
 
-                   
-
-                
                     <!-- فاصل -->
                     <div class="md:col-span-2 border-t border-gray-200 my-2"></div>
 
-                    <!-- مدير المستشفى -->
-                    <div class="space-y-2">
+                    <!-- المسؤول -->
+                    <div class="space-y-2 ">
                         <Label for="edit-manager" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:user-id-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            مدير المستشفى
+                            <Icon icon="solar:user-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            المسؤول (اختياري)
                         </Label>
                         <div class="relative">
                             <select
@@ -456,7 +427,7 @@ watch(() => props.isOpen, (newVal) => {
                                 v-model="editForm.managerId"
                                 class="h-10 text-right w-full rounded-xl bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:ring-2 transition-all px-4 appearance-none focus:outline-none"
                             >
-                                <option value="">بدون مدير</option>
+                                <option value="">بدون مسؤول</option>
                                 <option v-for="manager in props.availableManagers" 
                                         :key="manager.id" 
                                         :value="manager.id">
@@ -466,77 +437,11 @@ watch(() => props.isOpen, (newVal) => {
                             <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="editForm.managerId" class="text-xs text-gray-500 mt-1">
-                            المدير المختار: 
+                            المسؤول المختار: 
                             <span class="font-semibold text-[#4DA1A9]">
                                 {{ props.availableManagers.find(m => m.id === editForm.managerId)?.name }}
                             </span>
                         </p>
-                    </div>
-
-                    <!-- المورد -->
-                    <div class="space-y-2">
-                        <Label for="edit-supplier" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            المورد (اختياري)
-                        </Label>
-                        <div class="relative">
-                            <select
-                                id="edit-supplier"
-                                v-model="editForm.supplierId"
-                                class="h-10 text-right w-full rounded-xl bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:ring-2 transition-all px-4 appearance-none focus:outline-none"
-                            >
-                                <option value="">بدون مورد</option>
-                                <option v-for="supplier in props.availableSuppliers" 
-                                        :key="supplier.id" 
-                                        :value="supplier.id">
-                                    {{ supplier.name }} - {{ supplier.id }}
-                                </option>
-                            </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
-                        </div>
-                        <p v-if="editForm.supplierId" class="text-xs text-gray-500 mt-1">
-                            المورد المختار: 
-                            <span class="font-semibold text-[#4DA1A9]">
-                                {{ props.availableSuppliers.find(s => s.id === editForm.supplierId)?.name }}
-                            </span>
-                        </p>
-                    </div>
-
-                    <!-- حالة المستشفى -->
-                    <div class="space-y-2">
-                        <Label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:shield-check-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            حالة المستشفى
-                        </Label>
-                        <div class="flex gap-4 p-2">
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <div class="relative flex items-center justify-center">
-                                    <input 
-                                        type="radio" 
-                                        v-model="editForm.isActive" 
-                                        :value="true"
-                                        class="peer sr-only"
-                                    />
-                                    <div class="w-6 h-6 border-2 border-gray-300 rounded-full peer-checked:border-[#4DA1A9] peer-checked:bg-[#4DA1A9] transition-all"></div>
-                                    <Icon icon="solar:check-circle-bold" class="w-4 h-4 text-white absolute opacity-0 peer-checked:opacity-100 transition-all" />
-                                </div>
-                                <span class="text-gray-700 font-medium group-hover:text-[#4DA1A9] transition-colors">مفعل</span>
-                            </label>
-
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <div class="relative flex items-center justify-center">
-                                    <input 
-                                        type="radio" 
-                                        v-model="editForm.isActive" 
-                                        :value="false"
-                                        class="peer sr-only"
-                                    />
-                                    <div class="w-6 h-6 border-2 border-gray-300 rounded-full peer-checked:border-red-500 peer-checked:bg-red-500 transition-all"></div>
-                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4 text-white absolute opacity-0 peer-checked:opacity-100 transition-all" />
-                                </div>
-                                <span class="text-gray-700 font-medium group-hover:text-red-500 transition-colors">معطل</span>
-                            </label>
-                        </div>
                     </div>
 
                 </div>
@@ -564,42 +469,42 @@ watch(() => props.isOpen, (newVal) => {
     </div>
 
     <!-- نافذة تأكيد التعديل -->
-<div v-if="isEditConfirmationModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeEditConfirmationModal">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
-        <div class="p-6 text-center space-y-4">
-            <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Icon
-                    icon="solar:pen-new-square-bold-duotone"
-                    class="w-10 h-10 text-[#4DA1A9]"
-                />
+    <div v-if="isEditConfirmationModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeEditConfirmationModal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div class="p-6 text-center space-y-4">
+                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon
+                        icon="solar:pen-new-square-bold-duotone"
+                        class="w-10 h-10 text-[#4DA1A9]"
+                    />
+                </div>
+                
+                <h3 class="text-xl font-bold text-[#2E5077]">
+                    تأكيد التعديل
+                </h3>
+                
+                <p class="text-gray-500 leading-relaxed">
+                    هل أنت متأكد من رغبتك في حفظ التعديلات على المورد
+                    <span class="font-bold text-[#2E5077]">"{{ editForm.name }}"</span>؟
+                    <br>
+                    <span class="text-sm text-[#4DA1A9]">سيتم تحديث بيانات المورد في النظام</span>
+                </p>
             </div>
             
-            <h3 class="text-xl font-bold text-[#2E5077]">
-                تأكيد التعديل
-            </h3>
-            
-            <p class="text-gray-500 leading-relaxed">
-                هل أنت متأكد من رغبتك في حفظ التعديلات على المستشفى
-                <span class="font-bold text-[#2E5077]">"{{ editForm.name }}"</span>؟
-                <br>
-                <span class="text-sm text-[#4DA1A9]">سيتم تحديث بيانات المستشفى في النظام</span>
-            </p>
-        </div>
-        
-        <div class="flex justify-center bg-gray-50 px-6 py-4 gap-3 border-t border-gray-100">
-            <button
-                @click="closeEditConfirmationModal"
-                class="px-15 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
-            >
-                إلغاء
-            </button>
-            <button
-                @click="confirmEdit"
-                class="px-15 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-1"
-            >
-                حفظ التعديلات
-            </button>
+            <div class="flex justify-center bg-gray-50 px-6 py-4 gap-3 border-t border-gray-100">
+                <button
+                    @click="closeEditConfirmationModal"
+                    class="px-15 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
+                >
+                    إلغاء
+                </button>
+                <button
+                    @click="confirmEdit"
+                    class="px-15 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-1"
+                >
+                    حفظ التعديلات
+                </button>
+            </div>
         </div>
     </div>
-</div>
 </template>

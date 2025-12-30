@@ -10,21 +10,63 @@ import employeeAddModel from "@/components/forsuperadmin/employeeAddModel.vue";
 import employeeEditModel from "@/components/forsuperadmin/employeeEditModel.vue";
 import employeeViewModel from "@/components/forsuperadmin/employeeViewModel.vue";
 
+// إعداد axios مع interceptor لإضافة التوكن
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        } else {
+            console.warn('No authentication token found');
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            console.error('Unauthenticated - Please login again.');
+        }
+        return Promise.reject(error);
+    }
+);
+
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_URL = "/api/data-entry/employees";
-const HOSPITALS_API_URL = "/api/hospitals";
-const ROLES_API_URL = "/api/employee-roles";
+const API_URL = "super-admin/users";
+const HOSPITALS_API_URL = "super-admin/hospitals";
 
-// قائمة الأدوار المتاحة
-const employeeRoles = ref([]);
+// قائمة الأدوار المتاحة (ثابتة لأن API يعيد type)
+const employeeRoles = ref([
+    { name: "مدير نظام المستشفى", value: "hospital_admin" },
+    { name: "مدير المورد", value: "supplier_admin" }
+]);
 
 // قائمة المستشفيات المتاحة 
 const availableHospitals = ref([]);
 
 // فلتر الحالة
 const statusFilter = ref("all");
+
+// فلتر الدور الوظيفي
+const roleFilter = ref("all");
 
 // بيانات الموظفين
 const employees = ref([]);
@@ -36,10 +78,8 @@ const employees = ref([]);
 // ----------------------------------------------------
 const loading = ref(true);
 const loadingHospitals = ref(true);
-const loadingRoles = ref(true);
 const error = ref(null);
 const hospitalsError = ref(null);
-const rolesError = ref(null);
 
 // ----------------------------------------------------
 // 3. دوال جلب البيانات من API
@@ -51,16 +91,62 @@ const fetchEmployees = async () => {
     error.value = null;
     
     try {
-        const response = await axios.get(API_URL);
-        employees.value = response.data.map(emp => ({
-            ...emp,
-            nameDisplay: emp.name || "",
+        const response = await api.get(API_URL);
+        
+        // معالجة البيانات المرجعة من API
+        // الـ API يعيد البيانات في هيكل: { success: true, data: [...], message: "..." }
+        const data = response.data?.data || [];
+        
+        if (!Array.isArray(data)) {
+            console.error("Expected array but got:", typeof data, data);
+            employees.value = [];
+            error.value = "تنسيق البيانات غير صحيح";
+            return;
+        }
+        
+        // تحويل البيانات من API إلى التنسيق المستخدم في الصفحة
+        employees.value = data.map(emp => ({
+            id: emp.id,
+            fileNumber: emp.id, // استخدام id كـ fileNumber للتوافق
+            name: emp.fullName || "",
+            fullName: emp.fullName || "",
+            email: emp.email || "",
+            phone: emp.phone || "",
+            nationalId: emp.nationalId || "",
+            birthDate: emp.birthDate || "",
+            role: emp.typeArabic || emp.type || "",
+            type: emp.type || "",
+            typeArabic: emp.typeArabic || "",
+            hospital: emp.hospital ? emp.hospital.name : "",
+            hospitalId: emp.hospital ? emp.hospital.id : null,
+            supplier: emp.supplier ? emp.supplier.name : "",
+            supplierId: emp.supplier ? emp.supplier.id : null,
+            isActive: emp.status === 'active',
+            status: emp.status || "",
+            statusArabic: emp.statusArabic || "",
+            nameDisplay: emp.fullName || "",
             nationalIdDisplay: emp.nationalId || "",
-            birthDisplay: emp.birth ? formatDateForDisplay(emp.birth) : "",
+            birthDisplay: emp.birthDate ? formatDateForDisplay(emp.birthDate) : "",
+            lastUpdated: emp.updatedAt || emp.createdAt || new Date().toISOString(),
         }));
+        
     } catch (err) {
         console.error("Error fetching employees:", err);
-        employees.value = employees.value; // استخدام البيانات الافتراضية في حالة الخطأ
+        console.error("Error response:", err.response);
+        
+        // معالجة الأخطاء المختلفة
+        if (err.response?.status === 401) {
+            error.value = "انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى";
+            showSuccessAlert("❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى");
+        } else if (err.response?.status === 403) {
+            error.value = "ليس لديك الصلاحية للوصول إلى هذه البيانات";
+            showSuccessAlert("❌ ليس لديك الصلاحية للوصول إلى هذه البيانات");
+        } else {
+            error.value = err.response?.data?.message || err.message || "حدث خطأ أثناء جلب البيانات";
+            showSuccessAlert(`❌ ${error.value}`);
+        }
+        
+        employees.value = [];
     } finally {
         loading.value = false;
     }
@@ -72,29 +158,14 @@ const fetchHospitals = async () => {
     hospitalsError.value = null;
     
     try {
-        const response = await axios.get(HOSPITALS_API_URL);
-        availableHospitals.value = response.data;
+        const response = await api.get(HOSPITALS_API_URL);
+        availableHospitals.value = response.data.data || response.data || [];
     } catch (err) {
         console.error("Error fetching hospitals:", err);
-        // استخدام البيانات الافتراضية في حالة الخطأ
+        hospitalsError.value = err.response?.data?.message || "حدث خطأ أثناء جلب المستشفيات";
+        availableHospitals.value = [];
     } finally {
         loadingHospitals.value = false;
-    }
-};
-
-// جلب بيانات الأدوار الوظيفية
-const fetchEmployeeRoles = async () => {
-    loadingRoles.value = true;
-    rolesError.value = null;
-    
-    try {
-        const response = await axios.get(ROLES_API_URL);
-        employeeRoles.value = response.data;
-    } catch (err) {
-        console.error("Error fetching roles:", err);
-        // استخدام البيانات الافتراضية في حالة الخطأ
-    } finally {
-        loadingRoles.value = false;
     }
 };
 
@@ -117,8 +188,7 @@ const formatDateForDisplay = (dateString) => {
 onMounted(async () => {
     await Promise.all([
         fetchEmployees(), 
-        fetchHospitals(),
-        fetchEmployeeRoles()
+        fetchHospitals()
     ]);
 });
 
@@ -126,20 +196,9 @@ onMounted(async () => {
 // 6. دوال الحساب
 // ----------------------------------------------------
 
-// التحقق من وجود مدير مخزن واحد فقط
+// التحقق من وجود مدير مخزن واحد فقط (غير مطلوب في API الجديد)
 const hasWarehouseManager = computed(() => {
-    const warehouseManagerRole = employeeRoles.value.find(role => 
-        role.name === "مدير المخزن" || role === "مدير المخزن"
-    );
-    
-    if (!warehouseManagerRole) return false;
-    
-    return employees.value.some(
-        (employee) => {
-            const roleName = typeof employee.role === 'object' ? employee.role.name : employee.role;
-            return roleName === "مدير المخزن" && employee.isActive;
-        }
-    );
+    return false; // API الجديد لا يدعم مدير المخزن
 });
 
 // الحصول على قائمة أسماء المستشفيات
@@ -147,15 +206,13 @@ const hospitalNames = computed(() => {
     return availableHospitals.value.map(hospital => hospital.name);
 });
 
-// الحصول على قائمة الأقسام التي لها مدير
+// الحصول على قائمة الأقسام التي لها مدير (غير مطلوب في API الجديد)
+const availableDepartments = computed(() => {
+    return []; // API الجديد لا يدعم الأقسام
+});
+
 const departmentsWithManager = computed(() => {
-    return employees.value
-        .filter(emp => {
-            const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
-            return roleName === "مدير القسم" && emp.isActive && emp.department;
-        })
-        .map(emp => emp.department)
-        .filter(dept => dept && dept.trim() !== "");
+    return []; // API الجديد لا يدعم الأقسام
 });
 
 // ----------------------------------------------------
@@ -180,29 +237,33 @@ const closeStatusConfirmationModal = () => {
 const confirmStatusToggle = async () => {
     if (!employeeToToggle.value) return;
 
-    const newStatus = !employeeToToggle.value.isActive;
+    const userId = employeeToToggle.value.id || employeeToToggle.value.fileNumber;
+    const endpoint = employeeToToggle.value.isActive 
+        ? `${API_URL}/${userId}/deactivate`
+        : `${API_URL}/${userId}/activate`;
 
     try {
-        await axios.patch(
-            `${API_URL}/${employeeToToggle.value.fileNumber}/status`,
-            { isActive: newStatus }
-        );
+        const response = await api.patch(endpoint);
 
         const index = employees.value.findIndex(
-            (p) => p.fileNumber === employeeToToggle.value.fileNumber
+            (p) => (p.id || p.fileNumber) === userId
         );
         if (index !== -1) {
-            employees.value[index].isActive = newStatus;
+            employees.value[index].isActive = response.data.data?.status === 'active';
+            employees.value[index].status = response.data.data?.status || (employeeToToggle.value.isActive ? 'inactive' : 'active');
             employees.value[index].lastUpdated = new Date().toISOString();
         }
 
         showSuccessAlert(
-            `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name} بنجاح!`
+            `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
         );
         closeStatusConfirmationModal();
+        // إعادة جلب البيانات للتأكد من التحديث
+        await fetchEmployees();
     } catch (error) {
         console.error(`Error ${statusAction.value} employee:`, error);
-        showSuccessAlert(`❌ فشل ${statusAction.value} حساب الموظف.`);
+        const errorMessage = error.response?.data?.message || `فشل ${statusAction.value} حساب الموظف.`;
+        showSuccessAlert(`❌ ${errorMessage}`);
         closeStatusConfirmationModal();
     }
 };
@@ -244,21 +305,26 @@ const filteredEmployees = computed(() => {
         list = list.filter((employee) => employee.isActive === isActiveFilter);
     }
 
+    // فلتر حسب الدور الوظيفي
+    if (roleFilter.value !== "all") {
+        list = list.filter((employee) => employee.type === roleFilter.value);
+    }
+
     // فلتر حسب البحث
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
             (employee) =>
-                employee.fileNumber?.toString().includes(search) ||
-                employee.name?.toLowerCase().includes(search) ||
+                (employee.id || employee.fileNumber)?.toString().includes(search) ||
+                (employee.name || employee.fullName)?.toLowerCase().includes(search) ||
+                employee.email?.toLowerCase().includes(search) ||
                 employee.nationalId?.includes(search) ||
-                employee.birth?.includes(search) ||
+                (employee.birthDate && employee.birthDate.includes(search)) ||
                 employee.phone?.includes(search) ||
-                (employee.role && 
-                    (typeof employee.role === 'object' 
-                        ? employee.role.name?.toLowerCase().includes(search)
-                        : employee.role.toLowerCase().includes(search))) ||
-                (employee.hospital && employee.hospital.toLowerCase().includes(search)) 
+                (employee.role && employee.role.toLowerCase().includes(search)) ||
+                (employee.typeArabic && employee.typeArabic.toLowerCase().includes(search)) ||
+                (employee.hospital && employee.hospital.toLowerCase().includes(search)) ||
+                (employee.supplier && employee.supplier.toLowerCase().includes(search)) 
         );
     }
 
@@ -268,18 +334,20 @@ const filteredEmployees = computed(() => {
             let comparison = 0;
 
             if (sortKey.value === "name") {
-                comparison = (a.name || "").localeCompare(b.name || "", "ar");
+                const nameA = (a.name || a.fullName || "").toString();
+                const nameB = (b.name || b.fullName || "").toString();
+                comparison = nameA.localeCompare(nameB, "ar");
             } else if (sortKey.value === "birth") {
-                const ageA = calculateAge(a.birth);
-                const ageB = calculateAge(b.birth);
-                comparison = ageA - ageB;
+                const dateA = a.birthDate ? new Date(a.birthDate) : new Date(0);
+                const dateB = b.birthDate ? new Date(b.birthDate) : new Date(0);
+                comparison = dateA.getTime() - dateB.getTime();
             } else if (sortKey.value === "lastUpdated") {
-                const dateA = new Date(a.lastUpdated || 0);
-                const dateB = new Date(b.lastUpdated || 0);
+                const dateA = new Date(a.lastUpdated || a.updatedAt || a.createdAt || 0);
+                const dateB = new Date(b.lastUpdated || b.updatedAt || b.createdAt || 0);
                 comparison = dateA.getTime() - dateB.getTime();
             } else if (sortKey.value === "role") {
-                const roleA = typeof a.role === 'object' ? a.role.name : a.role;
-                const roleB = typeof b.role === 'object' ? b.role.name : b.role;
+                const roleA = a.typeArabic || a.role || "";
+                const roleB = b.typeArabic || b.role || "";
                 
                 if (!roleA && !roleB) comparison = 0;
                 else if (!roleA) comparison = 1;
@@ -290,15 +358,22 @@ const filteredEmployees = computed(() => {
                 else if (a.isActive && !b.isActive) comparison = -1;
                 else comparison = 1;
             } else if (sortKey.value === "hospital") {
-                if (!a.hospital && !b.hospital) comparison = 0;
-                else if (!a.hospital) comparison = 1;
-                else if (!b.hospital) comparison = -1;
-                else comparison = a.hospital.localeCompare(b.hospital, "ar");
+                const hospitalA = a.hospital || "";
+                const hospitalB = b.hospital || "";
+                if (!hospitalA && !hospitalB) comparison = 0;
+                else if (!hospitalA) comparison = 1;
+                else if (!hospitalB) comparison = -1;
+                else comparison = hospitalA.localeCompare(hospitalB, "ar");
+            } else if (sortKey.value === "supplier") {
+                const supplierA = a.supplier || "";
+                const supplierB = b.supplier || "";
+                if (!supplierA && !supplierB) comparison = 0;
+                else if (!supplierA) comparison = 1;
+                else if (!supplierB) comparison = -1;
+                else comparison = supplierA.localeCompare(supplierB, "ar");
             } else if (sortKey.value === "department") {
-                if (!a.department && !b.department) comparison = 0;
-                else if (!a.department) comparison = 1;
-                else if (!b.department) comparison = -1;
-                else comparison = a.department.localeCompare(b.department, "ar");
+                // API لا يدعم الأقسام
+                comparison = 0;
             }
 
             return sortOrder.value === "asc" ? comparison : -comparison;
@@ -337,14 +412,37 @@ const isEditModalOpen = ref(false);
 const isAddModalOpen = ref(false);
 const selectedEmployee = ref({});
 
-const openViewModal = (employee) => {
-    selectedEmployee.value = {
-        ...employee,
-        nameDisplay: employee.name || "",
-        nationalIdDisplay: employee.nationalId || "",
-        birthDisplay: employee.birth ? formatDateForDisplay(employee.birth) : "",
-    };
-    isViewModalOpen.value = true;
+const openViewModal = async (employee) => {
+    try {
+        const userId = employee.id || employee.fileNumber;
+        const response = await api.get(`${API_URL}/${userId}`);
+        const employeeData = response.data.data || response.data;
+        
+        selectedEmployee.value = {
+            ...employeeData,
+            id: employeeData.id,
+            fileNumber: employeeData.id,
+            name: employeeData.fullName || "",
+            fullName: employeeData.fullName || "",
+            email: employeeData.email || "",
+            phone: employeeData.phone || "",
+            nationalId: employeeData.nationalId || "",
+            birthDate: employeeData.birthDate || "",
+            role: employeeData.typeArabic || employeeData.type || "",
+            type: employeeData.type || "",
+            hospital: employeeData.hospital ? employeeData.hospital.name : "",
+            supplier: employeeData.supplier ? employeeData.supplier.name : "",
+            isActive: employeeData.status === 'active',
+            status: employeeData.status || "",
+            nameDisplay: employeeData.fullName || "",
+            nationalIdDisplay: employeeData.nationalId || "",
+            birthDisplay: employeeData.birthDate ? formatDateForDisplay(employeeData.birthDate) : "",
+        };
+        isViewModalOpen.value = true;
+    } catch (error) {
+        console.error("Error fetching employee details:", error);
+        showSuccessAlert("❌ فشل جلب تفاصيل الموظف");
+    }
 };
 
 const closeViewModal = () => {
@@ -382,137 +480,122 @@ const closeAddModal = () => {
 // إضافة موظف جديد
 const addEmployee = async (newEmployee) => {
     try {
-        // التحقق من وجود مدير مخزن
-        const warehouseManagerRole = employeeRoles.value.find(role => 
-            role.name === "مدير المخزن" || role === "مدير المخزن"
-        );
-        
-        if (warehouseManagerRole && newEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
-            showSuccessAlert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+        // تحديد نوع المستخدم من الدور
+        let userType = null;
+        if (newEmployee.role === "مدير نظام المستشفى" || newEmployee.role === "hospital_admin") {
+            userType = "hospital_admin";
+        } else if (newEmployee.role === "مدير المورد" || newEmployee.role === "supplier_admin") {
+            userType = "supplier_admin";
+        } else {
+            // محاولة العثور على النوع من القائمة
+            const roleObj = employeeRoles.value.find(r => 
+                r.name === newEmployee.role || r.value === newEmployee.role
+            );
+            userType = roleObj?.value || newEmployee.role;
+        }
+
+        if (!userType || !['hospital_admin', 'supplier_admin'].includes(userType)) {
+            showSuccessAlert("❌ يرجى اختيار نوع مستخدم صحيح (مدير نظام المستشفى أو مدير المورد)");
             return;
         }
 
-        // التحقق من وجود مدير قسم في نفس القسم
-        if (newEmployee.role === "مدير القسم" && newEmployee.department) {
-            const existingManager = employees.value.find(
-                emp => {
-                    const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
-                    return roleName === "مدير القسم" && 
-                           emp.department === newEmployee.department && 
-                           emp.isActive;
-                }
-            );
-            
-            if (existingManager) {
-                showSuccessAlert(`❌ القسم "${newEmployee.department}" لديه بالفعل مدير مفعل!`);
-                return;
-            }
-        }
-
+        // إعداد البيانات للإرسال
         const employeeData = {
-            ...newEmployee,
-            isActive: true,
-            lastUpdated: new Date().toISOString(),
-            fileNumber: Date.now()
+            type: userType,
+            full_name: newEmployee.name || newEmployee.fullName || "",
+            email: newEmployee.email || "",
+            phone: newEmployee.phone || "",
+            national_id: newEmployee.nationalId || null,
+            birth_date: newEmployee.birth || newEmployee.birthDate || null,
         };
 
-        // إضافة المستشفى إذا كان موجوداً في newEmployee
-        if (newEmployee.hospital) {
-            employeeData.hospital = newEmployee.hospital;
+        // إضافة hospital_id أو supplier_id حسب النوع
+        if (userType === "hospital_admin") {
+            if (!newEmployee.hospital) {
+                showSuccessAlert("❌ يرجى اختيار المستشفى");
+                return;
+            }
+            // البحث عن id المستشفى من الاسم
+            const hospital = availableHospitals.value.find(h => h.name === newEmployee.hospital);
+            if (!hospital) {
+                showSuccessAlert("❌ المستشفى المحدد غير موجود");
+                return;
+            }
+            employeeData.hospital_id = hospital.id;
+        } else if (userType === "supplier_admin") {
+            // TODO: إضافة دعم للموردين إذا لزم الأمر
+            showSuccessAlert("❌ يرجى تحديد المورد");
+            return;
         }
 
-        const response = await axios.post(API_URL, employeeData);
+        const response = await api.post(API_URL, employeeData);
+        const responseData = response.data.data || response.data;
         
-        employees.value.push({
-            ...response.data,
-            nameDisplay: response.data.name || "",
-            nationalIdDisplay: response.data.nationalId || "",
-            birthDisplay: response.data.birth ? formatDateForDisplay(response.data.birth) : "",
-        });
+        // إعادة جلب البيانات
+        await fetchEmployees();
         
         closeAddModal();
         showSuccessAlert("✅ تم تسجيل بيانات الموظف بنجاح!");
     } catch (error) {
         console.error("Error adding employee:", error);
-        showSuccessAlert("❌ فشل تسجيل الموظف. تحقق من البيانات.");
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل تسجيل الموظف. تحقق من البيانات.";
+        showSuccessAlert(`❌ ${errorMessage}`);
     }
 };
 
 // تحديث بيانات موظف
 const updateEmployee = async (updatedEmployee) => {
     try {
-        // التحقق من وجود مدير مخزن
-        const warehouseManagerRole = employeeRoles.value.find(role => 
-            role.name === "مورد" || role === " مورد"
-        );
+        const userId = updatedEmployee.id || updatedEmployee.fileNumber;
         
-        if (warehouseManagerRole && updatedEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
-            const currentEmployee = employees.value.find(
-                (p) => p.fileNumber === updatedEmployee.fileNumber
-            );
-            
-            const currentRoleName = currentEmployee ? 
-                (typeof currentEmployee.role === 'object' ? currentEmployee.role.name : currentEmployee.role) : 
-                '';
-            
-            if (!currentEmployee || currentRoleName !== "مدير المخزن") {
-                showSuccessAlert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
-                return;
-            }
-        }
+        // إعداد البيانات للإرسال
+        const employeeData = {
+            full_name: updatedEmployee.name || updatedEmployee.fullName || "",
+            email: updatedEmployee.email || "",
+            phone: updatedEmployee.phone || "",
+            national_id: updatedEmployee.nationalId || null,
+            birth_date: updatedEmployee.birth || updatedEmployee.birthDate || null,
+        };
 
-        // التحقق من وجود مدير قسم في نفس القسم
-        if (updatedEmployee.role === "مدير القسم" && updatedEmployee.department) {
-            const currentEmployee = employees.value.find(
-                emp => emp.fileNumber === updatedEmployee.fileNumber
-            );
-            
-            const existingManager = employees.value.find(
-                emp => {
-                    const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
-                    return roleName === "مدير القسم" && 
-                           emp.department === updatedEmployee.department && 
-                           emp.isActive &&
-                           emp.fileNumber !== updatedEmployee.fileNumber;
-                }
-            );
-            
-            if (existingManager) {
-                showSuccessAlert(`❌ القسم "${updatedEmployee.department}" لديه بالفعل مدير مفعل!`);
-                return;
-            }
-        }
-
-        const response = await axios.put(
-            `${API_URL}/${updatedEmployee.fileNumber}`,
-            updatedEmployee
+        const response = await api.put(
+            `${API_URL}/${userId}`,
+            employeeData
         );
 
-        const index = employees.value.findIndex(
-            (p) => p.fileNumber === updatedEmployee.fileNumber
-        );
-        if (index !== -1) {
-            employees.value[index] = {
-                ...response.data,
-                nameDisplay: response.data.name || "",
-                nationalIdDisplay: response.data.nationalId || "",
-                birthDisplay: response.data.birth ? formatDateForDisplay(response.data.birth) : "",
-                lastUpdated: new Date().toISOString(),
-            };
-        }
+        // إعادة جلب البيانات
+        await fetchEmployees();
 
         closeEditModal();
         showSuccessAlert(
-            `✅ تم تعديل بيانات الموظف ${updatedEmployee.fileNumber} بنجاح!`
+            `✅ تم تعديل بيانات الموظف بنجاح!`
         );
     } catch (error) {
         console.error("Error updating employee:", error);
-        showSuccessAlert("❌ فشل تعديل بيانات الموظف.");
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل تعديل بيانات الموظف.";
+        showSuccessAlert(`❌ ${errorMessage}`);
     }
 };
 
 const getStatusTooltip = (isActive) => {
     return isActive ? "تعطيل الحساب" : "تفعيل الحساب";
+};
+
+// إعادة تعيين كلمة المرور
+const resetPassword = async (employee) => {
+    if (!confirm(`هل أنت متأكد من إعادة تعيين كلمة مرور ${employee.name || employee.fullName}؟`)) {
+        return;
+    }
+
+    try {
+        const userId = employee.id || employee.fileNumber;
+        const response = await api.post(`${API_URL}/${userId}/reset-password`);
+        
+        showSuccessAlert("✅ تم إعادة تعيين كلمة المرور بنجاح! سيتم إرسال كلمة المرور الجديدة إلى البريد الإلكتروني.");
+    } catch (error) {
+        console.error("Error resetting password:", error);
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل إعادة تعيين كلمة المرور.";
+        showSuccessAlert(`❌ ${errorMessage}`);
+    }
 };
 
 // ----------------------------------------------------
@@ -578,8 +661,8 @@ const printTable = () => {
             }
         </style>
 
-        <h1>قائمة الموظفين (تقرير طباعة)</h1>
-        
+        <h1>قائمة الموظفين </h1>
+    
         <p class="results-info">
             عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
         </p>
@@ -591,10 +674,10 @@ const printTable = () => {
                     <th>الاسم الرباعي</th>
                     <th>الدور الوظيفي</th>
                     <th>المستشفى</th>
-                    <th>القسم</th>
+                    <th>المورد</th>
                     <th>حالة الحساب</th>
-                    <th>الرقم الوطني</th>
-                    <th>تاريخ الميلاد</th>
+                   
+           
                     <th>رقم الهاتف</th>
                 </tr>
             </thead>
@@ -602,20 +685,20 @@ const printTable = () => {
     `;
 
     filteredEmployees.value.forEach((employee) => {
-        const roleName = typeof employee.role === 'object' ? employee.role.name : employee.role;
+        const roleName = employee.typeArabic || employee.role || '';
         
         tableHtml += `
             <tr>
-                <td>${employee.fileNumber || ''}</td>
-                <td>${employee.name || ''}</td>
-                <td>${roleName || ''}</td>
+                <td>${employee.id || employee.fileNumber || ''}</td>
+                <td>${employee.name || employee.fullName || ''}</td>
+                <td>${roleName}</td>
                 <td>${employee.hospital || '-'}</td>
-                <td>${employee.department || '-'}</td>
+                <td>${employee.supplier || '-'}</td>
                 <td class="${employee.isActive ? "status-active" : "status-inactive"}">
-                    ${employee.isActive ? "مفعل" : "معطل"}
-                </td>
-                <td>${employee.nationalId || ''}</td>
-                <td>${employee.birth || ''}</td>
+                    ${employee.isActive ? "مفعل" : (employee.status === 'pending_activation' ? "بانتظار التفعيل" : "معطل")}
+                </td>  
+            
+             
                 <td>${employee.phone || ''}</td>
             </tr>
         `;
@@ -648,6 +731,21 @@ const printTable = () => {
                 <div class="text-center">
                     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mx-auto mb-4"></div>
                     <p class="text-gray-600">جاري تحميل البيانات...</p>
+                </div>
+            </div>
+
+            <!-- رسالة الخطأ -->
+            <div v-else-if="error" class="flex items-center justify-center h-64">
+                <div class="text-center">
+                    <Icon icon="material-symbols:error-outline" class="w-16 h-16 text-red-500 mx-auto mb-4" />
+                    <p class="text-red-600 text-lg font-semibold mb-2">حدث خطأ</p>
+                    <p class="text-gray-600">{{ error }}</p>
+                    <button 
+                        @click="fetchEmployees" 
+                        class="mt-4 px-4 py-2 bg-[#4DA1A9] text-white rounded-lg hover:bg-[#3a8c94] transition-colors"
+                    >
+                        إعادة المحاولة
+                    </button>
                 </div>
             </div>
 
@@ -719,26 +817,35 @@ const printTable = () => {
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortEmployees('role', 'asc')"
+                                        @click="roleFilter = 'all'"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
-                                                sortKey === 'role' &&
-                                                sortOrder === 'asc',
+                                                roleFilter === 'all',
                                         }"
                                     >
-                                        الدور الوظيفي (أ - ي)
+                                        جميع الأدوار
                                     </a>
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortEmployees('role', 'desc')"
+                                        @click="roleFilter = 'hospital_admin'"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
-                                                sortKey === 'role' &&
-                                                sortOrder === 'desc',
+                                                roleFilter === 'hospital_admin',
                                         }"
                                     >
-                                        الدور الوظيفي (ي - أ)
+                                        مدير نظام المستشفى فقط
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="roleFilter = 'supplier_admin'"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                roleFilter === 'supplier_admin',
+                                        }"
+                                    >
+                                        مدير المورد فقط
                                     </a>
                                 </li>
 
@@ -771,30 +878,30 @@ const printTable = () => {
                                 </li>
 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">
-                                    حسب القسم:
+                                    حسب المورد:
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortEmployees('department', 'asc')"
+                                        @click="sortEmployees('supplier', 'asc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
-                                                sortKey === 'department' &&
+                                                sortKey === 'supplier' &&
                                                 sortOrder === 'asc',
                                         }"
                                     >
-                                        القسم (أ - ي)
+                                        المورد (أ - ي)
                                     </a>
                                 </li>
                                 <li>
                                     <a
-                                        @click="sortEmployees('department', 'desc')"
+                                        @click="sortEmployees('supplier', 'desc')"
                                         :class="{
                                             'font-bold text-[#4DA1A9]':
-                                                sortKey === 'department' &&
+                                                sortKey === 'supplier' &&
                                                 sortOrder === 'desc',
                                         }"
                                     >
-                                        القسم (ي - أ)
+                                        المورد (ي - أ)
                                     </a>
                                 </li>
 
@@ -918,8 +1025,9 @@ const printTable = () => {
                                         <th class="name-col">الإسم الرباعي</th>
                                         <th class="role-col">الدور الوظيفي</th>
                                         <th class="hospital-col">المستشفى</th>
-                                      
+                                        <th class="supplier-col">المورد</th>
                                         <th class="status-col">الحالة</th>
+                                   
                                         <th class="phone-col">رقم الهاتف</th>
                                         <th class="actions-col">الإجراءات</th>
                                     </tr>
@@ -928,22 +1036,24 @@ const printTable = () => {
                                 <tbody>
                                     <tr
                                         v-for="(employee, index) in filteredEmployees"
-                                        :key="employee.fileNumber || index"
+                                        :key="employee.id || employee.fileNumber || index"
                                         class="hover:bg-gray-100 border border-gray-300"
                                     >
                                         <td class="file-number-col">
-                                            {{ employee.fileNumber || 'N/A' }}
+                                            {{ employee.id || employee.fileNumber || 'N/A' }}
                                         </td>
                                         <td class="name-col">
-                                            {{ employee.name || 'N/A' }}
+                                            {{ employee.name || employee.fullName || 'N/A' }}
                                         </td>
                                         <td class="role-col">
-                                            {{ typeof employee.role === 'object' ? employee.role.name : employee.role || 'N/A' }}
+                                            {{ employee.typeArabic || employee.role || 'N/A' }}
                                         </td>
                                         <td class="hospital-col">
                                             {{ employee.hospital || "-" }}
                                         </td>
-                                        
+                                        <td class="supplier-col">
+                                            {{ employee.supplier || "-" }}
+                                        </td>
                                         <td class="status-col">
                                             <span
                                                 :class="[
@@ -956,35 +1066,39 @@ const printTable = () => {
                                                 {{
                                                     employee.isActive
                                                         ? "مفعل"
+                                                        : employee.status === 'pending_activation' ? " غير مفعل"
                                                         : "معطل"
                                                 }}
                                             </span>
                                         </td>
+                                      
                                         <td class="phone-col">
                                             {{ employee.phone || 'N/A' }}
                                         </td>
 
                                         <td class="actions-col">
-                                            <div class="flex gap-3 justify-center items-center">
+                                            <div class="flex gap-1.5 justify-center items-center flex-wrap">
+                                                <!-- زر عرض البيانات -->
                                                 <button
                                                     @click="openViewModal(employee)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                    class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                     title="عرض البيانات"
                                                 >
                                                     <Icon
-                                                        icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
+                                                        icon="tabler:eye"
+                                                        class="w-4 h-4 text-green-600"
                                                     />
                                                 </button>
 
+                                                <!-- زر تعديل البيانات -->
                                                 <button
                                                     @click="openEditModal(employee)"
-                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                    class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                     title="تعديل البيانات"
                                                 >
                                                     <Icon
                                                         icon="line-md:pencil"
-                                                        class="w-5 h-5 text-yellow-500"
+                                                        class="w-4 h-4 text-yellow-600"
                                                     />
                                                 </button>
 
@@ -992,22 +1106,35 @@ const printTable = () => {
                                                 <button
                                                     @click="openStatusConfirmationModal(employee)"
                                                     :class="[
-                                                        'p-1 rounded-full transition-colors',
+                                                        'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                         employee.isActive
-                                                            ? 'hover:bg-red-100'
-                                                            : 'hover:bg-green-100',
+                                                            ? 'bg-red-50 hover:bg-red-100 border-red-200'
+                                                            : 'bg-green-50 hover:bg-green-100 border-green-200',
                                                     ]"
                                                     :title="getStatusTooltip(employee.isActive)"
                                                 >
                                                     <Icon
                                                         v-if="employee.isActive"
                                                         icon="pepicons-pop:power-off"
-                                                        class="w-5 h-5 text-red-600"
+                                                        class="w-4 h-4"
+                                                        :class="employee.isActive ? 'text-red-600' : 'text-green-600'"
                                                     />
                                                     <Icon
                                                         v-else
-                                                        icon="quill:off"
-                                                        class="w-5 h-5 text-green-600"
+                                                        icon="mdi:power"
+                                                        class="w-4 h-4 text-green-600"
+                                                    />
+                                                </button>
+
+                                                <!-- زر إعادة تعيين كلمة المرور -->
+                                                <button
+                                                    @click="resetPassword(employee)"
+                                                    class="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                    title="إعادة تعيين كلمة المرور"
+                                                >
+                                                    <Icon
+                                                        icon="mdi:lock-reset"
+                                                        class="w-4 h-4 text-blue-600"
                                                     />
                                                 </button>
                                             </div>
@@ -1016,7 +1143,7 @@ const printTable = () => {
 
                                     <tr v-if="filteredEmployees.length === 0">
                                         <td
-                                            colspan="8"
+                                            colspan="10"
                                             class="text-center py-8 text-gray-500"
                                         >
                                             لا توجد بيانات لعرضها
@@ -1140,12 +1267,11 @@ const printTable = () => {
 
 /* تنسيقات عرض أعمدة الجدول */
 .actions-col {
-    width: 130px;
-    min-width: 130px;
-    max-width: 130px;
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
     text-align: center;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding: 0.5rem;
 }
 .file-number-col {
     width: 90px;
@@ -1163,6 +1289,10 @@ const printTable = () => {
     width: 150px;
     min-width: 150px;
 }
+.supplier-col {
+    width: 150px;
+    min-width: 150px;
+}
 .department-col {
     width: 130px;
     min-width: 130px;
@@ -1171,8 +1301,12 @@ const printTable = () => {
     width: 120px;
     min-width: 120px;
 }
+.birth-col {
+    width: 130px;
+    min-width: 130px;
+}
 .name-col {
-    width: 170px;
-    min-width: 150px;
+    width: 120px;
+    min-width: 120px;
 }
 </style>

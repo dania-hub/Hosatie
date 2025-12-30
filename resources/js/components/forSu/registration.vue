@@ -200,20 +200,7 @@
                         <p class="text-gray-500 font-medium">لم يتم إضافة أي أدوية للقائمة بعد</p>
                     </div>
 
-                    <!-- Notes -->
-                    <div class="space-y-2">
-                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                            ملاحظات الطلب <span class="text-sm font-normal text-gray-400">(اختياري)</span>
-                        </h3>
-                        <textarea
-                            v-model="requestNotes"
-                            rows="3"
-                            placeholder="أدخل أي ملاحظات خاصة بطلب التوريد..."
-                            class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
-                            :disabled="isSubmitting"
-                        ></textarea>
-                    </div>
+                   
                 </div>
             </div>
 
@@ -293,7 +280,7 @@ const selectedDrugType = ref("");
 const dailyQuantity = ref(null);
 const showResults = ref(false);
 const dailyDosageList = ref([]);
-const requestNotes = ref('');
+
 const isSubmitting = ref(false);
 
 // الثوابت
@@ -418,7 +405,7 @@ const clearForm = () => {
     dailyQuantity.value = null;
     dailyDosageList.value = [];
     filteredDrugs.value = [];
-    requestNotes.value = '';
+   
     isSubmitting.value = false;
 };
 
@@ -530,7 +517,7 @@ const confirmAddition = () => {
     try {
         const confirmationData = {
             items: dailyDosageList.value,
-            notes: requestNotes.value.trim(),
+            
             totalItems: dailyDosageList.value.length,
             timestamp: new Date().toISOString()
         };

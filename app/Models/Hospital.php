@@ -61,4 +61,9 @@ class Hospital extends Model
     {
         return $this->hasMany(ExternalSupplyRequest::class);
     }
+
+    public function admin()
+    {
+        return $this->hasOne(User::class)->where('type', 'hospital_admin');
+    }
 }

@@ -1,7 +1,32 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
+import axios from "axios";
 import Input from "@/components/ui/input/Input.vue";
+
+// إعداد axios
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 10000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائيًا
+api.interceptors.request.use(
+    config => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    error => {
+        return Promise.reject(error);
+    }
+);
 
 const props = defineProps({
     isOpen: Boolean,
@@ -38,6 +63,10 @@ const errors = ref({
     hospital: false, // إضافة خطأ للمستشفى
 });
 
+// حالة التحقق من رقم الهاتف
+const phoneExists = ref(false);
+const checkingPhone = ref(false);
+
 // حالة نافذة التأكيد
 const isConfirmationModalOpen = ref(false);
 
@@ -63,6 +92,7 @@ const resetForm = () => {
         department: false,
         hospital: false // إعادة تعيين خطأ المستشفى
     };
+    phoneExists.value = false;
 };
 
 // إنشاء قائمة الأقسام المتاحة
@@ -124,9 +154,11 @@ const validateForm = () => {
     errors.value.birth = !data.birth;
     if (errors.value.birth) isValid = false;
 
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
-    errors.value.phone = !phoneRegex.test(data.phone.trim());
+    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+    const isValidFormat = phoneRegex.test(data.phone.trim());
+    errors.value.phone = !isValidFormat;
     if (errors.value.phone) isValid = false;
+    if (!isValidFormat || phoneExists.value) isValid = false;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     errors.value.email = !emailRegex.test(data.email.trim());
@@ -174,8 +206,8 @@ const isFormValid = computed(() => {
 
     if (!data.birth) return false;
 
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
-    if (!phoneRegex.test(data.phone.trim())) return false;
+    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+    if (!phoneRegex.test(data.phone.trim()) || phoneExists.value) return false;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.email.trim())) return false;
@@ -251,6 +283,57 @@ watch(() => props.isOpen, (newVal) => {
     if (newVal) {
         resetForm();
     }
+});
+
+// التحقق من وجود رقم الهاتف
+const checkPhoneExists = async (phone) => {
+    if (!phone || phone.trim() === "") {
+        phoneExists.value = false;
+        return;
+    }
+
+    // التحقق من التنسيق أولاً
+    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+    if (!phoneRegex.test(phone.trim())) {
+        phoneExists.value = false;
+        return;
+    }
+
+    checkingPhone.value = true;
+    try {
+        const response = await api.get(`/super-admin/users/check-phone/${phone.trim()}`);
+        if (response.data && response.data.data) {
+            phoneExists.value = response.data.data.exists;
+        }
+    } catch (error) {
+        console.error("Error checking phone:", error);
+        phoneExists.value = false;
+    } finally {
+        checkingPhone.value = false;
+    }
+};
+
+// متغير للـ timeout
+let phoneCheckTimeout = null;
+
+// مراقبة تغييرات رقم الهاتف
+watch(() => form.value.phone, (newPhone) => {
+    // التحقق من الصيغة فوراً
+    if (newPhone && newPhone.trim() !== "") {
+        const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+        errors.value.phone = !phoneRegex.test(newPhone.trim());
+    } else {
+        errors.value.phone = false;
+    }
+    
+    // التحقق من وجود الرقم بعد 500ms
+    if (phoneCheckTimeout) {
+        clearTimeout(phoneCheckTimeout);
+    }
+    
+    phoneCheckTimeout = setTimeout(() => {
+        checkPhoneExists(newPhone);
+    }, 500); // انتظار 500ms بعد توقف المستخدم عن الكتابة
 });
 
 // مراقبة تغيير الدور لإعادة تعيين حقل القسم
@@ -474,13 +557,17 @@ const maxDate = computed(() => {
                         <Input
                             id="phone"
                             v-model="form.phone"
-                            placeholder="09XXXXXXXX"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            placeholder="0211234567 أو 0921234567"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone || phoneExists, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.phone && !phoneExists }"
+                            class="bg-white focus:ring-[#4DA1A9]/20"
                         />
-                        <p v-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                        <p v-if="errors.phone && form.phone && !phoneExists" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            رقم الهاتف غير صحيح
+                            رقم الهاتف غير صحيح (يجب أن يبدأ بـ 021/092/091/093/094 متبوعاً بـ 7 أرقام)
+                        </p>
+                        <p v-if="phoneExists && form.phone && !errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            رقم الهاتف موجود بالفعل
                         </p>
                     </div>
 

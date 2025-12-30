@@ -1,893 +1,291 @@
-<script setup>
-import { ref, computed, onMounted, watch } from "vue";
-import axios from "axios";
-import { Icon } from "@iconify/vue";
-import DefaultLayout from "@/components/DefaultLayout.vue";
-import search from "@/components/search.vue";
-import btnprint from "@/components/btnprint.vue";
-import employeeViewModel from "@/components/forhospitaladmin/employeeViewModel.vue";
-
-// ----------------------------------------------------
-// 1. إعدادات API
-// ----------------------------------------------------
-const API_URL = "/api/data-entry/employees";
-const DEPARTMENTS_API_URL = "/api/departments";
-const ROLES_API_URL = "/api/employee-roles";
-const HOSPITALS_API_URL = "/api/hospitals";
-
-// ----------------------------------------------------
-// 2. البيانات الوهمية (نفس البيانات السابقة)
-// ----------------------------------------------------
-// const mockEmployees = [];
-
-// const mockDepartments = [];
-
-// const mockEmployeeRoles = [];
-
-// const mockHospitals = [];
-
-// ----------------------------------------------------
-// 3. الحالة العامة للتطبيق
-// ----------------------------------------------------
-const employees = ref([]);
-const availableHospitals = ref([]);
-const employeeRoles = ref([]);
-const availableDepartments = ref([]);
-const filteredRoles = ref([]);
-
-const loading = ref(true);
-const loadingDepartments = ref(true);
-const loadingRoles = ref(true);
-const loadingHospitals = ref(true);
-const error = ref(null);
-const departmentsError = ref(null);
-const rolesError = ref(null);
-const hospitalsError = ref(null);
-
-// ----------------------------------------------------
-// 4. دوال مساعدة
-// ----------------------------------------------------
-const formatDateForDisplay = (dateString) => {
-    if (!dateString) return "";
-    
-    const parts = dateString.split(/[/-]/);
-    if (parts.length === 3) {
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return dateString;
-};
-
-// معالجة بيانات الموظفين لتنسيقها للعرض
-const processEmployeeData = (employeeData) => {
-    return employeeData.map(emp => {
-        // استخراج القيم من الهياكل المختلفة
-        const hospitalName = emp.hospital?.name || emp.hospital || "غير محدد";
-        const hospitalId = emp.hospital?.id || emp.hospitalId || null;
-        const departmentName = emp.department?.name || emp.department || "غير محدد";
-        const departmentId = emp.department?.id || emp.departmentId || null;
-        const roleName = emp.role?.name || emp.role || "غير محدد";
-        const roleId = emp.role?.id || emp.roleId || null;
-        
-        return {
-            ...emp,
-            nameDisplay: emp.name || "",
-            nationalIdDisplay: emp.nationalId || "",
-            birthDisplay: emp.birth ? formatDateForDisplay(emp.birth) : "",
-            hospitalName,
-            hospitalId,
-            departmentName,
-            departmentId,
-            roleName,
-            roleId
-        };
-    });
-};
-
-// ----------------------------------------------------
-// 5. دوال جلب البيانات من API أو استخدام البيانات الوهمية
-// ----------------------------------------------------
-const fetchEmployees = async () => {
-    loading.value = true;
-    error.value = null;
-    
-    try {
-        const response = await axios.get(API_URL);
-        employees.value = processEmployeeData(response.data);
-    } catch (err) {
-        console.warn("استخدام بيانات وهمية للموظفين:", err.message);
-        // استخدام البيانات الوهمية في حالة فشل الاتصال
-        employees.value = processEmployeeData(mockEmployees);
-    } finally {
-        loading.value = false;
-    }
-};
-
-const fetchDepartments = async () => {
-    loadingDepartments.value = true;
-    departmentsError.value = null;
-    
-    try {
-        const response = await axios.get(DEPARTMENTS_API_URL);
-        availableDepartments.value = response.data;
-    } catch (err) {
-        console.warn("استخدام بيانات وهمية للأقسام:", err.message);
-        availableDepartments.value = mockDepartments;
-    } finally {
-        loadingDepartments.value = false;
-    }
-};
-
-const fetchEmployeeRoles = async () => {
-    loadingRoles.value = true;
-    rolesError.value = null;
-    
-    try {
-        const response = await axios.get(ROLES_API_URL);
-        employeeRoles.value = response.data;
-        filteredRoles.value = response.data;
-    } catch (err) {
-        console.warn("استخدام بيانات وهمية للأدوار:", err.message);
-        employeeRoles.value = mockEmployeeRoles;
-        filteredRoles.value = mockEmployeeRoles;
-    } finally {
-        loadingRoles.value = false;
-    }
-};
-
-const fetchHospitals = async () => {
-    loadingHospitals.value = true;
-    hospitalsError.value = null;
-    
-    try {
-        const response = await axios.get(HOSPITALS_API_URL);
-        availableHospitals.value = response.data;
-    } catch (err) {
-        console.warn("استخدام بيانات وهمية للمستشفيات:", err.message);
-        availableHospitals.value = mockHospitals;
-    } finally {
-        loadingHospitals.value = false;
-    }
-};
-
-// ----------------------------------------------------
-// 6. الفلاتر والبحث
-// ----------------------------------------------------
-const searchTerm = ref("");
-const sortKey = ref("lastUpdated");
-const sortOrder = ref("desc");
-const statusFilter = ref("all");
-const hospitalFilter = ref("all");
-const roleFilter = ref("all");
-
-const calculateAge = (birthDateString) => {
-    if (!birthDateString) return 0;
-    const parts = birthDateString.split(/[/-]/);
-    if (parts.length !== 3) return 0;
-
-    const birthDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-    }
-    return age;
-};
-
-const sortEmployees = (key, order) => {
-    sortKey.value = key;
-    sortOrder.value = order;
-};
-
-const filteredEmployees = computed(() => {
-    let list = employees.value;
-
-    // فلتر حسب الحالة
-    if (statusFilter.value !== "all") {
-        const isActiveFilter = statusFilter.value === "active";
-        list = list.filter((employee) => employee.isActive === isActiveFilter);
-    }
-
-    // فلتر حسب المستشفى
-    if (hospitalFilter.value !== "all") {
-        list = list.filter((employee) => {
-            return employee.hospitalId == hospitalFilter.value;
-        });
-    }
-
-    // فلتر حسب الدور الوظيفي (بدون اشتراط اختيار المستشفى أولاً)
-    if (roleFilter.value !== "all") {
-        list = list.filter((employee) => {
-            return employee.roleId == roleFilter.value || employee.roleName === roleFilter.value;
-        });
-    }
-
-    // فلتر حسب البحث (يشمل جميع البيانات في الجدول)
-    if (searchTerm.value) {
-        const search = searchTerm.value.toLowerCase();
-        list = list.filter((employee) => {
-            // البحث في جميع الحقول المرئية
-            return (
-                employee.name?.toLowerCase().includes(search) ||
-                employee.fileNumber?.toString().includes(search) ||
-                employee.phone?.includes(search) ||
-                employee.nationalId?.includes(search) ||
-                employee.email?.toLowerCase().includes(search) ||
-                employee.roleName?.toLowerCase().includes(search) ||
-                employee.departmentName?.toLowerCase().includes(search) ||
-                employee.hospitalName?.toLowerCase().includes(search)
-            );
-        });
-    }
-
-    // الفرز
-    if (sortKey.value) {
-        list.sort((a, b) => {
-            let comparison = 0;
-
-            if (sortKey.value === "name") {
-                comparison = (a.name || "").localeCompare(b.name || "", "ar");
-            } else if (sortKey.value === "birth") {
-                const ageA = calculateAge(a.birth);
-                const ageB = calculateAge(b.birth);
-                comparison = ageA - ageB;
-            } else if (sortKey.value === "lastUpdated") {
-                const dateA = new Date(a.lastUpdated || 0);
-                const dateB = new Date(b.lastUpdated || 0);
-                comparison = dateA.getTime() - dateB.getTime();
-            } else if (sortKey.value === "role") {
-                const roleA = a.roleName;
-                const roleB = b.roleName;
-                
-                if (!roleA && !roleB) comparison = 0;
-                else if (!roleA) comparison = 1;
-                else if (!roleB) comparison = -1;
-                else comparison = roleA.localeCompare(roleB, "ar");
-            } else if (sortKey.value === "status") {
-                if (a.isActive === b.isActive) comparison = 0;
-                else if (a.isActive && !b.isActive) comparison = -1;
-                else comparison = 1;
-            } else if (sortKey.value === "department") {
-                const deptA = a.departmentName;
-                const deptB = b.departmentName;
-                
-                if (!deptA && !deptB) comparison = 0;
-                else if (!deptA) comparison = 1;
-                else if (!deptB) comparison = -1;
-                else comparison = deptA.localeCompare(deptB, "ar");
-            } else if (sortKey.value === "hospital") {
-                const hospA = a.hospitalName;
-                const hospB = b.hospitalName;
-                
-                if (!hospA && !hospB) comparison = 0;
-                else if (!hospA) comparison = 1;
-                else if (!hospB) comparison = -1;
-                else comparison = hospA.localeCompare(hospB, "ar");
-            }
-
-            return sortOrder.value === "asc" ? comparison : -comparison;
-        });
-    }
-
-    return list;
-});
-
-// ----------------------------------------------------
-// 7. منطق الطباعة
-// ----------------------------------------------------
-const printTable = () => {
-    const resultsCount = filteredEmployees.value.length;
-
-    if (resultsCount === 0) {
-        showSuccessAlert("❌ لا توجد بيانات للطباعة.");
-        return;
-    }
-
-    const printWindow = window.open("", "_blank", "height=600,width=900");
-
-    if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert(
-            "❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
-        );
-        return;
-    }
-
-    let tableHtml = `
-        <style>
-            body {
-                font-family: 'Arial', sans-serif;
-                direction: rtl;
-                padding: 20px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 10px;
-                text-align: right;
-            }
-            th {
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }
-            h1 {
-                text-align: center;
-                color: #2E5077;
-                margin-bottom: 10px;
-            }
-            .results-info {
-                text-align: right;
-                margin-bottom: 15px;
-                font-size: 16px;
-                font-weight: bold;
-                color: #4DA1A9;
-            }
-            .status-active {
-                color: green;
-                font-weight: bold;
-            }
-            .status-inactive {
-                color: red;
-                font-weight: bold;
-            }
-            .filters-info {
-                text-align: right;
-                margin-bottom: 10px;
-                font-size: 14px;
-                color: #666;
-            }
-        </style>
-
-        <h1>قائمة الموظفين (تقرير طباعة)</h1>
-        
-        <div class="filters-info">
-            <strong>المستشفى:</strong> ${hospitalFilter.value === 'all' ? 'الكل' : (availableHospitals.value.find(h => h.id == hospitalFilter.value)?.name || hospitalFilter.value)}<br>
-            <strong>الدور الوظيفي:</strong> ${roleFilter.value === 'all' ? 'الكل' : (employeeRoles.value.find(r => r.id == roleFilter.value)?.name || roleFilter.value)}<br>
-            <strong>حالة الحساب:</strong> ${statusFilter.value === 'all' ? 'الكل' : (statusFilter.value === 'active' ? 'مفعل فقط' : 'معطل فقط')}
-        </div>
-        
-        <p class="results-info">
-            عدد النتائج: ${resultsCount}
-        </p>
-        
-        <table>
-            <thead>
-                <tr>
-                    <th>رقم الملف</th>
-                    <th>الاسم الرباعي</th>
-                    <th>الدور الوظيفي</th>
-                    <th>القسم</th>
-                    <th>المستشفى</th>
-                    <th>حالة الحساب</th>
-                    <th>الرقم الوطني</th>
-                    <th>تاريخ الميلاد</th>
-                    <th>رقم الهاتف</th>
-                    <th>البريد الإلكتروني</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    filteredEmployees.value.forEach((employee) => {
-        tableHtml += `
-            <tr>
-                <td>${employee.fileNumber || ''}</td>
-                <td>${employee.name || ''}</td>
-                <td>${employee.roleName}</td>
-                <td>${employee.departmentName}</td>
-                <td>${employee.hospitalName}</td>
-                <td class="${employee.isActive ? "status-active" : "status-inactive"}">
-                    ${employee.isActive ? "مفعل" : "معطل"}
-                </td>
-                <td>${employee.nationalId || ''}</td>
-                <td>${employee.birth || ''}</td>
-                <td>${employee.phone || ''}</td>
-                <td>${employee.email || ''}</td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
-
-    printWindow.document.write("<html><head><title>طباعة قائمة الموظفين</title>");
-    printWindow.document.write("</head><body>");
-    printWindow.document.write(tableHtml);
-    printWindow.document.write("</body></html>");
-    printWindow.document.close();
-
-    printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
-    };
-};
-
-// ----------------------------------------------------
-// 8. رسالة النجاح
-// ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
-let alertTimeout = null;
-
-const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
-};
-
-// ----------------------------------------------------
-// 9. حالة عرض الموظف
-// ----------------------------------------------------
-const isViewModalOpen = ref(false);
-const selectedEmployee = ref({});
-
-const openViewModal = (employee) => {
-    selectedEmployee.value = {
-        ...employee,
-        nameDisplay: employee.name || "",
-        nationalIdDisplay: employee.nationalId || "",
-        birthDisplay: employee.birth ? formatDateForDisplay(employee.birth) : "",
-        hospitalName: employee.hospitalName,
-        departmentName: employee.departmentName,
-        roleName: employee.roleName
-    };
-    isViewModalOpen.value = true;
-};
-
-const closeViewModal = () => {
-    isViewModalOpen.value = false;
-    selectedEmployee.value = {};
-};
-
-// ----------------------------------------------------
-// 10. دالة إعادة تحميل البيانات
-// ----------------------------------------------------
-const fetchAllData = async () => {
-    loading.value = true;
-    loadingDepartments.value = true;
-    loadingRoles.value = true;
-    loadingHospitals.value = true;
-    
-    await Promise.all([
-        fetchEmployees(),
-        fetchDepartments(),
-        fetchEmployeeRoles(),
-        fetchHospitals()
-    ]);
-};
-
-// ----------------------------------------------------
-// 11. دالة إعادة تعيين الفلاتر
-// ----------------------------------------------------
-const resetFilters = () => {
-    hospitalFilter.value = "all";
-    roleFilter.value = "all";
-    statusFilter.value = "all";
-    searchTerm.value = "";
-};
-
-// ----------------------------------------------------
-// 12. تحميل البيانات عند التهيئة
-// ----------------------------------------------------
-onMounted(async () => {
-    await fetchAllData();
-});
-</script>
-
 <template>
-    <DefaultLayout>
-        <main class="flex-1 p-4 sm:p-5 pt-3">
-            <!-- حالة التحميل -->
-            <div v-if="loading || loadingDepartments || loadingRoles || loadingHospitals" class="flex justify-center items-center h-64">
-                <div class="text-center">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تحميل البيانات...</p>
-                </div>
-            </div>
-
-          
-            <!-- المحتوى الرئيسي -->
-            <div v-else>
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 sm:gap-0 ">
-                    <div class="flex items-center gap-2 w-full sm:max-w-4xl flex-wrap">
-                        <!-- شريط البحث -->
-                      <div class="w-full sm:w-auto">
-    <search v-model="searchTerm" placeholder="بحث في جميع البيانات..." />
-</div>
-
-<!-- مجموعة الفلاتر -->
-<div class="flex items-center gap-3 flex-wrap">
-    <!-- فلتر المستشفى (dropdown جديد) -->
-    <div class="dropdown dropdown-start">
-        <div
-            tabindex="0"
-            role="button"
-            class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d]  rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[150px]"
-        >
-            <span>
-                {{ hospitalFilter === 'all' ? 'جميع المستشفيات' : getHospitalName(hospitalFilter) }}
-            </span>
-            <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
-        </div>
-        <ul
-            tabindex="0"
-            class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right max-h-60 overflow-y-auto"
-        >
-            <li>
-                <a
-                    @click="hospitalFilter = 'all'"
-                    :class="{'font-bold text-[#4DA1A9]': hospitalFilter === 'all'}"
-                >
-                    جميع المستشفيات
-                </a>
-            </li>
-            <li v-for="hospital in availableHospitals" :key="hospital.id">
-                <a
-                    @click="hospitalFilter = hospital.id"
-                    :class="{'font-bold text-[#4DA1A9]': hospitalFilter === hospital.id}"
-                >
-                    {{ hospital.name }}
-                </a>
-            </li>
-        </ul>
-    </div>
-
-    <!-- فلتر الدور الوظيفي (dropdown جديد) -->
-    <div class="dropdown dropdown-start">
-        <div
-            tabindex="0"
-            role="button"
-            class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d] h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[110px] w-34"
-        >
-            <span>
-                {{ roleFilter === 'all' ? 'جميع الأدوار' : getRoleName(roleFilter) }}
-            </span>
-            <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
-        </div>
-        <ul
-            tabindex="0"
-            class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-50 text-right  overflow-y-auto"
-        >
-            <li>
-                <a
-                    @click="roleFilter = 'all'"
-                    :class="{'font-bold text-[#4DA1A9]': roleFilter === 'all'}"
-                >
-                    جميع الأدوار
-                </a>
-            </li>
-            <li v-for="role in employeeRoles" :key="role.id">
-                <a
-                    @click="roleFilter = role.id"
-                    :class="{'font-bold text-[#4DA1A9]': roleFilter === role.id}"
-                >
-                    {{ role.name }}
-                </a>
-            </li>
-        </ul>
-    </div>
-
-    <!-- زر إعادة تعيين الفلاتر (إن وجد) -->
-</div>
-
-<!-- فرز -->
-<div class="dropdown dropdown-start">
+  <div
+    dir="rtl"
+    class="w-full min-h-screen font-['Inter'] bg-gray-50 overflow-x-hidden"
+  >
     <div
-        tabindex="0"
-        role="button"
-        class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-12 w-20 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
+      class="flex items-center justify-center min-h-screen p-4 sm:p-8 relative"
     >
-        <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
-        فرز
-    </div>
-    <ul
-        tabindex="0"
-        class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
-    >
-        <li class="menu-title text-gray-700 font-bold text-sm">حسب الاسم:</li>
-        <li>
-            <a
-                @click="sortEmployees('name', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}"
-            >
-                الاسم (أ - ي)
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('name', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}"
-            >
-                الاسم (ي - أ)
-            </a>
-        </li>
+      <div
+        class="w-full max-w-[470px] grid gap-6 text-center relative custom-container mx-auto"
+      >
+      
 
-        <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الدور الوظيفي:</li>
-        <li>
-            <a
-                @click="sortEmployees('role', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'role' && sortOrder === 'asc'}"
-            >
-                الدور الوظيفي (أ - ي)
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('role', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'role' && sortOrder === 'desc'}"
-            >
-                الدور الوظيفي (ي - أ)
-            </a>
-        </li>
-
-        <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب المستشفى:</li>
-        <li>
-            <a
-                @click="sortEmployees('hospital', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'asc'}"
-            >
-                المستشفى (أ - ي)
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('hospital', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'desc'}"
-            >
-                المستشفى (ي - أ)
-            </a>
-        </li>
-
-        <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب حالة الحساب:</li>
-        <li>
-            <a
-                @click="sortEmployees('status', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'status' && sortOrder === 'asc'}"
-            >
-                المعطلون أولاً
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('status', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'status' && sortOrder === 'desc'}"
-            >
-                المفعلون أولاً
-            </a>
-        </li>
-    </ul>
-</div>
-
-<!-- عرض عدد النتائج -->
-<div class="flex items-center gap-1">
-    <p class="text-sm font-semibold text-gray-600">عدد النتائج:</p>
-    <span class="text-[#4DA1A9] text-lg font-bold bg-gray-100 px-3 py-1 rounded-full">
-        {{ filteredEmployees.length }}
-    </span>
-</div>
-                   
- <div class="flex items-center justify-end w-full sm:w-auto">
-    <btnprint @click="printTable" />
-  </div>
-               
-                       
-                               <!-- معلومات الفلاتر المطبقة -->
-                <!-- <div v-if="hospitalFilter !== 'all' || roleFilter !== 'all' || statusFilter !== 'all'" 
-                     class="bg-blue-50 border w-130 border-blue-100 rounded-xl p-3 mb-4">
-                    <p class="text-sm text-blue-700 flex items-center gap-2">
-                        <Icon icon="tabler:filter" class="w-4 h-4" />
-                        <span class="font-medium">الفلاتر المطبقة:</span>
-                        
-                        <span v-if="hospitalFilter !== 'all'" class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                            مستشفى: {{ availableHospitals.find(h => h.id == hospitalFilter)?.name }}
-                        </span>
-                        
-                        <span v-if="roleFilter !== 'all'" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                            دور: {{ employeeRoles.find(r => r.id == roleFilter)?.name }}
-                        </span>
-                                              
-                    </p>
-                </div> -->
-                     </div>
-               
-                </div>
-             
-
-                <!-- الجدول الرئيسي -->
-                <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
-                    <div
-                        class="overflow-y-auto flex-1"
-                        style="
-                            scrollbar-width: auto;
-                            scrollbar-color: grey transparent;
-                            direction: ltr;
-                        "
-                    >
-                        <div class="overflow-x-auto h-full">
-                            <table
-                                dir="rtl"
-                                class="table w-full text-right min-w-[800px] border-collapse"
-                            >
-                                <thead
-                                    class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
-                                >
-                                    <tr>
-                                        <th class="file-number-col">رقم الملف</th>
-                                        <th class="name-col">الإسم الرباعي</th>
-                                        <th class="role-col">الدور الوظيفي</th>
-                                        <th class="department-col">القسم</th>
-                                        <th class="hospital-col">المستشفى</th>
-                                        <th class="status-col">الحالة</th>
-                                        <th class="phone-col">رقم الهاتف</th>
-                                        <th class="actions-col">الإجراءات</th>
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-                                    <tr
-                                        v-for="(employee, index) in filteredEmployees"
-                                        :key="employee.fileNumber || index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">
-                                            {{ employee.fileNumber || 'N/A' }}
-                                        </td>
-                                        <td class="name-col">
-                                            {{ employee.name || 'N/A' }}
-                                        </td>
-                                        <td class="role-col">
-                                            {{ employee.roleName }}
-                                        </td>
-                                        <td class="department-col">
-                                            {{ employee.departmentName }}
-                                        </td>
-                                        <td class="hospital-col">
-                                            {{ employee.hospitalName }}
-                                        </td>
-                                        <td class="status-col">
-                                            <span
-                                                :class="[
-                                                    'px-2 py-1 rounded-full text-xs font-semibold',
-                                                    employee.isActive
-                                                        ? 'bg-green-100 text-green-800 border border-green-200'
-                                                        : 'bg-red-100 text-red-800 border border-red-200',
-                                                ]"
-                                            >
-                                                {{
-                                                    employee.isActive
-                                                        ? "مفعل"
-                                                        : "معطل"
-                                                }}
-                                            </span>
-                                        </td>
-                                        <td class="phone-col">
-                                            {{ employee.phone || 'N/A' }}
-                                        </td>
-
-                                        <td class="actions-col">
-                                            <div class="flex gap-3 justify-center items-center">
-                                                <button
-                                                    @click="openViewModal(employee)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                                                    title="عرض البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    <tr v-if="filteredEmployees.length === 0">
-                                        <td
-                                            colspan="8"
-                                            class="text-center py-8 text-gray-500"
-                                        >
-                                            لا توجد بيانات لعرضها. حاول تغيير الفلاتر أو البحث.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </DefaultLayout>
-
-    <!-- Modal عرض بيانات الموظف -->
-    <employeeViewModel
-        :is-open="isViewModalOpen"
-        :patient="selectedEmployee"
-        @close="closeViewModal"
-    />
-
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
         <div
-            v-if="isSuccessAlertVisible"
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-            dir="rtl"
+          class="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
         >
-            {{ successMessage }}
+         <!--         <img src="/assets/logo2.png" alt="logo" class="h-15 w-15 object-contain flex-shrink-0" />
+ -->
+          <img src="/assets/logo4.png" alt="logo" class="w-25 h-29 sm:w-12 sm:h-12 " />
         </div>
-    </Transition>
+
+        <div class="flex flex-col items-center gap-2 mt-4 sm:mt-0">
+          <h1
+            class="text-2xl sm:text-2xl font-extrabold text-[#2E5077] mt-2 mb-3 sm:mt-0"
+          >
+            تعيين كلمة المرور
+          </h1>
+        </div>
+
+        <form @submit.prevent="handleResetPassword" class="grid gap-4 sm:gap-5 text-right">
+          
+          <div class="grid gap-1">
+            <div class="relative">
+              <input
+                id="newPassword"
+                type="password"
+                v-model="newPassword"
+                @blur="validateField('newPassword')"
+                @input="newPasswordError = ''"
+                placeholder="أدخل كلمة المرور "
+                class="custom-input text-right text-sm sm:text-base"
+                :class="{ 'input-error': newPasswordError }"
+              />
+              <Lock
+                class="absolute right-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
+              />
+            </div>
+            <span
+              v-if="newPasswordError"
+              class="text-red-500 text-xs font-bold mr-2 mt-1 flex items-center gap-1"
+            >
+              <Icon
+                icon="material-symbols-light:error-outline-rounded"
+                class="w-4 h-4"
+              />
+              {{ newPasswordError }}
+            </span>
+          </div>
+
+          <div class="grid gap-1">
+            <div class="relative">
+              <input
+                id="confirmPassword"
+                type="password"
+                v-model="confirmPassword"
+                @blur="validateField('confirmPassword')"
+                @input="confirmPasswordError = ''"
+                placeholder="تأكيد كلمة المرور "
+                class="custom-input text-right text-sm sm:text-base"
+                :class="{ 'input-error': confirmPasswordError }"
+              />
+              <Lock
+                class="absolute right-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
+              />
+            </div>
+            <span
+              v-if="confirmPasswordError"
+              class="text-red-500 text-xs font-bold mr-2 mt-1 flex items-center gap-1"
+            >
+              <Icon
+                icon="material-symbols-light:error-outline-rounded"
+                class="w-4 h-4"
+              />
+              {{ confirmPasswordError }}
+            </span>
+          </div>
+
+          <div class="flex flex-col items-center mt-2 w-full">
+            <button type="submit" class="button w-full sm:w-3/4">
+              تأكــــــيـد
+            </button>
+            <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
+              2024© حصتي. جميع الحقوق محفوظة
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </template>
 
-<style>
-/* تنسيقات شريط التمرير */
-::-webkit-scrollbar {
-    width: 8px;
-}
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-::-webkit-scrollbar-thumb {
-    background-color: #4da1a9;
-    border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background-color: #3a8c94;
-}
+<script setup>
+import { ref } from "vue";
+import { Lock, Stethoscope } from "lucide-vue-next";
+import { Icon } from "@iconify/vue";
 
-/* تنسيقات عرض أعمدة الجدول */
-.actions-col {
-    width: 80px;
-    min-width: 80px;
-    max-width: 80px;
-    text-align: center;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+// تعريف المتغيرات
+const newPassword = ref("");
+const confirmPassword = ref("");
+
+const newPasswordError = ref("");
+const confirmPasswordError = ref("");
+
+// دالة التحقق الشاملة للحد الأدنى للطول
+const validatePassword = (passwordValue, errorRef, fieldName) => {
+  if (!passwordValue) {
+    errorRef.value = `حقل ${fieldName} مطلوب`;
+    return false;
+  } else if (passwordValue.length < 6) {
+    errorRef.value = "كلمة المرور يجب أن تكون 6 أحرف على الأقل";
+    return false;
+  } else {
+    errorRef.value = "";
+    return true;
+  }
+};
+
+// دالة منفصلة للتحقق من تطابق كلمتي المرور
+const validateConfirmMatch = () => {
+    // إذا كان هناك خطأ بالفعل (مثل خطأ الطول)، نتركه أولاً
+    if (confirmPasswordError.value && confirmPasswordError.value !== "كلمتا المرور غير متطابقتين") {
+        return;
+    }
+
+    // التحقق من التطابق فقط
+    if (newPassword.value !== confirmPassword.value && confirmPassword.value.length > 0) {
+      confirmPasswordError.value = "كلمتا المرور غير متطابقتين";
+    } else if (newPassword.value === confirmPassword.value && confirmPassword.value.length > 0) {
+      // إذا تساويا، نزيل رسالة الخطأ الخاصة بالتطابق
+      if (confirmPasswordError.value === "كلمتا المرور غير متطابقتين") {
+          confirmPasswordError.value = "";
+      }
+    }
+};
+
+// دالة لمعالجة حدث الخروج من الحقل (Blur)
+const validateField = (field) => {
+  if (field === "newPassword") {
+    // التحقق من حقل كلمة المرور الجديدة
+    if (newPassword.value.length > 0) {
+      validatePassword(newPassword.value, newPasswordError, "كلمة المرور الجديدة");
+    }
+
+    // التحقق من التطابق فوراً إذا كان حقل التأكيد مملوءاً
+    if (confirmPassword.value.length > 0) {
+      validateConfirmMatch();
+    }
+
+  } else if (field === "confirmPassword") {
+    // التحقق من حقل تأكيد كلمة المرور
+    if (confirmPassword.value.length > 0) {
+      validatePassword(confirmPassword.value, confirmPasswordError, "تأكيد كلمة المرور");
+    }
+    // التحقق الإضافي للتطابق
+    validateConfirmMatch();
+  }
+};
+
+// دالة الإرسال النهائية
+const handleResetPassword = () => {
+  // نجبر التحقق على جميع الحقول
+  const isNewPasswordValid = validatePassword(newPassword.value, newPasswordError, "كلمة المرور الجديدة");
+  let isConfirmPasswordValid = validatePassword(confirmPassword.value, confirmPasswordError, "تأكيد كلمة المرور");
+
+  // التحقق من التطابق كخطوة أخيرة في الإرسال
+  if (isNewPasswordValid && newPassword.value !== confirmPassword.value) {
+      confirmPasswordError.value = "كلمتا المرور غير متطابقتين";
+      isConfirmPasswordValid = false; // فشل التحقق
+  }
+
+  // يتم الإرسال فقط إذا كانت جميع التحققات ناجحة
+  if (isNewPasswordValid && isConfirmPasswordValid) {
+    // ****** هنا يتم وضع كود الاتصال بالـ API لإعادة تعيين كلمة المرور ******
+    console.log("تمت إعادة تعيين كلمة المرور بنجاح");
+    // مثال: router.push('/success');
+  } else {
+    console.log("خطأ في التحقق، يرجى مراجعة البيانات المدخلة.");
+  }
+};
+</script>
+
+<style>
+/* التنسيقات (CSS) تستخدم Tailwind CSS ومُضافة للتصميم الجمالي.
+  هذا الجزء لم يتم تعديله بناءً على طلبك، ولكنه جزء أساسي من شكل النموذج.
+*/
+.custom-container {
+  background: linear-gradient(0deg, #ffffff 0%, #f4f7fb 100%);
+  border-radius: 35px;
+  padding: 3.5rem 1.5rem 2rem 1.5rem !important;
+  border: 5px solid #efefef;
+  box-shadow: rgba(46, 80, 119, 0.88) 0px 30px 30px -20px;
 }
-.file-number-col {
-    width: 90px;
-    min-width: 90px;
+@media (min-width: 640px) {
+  .custom-container {
+    padding: 4rem 2.5rem 2.5rem 2.5rem !important;
+  }
 }
-.status-col {
-    width: 100px;
-    min-width: 100px;
+.button {
+  position: relative;
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.2);
+  padding: 0.2rem 1.25rem;
+  background-color: #2e5077;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  gap: 10px;
+  font-weight: bold;
+  border: 3px solid #ffffff4d;
+  outline: none;
+  overflow: hidden;
+  font-size: 15px;
+  cursor: pointer;
+  height: 48px;
+  width: 60%;
+  margin-bottom: 9px;
+  margin-top: 15px;
 }
-.role-col {
-    width: 130px;
-    min-width: 130px;
+.button:hover {
+  transform: scale(1.02); 
+  border-color: #fff9;
 }
-.department-col {
-    width: 150px;
-    min-width: 150px;
+.button:hover::before {
+  animation: shine 1.5s ease-out infinite;
 }
-.hospital-col {
-    width: 150px;
-    min-width: 150px;
+.button::before {
+  content: "";
+  position: absolute;
+  width: 100px;
+  height: 100%;
+  background-image: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.8),
+    rgba(255, 255, 255, 0) 70%
+  );
+  top: 0;
+  left: -100px;
+  opacity: 0.6;
 }
-.phone-col {
-    width: 120px;
-    min-width: 120px;
+@keyframes shine {
+  0% {
+    left: -100px;
+  }
+  60% {
+    left: 100%;
+  }
+  to {
+    left: 100%;
+  }
 }
-.name-col {
-    width: 170px;
-    min-width: 150px;
+.custom-input {
+  width: 100% !important;
+  background: white !important;
+  border: 1px solid #d1d5db !important;
+  padding: 15px 50px 15px 15px !important;
+  border-radius: 15px !important;
+  box-shadow: #afc6e1 0px 10px 10px -5px;
+  transition: all 0.2s ease-in-out;
+  color: #1f2937;
+  margin-top: 0;
+}
+.custom-input:focus {
+  outline: none !important;
+  border: 3px solid #91afd1 !important;
+}
+.input-error {
+  border: 1px solid #ef4444 !important;
+  background-color: #fef2f2 !important;
+}
+.input-error:focus {
+  border: 1px solid #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+.custom-input::placeholder {
+  color: rgb(170, 170, 170);
+  text-align: right;
 }
 </style>

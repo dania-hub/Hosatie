@@ -152,7 +152,7 @@ const links = {
         { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/admin/employees" },
         { name: "الطلبات", icon: "carbon:request-quote", to: "/admin/requests" },
         { name: "الاقسام", icon: "mingcute:department-fill", to: "/admin/departments" },
-        { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/admin/supply-requests" },
+    
         { name: "طلبات النقل", icon: "mdi:transfer", to: "/admin/transfer-requests" },
         { name: "الشكاوي", icon: "fluent:person-feedback-24-regular", to: "/admin/complaints" },
     ],

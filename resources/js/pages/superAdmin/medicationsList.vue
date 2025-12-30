@@ -12,21 +12,79 @@ import AddDrugModal from "@/components/forsuperadmin/AddDrugModal.vue";
 import EditDrugModal from "@/components/forsuperadmin/EditDrugModal.vue";
 
 // ----------------------------------------------------
+// 0. نظام التنبيهات - يجب تعريفه قبل الاستخدام
+// ----------------------------------------------------
+const isSuccessAlertVisible = ref(false);
+const isErrorAlertVisible = ref(false);
+const successMessage = ref("");
+const errorMessage = ref("");
+let alertTimeout = null;
+
+const showSuccessAlert = (message) => {
+  if (alertTimeout) {
+    clearTimeout(alertTimeout);
+  }
+
+  successMessage.value = message;
+  isSuccessAlertVisible.value = true;
+
+  alertTimeout = setTimeout(() => {
+    isSuccessAlertVisible.value = false;
+    successMessage.value = "";
+  }, 4000);
+};
+
+const showErrorAlert = (message) => {
+  if (alertTimeout) {
+    clearTimeout(alertTimeout);
+  }
+
+  errorMessage.value = message;
+  isErrorAlertVisible.value = true;
+
+  alertTimeout = setTimeout(() => {
+    isErrorAlertVisible.value = false;
+    errorMessage.value = "";
+  }, 4000);
+};
+
+// ----------------------------------------------------
 // 1. تهيئة axios مع base URL
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: "http://localhost:3000/api",
-  timeout: 10000,
+  baseURL: "/api",
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
     "Accept": "application/json"
   }
 });
 
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 api.interceptors.response.use(
   response => response,
   error => {
     console.error("API Error:", error.response?.data || error.message);
+    if (error.response?.status === 401) {
+      showErrorAlert("❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.");
+    } else if (error.response?.status === 403) {
+      showErrorAlert("❌ ليس لديك الصلاحية للقيام بهذا الإجراء.");
+    } else if (!error.response) {
+      showErrorAlert("❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.");
+    }
     return Promise.reject(error);
   }
 );
@@ -129,16 +187,16 @@ const fetchDrugs = async () => {
   isLoading.value = true;
   
   try {
-    const response = await api.get("/drugs");
-    drugsData.value = response.data;
-    hasData.value = response.data.length > 0;
-    if (response.data.length > 0) {
+    const response = await api.get("/super-admin/drugs");
+    drugsData.value = response.data.data || response.data;
+    hasData.value = (response.data.data || response.data).length > 0;
+    if ((response.data.data || response.data).length > 0) {
       showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
     }
   } catch (error) {
-    console.warn("Warning: Could not fetch drugs data from API");
-  
+    console.error("Error fetching drugs:", error);
     hasData.value = false;
+    showErrorAlert("❌ فشل في تحميل قائمة الأدوية");
   } finally {
     isLoading.value = false;
   }
@@ -178,11 +236,10 @@ const fetchCountries = async () => {
 // جلب جميع بيانات الأدوية للبحث
 const fetchAllDrugsData = async () => {
   try {
-    const response = await api.get("/drugs/all");
-    allDrugsData.value = response.data;
+    const response = await api.get("/super-admin/drugs");
+    allDrugsData.value = response.data.data || response.data;
   } catch (error) {
     console.warn("Warning: Could not fetch all drugs data from API");
-   
   }
 };
 
@@ -222,27 +279,22 @@ const addNewDrug = async (drugData) => {
   isLoading.value = true;
   
   try {
-    // إضافة تاريخ الإنشاء
-    const drugWithTimestamp = {
-      ...drugData,
-      createdAt: new Date().toISOString(),
-      lastUpdate: new Date().toISOString()
-    };
-    
-    const response = await api.post("/drugs", drugWithTimestamp);
+    const response = await api.post("/super-admin/drugs", drugData);
+    const newDrug = response.data.data || response.data;
     
     // تحديث القائمة المحلية
-    drugsData.value.unshift(response.data);
+    drugsData.value.unshift(newDrug);
     showSuccessAlert("✅ تم إضافة الدواء بنجاح");
     
     // تحديث البيانات المحلية للبحث
-    allDrugsData.value.unshift(response.data);
+    allDrugsData.value.unshift(newDrug);
     
     // إغلاق النافذة
     isAddDrugModalOpen.value = false;
   } catch (error) {
     console.error("Error adding drug:", error);
-    showErrorAlert("❌ فشل في إضافة الدواء");
+    const errorMsg = error.response?.data?.message || "❌ فشل في إضافة الدواء";
+    showErrorAlert(errorMsg);
   } finally {
     isLoading.value = false;
   }
@@ -253,27 +305,30 @@ const updateDrug = async (updatedDrug) => {
   isLoading.value = true;
   
   try {
-    // تحديث تاريخ التعديل
-    const drugWithTimestamp = {
-      ...updatedDrug,
-      lastUpdate: new Date().toISOString()
-    };
-    
-    const response = await api.put(`/drugs/${updatedDrug.id}`, drugWithTimestamp);
+    const response = await api.put(`/super-admin/drugs/${updatedDrug.id}`, updatedDrug);
+    const updated = response.data.data || response.data;
     
     // تحديث القائمة المحلية
     const index = drugsData.value.findIndex(drug => drug.id === updatedDrug.id);
     if (index !== -1) {
-      drugsData.value[index] = response.data;
+      drugsData.value[index] = updated;
+    }
+    
+    // تحديث بيانات البحث
+    const allIndex = allDrugsData.value.findIndex(drug => drug.id === updatedDrug.id);
+    if (allIndex !== -1) {
+      allDrugsData.value[allIndex] = updated;
     }
     
     showSuccessAlert("✅ تم تحديث بيانات الدواء بنجاح");
     
     // إغلاق النافذة
     isEditDrugModalOpen.value = false;
+    isDrugPreviewModalOpen.value = false;
   } catch (error) {
     console.error("Error updating drug:", error);
-    showErrorAlert("❌ فشل في تحديث بيانات الدواء");
+    const errorMsg = error.response?.data?.message || "❌ فشل في تحديث بيانات الدواء";
+    showErrorAlert(errorMsg);
   } finally {
     isLoading.value = false;
   }
@@ -285,34 +340,72 @@ const confirmDeleteDrug = (drugId) => {
   isDeleteConfirmationModalOpen.value = true;
 };
 
-// حذف دواء
-const deleteDrug = async () => {
+// إيقاف دواء (discontinue)
+const discontinueDrug = async () => {
   if (!drugToDelete.value) return;
   
   const drugId = drugToDelete.value;
   isLoading.value = true;
   
   try {
-    await api.delete(`/drugs/${drugId}`);
+    const response = await api.patch(`/super-admin/drugs/${drugId}/discontinue`);
+    const updated = response.data.data || response.data;
     
     // تحديث القائمة المحلية
-    drugsData.value = drugsData.value.filter(drug => drug.id !== drugId);
+    const index = drugsData.value.findIndex(drug => drug.id === drugId);
+    if (index !== -1) {
+      drugsData.value[index] = updated;
+    }
     
     // تحديث بيانات البحث
-    allDrugsData.value = allDrugsData.value.filter(drug => drug.id !== drugId);
+    const allIndex = allDrugsData.value.findIndex(drug => drug.id === drugId);
+    if (allIndex !== -1) {
+      allDrugsData.value[allIndex] = updated;
+    }
     
-    showSuccessAlert("✅ تم حذف الدواء بنجاح");
+    showSuccessAlert("✅ تم إيقاف الدواء بنجاح");
     
     // إغلاق نافذة المعاينة إذا كانت مفتوحة
     if (isDrugPreviewModalOpen.value && selectedDrug.value.id === drugId) {
       isDrugPreviewModalOpen.value = false;
     }
   } catch (error) {
-    console.error("Error deleting drug:", error);
-    showErrorAlert("❌ فشل في حذف الدواء");
+    console.error("Error discontinuing drug:", error);
+    const errorMsg = error.response?.data?.message || "❌ فشل في إيقاف الدواء";
+    showErrorAlert(errorMsg);
   } finally {
     isLoading.value = false;
     closeDeleteConfirmationModal();
+  }
+};
+
+// إعادة تفعيل دواء (reactivate)
+const reactivateDrug = async (drugId) => {
+  isLoading.value = true;
+  
+  try {
+    const response = await api.patch(`/super-admin/drugs/${drugId}/reactivate`);
+    const updated = response.data.data || response.data;
+    
+    // تحديث القائمة المحلية
+    const index = drugsData.value.findIndex(drug => drug.id === drugId);
+    if (index !== -1) {
+      drugsData.value[index] = updated;
+    }
+    
+    // تحديث بيانات البحث
+    const allIndex = allDrugsData.value.findIndex(drug => drug.id === drugId);
+    if (allIndex !== -1) {
+      allDrugsData.value[allIndex] = updated;
+    }
+    
+    showSuccessAlert("✅ تم إعادة تفعيل الدواء بنجاح");
+  } catch (error) {
+    console.error("Error reactivating drug:", error);
+    const errorMsg = error.response?.data?.message || "❌ فشل في إعادة تفعيل الدواء";
+    showErrorAlert(errorMsg);
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -448,44 +541,7 @@ const retryLoading = async () => {
 };
 
 // ----------------------------------------------------
-// 12. نظام التنبيهات
-// ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isErrorAlertVisible = ref(false);
-const successMessage = ref("");
-const errorMessage = ref("");
-let alertTimeout = null;
-
-const showSuccessAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  successMessage.value = message;
-  isSuccessAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isSuccessAlertVisible.value = false;
-    successMessage.value = "";
-  }, 4000);
-};
-
-const showErrorAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  errorMessage.value = message;
-  isErrorAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isErrorAlertVisible.value = false;
-    errorMessage.value = "";
-  }, 4000);
-};
-
-// ----------------------------------------------------
-// 13. تهيئة البيانات عند تحميل المكون
+// 12. تهيئة البيانات عند تحميل المكون
 // ----------------------------------------------------
 onMounted(async () => {
   await Promise.all([
@@ -808,6 +864,7 @@ onMounted(async () => {
                                                         />
                                                     </button>
                                                     <button
+                                                        v-if="!drug.is_discontinued"
                                                         @click="
                                                             openEditDrugModal(drug)
                                                         "
@@ -820,15 +877,29 @@ onMounted(async () => {
                                                         />
                                                     </button>
                                                     <button
+                                                        v-if="!drug.is_discontinued"
                                                         @click="
                                                             confirmDeleteDrug(drug.id)
                                                         "
                                                         class="p-1 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="حذف"
+                                                        title="إيقاف"
                                                     >
                                                         <Icon
-                                                            icon="tabler:trash"
+                                                            icon="tabler:ban"
                                                             class="w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-red-600"
+                                                        />
+                                                    </button>
+                                                    <button
+                                                        v-if="drug.is_discontinued"
+                                                        @click="
+                                                            reactivateDrug(drug.id)
+                                                        "
+                                                        class="p-1 hover:bg-green-50 rounded-lg transition-colors"
+                                                        title="إعادة تفعيل"
+                                                    >
+                                                        <Icon
+                                                            icon="tabler:refresh"
+                                                            class="w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-600"
                                                         />
                                                     </button>
                                                 </div>
@@ -910,11 +981,11 @@ onMounted(async () => {
                         <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-10 h-10 text-red-500" />
                         </div>
-                        <h3 class="text-xl font-bold text-[#2E5077]">تأكيد الحذف</h3>
+                        <h3 class="text-xl font-bold text-[#2E5077]">تأكيد إيقاف الدواء</h3>
                         <p class="text-gray-500 leading-relaxed">
-                            هل أنت متأكد من رغبتك في حذف هذا الدواء؟
+                            هل أنت متأكد من رغبتك في إيقاف هذا الدواء؟
                             <br>
-                            <span class="text-sm text-red-500">هذا الإجراء لا يمكن التراجع عنه</span>
+                            <span class="text-sm text-orange-500">يمكنك إعادة تفعيل الدواء لاحقاً</span>
                         </p>
                     </div>
                     <div class="flex justify-center bg-gray-50 px-6 py-4 gap-3 border-t border-gray-100">
@@ -925,11 +996,11 @@ onMounted(async () => {
                             إلغاء
                         </button>
                         <button 
-                            @click="deleteDrug" 
+                            @click="discontinueDrug" 
                             class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-red-500/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-red-500 to-red-600 hover:shadow-xl hover:-translate-y-0.5"
                         >
-                            <Icon icon="tabler:trash" class="w-5 h-5" />
-                            حذف نهائي
+                            <Icon icon="tabler:ban" class="w-5 h-5" />
+                            إيقاف الدواء
                         </button>
                     </div>
                 </div>

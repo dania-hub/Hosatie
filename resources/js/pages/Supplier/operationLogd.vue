@@ -7,6 +7,40 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
+// إعداد axios مع base URL و interceptor للتوكن
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        console.error('API Error:', error.response?.data || error.message);
+        // لا يمكن استخدام showSuccessAlert هنا لأنه لم يتم تعريفه بعد
+        // سيتم التعامل مع الأخطاء في catch blocks
+        return Promise.reject(error);
+    }
+);
 
 const operations = ref([]);
 const isLoading = ref(false);
@@ -15,15 +49,46 @@ const isLoading = ref(false);
 const fetchOperations = async () => {
     isLoading.value = true;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/supplier/operations');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        // BaseApiController يُرجع البيانات في response.data.data
+        const operationsData = response.data?.data || response.data || [];
+        
+        // تحويل البيانات لتطابق ما يتوقعه الجدول
+        operations.value = operationsData.map(op => {
+            // استخراج رقم الشحنة من الوصف إذا كان موجوداً
+            let shipmentNumber = '';
+            if (op.description) {
+                const shipmentMatch = op.description.match(/EXT-(\d+)/);
+                if (shipmentMatch) {
+                    shipmentNumber = shipmentMatch[0]; // EXT-XX
+                }
+            }
+            
+            // إضافة رقم الشحنة إلى نوع العملية إذا كان موجوداً
+            let operationTypeWithShipment = op.operationType || '';
+            if (shipmentNumber) {
+                operationTypeWithShipment += ' (' + shipmentNumber + ')';
+            }
+            
+            return {
+                fileNumber: op.id || op.fileNumber || '',
+                operationType: operationTypeWithShipment,
+                operationDate: op.operationDate || '',
+                description: op.description || '',
+                userName: op.userName || '',
+                operationTime: op.operationTime || '',
+                shipmentNumber: shipmentNumber // حفظه للبحث أيضاً
+            };
+        });
         
         showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
+        if (!error.response || (error.response.status !== 401 && error.response.status !== 403)) {
+            showSuccessAlert("❌ فشل في تحميل البيانات.");
+        }
     } finally {
         isLoading.value = false;
     }
@@ -73,9 +138,11 @@ const filteredOperations = computed(() => {
     list = list.filter(op => {
         // تصفية حسب نص البحث
         const searchMatch = !search ||
-                            op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            op.operationType.includes(search);
+                            (op.fileNumber && op.fileNumber.toString().includes(search)) ||
+                            (op.description && op.description.toLowerCase().includes(search)) ||
+                            (op.userName && op.userName.toLowerCase().includes(search)) ||
+                            (op.operationType && op.operationType.toLowerCase().includes(search)) ||
+                            (op.shipmentNumber && op.shipmentNumber.toLowerCase().includes(search));
 
         // تصفية حسب نوع العملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
@@ -89,9 +156,7 @@ const filteredOperations = computed(() => {
         list.sort((a, b) => {
             let comparison = 0;
 
-            if (sortKey.value === 'name') {
-                comparison = a.name.localeCompare(b.name, 'ar');
-            } else if (sortKey.value === 'fileNumber') {
+            if (sortKey.value === 'fileNumber') {
                 comparison = a.fileNumber - b.fileNumber;
             } else if (sortKey.value === 'operationType') {
                 comparison = a.operationType.localeCompare(b.operationType, 'ar');
@@ -236,7 +301,7 @@ const printTable = () => {
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم العملية أو الوصف" />
                         </div>
                         
                         <div class="dropdown dropdown-start">
@@ -282,17 +347,17 @@ const printTable = () => {
                                     </a>
                                 </li>
                                 
-                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الاسم:</li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب نوع العملية:</li>
                                 <li>
-                                    <a @click="sortOperations('name', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
-                                        الاسم (أ - ي)
+                                    <a @click="sortOperations('operationType', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationType' && sortOrder === 'asc'}">
+                                        النوع (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('name', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
-                                        الاسم (ي - أ)
+                                    <a @click="sortOperations('operationType', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationType' && sortOrder === 'desc'}">
+                                        النوع (ي - أ)
                                     </a>
                                 </li>
                             </ul>

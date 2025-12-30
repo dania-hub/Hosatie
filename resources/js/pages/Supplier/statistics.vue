@@ -7,8 +7,6 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
-const API_URL = '/api/dashboard/stats';
-
 // تكوين Axios مع التوكن
 const api = axios.create({
   baseURL: '/api',
@@ -35,9 +33,17 @@ api.interceptors.request.use(
 
 // متغير لتخزين الإحصائيات
 const stats = ref({
-    totalRegistered: 0,
-    todayRegistered: 0,
-    weekRegistered: 0,
+    shipments: {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        fulfilled: 0,
+        rejected: 0
+    },
+    drugs: {
+        total: 0,
+        lowStock: 0
+    },
     isLoading: true,
     error: null
 });
@@ -50,13 +56,23 @@ const fetchStats = async () => {
     stats.value.error = null;
 
     try {
-        const response = await api.get('/dashboard/stats');
-        const data = response.data || response;
+        const response = await api.get('/supplier/dashboard/stats');
+        // BaseApiController يُرجع البيانات في response.data.data
+        const data = response.data?.data || response.data || {};
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
-        stats.value.totalRegistered = data.totalRegistered || 0;
-        stats.value.todayRegistered = data.todayRegistered || 0;
-        stats.value.weekRegistered = data.weekRegistered || 0;
+        stats.value.shipments = {
+            total: data.totalShipments || 0,
+            pending: data.pendingShipments || 0,
+            approved: data.approvedShipments || 0,
+            fulfilled: data.fulfilledShipments || 0,
+            rejected: data.rejectedShipments || 0
+        };
+        
+        stats.value.drugs = {
+            total: data.totalDrugs || 0,
+            lowStock: data.lowStockDrugs || 0
+        };
         
     } catch (error) {
         console.error("Error fetching dashboard statistics:", error);
@@ -97,40 +113,90 @@ onMounted(() => {
 
         <!-- الإحصائيات -->
         <div v-else class="space-y-8">
+            <!-- قسم: الشحنات -->
             <div>
                 <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:chart-2-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    الإحصائيات
+                    <Icon icon="solar:box-minimalistic-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
+                    الشحنات
                 </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:document-text-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                                <Icon icon="solar:box-minimalistic-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي عدد الطلبات</p>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الشحنات</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.totalRegistered }}</p>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.shipments.total }}</p>
+                    </div>
+
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-yellow-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-yellow-500/10 rounded-xl">
+                                <Icon icon="solar:clock-circle-bold-duotone" class="icon w-8 h-8 text-yellow-600" />
+                            </div>
+                            <p class="text text-lg font-bold text-yellow-600" style="text-align: right;">قيد الانتظار</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-yellow-600" style="text-align: right; width: 100%;">{{ stats.shipments.pending }}</p>
+                    </div>
+
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-blue-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-blue-500/10 rounded-xl">
+                                <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-blue-600" />
+                            </div>
+                            <p class="text text-lg font-bold text-blue-600" style="text-align: right;">معتمدة</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-blue-600" style="text-align: right; width: 100%;">{{ stats.shipments.approved }}</p>
                     </div>
 
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                                <Icon icon="solar:plain-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">عدد الأصناف التي وصلت للحد الحرج</p>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">تم الإرسال</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.todayRegistered }}</p>
+                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.shipments.fulfilled }}</p>
                     </div>
 
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-red-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:clock-circle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
+                            <div class="p-3 bg-red-500/10 rounded-xl">
+                                <Icon icon="solar:close-circle-bold-duotone" class="icon w-8 h-8 text-red-600" />
                             </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">عدد طلبات قيد التجهيز</p>
+                            <p class="text text-lg font-bold text-red-600" style="text-align: right;">مرفوضة</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.weekRegistered }}</p>
+                        <p class="number text-5xl font-bold text-red-600" style="text-align: right; width: 100%;">{{ stats.shipments.rejected }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قسم: الأدوية -->
+            <div>
+                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
+                    <Icon icon="solar:pill-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
+                    الأدوية
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
+                                <Icon icon="solar:pill-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الأدوية</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.drugs.total }}</p>
+                    </div>
+
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-orange-500/10 rounded-xl">
+                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-orange-600" />
+                            </div>
+                            <p class="text text-lg font-bold text-orange-600" style="text-align: right;">أدوية منخفضة المخزون</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-orange-600" style="text-align: right; width: 100%;">{{ stats.drugs.lowStock }}</p>
                     </div>
                 </div>
             </div>

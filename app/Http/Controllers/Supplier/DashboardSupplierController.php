@@ -60,35 +60,67 @@ class DashboardSupplierController extends BaseApiController
             }
 
             // Filter logs for this supplier more precisely:
-            // - logs created by this user
-            // - or logs where `new_values`/`old_values` JSON includes the current supplier_id
-            // - or logs related to tables mentioning supplier
+            // 1. All logs created by this supplier user
+            // 2. All logs related to external_supply_requests where supplier_id matches or requested_by matches
+            // 3. All logs related to inventories where supplier_id matches
             $supplierId = $user->supplier_id;
 
+            // جلب IDs للطلبات المتعلقة بهذا المورد
+            $externalRequestIds = ExternalSupplyRequest::where(function($q) use ($user, $supplierId) {
+                    $q->where('supplier_id', $supplierId)
+                      ->orWhere('requested_by', $user->id);
+                })
+                ->pluck('id')
+                ->toArray();
+
+            // جلب IDs للمخزون المتعلق بهذا المورد
+            $inventoryIds = Inventory::where('supplier_id', $supplierId)
+                ->pluck('id')
+                ->toArray();
+
             $operations = AuditLog::with('user:id,full_name')
-                ->where(function ($q) use ($user, $supplierId) {
-                    $q->where('user_id', $user->id)
-                        ->orWhere('table_name', 'like', '%supplier%')
-                        ->orWhere('new_values', 'like', '%"supplier_id":' . ($supplierId ?? 'NULL') . '%')
-                        ->orWhere('old_values', 'like', '%"supplier_id":' . ($supplierId ?? 'NULL') . '%');
+                ->where(function ($q) use ($user, $supplierId, $externalRequestIds, $inventoryIds) {
+                    // العمليات التي قام بها المستخدم المورد نفسه
+                    $q->where('user_id', $user->id);
+                    
+                    // العمليات المتعلقة بـ external_supply_requests الخاصة بهذا المورد
+                    if (!empty($externalRequestIds)) {
+                        $q->orWhere(function($subQ) use ($externalRequestIds) {
+                            $subQ->where('table_name', 'external_supply_request')
+                                 ->whereIn('record_id', $externalRequestIds);
+                        });
+                    }
+                    
+                    // العمليات المتعلقة بـ inventories الخاصة بهذا المورد
+                    if (!empty($inventoryIds)) {
+                        $q->orWhere(function($subQ) use ($inventoryIds) {
+                            $subQ->where('table_name', 'inventories')
+                                 ->whereIn('record_id', $inventoryIds);
+                        });
+                    }
                 })
                 ->orderBy('created_at', 'desc')
-                ->limit(50)
+                ->limit(100)
                 ->get()
                 ->map(function ($log) {
-                    $desc = $log->table_name ? ($log->action . ' on ' . $log->table_name) : $log->action;
+                    $desc = $this->translateOperationType($log->action);
+                    
+                    // إنشاء وصف أكثر وضوحاً بناءً على نوع العملية والجدول
+                    if ($log->table_name === 'external_supply_request' && $log->record_id) {
+                        $desc .= ' - رقم الشحنة: EXT-' . $log->record_id;
+                    } elseif ($log->table_name === 'inventories' && $log->record_id) {
+                        $desc .= ' - رقم السجل: ' . $log->record_id;
+                    }
 
-                    // If new_values contains useful JSON, try to extract a readable summary
+                    // محاولة استخراج معلومات إضافية من new_values
                     if (!empty($log->new_values)) {
                         $decoded = json_decode($log->new_values, true);
                         if (is_array($decoded)) {
                             if (isset($decoded['name'])) {
-                                $desc = $log->action . ' ' . $decoded['name'];
-                            } elseif (isset($decoded['id'])) {
-                                $desc = $log->action . ' #' . $decoded['id'];
+                                $desc .= ' - ' . $decoded['name'];
+                            } elseif (isset($decoded['request_id'])) {
+                                $desc .= ' - رقم الطلب: ' . $decoded['request_id'];
                             }
-                        } elseif (is_string($log->new_values) && empty($desc)) {
-                            $desc = substr($log->new_values, 0, 200);
                         }
                     }
 
@@ -119,6 +151,10 @@ class DashboardSupplierController extends BaseApiController
             'delete' => 'حذف',
             'confirm' => 'تأكيد',
             'reject' => 'رفض',
+            'supplier_confirm_external_supply_request' => 'قبول طلب توريد خارجي',
+            'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي',
+            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            'storekeeper_confirm_external_delivery' => 'تأكيد استلام شحنة خارجية',
         ];
 
         return $types[$action] ?? $action;

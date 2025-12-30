@@ -140,6 +140,7 @@ const links = {
         { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/superAdmin/all-operations" },
         { name: "الطلبات", icon: "carbon:request-quote", to: "/superAdmin/requests" },
         { name: "المستشفيات", icon: "fa:hospital-o", to: "/superAdmin/hospital" },
+        { name: "شركات التوريد", icon: "fa:hospital-o", to: "/superAdmin/Supply" },
     ],
 
 

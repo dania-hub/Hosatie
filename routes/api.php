@@ -545,6 +545,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('hospitals/{id}', [HospitalSuperController::class, 'update']);
         Route::patch('hospitals/{id}/deactivate', [HospitalSuperController::class, 'deactivate']);
         Route::patch('hospitals/{id}/activate', [HospitalSuperController::class, 'activate']);
+        Route::get('hospitals/check-phone/{phone}', [HospitalSuperController::class, 'checkPhone']);
+
+        // Suppliers
+        Route::get('suppliers', [SupplierSuperController::class, 'index']);
+        Route::post('suppliers', [SupplierSuperController::class, 'store']);
+        Route::put('suppliers/{id}', [SupplierSuperController::class, 'update']);
+        Route::patch('suppliers/{id}/deactivate', [SupplierSuperController::class, 'deactivate']);
+        Route::patch('suppliers/{id}/activate', [SupplierSuperController::class, 'activate']);
+        Route::get('suppliers/check-phone/{phone}', [SupplierSuperController::class, 'checkPhone']);
 
         // Drugs (FR-90 to FR-92)
         Route::get('drugs', [DrugSuperController::class, 'index']);
@@ -561,13 +570,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('users/{id}/deactivate', [UserSuperController::class, 'deactivate']);
         Route::patch('users/{id}/activate', [UserSuperController::class, 'activate']);
         Route::post('users/{id}/reset-password', [UserSuperController::class, 'resetPassword']);
-
-        // Suppliers
-        Route::get('suppliers', [SupplierSuperController::class, 'index']);
-        Route::post('suppliers', [SupplierSuperController::class, 'store']);
-        Route::put('suppliers/{id}', [SupplierSuperController::class, 'update']);
-        Route::patch('suppliers/{id}/deactivate', [SupplierSuperController::class, 'deactivate']);
-        Route::patch('suppliers/{id}/activate', [SupplierSuperController::class, 'activate']);
 
         // ===== Dashboard & Reports (FR-98 to FR-103) =====
         Route::get('dashboard/stats', [DashboardSuperController::class, 'stats']);

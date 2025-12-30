@@ -163,8 +163,8 @@ class UserSuperController extends BaseApiController
                 'email' => 'required|email|unique:users,email',
                 'phone' => 'required|string|max:20|unique:users,phone',
                 'national_id' => 'nullable|string|max:20|unique:users,national_id',
-                'hospital_id' => 'required_if:type,hospital_admin|exists:hospital,id',
-                'supplier_id' => 'required_if:type,supplier_admin|exists:supplier,id',
+                'hospital_id' => 'required_if:type,hospital_admin|exists:hospitals,id',
+                'supplier_id' => 'required_if:type,supplier_admin|exists:suppliers,id',
             ], [
                 'type.required' => 'نوع المستخدم مطلوب',
                 'type.in' => 'نوع المستخدم غير صحيح',

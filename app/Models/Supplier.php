@@ -34,4 +34,9 @@ class Supplier extends Model
     {
         return $this->hasMany(ExternalSupplyRequest::class);
     }
+
+    public function admin()
+    {
+        return $this->hasOne(User::class, 'supplier_id')->where('type', 'supplier_admin');
+    }
 }

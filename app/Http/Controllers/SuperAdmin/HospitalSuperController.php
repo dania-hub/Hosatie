@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\Hospital;
+use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ class HospitalSuperController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $query = Hospital::with(['supplier']);
+            $query = Hospital::with(['supplier', 'admin']);
 
             // البحث
             if ($request->has('search')) {
@@ -66,6 +67,16 @@ class HospitalSuperController extends BaseApiController
                     'supplier' => $hospital->supplier ? [
                         'id' => $hospital->supplier->id,
                         'name' => $hospital->supplier->name,
+                        'code' => $hospital->supplier->code,
+                        'phone' => $hospital->supplier->phone,
+                        'address' => $hospital->supplier->address,
+                        'city' => $hospital->supplier->city,
+                    ] : null,
+                    'admin' => $hospital->admin ? [
+                        'id' => $hospital->admin->id,
+                        'name' => $hospital->admin->full_name,
+                        'email' => $hospital->admin->email,
+                        'phone' => $hospital->admin->phone,
                     ] : null,
                     'createdAt' => optional($hospital->created_at)->format('Y-m-d'),
                 ];
@@ -93,16 +104,28 @@ class HospitalSuperController extends BaseApiController
 
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
-                'code' => 'required|string|max:50|unique:hospital,code',
+                'code' => 'required|string|max:50|unique:hospitals,code',
                 'type' => 'required|in:hospital,health_center,clinic',
                 'city' => 'required|in:طرابلس,بنغازي',
                 'address' => 'nullable|string|max:500',
-                'phone' => 'nullable|string|max:20',
-                'supplier_id' => 'nullable|exists:supplier,id',
+                'phone' => [
+                    'nullable',
+                    'regex:/^(021|092|091|093|094)\d{7}$/',
+                ],
+                'supplier_id' => 'nullable|exists:suppliers,id',
             ]);
 
             if ($validator->fails()) {
                 return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+            }
+
+            // التحقق من وجود رقم الهاتف في hospitals و users
+            if ($request->has('phone') && $request->phone) {
+                $existsInHospitals = Hospital::where('phone', $request->phone)->exists();
+                $existsInUsers = User::where('phone', $request->phone)->exists();
+                if ($existsInHospitals || $existsInUsers) {
+                    return $this->sendError('بيانات غير صحيحة', ['phone' => ['رقم الهاتف موجود بالفعل في النظام']], 422);
+                }
             }
 
             DB::beginTransaction();
@@ -157,16 +180,30 @@ class HospitalSuperController extends BaseApiController
 
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|required|string|max:255',
-                'code' => 'sometimes|required|string|max:50|unique:hospital,code,' . $id,
+                'code' => 'sometimes|required|string|max:50|unique:hospitals,code,' . $id,
                 'type' => 'sometimes|required|in:hospital,health_center,clinic',
                 'city' => 'sometimes|required|in:طرابلس,بنغازي',
                 'address' => 'nullable|string|max:500',
-                'phone' => 'nullable|string|max:20',
-                'supplier_id' => 'nullable|exists:supplier,id',
+                'phone' => [
+                    'nullable',
+                    'regex:/^(021|092|091|093|094)\d{7}$/',
+                ],
+                'supplier_id' => 'nullable|exists:suppliers,id',
             ]);
 
             if ($validator->fails()) {
                 return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+            }
+
+            // التحقق من وجود رقم الهاتف في hospitals و users (تجاهل المستشفى الحالي)
+            if ($request->has('phone') && $request->phone && $hospital->phone !== $request->phone) {
+                $existsInHospitals = Hospital::where('phone', $request->phone)
+                    ->where('id', '!=', $id)
+                    ->exists();
+                $existsInUsers = User::where('phone', $request->phone)->exists();
+                if ($existsInHospitals || $existsInUsers) {
+                    return $this->sendError('بيانات غير صحيحة', ['phone' => ['رقم الهاتف موجود بالفعل في النظام']], 422);
+                }
             }
 
             $hospital->update($request->only([
@@ -244,6 +281,39 @@ class HospitalSuperController extends BaseApiController
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Hospital Activate Error');
+        }
+    }
+
+    /**
+     * التحقق من وجود رقم الهاتف
+     * GET /api/super-admin/hospitals/check-phone/{phone}
+     */
+    public function checkPhone(Request $request, $phone)
+    {
+        try {
+            $user = $request->user();
+            
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            // التحقق من التنسيق
+            if (!preg_match('/^(021|092|091|093|094)\d{7}$/', $phone)) {
+                return $this->sendError('تنسيق رقم الهاتف غير صحيح', null, 422);
+            }
+
+            // التحقق من وجود الرقم في hospitals و users
+            $existsInHospitals = Hospital::where('phone', $phone)->exists();
+            $existsInUsers = User::where('phone', $phone)->exists();
+            $exists = $existsInHospitals || $existsInUsers;
+
+            return $this->sendSuccess([
+                'exists' => $exists,
+                'phone' => $phone
+            ], $exists ? 'رقم الهاتف موجود بالفعل' : 'رقم الهاتف متاح');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin Hospital Check Phone Error');
         }
     }
 

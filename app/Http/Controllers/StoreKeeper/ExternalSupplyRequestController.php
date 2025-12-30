@@ -338,7 +338,7 @@ class ExternalSupplyRequestController extends BaseApiController
             'items'                   => 'required|array|min:1',
             'items.*.drug_id'         => 'required|exists:drugs,id',
             'items.*.requested_qty'   => 'required|integer|min:1',
-            'supplier_id'             => 'nullable|exists:supplier,id',
+            'supplier_id'             => 'nullable|exists:suppliers,id',
             'notes'                   => 'nullable|string|max:1000',
         ]);
 

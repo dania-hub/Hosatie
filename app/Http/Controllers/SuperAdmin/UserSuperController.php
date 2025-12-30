@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\BaseApiController;
+use App\Models\Hospital;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -65,6 +67,7 @@ class UserSuperController extends BaseApiController
                     'email' => $u->email,
                     'phone' => $u->phone,
                     'nationalId' => $u->national_id,
+                    'birthDate' => $u->birth_date ? $u->birth_date->format('Y-m-d') : null,
                     'type' => $u->type,
                     'typeArabic' => $this->translateUserType($u->type),
                     'status' => $u->status,
@@ -113,6 +116,7 @@ class UserSuperController extends BaseApiController
                 'email' => $targetUser->email,
                 'phone' => $targetUser->phone,
                 'nationalId' => $targetUser->national_id,
+                'birthDate' => $targetUser->birth_date ? $targetUser->birth_date->format('Y-m-d') : null,
                 'type' => $targetUser->type,
                 'typeArabic' => $this->translateUserType($targetUser->type),
                 'status' => $targetUser->status,
@@ -163,6 +167,7 @@ class UserSuperController extends BaseApiController
                 'email' => 'required|email|unique:users,email',
                 'phone' => 'required|string|max:20|unique:users,phone',
                 'national_id' => 'nullable|string|max:20|unique:users,national_id',
+                'birth_date' => 'nullable|date',
                 'hospital_id' => 'required_if:type,hospital_admin|exists:hospitals,id',
                 'supplier_id' => 'required_if:type,supplier_admin|exists:suppliers,id',
             ], [
@@ -191,6 +196,7 @@ class UserSuperController extends BaseApiController
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'national_id' => $request->national_id,
+                'birth_date' => $request->birth_date,
                 'password' => Hash::make($randomPassword),
                 'hospital_id' => $request->type === 'hospital_admin' ? $request->hospital_id : null,
                 'supplier_id' => $request->type === 'supplier_admin' ? $request->supplier_id : null,
@@ -236,6 +242,7 @@ class UserSuperController extends BaseApiController
                 'email' => 'sometimes|required|email|unique:users,email,' . $id,
                 'phone' => 'sometimes|required|string|max:20|unique:users,phone,' . $id,
                 'national_id' => 'nullable|string|max:20|unique:users,national_id,' . $id,
+                'birth_date' => 'nullable|date',
             ], [
                 'email.unique' => 'البريد الإلكتروني مستخدم بالفعل',
                 'phone.unique' => 'رقم الهاتف مستخدم بالفعل',
@@ -247,7 +254,7 @@ class UserSuperController extends BaseApiController
             }
 
             $targetUser->update($request->only([
-                'full_name', 'email', 'phone', 'national_id'
+                'full_name', 'email', 'phone', 'national_id', 'birth_date'
             ]));
 
             return $this->sendSuccess([
@@ -366,6 +373,40 @@ class UserSuperController extends BaseApiController
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Reset Password Error');
+        }
+    }
+
+    /**
+     * التحقق من وجود رقم الهاتف في النظام
+     * GET /api/super-admin/users/check-phone/{phone}
+     */
+    public function checkPhone(Request $request, $phone)
+    {
+        try {
+            $user = $request->user();
+            
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            // التحقق من التنسيق
+            if (!preg_match('/^(021|092|091|093|094)\d{7}$/', $phone)) {
+                return $this->sendError('تنسيق رقم الهاتف غير صحيح', null, 422);
+            }
+
+            // التحقق من وجود الرقم في users و hospitals و suppliers
+            $existsInUsers = User::where('phone', $phone)->exists();
+            $existsInHospitals = Hospital::where('phone', $phone)->exists();
+            $existsInSuppliers = Supplier::where('phone', $phone)->exists();
+            $exists = $existsInUsers || $existsInHospitals || $existsInSuppliers;
+
+            return $this->sendSuccess([
+                'exists' => $exists,
+                'phone' => $phone
+            ], $exists ? 'رقم الهاتف موجود بالفعل في النظام' : 'رقم الهاتف متاح');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin User Check Phone Error');
         }
     }
 

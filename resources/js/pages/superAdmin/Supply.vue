@@ -80,10 +80,10 @@ const fetchAllData = async () => {
             lastUpdated: supplier.createdAt || new Date().toISOString()
         }));
         
-        // معالجة بيانات المدراء (فقط supplier_admin)
+        // معالجة بيانات المدراء (فقط supplier_admin الذين لم يتم تعيينهم في مورد)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'supplier_admin')
+            .filter(user => user.type === 'supplier_admin' && !user.supplier)
             .map(user => ({
                 ...user,
                 id: user.id,
@@ -117,9 +117,25 @@ onMounted(async () => {
 // 5. دوال الحساب
 // ----------------------------------------------------
 
-// الحصول على قائمة المدراء المتاحين
+// الحصول على قائمة المدراء المتاحين (غير المعينين في مورد)
 const availableManagersForSuppliers = computed(() => {
-    return availableManagers.value.filter(manager => manager.isActive);
+    // الحصول على قائمة IDs المدراء المعينين في الموردين الحالية
+    // استثناء المورد الحالي عند التعديل
+    const currentSupplierId = selectedSupplier.value?.id;
+    const assignedManagerIds = new Set(
+        suppliers.value
+            .filter(s => s.managerId && s.id !== currentSupplierId)
+            .map(s => s.managerId)
+    );
+    
+    // إضافة المدير الحالي للمورد إذا كان موجوداً (للسماح بالاحتفاظ به)
+    if (selectedSupplier.value?.managerId) {
+        assignedManagerIds.delete(selectedSupplier.value.managerId);
+    }
+    
+    return availableManagers.value.filter(manager => 
+        manager.isActive && !assignedManagerIds.has(manager.id)
+    );
 });
 
 // ----------------------------------------------------

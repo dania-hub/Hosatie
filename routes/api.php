@@ -570,6 +570,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('users/{id}/deactivate', [UserSuperController::class, 'deactivate']);
         Route::patch('users/{id}/activate', [UserSuperController::class, 'activate']);
         Route::post('users/{id}/reset-password', [UserSuperController::class, 'resetPassword']);
+        Route::get('users/check-phone/{phone}', [UserSuperController::class, 'checkPhone']);
 
         // ===== Dashboard & Reports (FR-98 to FR-103) =====
         Route::get('dashboard/stats', [DashboardSuperController::class, 'stats']);

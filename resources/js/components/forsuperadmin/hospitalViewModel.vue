@@ -165,7 +165,7 @@ const emit = defineEmits(['close']);
                     </template>
                     
                     <template v-else>
-                        <div class="md:col-span-2 space-y-2">
+                        <div class=" space-y-2">
                             <Label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                                 <Icon icon="solar:user-id-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 مدير المستشفى
@@ -236,7 +236,7 @@ const emit = defineEmits(['close']);
                     </template>
                     
                     <template v-else>
-                        <div class="md:col-span-2 space-y-2">
+                        <div class=" space-y-2">
                             <Label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                                 <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 المورد

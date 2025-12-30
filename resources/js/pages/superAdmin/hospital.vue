@@ -89,19 +89,28 @@ const fetchAllData = async () => {
             lastUpdated: hospital.createdAt || new Date().toISOString()
         }));
         
-        // معالجة بيانات الموردين
+        // معالجة بيانات الموردين (فقط الذين لم يتم تعيينهم في مستشفى)
         const suppliersData = suppliersResponse.data.data || [];
-        availableSuppliers.value = suppliersData.map(supplier => ({
-            ...supplier,
-            id: supplier.id,
-            name: supplier.name,
-            isActive: supplier.status === 'active' || supplier.status === true
-        }));
+        // الحصول على قائمة IDs الموردين المعينين في مستشفيات
+        const assignedSupplierIds = new Set(
+            hospitalsData
+                .filter(h => h.supplier && h.supplier.id)
+                .map(h => h.supplier.id)
+        );
         
-        // معالجة بيانات المدراء (فقط hospital_admin)
+        availableSuppliers.value = suppliersData
+            .filter(supplier => !assignedSupplierIds.has(supplier.id))
+            .map(supplier => ({
+                ...supplier,
+                id: supplier.id,
+                name: supplier.name,
+                isActive: supplier.status === 'active' || supplier.status === true
+            }));
+        
+        // معالجة بيانات المدراء (فقط hospital_admin الذين لم يتم تعيينهم في مستشفى)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'hospital_admin')
+            .filter(user => user.type === 'hospital_admin' && !user.hospital)
             .map(user => ({
                 ...user,
                 id: user.id,
@@ -135,14 +144,46 @@ onMounted(async () => {
 // 5. دوال الحساب
 // ----------------------------------------------------
 
-// الحصول على قائمة الموردين المتاحين
+// الحصول على قائمة الموردين المتاحين (غير المعينين في مستشفى)
 const availableSuppliersForHospitals = computed(() => {
-    return availableSuppliers.value.filter(supplier => supplier.isActive);
+    // الحصول على قائمة IDs الموردين المعينين في المستشفيات الحالية
+    // استثناء المستشفى الحالي عند التعديل
+    const currentHospitalId = selectedHospital.value?.id;
+    const assignedSupplierIds = new Set(
+        hospitals.value
+            .filter(h => h.supplierId && h.id !== currentHospitalId)
+            .map(h => h.supplierId)
+    );
+    
+    // إضافة المورد الحالي للمستشفى إذا كان موجوداً (للسماح بالاحتفاظ به)
+    if (selectedHospital.value?.supplierId) {
+        assignedSupplierIds.delete(selectedHospital.value.supplierId);
+    }
+    
+    return availableSuppliers.value.filter(supplier => 
+        supplier.isActive && !assignedSupplierIds.has(supplier.id)
+    );
 });
 
-// الحصول على قائمة المدراء المتاحين
+// الحصول على قائمة المدراء المتاحين (غير المعينين في مستشفى)
 const availableManagersForHospitals = computed(() => {
-    return availableManagers.value.filter(manager => manager.isActive);
+    // الحصول على قائمة IDs المدراء المعينين في المستشفيات الحالية
+    // استثناء المستشفى الحالي عند التعديل
+    const currentHospitalId = selectedHospital.value?.id;
+    const assignedManagerIds = new Set(
+        hospitals.value
+            .filter(h => h.managerId && h.id !== currentHospitalId)
+            .map(h => h.managerId)
+    );
+    
+    // إضافة المدير الحالي للمستشفى إذا كان موجوداً (للسماح بالاحتفاظ به)
+    if (selectedHospital.value?.managerId) {
+        assignedManagerIds.delete(selectedHospital.value.managerId);
+    }
+    
+    return availableManagers.value.filter(manager => 
+        manager.isActive && !assignedManagerIds.has(manager.id)
+    );
 });
 
 // ----------------------------------------------------

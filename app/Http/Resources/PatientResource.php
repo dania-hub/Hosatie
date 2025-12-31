@@ -17,7 +17,7 @@ class PatientResource extends JsonResource
                                : null,
             'phone'       => $this->phone,
             'email'       => $this->email,
-            'file_number' => 'FILE-' . $this->id,
+            'file_number' => $this->id,
             'status'      => $this->status,
         ];
     }

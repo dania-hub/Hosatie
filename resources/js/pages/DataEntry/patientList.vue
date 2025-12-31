@@ -54,7 +54,7 @@ const fetchPatients = async () => {
         
         patients.value = rawData.map(p => ({
             id: p.id,
-            fileNumber: p.file_number || `FILE-${p.id}`, // Generate if missing
+            fileNumber: p.file_number || p.id, // Generate if missing
             name: p.full_name || p.name, // Handle raw 'full_name' or Resource 'name'
             nationalId: p.national_id || p.nationalId,
             // توحيد صيغة تاريخ الميلاد وإزالة الجزء الزائد T...
@@ -164,13 +164,8 @@ const showSuccessAlert = (message) => {
     
     // Auto-detect type if emoji is missing
     let finalMessage = message;
-    if (!message.includes('✅') && !message.includes('⚠️') && !message.includes('❌')) {
-        if (message.includes('فشل') || message.includes('خطأ') || message.includes('تعذر') || message.includes('already')) {
-           finalMessage = `❌ ${message}`;
-        } else {
-           finalMessage = `✅ ${message}`;
-        }
-    }
+    
+    successMessage.value = finalMessage;
 
     successMessage.value = finalMessage;
     isSuccessAlertVisible.value = true;
@@ -242,7 +237,7 @@ const addPatient = async (newPatient) => {
         });
 
         closeAddModal();
-        showSuccessAlert(" تم تسجيل بيانات المريض بنجاح!");
+        showSuccessAlert("تم تسجيل بيانات المريض بنجاح!");
     } catch (error) {
         console.error("Error adding patient:", error);
         let msg = "";
@@ -332,7 +327,7 @@ const updatePatient = async (updatedPatient) => {
         }
         
         closeEditModal();
-        showSuccessAlert(` تم تعديل بيانات المريض ${p.file_number} بنجاح!`);
+        showSuccessAlert(`تم تعديل بيانات المريض ${p.file_number} بنجاح!`);
     } catch (error) {
         console.error("Error updating patient:", error);
         
@@ -405,7 +400,7 @@ const confirmDelete = async () => {
         }
         
         closeDeleteModal();
-        showSuccessAlert(` تم حذف المريض ${patient.fileNumber} بنجاح!`);
+        showSuccessAlert(`تم حذف المريض ${patient.fileNumber} بنجاح!`);
     } catch (error) {
         console.error("Error deleting patient:", error);
         let msg = "";

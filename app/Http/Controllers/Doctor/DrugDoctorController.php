@@ -19,7 +19,7 @@ class DrugDoctorController extends BaseApiController
         $search = $request->query('search');
 
         // 2. Build Query
-        $query = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit');
+        $query = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit', 'max_monthly_dose');
 
         // 3. Filter by Category (if provided)
         if ($category) {
@@ -78,6 +78,7 @@ class DrugDoctorController extends BaseApiController
             'form' => $drug->form,
             'category' => $drug->category,
             'unit' => $drug->unit,
+            'max_monthly_dose' => $drug->max_monthly_dose,
         ], 'تم جلب بيانات الدواء بنجاح.');
     }
 }

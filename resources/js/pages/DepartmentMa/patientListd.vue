@@ -89,28 +89,28 @@ const fetchPatients = async (search = '') => {
     
     if (err.response?.status === 401) {
       errorMessage.value = "انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.";
-      showErrorAlert(" انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.");
+      showErrorAlert("انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.");
     } else if (err.response?.status === 403) {
       errorMessage.value = "ليس لديك صلاحية لعرض قائمة المرضى.";
-      showErrorAlert(" ليس لديك صلاحية لعرض قائمة المرضى.");
+      showErrorAlert("ليس لديك صلاحية لعرض قائمة المرضى.");
     } else if (err.response?.status === 404) {
       errorMessage.value = "لم يتم العثور على بيانات المرضى.";
-      showErrorAlert(" لم يتم العثور على بيانات المرضى.");
+      showErrorAlert("لم يتم العثور على بيانات المرضى.");
     } else if (err.response?.status === 422) {
       errorMessage.value = "بيانات البحث غير صالحة.";
-      showErrorAlert(" بيانات البحث غير صالحة.");
+      showErrorAlert("بيانات البحث غير صالحة.");
     } else if (err.response?.status === 500) {
       errorMessage.value = "حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.";
-      showErrorAlert(" حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.");
+      showErrorAlert("حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.");
     } else if (err.code === 'NETWORK_ERROR' || !err.response) {
       errorMessage.value = "فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.";
-      showErrorAlert(" فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
+      showErrorAlert("فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
     } else if (errorData?.message) {
       errorMessage.value = errorData.message;
       showErrorAlert(` ${errorData.message}`);
     } else {
       errorMessage.value = 'حدث خطأ غير متوقع في جلب بيانات المرضى.';
-      showErrorAlert(" حدث خطأ غير متوقع في جلب بيانات المرضى.");
+      showErrorAlert("حدث خطأ غير متوقع في جلب بيانات المرضى.");
     }
   } finally {
     isLoading.value = false;
@@ -172,11 +172,11 @@ const fetchPatientDetails = async (patientId) => {
     if (err.response?.status === 404) {
       showErrorAlert(" المريض غير موجود أو تم حذفه.");
     } else if (err.response?.status === 403) {
-      showErrorAlert(" ليس لديك صلاحية لعرض بيانات هذا المريض.");
+      showErrorAlert("ليس لديك صلاحية لعرض بيانات هذا المريض.");
     } else if (errorData?.message) {
       showErrorAlert(` ${errorData.message}`);
     } else {
-      showErrorAlert(" حدث خطأ في تحميل بيانات المريض.");
+      showErrorAlert("حدث خطأ في تحميل بيانات المريض.");
     }
     
     // لا نعرض خطأ، نرجع بيانات افتراضية
@@ -586,21 +586,21 @@ const addMedicationToPatient = async (medicationsData) => {
         }
       }
 
-      showSuccessAlert(` تم إضافة ${medicationsData.length} دواء بنجاح للمريض ${selectedPatient.value.nameDisplay || selectedPatient.value.name}`);
+      showSuccessAlert(`تم إضافة ${medicationsData.length} دواء بنجاح للمريض ${selectedPatient.value.nameDisplay || selectedPatient.value.name}`);
     } catch (apiError) {
       console.error('خطأ في إضافة الأدوية:', apiError);
       const errorData = apiError.response?.data;
       
       if (apiError.response?.status === 422) {
-        showErrorAlert(" بيانات الأدوية غير صالحة. يرجى التحقق من المعلومات المدخلة.");
+        showErrorAlert("بيانات الأدوية غير صالحة. يرجى التحقق من المعلومات المدخلة.");
       } else if (apiError.response?.status === 404) {
-        showErrorAlert(" المريض غير موجود أو تم حذفه.");
+        showErrorAlert("المريض غير موجود أو تم حذفه.");
       } else if (apiError.response?.status === 403) {
-        showErrorAlert(" ليس لديك صلاحية لإضافة أدوية لهذا المريض.");
+        showErrorAlert("ليس لديك صلاحية لإضافة أدوية لهذا المريض.");
       } else if (errorData?.message) {
         showErrorAlert(` ${errorData.message}`);
       } else {
-        showErrorAlert(" حدث خطأ في إضافة الأدوية. الرجاء المحاولة مرة أخرى.");
+        showErrorAlert("حدث خطأ في إضافة الأدوية. الرجاء المحاولة مرة أخرى.");
       }
     }
   } catch (err) {
@@ -615,7 +615,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const pivotId = medication.pivot_id || medication.id;
 
     if (!pivotId) {
-      showErrorAlert(" لا يمكن تحديد معرف الدواء للتعديل.");
+      showErrorAlert("لا يمكن تحديد معرف الدواء للتعديل.");
       return;
     }
 
@@ -623,7 +623,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const monthlyQuantity = Math.round(newDosage * 30);
 
     if (monthlyQuantity <= 0) {
-      showErrorAlert(" الكمية الشهرية يجب أن تكون أكبر من الصفر.");
+      showErrorAlert("الكمية الشهرية يجب أن تكون أكبر من الصفر.");
       return;
     }
 
@@ -651,14 +651,14 @@ const handleEditMedication = async (medIndex, newDosage) => {
         }
       }
 
-      showSuccessAlert(` تم تعديل الجرعة الدوائية بنجاح`);
+      showSuccessAlert(`تم تعديل الجرعة الدوائية بنجاح`);
     } catch (apiError) {
       console.error('خطأ في تعديل الدواء:', apiError);
-      showErrorAlert(` فشل في تعديل الدواء: ${apiError.message}`);
+      showErrorAlert(`فشل في تعديل الدواء: ${apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في تعديل الدواء:', err);
-    showErrorAlert(" حدث خطأ في تعديل الدواء. الرجاء المحاولة مرة أخرى.");
+    showErrorAlert("حدث خطأ في تعديل الدواء. الرجاء المحاولة مرة أخرى.");
   }
 };
 
@@ -669,7 +669,7 @@ const handleDeleteMedication = async (medIndex) => {
     const pivotId = medication.pivot_id || medication.id;
 
     if (!pivotId) {
-      showErrorAlert(" لا يمكن تحديد معرف الدواء للحذف.");
+      showErrorAlert("لا يمكن تحديد معرف الدواء للحذف.");
       return;
     }
 
@@ -689,19 +689,19 @@ const handleDeleteMedication = async (medIndex) => {
         }
       }
 
-      showSuccessAlert(` تم حذف الدواء "${medicationName}" بنجاح`);
+      showSuccessAlert(`تم حذف الدواء "${medicationName}" بنجاح`);
     } catch (apiError) {
       console.error('خطأ في حذف الدواء:', apiError);
       const errorData = apiError.response?.data;
       
       if (apiError.response?.status === 404) {
-        showErrorAlert(" الدواء غير موجود أو تم حذفه مسبقاً.");
+        showErrorAlert("الدواء غير موجود أو تم حذفه مسبقاً.");
       } else if (apiError.response?.status === 403) {
-        showErrorAlert(" ليس لديك صلاحية لحذف هذا الدواء.");
+        showErrorAlert("ليس لديك صلاحية لحذف هذا الدواء.");
       } else if (errorData?.message) {
         showErrorAlert(` ${errorData.message}`);
       } else {
-        showErrorAlert(" حدث خطأ في حذف الدواء. الرجاء المحاولة مرة أخرى.");
+        showErrorAlert("حدث خطأ في حذف الدواء. الرجاء المحاولة مرة أخرى.");
       }
     }
   } catch (err) {
@@ -719,7 +719,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert("فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -788,9 +788,9 @@ const printTable = () => {
         printWindow.focus();
         printWindow.print();
         if (resultsCount > 0) {
-            showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
+            showSuccessAlert("تم تجهيز التقرير بنجاح للطباعة.");
         } else {
-            showErrorAlert(" تم فتح نافذة الطباعة ولكن الجدول فارغ.");
+            showErrorAlert("تم فتح نافذة الطباعة ولكن الجدول فارغ.");
         }
     };
 };

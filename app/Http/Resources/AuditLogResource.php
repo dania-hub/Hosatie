@@ -17,7 +17,7 @@ class AuditLogResource extends JsonResource
 
         return [
             // Matches Vue: op.fileNumber
-            'fileNumber'    => 'FILE-' . $fileNumber,
+            'fileNumber'    => $fileNumber,
             
             // Matches Vue: op.name
             'name'          => $patientName,

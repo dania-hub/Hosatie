@@ -168,7 +168,7 @@ class PatientDataEntryController extends BaseApiController
             };
 
             return [
-                'fileNumber'    => 'FILE-' . $log->record_id,
+                'fileNumber'    => $log->record_id,
                 // نستخدم المفتاح name ليتطابق مع ما تتوقعه واجهة Vue (op.name)
                 'name'          => $fullName,
                 'operationType' => $operationType,

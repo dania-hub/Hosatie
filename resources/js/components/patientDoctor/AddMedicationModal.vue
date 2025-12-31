@@ -313,6 +313,7 @@ const selectedDrugId = ref(null);
 const selectedDrugUnit = ref('');
 const selectedDrugForm = ref('');
 const dailyQuantity = ref(null); 
+const selectedDrugMaxMonthlyDose = ref(0);
 const showResults = ref(false);
 const dailyDosageList = ref([]); 
 
@@ -476,6 +477,12 @@ const quantityError = computed(() => {
     if (numericQuantity > maxQty) {
         return `لا يمكن أن تتجاوز الكمية اليومية ${maxQty} ${unitName}.`;
     }
+
+    // التحقق من الحد الأقصى اليومي بناءً على الجرعة الشهرية القصوى
+    const dailyLimit = selectedDrugMaxMonthlyDose.value / 30;
+    if (dailyLimit > 0 && numericQuantity > dailyLimit) {
+        return `الحد الأقصى المسموح به يومياً لهذا الدواء هو ${dailyLimit.toFixed(2)} ${unitName}.`;
+    }
     
     return null;
 });
@@ -570,6 +577,12 @@ const selectDrug = async (drug) => {
         selectedDrugForm.value = drug.form || '';
         selectedDrugUnit.value = getDrugUnit(drug);
         selectedDrugType.value = drug.type || 'Tablet';
+        selectedDrugMaxMonthlyDose.value = drug.max_monthly_dose || 0;
+    }
+
+    // تأكد من تحديث الجرعة القصوى إذا كانت موجودة في تفاصيل الدواء
+    if (drugDetails && drugDetails.max_monthly_dose) {
+        selectedDrugMaxMonthlyDose.value = drugDetails.max_monthly_dose;
     }
 
     dailyQuantity.value = null;

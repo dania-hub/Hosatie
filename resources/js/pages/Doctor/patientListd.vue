@@ -324,7 +324,7 @@ const fetchPatients = async () => {
   errorMessage.value = "";
   
   try {
-    showAlert(' جاري تحميل بيانات المرضى...', '', 'info');
+    showAlert('جاري تحميل بيانات المرضى...', '', 'info');
     
     const response = await api.get('/patients');
     
@@ -349,7 +349,7 @@ const fetchPatients = async () => {
         }));
         
         showAlert(
-          ` تم تحميل ${patientsData.length} مريض بنجاح`,
+          `تم تحميل ${patientsData.length} مريض بنجاح`,
           'بيانات المرضى جاهزة للعرض',
           'success'
         );
@@ -365,7 +365,7 @@ const fetchPatients = async () => {
   } catch (err) {
     hasError.value = true;
     
-    let alertTitle = ' خطأ في تحميل البيانات';
+    let alertTitle = 'خطأ في تحميل البيانات';
     let alertMessage = '';
     let alertType = 'error';
     
@@ -647,7 +647,7 @@ const dispensationHistory = ref([]);
 // ----------------------------------------------------
 const openViewModal = async (patient) => {
   try {
-    showAlert(' جاري تحميل تفاصيل المريض...', '', 'info');
+    showAlert('جاري تحميل تفاصيل المريض...', '', 'info');
     
     const patientData = await fetchPatientDetails(patient.fileNumber);
     if (patientData) {
@@ -665,15 +665,15 @@ const openViewModal = async (patient) => {
         }))
       };
       isViewModalOpen.value = true;
-      showAlert(' تم تحميل تفاصيل المريض', `بيانات ${patient.name} جاهزة للعرض`, 'success');
+      showAlert('تم تحميل تفاصيل المريض', `بيانات ${patient.name} جاهزة للعرض`, 'success');
     } else {
-      showAlert(' تعذر تحميل التفاصيل', 'يبدو أن هناك مشكلة في اتصال الخادم', 'warning');
+      showAlert('تعذر تحميل التفاصيل', 'يبدو أن هناك مشكلة في اتصال الخادم', 'warning');
       selectedPatient.value = patient;
       isViewModalOpen.value = true;
     }
   } catch (err) {
     console.error('خطأ في فتح نافذة المريض:', err);
-    showAlert(' خطأ في فتح النافذة', 'تعذر تحميل تفاصيل المريض', 'error');
+    showAlert('خطأ في فتح النافذة', 'تعذر تحميل تفاصيل المريض', 'error');
   }
 };
 
@@ -694,22 +694,22 @@ const closeAddMedicationModal = () => {
 
 const openDispensationModal = async () => {
   try {
-    showAlert(' جاري تحميل سجل الصرف...', '', 'info');
+    showAlert('جاري تحميل سجل الصرف...', '', 'info');
     
     const history = await fetchDispensationHistory(selectedPatient.value.fileNumber);
     dispensationHistory.value = history;
     
     if (history.length > 0) {
-      showAlert(` تم تحميل ${history.length} سجل صرف`, '', 'success');
+      showAlert(`تم تحميل ${history.length} سجل صرف`, '', 'success');
     } else {
-      showAlert(' لا توجد سجلات صرف', 'لم يتم العثور على سجلات صرف لهذا المريض', 'info');
+      showAlert('لا توجد سجلات صرف', 'لم يتم العثور على سجلات صرف لهذا المريض', 'info');
     }
     
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
   } catch (err) {
     console.error('خطأ في تحميل سجل الصرف:', err);
-    showAlert(' تعذر تحميل سجل الصرف', 'تأكد من اتصال الخادم', 'warning');
+    showAlert('تعذر تحميل سجل الصرف', 'تأكد من اتصال الخادم', 'warning');
     dispensationHistory.value = [];
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
@@ -726,7 +726,7 @@ const closeDispensationModal = () => {
 // ----------------------------------------------------
 const addMedicationToPatient = async (medicationsData) => {
   try {
-    showAlert(' جاري إضافة الأدوية...', '', 'info');
+    showAlert('جاري إضافة الأدوية...', '', 'info');
     
     const medicationsPayload = medicationsData.map(med => {
       const dailyQty = med.dailyQuantity || med.quantity || 0;
@@ -760,7 +760,7 @@ const addMedicationToPatient = async (medicationsData) => {
       }
 
       showAlert(
-        ` تم إضافة ${medicationsData.length} دواء بنجاح`,
+        `تم إضافة ${medicationsData.length} دواء بنجاح`,
         `تمت إضافة الأدوية إلى سجل المريض ${selectedPatient.value.name}`,
         'success'
       );
@@ -772,11 +772,11 @@ const addMedicationToPatient = async (medicationsData) => {
         errorMsg += ` (${errorData.error})`;
       }
       
-      showAlert(' فشل في إضافة الأدوية', errorMsg, 'error');
+      showAlert('فشل في إضافة الأدوية', errorMsg, 'error');
     }
   } catch (err) {
     console.error('خطأ في إضافة الأدوية:', err);
-    showAlert(' خطأ في إضافة الأدوية', 'حدث خطأ غير متوقع', 'error');
+    showAlert('خطأ في إضافة الأدوية', 'حدث خطأ غير متوقع', 'error');
   }
 };
 
@@ -793,7 +793,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const monthlyQuantity = Math.round(newDosage * 30);
 
     if (monthlyQuantity <= 0) {
-      showAlert(' كمية غير صالحة', 'الكمية الشهرية يجب أن تكون أكبر من الصفر', 'warning');
+      showAlert('كمية غير صالحة', 'الكمية الشهرية يجب أن تكون أكبر من الصفر', 'warning');
       return;
     }
 

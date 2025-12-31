@@ -21,6 +21,9 @@ class DrugSeeder extends Seeder
             'manufacturer' => 'GSK',
             'country' => 'UK',
             'utilization_type' => 'Acute',
+            'warnings' => 'لا تستخدم مع الكحول أو في حال وجود حساسية من الباراسيتامول.',
+            'indications' => 'الحمى والصداع وآلام الجسم.',
+            'contraindications' => 'وظائف كبد أو كلى ضعيفة بدون استشارة الطبيب.',
             'expiry_date' => '2026-12-31',
         ]);
 
@@ -36,6 +39,9 @@ class DrugSeeder extends Seeder
             'manufacturer' => 'Hikma',
             'country' => 'Jordan',
             'utilization_type' => 'Acute',
+            'warnings' => 'أكمل الدورة كاملة وتجنب المشروبات الحمضية.',
+            'indications' => 'العدوى البكتيرية التنفسية والجهاز البولي.',
+            'contraindications' => 'فرط الحساسية للبنسيلينات.',
             'expiry_date' => '2025-06-30',
         ]);
     }

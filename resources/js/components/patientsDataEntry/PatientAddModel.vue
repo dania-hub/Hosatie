@@ -136,10 +136,13 @@ const validatePhoneInput = () => {
 };
 
 const validateNameInput = () => {
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    if (form.value.name && form.value.name.length > 0) {
-        if (!nameRegex.test(form.value.name.trim())) {
-            errors.value.name = 'الاسم يجب أن يكون ثلاثياً على الأقل ويحوي حروفاً فقط';
+    const nameValue = form.value.name.trim();
+    const spaceCount = (nameValue.match(/\s+/g) || []).length;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    
+    if (nameValue.length > 0) {
+        if (!nameRegex.test(nameValue) || spaceCount < 3) {
+            errors.value.name = 'الاسم يجب أن يكون رباعياً على الأقل ويحوي حروفاً فقط';
         } else {
             errors.value.name = "";
         }
@@ -172,12 +175,15 @@ const validateForm = () => {
         isValid = false;
     }
 
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
+    const nameValue = data.name ? data.name.trim() : "";
+    const spaceCount = (nameValue.match(/\s+/g) || []).length;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    
     if (!data.name) {
         errors.value.name = 'الاسم مطلوب';
         isValid = false;
-    } else if (!nameRegex.test(data.name.trim())) {
-        errors.value.name = 'الاسم غير صحيح';
+    } else if (!nameRegex.test(nameValue) || spaceCount < 3) {
+        errors.value.name = 'يجب إدخال الاسم الرباعي على الأقل';
         isValid = false;
     }
 
@@ -199,8 +205,10 @@ const isFormValid = computed(() => {
     const nationalIdRegex = /^[12]\d{11}$/;
     if (!nationalIdRegex.test(data.nationalId)) return false;
 
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    if (!data.name || !nameRegex.test(data.name.trim())) return false;
+    const nameValue = data.name ? data.name.trim() : "";
+    const spaceCount = (nameValue.match(/\s+/g) || []).length;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    if (!data.name || !nameRegex.test(nameValue) || spaceCount < 3) return false;
 
     if (!data.birthDate) return false;
 

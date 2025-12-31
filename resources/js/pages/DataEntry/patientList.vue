@@ -547,7 +547,7 @@ const printTable = () => {
             <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                 
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <search v-model="searchTerm" />
+                        <search v-model="searchTerm" placeholder="البحث بالاسم، الرقم الوطني، أو رقم الملف..." />
                   
                     
                     <div class="dropdown dropdown-start">

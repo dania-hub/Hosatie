@@ -28,6 +28,10 @@
     border-radius: 20px;
     transition: all 0.3s ease; 
 }
+.input::placeholder {
+    font-size: 0.8rem;
+    color: #999;
+}
 
 /* 2. تحسين المظهر على الشاشات الأكبر (Tablet & Desktop) */
 @media (min-width: 640px) {
@@ -64,7 +68,7 @@
     <div class="container">
         <input 
             class="input" 
-            placeholder="ابحث...." 
+            :placeholder="placeholder" 
             dir="rtl" 
             :value="modelValue" 
             @input="$emit('update:modelValue', $event.target.value)" 
@@ -84,6 +88,10 @@ const props = defineProps({
     modelValue: {
         type: String,
         default: "",
+    },
+    placeholder: {
+        type: String,
+        default: "ابحث....",
     },
 });
 

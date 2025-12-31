@@ -162,11 +162,13 @@ const filteredDrugss = computed(() => {
       let comparison = 0;
 
       if (sortKey.value === "drugName") {
-        comparison = (a.drugName || "").localeCompare(b.drugName || "", "ar");
+        comparison = (a.drugName || a.name || "").localeCompare(b.drugName || b.name || "", "ar");
       } else if (sortKey.value === "quantity") {
         comparison = (a.quantity || 0) - (b.quantity || 0);
       } else if (sortKey.value === "expiryDate") {
-        comparison = new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0);
+        const dateA = a.expiryDate ? new Date(a.expiryDate) : new Date(0);
+        const dateB = b.expiryDate ? new Date(b.expiryDate) : new Date(0);
+        comparison = dateA - dateB;
       } else if (sortKey.value === "manufacturer") {
         comparison = (a.manufacturer || "").localeCompare(b.manufacturer || "", "ar");
       }
@@ -182,15 +184,42 @@ const filteredDrugss = computed(() => {
 // 6. وظائف API
 // ----------------------------------------------------
 
+// دالة مساعدة لتحويل بيانات الدواء من API إلى التنسيق المستخدم في الجدول
+const transformDrugData = (drug) => {
+  return {
+    id: drug.id,
+    drugCode: drug.id?.toString() || '', // استخدام ID كرمز الدواء
+    drugName: drug.name || '',
+    scientificName: drug.genericName || drug.generic_name || '',
+    therapeuticClass: drug.category || '',
+    expiryDate: drug.expiryDate || drug.expiry_date || '',
+    manufacturer: drug.manufacturer || '',
+    country: drug.country || '',
+    form: drug.form || '',
+    strength: drug.strength || '',
+    unit: drug.unit || '',
+    status: drug.status || '',
+    quantity: 0, // غير متوفر في API
+    neededQuantity: 0, // غير متوفر في API
+    is_discontinued: drug.status === 'غير متوفر' || drug.is_discontinued === true,
+    // حفظ البيانات الأصلية للاستخدام في النماذج
+    ...drug
+  };
+};
+
 // جلب جميع الأدوية
 const fetchDrugs = async () => {
   isLoading.value = true;
   
   try {
     const response = await api.get("/super-admin/drugs");
-    drugsData.value = response.data.data || response.data;
-    hasData.value = (response.data.data || response.data).length > 0;
-    if ((response.data.data || response.data).length > 0) {
+    const rawData = response.data.data || response.data;
+    
+    // تحويل البيانات لتطابق الأسماء المستخدمة في الجدول
+    drugsData.value = rawData.map(drug => transformDrugData(drug));
+    
+    hasData.value = drugsData.value.length > 0;
+    if (drugsData.value.length > 0) {
       showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
     }
   } catch (error) {
@@ -237,7 +266,8 @@ const fetchCountries = async () => {
 const fetchAllDrugsData = async () => {
   try {
     const response = await api.get("/super-admin/drugs");
-    allDrugsData.value = response.data.data || response.data;
+    const rawData = response.data.data || response.data;
+    allDrugsData.value = rawData.map(drug => transformDrugData(drug));
   } catch (error) {
     console.warn("Warning: Could not fetch all drugs data from API");
   }
@@ -280,7 +310,8 @@ const addNewDrug = async (drugData) => {
   
   try {
     const response = await api.post("/super-admin/drugs", drugData);
-    const newDrug = response.data.data || response.data;
+    const rawDrug = response.data.data || response.data;
+    const newDrug = transformDrugData(rawDrug);
     
     // تحديث القائمة المحلية
     drugsData.value.unshift(newDrug);
@@ -306,7 +337,8 @@ const updateDrug = async (updatedDrug) => {
   
   try {
     const response = await api.put(`/super-admin/drugs/${updatedDrug.id}`, updatedDrug);
-    const updated = response.data.data || response.data;
+    const rawUpdated = response.data.data || response.data;
+    const updated = transformDrugData(rawUpdated);
     
     // تحديث القائمة المحلية
     const index = drugsData.value.findIndex(drug => drug.id === updatedDrug.id);
@@ -349,7 +381,8 @@ const discontinueDrug = async () => {
   
   try {
     const response = await api.patch(`/super-admin/drugs/${drugId}/discontinue`);
-    const updated = response.data.data || response.data;
+    const rawUpdated = response.data.data || response.data;
+    const updated = transformDrugData(rawUpdated);
     
     // تحديث القائمة المحلية
     const index = drugsData.value.findIndex(drug => drug.id === drugId);
@@ -385,7 +418,8 @@ const reactivateDrug = async (drugId) => {
   
   try {
     const response = await api.patch(`/super-admin/drugs/${drugId}/reactivate`);
-    const updated = response.data.data || response.data;
+    const rawUpdated = response.data.data || response.data;
+    const updated = transformDrugData(rawUpdated);
     
     // تحديث القائمة المحلية
     const index = drugsData.value.findIndex(drug => drug.id === drugId);
@@ -945,9 +979,6 @@ onMounted(async () => {
 
         <AddDrugModal 
             :is-open="isAddDrugModalOpen"
-            :categories="categories"
-            :pharmaceutical-forms="pharmaceuticalForms"
-            :countries="countries"
             @close="isAddDrugModalOpen = false"
             @add-drug="addNewDrug"
         />
@@ -955,9 +986,6 @@ onMounted(async () => {
         <EditDrugModal 
             :is-open="isEditDrugModalOpen"
             :drug="selectedDrugForEdit"
-            :categories="categories"
-            :pharmaceutical-forms="pharmaceuticalForms"
-            :countries="countries"
             @close="isEditDrugModalOpen = false"
             @update-drug="updateDrug"
         />

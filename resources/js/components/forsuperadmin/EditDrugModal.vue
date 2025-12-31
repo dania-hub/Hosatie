@@ -39,7 +39,7 @@
                                 اسم الدواء <span class="text-red-500">*</span>
                             </label>
                             <input
-                                v-model="formData.drugName"
+                                v-model="formData.name"
                                 type="text"
                                 required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
@@ -47,93 +47,148 @@
                             />
                         </div>
 
-                        <!-- الرمز -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                رمز الدواء <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                v-model="formData.drugCode"
-                                type="text"
-                                required
-                                :readonly="true"
-                                class="w-full px-4 py-2.5 border border-gray-300 bg-gray-50 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                                placeholder="رمز الدواء"
-                            />
-                        </div>
-
                         <!-- الاسم العلمي -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
-                                الاسم العلمي
+                                الاسم العلمي <span class="text-red-500">*</span>
                             </label>
                             <input
-                                v-model="formData.scientificName"
+                                v-model="formData.generic_name"
                                 type="text"
+                                required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل الاسم العلمي"
+                            />
+                        </div>
+
+                        <!-- التركيز -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                التركيز <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.strength"
+                                type="text"
+                                required
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="مثال: 500mg"
+                            />
+                        </div>
+
+                        <!-- الشكل الصيدلاني -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                الشكل الصيدلاني <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.form"
+                                type="text"
+                                required
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="مثال: أقراص، كبسولات"
                             />
                         </div>
 
                         <!-- الفئة العلاجية -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
-                                الفئة العلاجية
+                                الفئة العلاجية <span class="text-red-500">*</span>
                             </label>
-                            <select
-                                v-model="formData.therapeuticClass"
+                            <input
+                                v-model="formData.category"
+                                type="text"
+                                required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                            >
-                                <option value="">اختر الفئة العلاجية</option>
-                                <option v-for="category in categories" :key="category.id" :value="category.name">
-                                    {{ category.name }}
-                                </option>
-                            </select>
+                                placeholder="أدخل الفئة العلاجية"
+                            />
                         </div>
 
-                        <!-- الشكل الصيدلاني -->
+                        <!-- الوحدة -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
-                                الشكل الصيدلاني
+                                الوحدة <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.unit"
+                                type="text"
+                                required
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="مثال: قرص، مل"
+                            />
+                        </div>
+
+                        <!-- الجرعة الشهرية القصوى -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                الجرعة الشهرية القصوى <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.max_monthly_dose"
+                                type="number"
+                                required
+                                min="1"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="أدخل الجرعة الشهرية القصوى"
+                            />
+                        </div>
+
+                        <!-- الحالة -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                الحالة <span class="text-red-500">*</span>
                             </label>
                             <select
-                                v-model="formData.pharmaceuticalForm"
+                                v-model="formData.status"
+                                required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                             >
-                                <option value="">اختر الشكل الصيدلاني</option>
-                                <option v-for="form in pharmaceuticalForms" :key="form" :value="form">
-                                    {{ form }}
-                                </option>
+                                <option value="">اختر الحالة</option>
+                                <option value="متوفر">متوفر</option>
+                                <option value="غير متوفر">غير متوفر</option>
+                                <option value="تم الصرف">تم الصرف</option>
                             </select>
                         </div>
 
                         <!-- الشركة المصنعة -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
-                                الشركة المصنعة
+                                الشركة المصنعة <span class="text-red-500">*</span>
                             </label>
                             <input
                                 v-model="formData.manufacturer"
                                 type="text"
+                                required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل اسم الشركة المصنعة"
                             />
                         </div>
 
-                        <!-- الدولة المصنعة -->
+                        <!-- الدولة -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
-                                الدولة المصنعة
+                                الدولة <span class="text-red-500">*</span>
                             </label>
-                            <select
-                                v-model="formData.mfgCountry"
+                            <input
+                                v-model="formData.country"
+                                type="text"
+                                required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                            >
-                                <option value="">اختر الدولة المصنعة</option>
-                                <option v-for="country in countries" :key="country" :value="country">
-                                    {{ country }}
-                                </option>
-                            </select>
+                                placeholder="أدخل الدولة"
+                            />
+                        </div>
+
+                        <!-- نوع الاستخدام -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                نوع الاستخدام <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.utilization_type"
+                                type="text"
+                                required
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="مثال: مزمن، حاد"
+                            />
                         </div>
 
                         <!-- تاريخ الانتهاء -->
@@ -142,15 +197,12 @@
                                 تاريخ الانتهاء <span class="text-red-500">*</span>
                             </label>
                             <input
-                                v-model="formData.expiryDate"
+                                v-model="formData.expiry_date"
                                 type="date"
                                 required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                             />
                         </div>
-
-                        <!-- الكمية -->
-                        
                     </div>
                 </div>
 
@@ -161,37 +213,26 @@
                     <!-- دواعي الاستعمال -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                            دواعي الاستعمال
+                            دواعي الاستعمال <span class="text-red-500">*</span>
                         </label>
                         <textarea
                             v-model="formData.indications"
-                            rows="3"
+                            rows="4"
+                            required
                             class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                             placeholder="أدخل دواعي الاستعمال..."
-                        ></textarea>
-                    </div>
-
-                    <!-- إرشادات الاستخدام -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            إرشادات الاستخدام
-                        </label>
-                            <textarea
-                            v-model="formData.instructions"
-                            rows="3"
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                            placeholder="أدخل إرشادات الاستخدام..."
                         ></textarea>
                     </div>
 
                     <!-- تحذيرات هامة -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                            تحذيرات هامة
+                            تحذيرات هامة <span class="text-red-500">*</span>
                         </label>
                         <textarea
                             v-model="formData.warnings"
-                            rows="3"
+                            rows="4"
+                            required
                             class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                             placeholder="أدخل التحذيرات الهامة..."
                         ></textarea>
@@ -234,18 +275,6 @@ const props = defineProps({
     drug: {
         type: Object,
         default: () => ({})
-    },
-    categories: {
-        type: Array,
-        default: () => []
-    },
-    pharmaceuticalForms: {
-        type: Array,
-        default: () => []
-    },
-    countries: {
-        type: Array,
-        default: () => []
     }
 });
 
@@ -258,20 +287,21 @@ const isSubmitting = ref(false);
 watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
     if (isOpen && drug) {
         formData.value = {
-            ...drug,
-            // نضمن أن جميع الحصوص موجودة حتى لو كانت غير معرفة في الأصل
-            drugName: drug.drugName || '',
-            drugCode: drug.drugCode || '',
-            scientificName: drug.scientificName || '',
-            therapeuticClass: drug.therapeuticClass || '',
-            pharmaceuticalForm: drug.pharmaceuticalForm || '',
+            id: drug.id,
+            name: drug.name || drug.drugName || '',
+            generic_name: drug.generic_name || drug.genericName || drug.scientificName || '',
+            strength: drug.strength || '',
+            form: drug.form || '',
+            category: drug.category || drug.therapeuticClass || '',
+            unit: drug.unit || '',
+            max_monthly_dose: drug.max_monthly_dose || '',
+            status: drug.status || '',
             manufacturer: drug.manufacturer || '',
-            mfgCountry: drug.mfgCountry || '',
-            expiryDate: drug.expiryDate || '',
-           
+            country: drug.country || '',
+            utilization_type: drug.utilization_type || '',
+            warnings: drug.warnings || '',
             indications: drug.indications || '',
-            instructions: drug.instructions || '',
-            warnings: drug.warnings || ''
+            expiry_date: drug.expiry_date || drug.expiryDate || ''
         };
     }
 }, { immediate: true });
@@ -288,16 +318,10 @@ const submitForm = async () => {
     isSubmitting.value = true;
     
     try {
-        // التحقق من البيانات قبل الإرسال
-        if (!formData.value.drugName || !formData.value.drugCode || !formData.value.expiryDate) {
-            throw new Error('الرجاء ملء جميع الحقول الإلزامية');
-        }
-        
         emit('update-drug', formData.value);
         emit('close');
     } catch (error) {
         console.error('Error updating drug:', error);
-        // يمكن إضافة عرض رسالة خطأ هنا
     } finally {
         isSubmitting.value = false;
     }

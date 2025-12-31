@@ -70,7 +70,7 @@
                             </div>
 
                             <!-- Drug Search -->
-                            <div class="space-y-2 md:col-span-2 relative">
+                            <div class="space-y-2 md:col-span-2 relative" ref="searchContainerRef">
                                 <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                                     <Icon icon="solar:magnifer-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                     اسم الدواء
@@ -81,15 +81,29 @@
                                         v-model="searchTermDrug"
                                         @input="handleInput"
                                         @focus="showAllDrugsOnFocus"
-                                        @blur="hideResults"
+                                        @blur="handleBlur"
                                         placeholder="ابحث عن دواء..."
-                                        class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
-                                        :disabled="selectedDrugName.length > 0 || isSubmitting"
+                                        class="w-full h-11 px-4 pr-10 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                        :disabled="isSubmitting"
                                     />
+                                    <!-- Clear button for selected drug -->
+                                    <button
+                                        v-if="selectedDrugName.length > 0"
+                                        @click="clearSelectedDrug"
+                                        type="button"
+                                        class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors p-1"
+                                        :disabled="isSubmitting"
+                                    >
+                                        <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
+                                    </button>
                                 </div>
 
                                 <!-- Search Results -->
-                                <div v-if="showResults && uniqueFilteredDrugs.length" class="absolute top-full left-0 right-0 z-30 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto">
+                                <div 
+                                    v-if="showResults && uniqueFilteredDrugs.length" 
+                                    class="absolute top-full left-0 right-0 z-30 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto"
+                                    @mousedown.prevent
+                                >
                                     <ul class="py-2">
                                         <li
                                             v-for="drug in uniqueFilteredDrugs"
@@ -120,11 +134,13 @@
                                     type="number"
                                     min="0"
                                     v-model.number="dailyQuantity"
+                                    @blur="hasInteractedWithQuantity = true"
+                                    @input="hasInteractedWithQuantity = true"
                                     class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
                                     placeholder="0"
                                     :disabled="!selectedDrugName || isSubmitting"
                                 />
-                                <p v-if="quantityError" class="text-xs text-red-500 flex items-center gap-1">
+                                <p v-if="hasInteractedWithQuantity && quantityError" class="text-xs text-red-500 flex items-center gap-1">
                                     <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                                     {{ quantityError }}
                                 </p>
@@ -295,6 +311,9 @@ const showResults = ref(false);
 const dailyDosageList = ref([]);
 const requestNotes = ref('');
 const isSubmitting = ref(false);
+const hasInteractedWithQuantity = ref(false);
+const searchContainerRef = ref(null);
+const isClickingResults = ref(false);
 
 // الثوابت
 const MAX_PILL_QTY = 1000;
@@ -302,24 +321,61 @@ const MAX_LIQUID_QTY = 1000;
 
 // ✅ تحديث دالة البحث لمطابقة البيانات الوهمية
 const handleInput = () => {
-    selectedDrugName.value = "";
-    selectedDrugType.value = "";
-    dailyQuantity.value = null;
-
-    if (searchTermDrug.value.length > 1 || selectedCategory.value) {
-        filterDrugs();
-        showResults.value = true;
-    } else {
-        filteredDrugs.value = [];
-        showResults.value = false;
+    // إذا كان المستخدم يكتب، امسح الاختيار السابق
+    if (searchTermDrug.value !== selectedDrugName.value) {
+        selectedDrugName.value = "";
+        selectedDrugType.value = "";
+        dailyQuantity.value = null;
+        hasInteractedWithQuantity.value = false;
     }
+
+    // تصفية الأدوية
+    filterDrugs();
+    
+    // عرض النتائج دائماً (سواء كان هناك فئة مختارة أو نص بحث أو لا شيء)
+    // عند عدم اختيار فئة، ستظهر جميع الأدوية
+    showResults.value = true;
 };
 
 // ✅ دالة تصفية الأدوية
 const filterDrugs = () => {
     let drugs = props.allDrugsData || [];
 
-    // البحث حسب الاسم
+    // البحث حسب الفئة أولاً
+    if (selectedCategory.value) {
+        // البحث عن الفئة المختارة للحصول على اسمها و id
+        const selectedCat = props.categories.find(cat => {
+            return cat.id == selectedCategory.value || 
+                   cat.id === selectedCategory.value ||
+                   String(cat.id) === String(selectedCategory.value);
+        });
+        
+        if (selectedCat) {
+            const categoryName = selectedCat.name;
+            const categoryId = selectedCat.id;
+            
+            // تصفية الأدوية حسب اسم الفئة أو categoryId
+            drugs = drugs.filter(drug => {
+                const drugCategory = drug.category || '';
+                const drugCategoryId = drug.categoryId || '';
+                
+                // المقارنة مع اسم الفئة (حساس/غير حساس لحالة الأحرف)
+                const nameMatch = drugCategory && categoryName && 
+                    (drugCategory === categoryName || 
+                     drugCategory.toLowerCase() === categoryName.toLowerCase());
+                
+                // المقارنة مع id الفئة (مع مراعاة أنواع مختلفة)
+                const idMatch = drugCategoryId && categoryId &&
+                    (drugCategoryId == categoryId ||
+                     drugCategoryId === categoryId ||
+                     String(drugCategoryId) === String(categoryId));
+                
+                return nameMatch || idMatch;
+            });
+        }
+    }
+
+    // البحث حسب الاسم (بعد التصفية بالفئة)
     if (searchTermDrug.value) {
         const searchTerm = searchTermDrug.value.toLowerCase();
         drugs = drugs.filter(drug => {
@@ -328,11 +384,6 @@ const filterDrugs = () => {
             return drugName.toLowerCase().includes(searchTerm) || 
                    drugCode.toLowerCase().includes(searchTerm);
         });
-    }
-
-    // البحث حسب الفئة
-    if (selectedCategory.value) {
-        drugs = drugs.filter(drug => drug.categoryId == selectedCategory.value);
     }
 
     filteredDrugs.value = drugs;
@@ -420,6 +471,7 @@ const clearForm = () => {
     filteredDrugs.value = [];
     requestNotes.value = '';
     isSubmitting.value = false;
+    hasInteractedWithQuantity.value = false;
 };
 
 const getDrugType = (drugName) => {
@@ -432,6 +484,7 @@ const getDrugType = (drugName) => {
 };
 
 const selectDrug = (drug) => {
+    isClickingResults.value = true;
     const drugName = drug.name || drug.drugName || '';
     searchTermDrug.value = drugName;
     selectedDrugName.value = drugName;
@@ -445,23 +498,52 @@ const selectDrug = (drug) => {
     selectedDrugType.value = newDrugType;
 
     dailyQuantity.value = null;
+    hasInteractedWithQuantity.value = false;
+    
+    // إخفاء القائمة بعد اختيار الدواء
+    setTimeout(() => {
+        showResults.value = false;
+        isClickingResults.value = false;
+    }, 100);
+};
+
+const clearSelectedDrug = () => {
+    selectedDrugName.value = "";
+    selectedDrugType.value = "";
+    dailyQuantity.value = null;
+    hasInteractedWithQuantity.value = false;
+    searchTermDrug.value = "";
+    filteredDrugs.value = [];
     showResults.value = false;
 };
 
-const hideResults = () => {
+const handleBlur = (event) => {
+    // استخدام setTimeout لإعطاء الوقت للنقر على عنصر من القائمة
     setTimeout(() => {
+        // التحقق من أن التركيز ليس على حقل البحث أو قائمة النتائج
+        const activeElement = document.activeElement;
+        const searchInput = event.target;
+        
+        // إذا كان التركيز لا يزال داخل حاوية البحث، لا تخفِ القائمة
+        if (searchContainerRef.value && searchContainerRef.value.contains(activeElement)) {
+            return;
+        }
+        
+        // إذا كان النقر كان على قائمة النتائج، لا تخفِ القائمة
+        if (isClickingResults.value) {
+            isClickingResults.value = false;
+            return;
+        }
+        
+        // في جميع الحالات الأخرى، أخفِ القائمة
         showResults.value = false;
     }, 200);
 };
 
 const showAllDrugsOnFocus = () => {
-    if (!searchTermDrug.value && !selectedCategory.value) {
-        // عرض جميع الأدوية عند التركيز على حقل البحث
-        filteredDrugs.value = props.allDrugsData || [];
-        showResults.value = true;
-    } else {
-        handleInput();
-    }
+    // عند التركيز على حقل البحث، عرض الأدوية المفلترة
+    filterDrugs();
+    showResults.value = true;
 };
 
 const addNewDrug = () => {
@@ -567,12 +649,31 @@ const closeModal = () => {
     }
 };
 
+// مراقبة تغيير الفئة المختارة
+watch(() => selectedCategory.value, (newCategory) => {
+    // مسح اختيار الدواء السابق عند تغيير الفئة
+    if (selectedDrugName.value) {
+        clearSelectedDrug();
+    }
+    
+    if (newCategory) {
+        // عند اختيار فئة، قم بتصفية الأدوية وعرضها تلقائياً
+        filterDrugs();
+        showResults.value = true;
+    } else {
+        // عند اختيار "كل الفئات" (قيمة فارغة)، عرض جميع الأدوية
+        filterDrugs(); // هذا سيعرض جميع الأدوية إذا لم يكن هناك نص بحث
+        showResults.value = true; // عرض القائمة دائماً عند اختيار "كل الفئات"
+    }
+});
+
 watch(() => props.isOpen, (isOpen) => {
     if (isOpen) {
         clearForm();
         
-        // عرض جميع الأدوية عند فتح النموذج
+        // عند فتح النموذج، عرض جميع الأدوية مباشرة (لأن الفئة الافتراضية هي "كل الفئات")
         filteredDrugs.value = props.allDrugsData || [];
+        showResults.value = true;
         
         // التحقق من الأدوية التي تحتاج توريد
         if (props.drugsData && props.drugsData.length > 0) {

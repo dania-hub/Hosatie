@@ -110,13 +110,19 @@ class PrescriptionDrugObserver
     protected function logAction($action, $record, $oldValues = null, $patientInfo = null)
     {
         // 1. Try getting user from Auth Facade
-        $userId = Auth::id();
+        $user = Auth::user();
+        $userId = $user ? $user->id : null;
 
         // 2. Fallback: Try getting user from Request (API specific)
         if (!$userId) {
-            $userId = request()->user() ? request()->user()->id : null;
+            $user = request()->user();
+            $userId = $user ? $user->id : null;
         }
 
+       
+        if ($user && $user->type === 'pharmacist' && $action === 'تعديل دواء') {
+            $action = 'صرف دواء';
+        }
         // 3. If User ID found, Create Log
         if ($userId) {
             // إضافة معلومات المريض إلى new_values لتسهيل العرض لاحقاً

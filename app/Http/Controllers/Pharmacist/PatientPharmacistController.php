@@ -14,6 +14,7 @@ use App\Models\Pharmacy;
 use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Observers\PrescriptionDrugObserver;
 
 class PatientPharmacistController extends BaseApiController
 {
@@ -351,6 +352,9 @@ class PatientPharmacistController extends BaseApiController
             'dispensedItems.*.quantity' => 'required|integer|min:1',
         ]);
 
+        // ✅ تعطيل إشعارات PrescriptionDrugObserver مؤقتاً
+        PrescriptionDrugObserver::$skipNotification = true;
+
         DB::beginTransaction();
         try {
             $pharmacist = $request->user();
@@ -518,6 +522,9 @@ class PatientPharmacistController extends BaseApiController
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->sendError('فشل في العملية: ' . $e->getMessage());
+        } finally {
+            // ✅ تأكد من إرجاع حالة الإشعارات دوماً
+            PrescriptionDrugObserver::$skipNotification = false;
         }
     }
 

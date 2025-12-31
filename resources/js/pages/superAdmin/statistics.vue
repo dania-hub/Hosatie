@@ -2,6 +2,9 @@
 import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
+import LoadingState from "@/components/Shared/LoadingState.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
 // ----------------------------------------------------
@@ -149,21 +152,13 @@ onMounted(() => {
 <DefaultLayout>
     <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-5 min-h-screen">
         <!-- حالة التحميل -->
-        <div 
-            v-if="stats.isLoading" 
-            class="flex flex-col justify-center items-center h-64 text-[#2E5077]"
-        >
-            <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 mb-4" />
-            <p class="font-semibold text-lg">جاري تحميل الإحصائيات...</p>
+        <div v-if="stats.isLoading" class="py-20">
+            <LoadingState message="جاري تحميل الإحصائيات..." />
         </div>
 
         <!-- حالة الخطأ -->
-        <div 
-            v-else-if="stats.error" 
-            class="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center shadow-md"
-        >
-            <Icon icon="solar:danger-circle-bold-duotone" class="w-12 h-12 text-red-500 mx-auto mb-2" />
-            <p class="text-red-700 font-semibold">{{ stats.error }}</p>
+        <div v-else-if="stats.error" class="py-20">
+            <ErrorState :message="stats.error" :retry="fetchStats" />
         </div>
 
         <!-- الإحصائيات -->

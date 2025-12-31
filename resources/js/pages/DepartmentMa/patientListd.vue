@@ -54,7 +54,7 @@ api.interceptors.response.use(
 // 2. بيانات المرضى - أصبحت تأتي من API
 // ----------------------------------------------------
 const patients = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
 const hasError = ref(false);
 const errorMessage = ref("");
 
@@ -919,11 +919,22 @@ const reloadData = () => {
                                         </tr>
                                     </thead>
 
-                                    <tbody v-if="filteredPatients.length > 0">
-                                        <tr
+                                <tbody>
+                                    <tr v-if="isLoading">
+                                        <td colspan="6" class="p-4">
+                                            <TableSkeleton :rows="5" />
+                                        </td>
+                                    </tr>
+                                    <tr v-else-if="hasError">
+                                        <td colspan="6" class="py-12">
+                                            <ErrorState :message="errorMessage || 'تعذر تحميل بيانات المرضى من الخادم. الرجاء التحقق من اتصال الإنترنت والمحاولة مرة أخرى.'" :retry="fetchPatients" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr 
                                             v-for="(patient, index) in filteredPatients"
                                             :key="index"
-                                            class="hover:bg-gray-100 border border-gray-300"
+                                            class="hover:bg-gray-100 border border-gray-300 transition-colors duration-150"
                                         >
                                             <td class="file-number-col">{{ patient.fileNumber }}</td>
                                             <td class="name-col">{{ patient.name }}</td>
@@ -942,25 +953,13 @@ const reloadData = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    </tbody>
-                                    <tbody v-else>
-                                        <tr>
-                                            <td colspan="6" class="text-center py-8 text-gray-500">
-                                                <div class="flex flex-col items-center justify-center">
-                                                    <Icon icon="mdi:database-off-outline" class="w-12 h-12 text-gray-300 mb-2" />
-                                                    <p class="text-lg font-medium">لا توجد بيانات للعرض</p>
-                                                    <p class="text-sm text-gray-400 mt-1">قم بتحديث الصفحة أو تحقق من اتصالك بالإنترنت</p>
-                                                    <button 
-                                                        @click="reloadData" 
-                                                        class="mt-4 inline-flex items-center px-4 py-2 bg-[#4DA1A9] text-white rounded-lg hover:bg-[#3a8c94] transition-colors duration-200"
-                                                    >
-                                                        <Icon icon="material-symbols:refresh" class="w-5 h-5 ml-1" />
-                                                        إعادة تحميل
-                                                    </button>
-                                                </div>
+                                        <tr v-if="filteredPatients.length === 0">
+                                            <td colspan="6" class="py-12">
+                                                <EmptyState message="لا توجد بيانات لعرضها" />
                                             </td>
                                         </tr>
-                                    </tbody>
+                                    </template>
+                                </tbody>
                                 </table>
                             </div>
                         </div>

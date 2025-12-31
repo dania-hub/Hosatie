@@ -5,7 +5,7 @@
 
     display: inline-flex;
     align-items: center; 
-     padding:  1px;;
+     padding:  8px;;
    border: 2px solid #4da1a9;
     border-radius: 30px;
     transition: all 0.2s ease-in;
@@ -115,11 +115,11 @@
 
 <template>
 
-    <button class="button"style="width: 100px;" >
+    <button class="button "style="width: 100px; " >
 
         <span class="icon-wrapper">
 
-            <Icon icon="mdi-light:printer" class="w-5 h-5"
+            <Icon icon="mdi-light:printer" class="w-5 h-5 "
 
           />
 

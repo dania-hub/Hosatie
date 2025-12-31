@@ -2,18 +2,44 @@
 import { ref, computed, onMounted, watch } from "vue";
 import axios from "axios";
 import { Icon } from "@iconify/vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import employeeViewModel from "@/components/forhospitaladmin/employeeViewModel.vue";
 
+// إعداد axios مع interceptor لإضافة التوكن
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_URL = "/api/data-entry/employees";
-const DEPARTMENTS_API_URL = "/api/departments";
-const ROLES_API_URL = "/api/employee-roles";
-const HOSPITALS_API_URL = "/api/hospitals";
+const API_URL = "/data-entry/employees";
+const DEPARTMENTS_API_URL = "/departments";
+const ROLES_API_URL = "/employee-roles";
+const HOSPITALS_API_URL = "/hospitals";
 
 // ----------------------------------------------------
 // 2. البيانات الوهمية (نفس البيانات السابقة)
@@ -91,11 +117,11 @@ const fetchEmployees = async () => {
     error.value = null;
     
     try {
-        const response = await axios.get(API_URL);
+        const response = await api.get(API_URL);
         employees.value = processEmployeeData(response.data);
     } catch (err) {
         console.warn("استخدام بيانات وهمية للموظفين:", err.message);
-        // استخدام البيانات الوهمية في حالة فشل الاتصال
+        error.value = "فشل في جلب بيانات الموظفين. يرجى المحاولة مرة أخرى.";
         employees.value = processEmployeeData(mockEmployees);
     } finally {
         loading.value = false;
@@ -107,7 +133,7 @@ const fetchDepartments = async () => {
     departmentsError.value = null;
     
     try {
-        const response = await axios.get(DEPARTMENTS_API_URL);
+        const response = await api.get(DEPARTMENTS_API_URL);
         availableDepartments.value = response.data;
     } catch (err) {
         console.warn("استخدام بيانات وهمية للأقسام:", err.message);
@@ -122,7 +148,7 @@ const fetchEmployeeRoles = async () => {
     rolesError.value = null;
     
     try {
-        const response = await axios.get(ROLES_API_URL);
+        const response = await api.get(ROLES_API_URL);
         employeeRoles.value = response.data;
         filteredRoles.value = response.data;
     } catch (err) {
@@ -139,7 +165,7 @@ const fetchHospitals = async () => {
     hospitalsError.value = null;
     
     try {
-        const response = await axios.get(HOSPITALS_API_URL);
+        const response = await api.get(HOSPITALS_API_URL);
         availableHospitals.value = response.data;
     } catch (err) {
         console.warn("استخدام بيانات وهمية للمستشفيات:", err.message);
@@ -492,17 +518,8 @@ onMounted(async () => {
 <template>
     <DefaultLayout>
         <main class="flex-1 p-4 sm:p-5 pt-3">
-            <!-- حالة التحميل -->
-            <div v-if="loading || loadingDepartments || loadingRoles || loadingHospitals" class="flex justify-center items-center h-64">
-                <div class="text-center">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تحميل البيانات...</p>
-                </div>
-            </div>
-
-          
             <!-- المحتوى الرئيسي -->
-            <div v-else>
+            <div>
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 sm:gap-0 ">
                     <div class="flex items-center gap-2 w-full sm:max-w-4xl flex-wrap">
                         <!-- شريط البحث -->
@@ -738,71 +755,80 @@ onMounted(async () => {
                                     </tr>
                                 </thead>
 
-                                <tbody>
-                                    <tr
-                                        v-for="(employee, index) in filteredEmployees"
-                                        :key="employee.fileNumber || index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">
-                                            {{ employee.fileNumber || 'N/A' }}
-                                        </td>
-                                        <td class="name-col">
-                                            {{ employee.name || 'N/A' }}
-                                        </td>
-                                        <td class="role-col">
-                                            {{ employee.roleName }}
-                                        </td>
-                                        <td class="department-col">
-                                            {{ employee.departmentName }}
-                                        </td>
-                                        <td class="hospital-col">
-                                            {{ employee.hospitalName }}
-                                        </td>
-                                        <td class="status-col">
-                                            <span
-                                                :class="[
-                                                    'px-2 py-1 rounded-full text-xs font-semibold',
-                                                    employee.isActive
-                                                        ? 'bg-green-100 text-green-800 border border-green-200'
-                                                        : 'bg-red-100 text-red-800 border border-red-200',
-                                                ]"
-                                            >
-                                                {{
-                                                    employee.isActive
-                                                        ? "مفعل"
-                                                        : "معطل"
-                                                }}
-                                            </span>
-                                        </td>
-                                        <td class="phone-col">
-                                            {{ employee.phone || 'N/A' }}
-                                        </td>
-
-                                        <td class="actions-col">
-                                            <div class="flex gap-3 justify-center items-center">
-                                                <button
-                                                    @click="openViewModal(employee)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                                                    title="عرض البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-                                            </div>
+                                <tbody class="text-gray-800">
+                                    <tr v-if="loading || loadingDepartments || loadingRoles || loadingHospitals">
+                                        <td colspan="8" class="p-4">
+                                            <TableSkeleton :rows="10" />
                                         </td>
                                     </tr>
-
-                                    <tr v-if="filteredEmployees.length === 0">
-                                        <td
-                                            colspan="8"
-                                            class="text-center py-8 text-gray-500"
+                                    <tr v-else-if="error">
+                                        <td colspan="8" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchAllData" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(employee, index) in filteredEmployees"
+                                            :key="employee.fileNumber || index"
+                                            class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            لا توجد بيانات لعرضها. حاول تغيير الفلاتر أو البحث.
-                                        </td>
-                                    </tr>
+                                            <td class="file-number-col">
+                                                {{ employee.fileNumber || 'N/A' }}
+                                            </td>
+                                            <td class="name-col">
+                                                {{ employee.name || 'N/A' }}
+                                            </td>
+                                            <td class="role-col">
+                                                {{ employee.roleName }}
+                                            </td>
+                                            <td class="department-col">
+                                                {{ employee.departmentName }}
+                                            </td>
+                                            <td class="hospital-col">
+                                                {{ employee.hospitalName }}
+                                            </td>
+                                            <td class="status-col">
+                                                <span
+                                                    :class="[
+                                                        'px-2 py-1 rounded-full text-xs font-semibold',
+                                                        employee.isActive
+                                                            ? 'bg-green-100 text-green-800 border border-green-200'
+                                                            : 'bg-red-100 text-red-800 border border-red-200',
+                                                    ]"
+                                                >
+                                                    {{
+                                                        employee.isActive
+                                                            ? "مفعل"
+                                                            : "معطل"
+                                                    }}
+                                                </span>
+                                            </td>
+                                            <td class="phone-col">
+                                                {{ employee.phone || 'N/A' }}
+                                            </td>
+
+                                            <td class="actions-col">
+                                                <div class="flex gap-3 justify-center items-center">
+                                                    <button
+                                                        @click="openViewModal(employee)"
+                                                        class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                        title="عرض البيانات"
+                                                    >
+                                                        <Icon
+                                                            icon="tabler:eye-minus"
+                                                            class="w-5 h-5 text-green-600"
+                                                        />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <tr v-if="filteredEmployees.length === 0">
+                                            <td colspan="8" class="py-12">
+                                                <EmptyState message="لا توجد بيانات موظفين" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>

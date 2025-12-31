@@ -1,4 +1,8 @@
 <script setup>
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from 'axios'; 
@@ -8,18 +12,19 @@ import btnprint from "@/components/btnprint.vue";
 
 const operations = ref([]);
 const isLoading = ref(false);
+const error = ref(null);
 const availableHospitals = ref([]); // ✅ أضف هذا لتخزين قائمة المستشفيات
 
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
+    error.value = null;
     try {
         const response = await axios.get('/api/operations');
         operations.value = response.data;
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
-    } catch (error) {
-        console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
+    } catch (err) {
+        console.error("Failed to fetch operations:", err);
+        error.value = err.response?.data?.message || "فشل في تحميل البيانات.";
     } finally {
         isLoading.value = false;
     }
@@ -437,34 +442,38 @@ const printTable = () => {
                                 </tr>
                             </thead>
 
-                            <tbody>
-                                <tr v-if="isLoading" class="border border-gray-300">
-                                    <td colspan="6" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                        جاري تحميل البيانات...
-                                    </td>
-                                </tr>
-
-                                <tr
-                                    v-else
-                                    v-for="(op, index) in filteredOperations"
-                                    :key="index"
-                                    class="hover:bg-gray-100 border border-gray-300"
-                                >
-                                    <td class="file-number-col">{{ op.fileNumber }}</td>
-                                    <td class="name-col">{{ op.name }}</td>
-                                    <td class="patient-name-col">{{ op.patientName || 'غير محدد' }}</td>
-                                    <td class="hospital-col">{{ op.hospital || 'غير محدد' }}</td>
-                                    <td class="operation-type-col">{{ op.operationType }}</td>
-                                    <td class="operation-date-col">{{ op.operationDate }}</td>
-                                </tr>
-                                
-                                <tr v-if="!isLoading && filteredOperations.length === 0">
-                                    <td colspan="6" class="p-6 text-center text-gray-500 text-lg">
-                                        ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                <tbody class="text-gray-800">
+                                    <tr v-if="isLoading">
+                                        <td colspan="6" class="p-4">
+                                            <TableSkeleton :rows="10" />
+                                        </td>
+                                    </tr>
+                                    <tr v-else-if="error">
+                                        <td colspan="6" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchOperations" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(op, index) in filteredOperations"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ op.fileNumber }}</td>
+                                            <td class="name-col">{{ op.name }}</td>
+                                            <td class="patient-name-col">{{ op.patientName || 'غير محدد' }}</td>
+                                            <td class="hospital-col">{{ op.hospital || 'غير محدد' }}</td>
+                                            <td class="operation-type-col">{{ op.operationType }}</td>
+                                            <td class="operation-date-col">{{ op.operationDate }}</td>
+                                        </tr>
+                                        <tr v-if="filteredOperations.length === 0">
+                                            <td colspan="6" class="py-12">
+                                                <EmptyState message="لا توجد عمليات حالياً" />
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
                     </div>
                 </div>
             </div>

@@ -136,20 +136,13 @@
             </div>
 
             <!-- حالة التحميل -->
-            <div v-if="isLoading && transferRequests.length === 0" class="flex flex-col items-center justify-center h-64">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mb-4"></div>
-                <p class="text-gray-600">جاري تحميل البيانات...</p>
-            </div>
+           
 
             <!-- رسالة عدم وجود بيانات -->
-            <div v-else-if="!isLoading && transferRequests.length === 0" class="flex flex-col items-center justify-center h-64">
-                <Icon icon="tabler:inbox-off" class="w-16 h-16 text-gray-400 mb-4" />
-                <p class="text-gray-600 text-lg">لا توجد طلبات نقل متاحة</p>
-            </div>
+            
 
             <!-- عرض البيانات  -->
             <div
-                v-if="!isLoading && transferRequests.length > 0"
                 class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col"
             >
                 <div
@@ -188,70 +181,87 @@
                             </thead>
 
                             <tbody class="text-gray-800">
-                                <tr
-                                    v-for="(request, index) in filteredRequests"
-                                    :key="request.id || index"
-                                    class="hover:bg-gray-100 bg-white border-b border-gray-200"
-                                >
-                                    <td class="font-semibold text-gray-700">
-                                        {{ request.requestNumber || `TR-${request.id}` }}
-                                    </td>
-                                    <td>
-                                        {{ request.patient?.name || 'غير محدد' }}
-                                    </td>
-                                    <td>
-                                        <span :class="getHospitalClass(request.fromHospital)">
-                                            {{ getHospitalName(request.fromHospital) }}
-                                        </span>
-                                    </td>
-                                    <td class="max-w-xs truncate" :title="request.reason || request.transferReason">
-                                        {{ truncateContent(request.reason || request.transferReason) }}
-                                    </td>
-                                    <td class="actions-col">
-                                        <div class="flex gap-3 justify-center">
-                                            <!-- زر معاينة تفاصيل الطلب -->
-                                            <button 
-                                                @click="openRequestModal(request)"
-                                                class="tooltip" 
-                                                data-tip="معاينة تفاصيل الطلب">
-                                                <Icon
-                                                    icon="famicons:open-outline"
-                                                    class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
-                                                />
-                                            </button>
-                                            
-                                            <!-- عرض علامة الحالة أو زر الرد -->
-                                            <template v-if="!canRespondToRequest(request)">
-                                                <!-- عرض علامة صح عند القبول -->
-                                                <Icon
-                                                    v-if="isApproved(request)"
-                                                    :icon="getStatusIcon(request.status || request.requestStatus)"
-                                                    :class="getStatusIconClass(request.status || request.requestStatus)"
-                                                    class="w-6 h-6"
-                                                />
-                                                <!-- عرض علامة خطأ عند الرفض -->
-                                                <Icon
-                                                    v-else-if="isRejected(request)"
-                                                    :icon="getStatusIcon(request.status || request.requestStatus)"
-                                                    :class="getStatusIconClass(request.status || request.requestStatus)"
-                                                    class="w-6 h-6"
-                                                />
-                                            </template>
-                                            
-                                            <!-- زر الرد على الطلب (فقط عند قيد المراجعة) -->
-                                            <button 
-                                                v-else
-                                                @click="openResponseModal(request)"
-                                                class="tooltip" 
-                                                data-tip="الرد على طلب النقل">
-                                                <Icon
-                                                    icon="tabler:message-reply" 
-                                                    class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
-                                                />
-                                            </button>
-                                        </div>
+                                <tr v-if="isLoading">
+                                    <td colspan="5" class="p-4">
+                                        <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
+                                <tr v-else-if="error">
+                                    <td colspan="5" class="py-12">
+                                        <ErrorState :message="error" :retry="fetchTransferRequests" />
+                                    </td>
+                                </tr>
+                                <template v-else>
+                                    <tr
+                                        v-for="(request, index) in filteredRequests"
+                                        :key="request.id || index"
+                                        class="hover:bg-gray-100 bg-white border-b border-gray-200"
+                                    >
+                                        <td class="font-semibold text-gray-700">
+                                            {{ request.requestNumber || `TR-${request.id}` }}
+                                        </td>
+                                        <td>
+                                            {{ request.patient?.name || 'غير محدد' }}
+                                        </td>
+                                        <td>
+                                            <span :class="getHospitalClass(request.fromHospital)">
+                                                {{ getHospitalName(request.fromHospital) }}
+                                            </span>
+                                        </td>
+                                        <td class="max-w-xs truncate" :title="request.reason || request.transferReason">
+                                            {{ truncateContent(request.reason || request.transferReason) }}
+                                        </td>
+                                        <td class="actions-col">
+                                            <div class="flex gap-3 justify-center">
+                                                <!-- زر معاينة تفاصيل الطلب -->
+                                                <button 
+                                                    @click="openRequestModal(request)"
+                                                    class="tooltip" 
+                                                    data-tip="معاينة تفاصيل الطلب">
+                                                    <Icon
+                                                        icon="famicons:open-outline"
+                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                                
+                                                <!-- عرض علامة الحالة أو زر الرد -->
+                                                <template v-if="!canRespondToRequest(request)">
+                                                    <!-- عرض علامة صح عند القبول -->
+                                                    <Icon
+                                                        v-if="isApproved(request)"
+                                                        :icon="getStatusIcon(request.status || request.requestStatus)"
+                                                        :class="getStatusIconClass(request.status || request.requestStatus)"
+                                                        class="w-6 h-6"
+                                                    />
+                                                    <!-- عرض علامة خطأ عند الرفض -->
+                                                    <Icon
+                                                        v-else-if="isRejected(request)"
+                                                        :icon="getStatusIcon(request.status || request.requestStatus)"
+                                                        :class="getStatusIconClass(request.status || request.requestStatus)"
+                                                        class="w-6 h-6"
+                                                    />
+                                                </template>
+                                                
+                                                <!-- زر الرد على الطلب (فقط عند قيد المراجعة) -->
+                                                <button 
+                                                    v-else
+                                                    @click="openResponseModal(request)"
+                                                    class="tooltip" 
+                                                    data-tip="الرد على طلب النقل">
+                                                    <Icon
+                                                        icon="tabler:message-reply" 
+                                                        class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                    />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="filteredRequests.length === 0">
+                                        <td colspan="5" class="py-12">
+                                            <EmptyState message="لا توجد طلبات نقل متاحة" />
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>
@@ -324,6 +334,9 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import TransferRequestDetailsModal from "@/components/forhospitaladmin/TransferRequestDetailsModal.vue";
 import TransferResponseModal from "@/components/forhospitaladmin/TransferResponseModal.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API

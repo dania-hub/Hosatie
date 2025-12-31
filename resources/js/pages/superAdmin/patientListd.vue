@@ -1,5 +1,9 @@
 <script setup>
 // عدل openViewModal و fetchPatientDetails , openDispensationModal , fetchDispensationHistory , closeDispensationModal
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
@@ -14,27 +18,36 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 // ----------------------------------------------------
 // 1. تكوين Axios
 // ----------------------------------------------------
-const API_BASE_URL = "https://api.your-domain.com"; // استبدل بالرابط الفعلي لـ API
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
-  }
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
 });
 
-// إضافة interceptor لإضافة التوكن تلقائيًا
+// إضافة interceptor لإضافة التوكن تلقائياً
 api.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            console.error('Unauthenticated - Please login again.');
+        }
+        return Promise.reject(error);
     }
-    return config;
-  },
-  error => {
-    return Promise.reject(error);
-  }
 );
 
 // ----------------------------------------------------
@@ -43,9 +56,9 @@ api.interceptors.request.use(
 const patients = ref([]);
 const hospitals = ref([]);
 
-const isLoading = ref(false);
+const isLoading = ref(true);
 const isLoadingHospitals = ref(false);
-const hasError = ref(false);
+const error = ref(null);
 const errorMessage = ref("");
 
 // ----------------------------------------------------
@@ -54,7 +67,7 @@ const errorMessage = ref("");
 // التحقق من اتصال API
 const checkAPI = async () => {
   try {
-    const response = await api.get('/api/health');
+    const response = await api.get('/health');
     console.log('API متصل:', response.data);
     return true;
   } catch (err) {
@@ -69,7 +82,7 @@ const fetchHospitals = async () => {
   isLoadingHospitals.value = true;
   
   try {
-    const response = await api.get('/api/hospitals');
+    const response = await api.get('/super-admin/hospitals');
     hospitals.value = response.data.map(hospital => ({
       id: hospital.id,
       name: hospital.name,
@@ -97,11 +110,11 @@ const fetchHospitals = async () => {
 // جلب جميع المرضى
 const fetchPatients = async () => {
   isLoading.value = true;
-  hasError.value = false;
+  error.value = null;
   errorMessage.value = "";
   
   try {
-    const response = await api.get('/api/patients');
+    const response = await api.get('/super-admin/patients');
     
     // إذا كانت هناك بيانات مستشفيات، ربط اسم المستشفى
     patients.value = response.data.map(patient => {
@@ -128,7 +141,6 @@ const fetchPatients = async () => {
     
     console.log('تم جلب المرضى:', patients.value.length);
   } catch (err) {
-    hasError.value = true;
     if (err.response) {
       switch (err.response.status) {
         case 401:
@@ -152,10 +164,11 @@ const fetchPatients = async () => {
     } else {
       errorMessage.value = "حدث خطأ غير متوقع.";
     }
+    error.value = errorMessage.value;
     
     // استخدام بيانات تجريبية في حالة فشل الاتصال
-    console.log('استخدام بيانات تجريبية بسبب خطأ الاتصال');
-    patients.value = getSamplePatients();
+    console.error('فشل تحميل المرضى:', errorMessage.value);
+    patients.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -186,7 +199,7 @@ const fetchPatientDetails = async (patientId) => {
   try {
     console.log('جلب تفاصيل المريض مع ID:', patientId);
     
-    const response = await api.get(`/api/patients/${patientId}`);
+    const response = await api.get(`/super-admin/patients/${patientId}`);
     const patientData = response.data;
     
     // البحث عن اسم المستشفى الكامل
@@ -230,7 +243,7 @@ const fetchDispensationHistory = async (patientId) => {
   try {
     console.log('جلب سجل الصرف للمريض:', patientId);
     
-    const response = await api.get(`/api/patients/${patientId}/dispensation-history`);
+    const response = await api.get(`/super-admin/patients/${patientId}/dispensation-history`);
     
     // التأكد من أن البيانات هي مصفوفة
     const history = Array.isArray(response.data) ? response.data : [];
@@ -641,46 +654,26 @@ const printTable = () => {
 // 10. دورة حياة المكون
 // ----------------------------------------------------
 onMounted(async () => {
-  console.log('جاري تحميل المكون...');
-  const isAPIConnected = await checkAPI();
-  
-  if (isAPIConnected) {
-    // جلب المستشفيات أولاً
-    await fetchHospitals();
-    // ثم جلب المرضى
-    await fetchPatients();
-  } else {
-    // استخدام البيانات التجريبية
-    hospitals.value = getSampleHospitals();
-    patients.value = getSamplePatients();
-  }
-  
-  console.log('تم تحميل البيانات:', {
-    patients: patients.value.length,
-    hospitals: hospitals.value.length
-  });
+    isLoading.value = true;
+    error.value = null;
+    
+    try {
+        // جلب المستشفيات أولاً
+        await fetchHospitals();
+        // ثم جلب المرضى
+        await fetchPatients();
+    } catch (err) {
+        console.error('فشل تحميل البيانات:', err);
+        error.value = "حدث خطأ أثناء تحميل البيانات. يرجى التأكد من اتصال الإنترنت والمحاولة مرة أخرى.";
+    } finally {
+        isLoading.value = false;
+    }
 });
 </script>
 
 <template>
   <DefaultLayout>
     <main class="flex-1 p-4 sm:p-5 pt-3">
-      <!-- رسائل الخطأ -->
-      <div v-if="hasError" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-        <div class="flex items-center">
-          <Icon icon="mdi:alert-circle-outline" class="w-5 h-5 text-red-500 ml-2" />
-          <p class="text-red-700 font-medium">{{ errorMessage }}</p>
-        </div>
-      </div>
-      
-      <!-- حالة التحميل -->
-      <div v-if="isLoading" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-center justify-center">
-          <Icon icon="mdi:loading" class="w-5 h-5 text-blue-500 animate-spin ml-2" />
-          <p class="text-blue-700 font-medium">جاري تحميل بيانات المرضى...</p>
-        </div>
-      </div>
-
       <!-- المحتوى الرئيسي -->
       <div>
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
@@ -806,7 +799,7 @@ onMounted(async () => {
   </div>
 
   <!-- الجهة اليمنى: زر الطباعة -->
-  <div class="flex items-center justify-end w-full sm:w-auto">
+  <div class="flex items-center justify-end w-full  sm:w-auto">
     <btnprint @click="printTable" />
   </div>
 
@@ -851,44 +844,50 @@ onMounted(async () => {
                   </tr>
                 </thead>
 
-                <tbody v-if="filteredPatients.length > 0">
-                  <tr v-for="(patient, index) in filteredPatients" :key="index" class="hover:bg-gray-100 border border-gray-300">
-                    <td class="file-number-col">{{ patient.fileNumber || 'N/A' }}</td>
-                    <td class="name-col">{{ patient.name || 'N/A' }}</td>
-                    <td class="national-id-col">{{ patient.nationalId || 'N/A' }}</td>
-                    <td class="birth-date-col">{{ formatDateForDisplay(patient.birth) || 'N/A' }}</td>
-                    <td class="phone-col">{{ patient.phone || 'N/A' }}</td>
-                    <td class="hospital-col">
-                      <div class="flex items-center gap-2">
-                        <span>{{ patient.hospitalDisplay || 'غير محدد' }}</span>
-                      </div>
-                    </td>
+                                <tbody class="text-gray-800">
+                                    <tr v-if="isLoading">
+                                        <td colspan="7" class="p-4">
+                                            <TableSkeleton :rows="10" />
+                                        </td>
+                                    </tr>
+                                    <tr v-else-if="error">
+                                        <td colspan="7" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchPatients" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(patient, index) in filteredPatients"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ patient.fileNumber || 'N/A' }}</td>
+                                            <td class="name-col">{{ patient.name || 'N/A' }}</td>
+                                            <td class="national-id-col">{{ patient.nationalId || 'N/A' }}</td>
+                                            <td class="birth-date-col">{{ formatDateForDisplay(patient.birth) || 'N/A' }}</td>
+                                            <td class="phone-col">{{ patient.phone || 'N/A' }}</td>
+                                            <td class="hospital-col">
+                                                <div class="flex items-center gap-2">
+                                                    <span>{{ patient.hospitalDisplay || 'غير محدد' }}</span>
+                                                </div>
+                                            </td>
 
-                    <td class="actions-col">
-                      <div class="flex gap-3 justify-center">
-                        <button @click="openViewModal(patient)" title="عرض التفاصيل">
-                          <Icon icon="famicons:open-outline" class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-                <tbody v-else>
-                  <tr>
-                    <td colspan="7" class="text-center py-8 text-gray-500">
-                      <div class="flex flex-col items-center justify-center">
-                        <Icon icon="mdi:database-off-outline" class="w-12 h-12 text-gray-300 mb-2" />
-                        <p class="text-lg font-medium">لا توجد بيانات للعرض</p>
-                        <p v-if="searchTerm" class="text-sm text-gray-400 mt-1">لا توجد نتائج مطابقة لبحثك</p>
-                        <p v-else-if="selectedHospital !== 'all'" class="text-sm text-gray-400 mt-1">
-                          لا توجد مرضى في {{ hospitals.find(h => h.id.toString() === selectedHospital)?.name || 'هذا المستشفى' }}
-                        </p>
-                        <p v-else class="text-sm text-gray-400 mt-1">لا توجد بيانات مرضى مسجلة في النظام</p>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                                            <td class="actions-col">
+                                                <div class="flex gap-3 justify-center">
+                                                    <button @click="openViewModal(patient)" title="عرض التفاصيل">
+                                                        <Icon icon="famicons:open-outline" class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="filteredPatients.length === 0">
+                                            <td colspan="7" class="py-12">
+                                                <EmptyState message="لا توجد بيانات مرضى حالياً" />
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
             </div>
           </div>
         </div>

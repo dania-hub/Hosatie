@@ -18,6 +18,8 @@ import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vu
 // ----------------------------------------------------
 const API_URL = '/api/data-entry/patients';
 const patients = ref([]);
+const isLoading = ref(true);
+const isError = ref(false);
 
 // دالة لمعادلة شكل تاريخ الميلاد وإزالة وقت/منطقة الزمن (T...)
 const normalizeBirthDate = (value) => {
@@ -46,6 +48,8 @@ const getAuthHeaders = () => {
 // 2. منطق جلب البيانات (Fetch)
 // ----------------------------------------------------
 const fetchPatients = async () => {
+    isLoading.value = true;
+    isError.value = false;
     try {
         const response = await axios.get(API_URL, getAuthHeaders());
         
@@ -65,7 +69,9 @@ const fetchPatients = async () => {
         }));
     } catch (error) {
         console.error("Error fetching patients:", error);
-        showSuccessAlert(" تعذر تحميل بيانات المرضى من الخادم. الرجاء التحقق من اتصال الإنترنت والمحاولة مرة أخرى.");
+        isError.value = true;
+    } finally {
+        isLoading.value = false;
     }
 };
 
@@ -633,64 +639,74 @@ const printTable = () => {
                             </thead>
 
                             <tbody> 
-                                <tr 
-                                    v-for="(patient, index) in filteredPatients"
-                                    :key="index"
-                                    class="hover:bg-gray-100 border border-gray-300 transition-colors duration-150"
-                                >
-                                    <td class="file-number-col">{{ patient.fileNumber }}</td>
-                                    <td class="name-col">{{ patient.name }}</td>
-                                    <td class="national-id-col">{{ patient.nationalId }}</td>
-                                    <td class="birth-date-col">{{ patient.birth }}</td>
-                                    <td class="phone-col">{{ patient.phone }}</td>
-
-                                    <td class="actions-col">
-                                        <div class="flex gap-3 justify-center items-center">
-                                            <button 
-                                                @click="openViewModal(patient)"
-                                                class="p-1 rounded-full hover:bg-green-100 transition-colors duration-200"
-                                                title="عرض البيانات"
-                                            >
-                                                <Icon
-                                                    icon="tabler:eye-minus"
-                                                    class="w-5 h-5 text-green-600"
-                                                />
-                                            </button>
-
-                                            <button 
-                                                @click="openEditModal(patient)"
-                                                class="p-1 rounded-full hover:bg-yellow-100 transition-colors duration-200"
-                                                title="تعديل البيانات"
-                                            >
-                                                <Icon
-                                                    icon="line-md:pencil"
-                                                    class="w-5 h-5 text-yellow-500"
-                                                />
-                                            </button>
-
-                                            <button 
-                                                @click="openDeleteModal(patient)"
-                                                class="p-1 rounded-full hover:bg-red-100 transition-colors duration-200"
-                                                title="حذف المريض"
-                                            >
-                                                <Icon
-                                                    icon="line-md:account-delete"
-                                                    class="w-5 h-5 text-red-600"
-                                                />
-                                            </button>
-                                        </div>
+                                <tr v-if="isLoading">
+                                    <td colspan="6" class="p-4">
+                                        <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
                                 
-                                <tr v-if="filteredPatients.length === 0">
-                                    <td colspan="6" class="text-center py-12 text-gray-500">
-                                        <div class="flex flex-col items-center justify-center gap-2">
-                                            <Icon icon="solar:documents-bold-duotone" class="w-12 h-12 text-gray-300" />
-                                            <p class="text-lg font-medium">لا توجد بيانات لعرضها</p>
-                                            <p class="text-sm text-gray-400">حاول تغيير كلمة البحث أو إضافة مرضى جدد</p>
-                                        </div>
+                                <tr v-else-if="isError">
+                                    <td colspan="6" class="py-12">
+                                        <ErrorState :retry="fetchPatients" />
                                     </td>
                                 </tr>
+
+                                <template v-else>
+                                    <tr 
+                                        v-for="(patient, index) in filteredPatients"
+                                        :key="index"
+                                        class="hover:bg-gray-100 border border-gray-300 transition-colors duration-150"
+                                    >
+                                        <td class="file-number-col">{{ patient.fileNumber }}</td>
+                                        <td class="name-col">{{ patient.name }}</td>
+                                        <td class="national-id-col">{{ patient.nationalId }}</td>
+                                        <td class="birth-date-col">{{ patient.birth }}</td>
+                                        <td class="phone-col">{{ patient.phone }}</td>
+
+                                        <td class="actions-col">
+                                            <div class="flex gap-3 justify-center items-center">
+                                                <button 
+                                                    @click="openViewModal(patient)"
+                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors duration-200"
+                                                    title="عرض البيانات"
+                                                >
+                                                    <Icon
+                                                        icon="tabler:eye-minus"
+                                                        class="w-5 h-5 text-green-600"
+                                                    />
+                                                </button>
+
+                                                <button 
+                                                    @click="openEditModal(patient)"
+                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors duration-200"
+                                                    title="تعديل البيانات"
+                                                >
+                                                    <Icon
+                                                        icon="line-md:pencil"
+                                                        class="w-5 h-5 text-yellow-500"
+                                                    />
+                                                </button>
+
+                                                <button 
+                                                    @click="openDeleteModal(patient)"
+                                                    class="p-1 rounded-full hover:bg-red-100 transition-colors duration-200"
+                                                    title="حذف المريض"
+                                                >
+                                                    <Icon
+                                                        icon="line-md:account-delete"
+                                                        class="w-5 h-5 text-red-600"
+                                                    />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+                                    <tr v-if="filteredPatients.length === 0">
+                                        <td colspan="6" class="py-12">
+                                            <EmptyState message="لم يتم العثور على أي مرضى يطابق بحثك" />
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>

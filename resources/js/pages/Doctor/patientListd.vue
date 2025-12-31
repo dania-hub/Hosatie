@@ -6,30 +6,6 @@
             <Navbar />
 
             <main class="flex-1 p-4 sm:p-5 pt-3">
-                <!-- حالة التحميل -->
-                <div v-if="isLoading" class="flex justify-center items-center h-64">
-                    <div class="text-center">
-                        <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto" />
-                        <p class="mt-4 text-gray-600">جاري تحميل البيانات...</p>
-                    </div>
-                </div>
-
-                <!-- حالة الخطأ -->
-                <div v-else-if="hasError" class="flex flex-col items-center justify-center h-64 p-4">
-                    <Icon icon="mdi:alert-circle-outline" class="w-16 h-16 text-red-500 mb-4" />
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">حدث خطأ في تحميل البيانات</h3>
-                    <p class="text-gray-600 text-center mb-4">{{ errorMessage }}</p>
-                    <button 
-                        @click="reloadData" 
-                        class="inline-flex items-center px-4 py-2 bg-[#4DA1A9] text-white rounded-lg hover:bg-[#3a8c94] transition-colors duration-200"
-                    >
-                        <Icon icon="material-symbols:refresh" class="w-5 h-5 ml-1" />
-                        إعادة المحاولة
-                    </button>
-                </div>
-
-                <!-- المحتوى الرئيسي -->
-                <div v-else>
                     <!-- عناصر التحكم العلوية -->
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                         <!-- البحث والفرز -->
@@ -127,62 +103,72 @@
                                         </tr>
                                     </thead>
 
-                                    <tbody v-if="filteredPatients.length > 0">
-                                        <tr
-                                            v-for="(patient, index) in filteredPatients"
-                                            :key="patient.fileNumber"
-                                            class="hover:bg-gray-100 border-b border-gray-200 transition-colors duration-150"
-                                        >
-                                            <td class="file-number-col font-medium text-gray-700">{{ patient.fileNumber }}</td>
-                                            <td class="name-col">{{ patient.name }}</td>
-                                            <td class="national-id-col">{{ patient.nationalId }}</td>
-                                            <td class="birth-date-col">{{ patient.birth }}</td>
-                                            <td class="phone-col">{{ patient.phone }}</td>
+                                    <tbody>
+                                        <tr v-if="isLoading">
+                                            <td colspan="6" class="p-4">
+                                                <TableSkeleton :rows="6" />
+                                            </td>
+                                        </tr>
 
-                                            <td class="actions-col">
-                                                <div class="flex gap-3 justify-center">
-                                                    <button 
-                                                        @click="openViewModal(patient)"
-                                                        class="tooltip tooltip-bottom"
-                                                        data-tip="عرض تفاصيل المريض"
-                                                    >
-                                                        <Icon
-                                                            icon="famicons:open-outline"
-                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
-                                                        />
-                                                    </button>
-                                                </div>
+                                        <tr v-else-if="hasError">
+                                            <td colspan="6" class="py-12">
+                                                <ErrorState 
+                                                    :message="errorMessage || 'حدث خطأ في تحميل البيانات'" 
+                                                    :retry="reloadData" 
+                                                />
                                             </td>
                                         </tr>
-                                    </tbody>
-                                    <tbody v-else>
-                                        <tr>
-                                            <td colspan="6" class="text-center py-12">
-                                                <div class="flex flex-col items-center justify-center">
-                                                    <Icon icon="mdi:account-search-outline" class="w-16 h-16 text-gray-300 mb-4" />
-                                                    <p class="text-lg font-medium text-gray-500">لا توجد نتائج</p>
-                                                    <p class="text-sm text-gray-400 mt-2" v-if="searchTerm">
-                                                        لم يتم العثور على مرضى مطابقين لـ "{{ searchTerm }}"
-                                                    </p>
-                                                    <p class="text-sm text-gray-400 mt-2" v-else>
-                                                        لا توجد بيانات مرضى متاحة حالياً
-                                                    </p>
-                                                    <button 
-                                                        v-if="searchTerm"
-                                                        @click="searchTerm = ''"
-                                                        class="mt-4 inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200"
+
+                                        <template v-else>
+                                            <tr
+                                                v-for="(patient, index) in filteredPatients"
+                                                :key="patient.fileNumber"
+                                                class="hover:bg-gray-100 border-b border-gray-200 transition-colors duration-150"
+                                            >
+                                                <td class="file-number-col font-medium text-gray-700">{{ patient.fileNumber }}</td>
+                                                <td class="name-col">{{ patient.name }}</td>
+                                                <td class="national-id-col">{{ patient.nationalId }}</td>
+                                                <td class="birth-date-col">{{ patient.birth }}</td>
+                                                <td class="phone-col">{{ patient.phone }}</td>
+
+                                                <td class="actions-col">
+                                                    <div class="flex gap-3 justify-center">
+                                                        <button 
+                                                            @click="openViewModal(patient)"
+                                                            class="tooltip tooltip-bottom"
+                                                            data-tip="عرض تفاصيل المريض"
+                                                        >
+                                                            <Icon
+                                                                icon="famicons:open-outline"
+                                                                class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr v-if="filteredPatients.length === 0">
+                                                <td colspan="6" class="py-12">
+                                                    <EmptyState 
+                                                        :message="searchTerm ? `لم يتم العثور على مرضى مطابقين لـ '${searchTerm}'` : 'لا توجد بيانات مرضى متاحة حالياً'" 
                                                     >
-                                                        مسح البحث
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                                        <template #action v-if="searchTerm">
+                                                            <button 
+                                                                @click="searchTerm = ''"
+                                                                class="mt-4 inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200"
+                                                            >
+                                                                مسح البحث
+                                                            </button>
+                                                        </template>
+                                                    </EmptyState>
+                                                </td>
+                                            </tr>
+                                        </template>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
                     </div>
-                </div>
             </main>
         </div>
 
@@ -311,7 +297,7 @@ api.interceptors.response.use(
 // 2. بيانات المرضى
 // ----------------------------------------------------
 const patients = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
 const hasError = ref(false);
 const errorMessage = ref("");
 

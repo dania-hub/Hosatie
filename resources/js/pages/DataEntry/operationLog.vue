@@ -9,11 +9,14 @@ import btnprint from "@/components/btnprint.vue";
 
 
 const operations = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
+const isError = ref(false);
 
+// دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
+    isError.value = false;
     try {
         // Retrieve token from localStorage
         const token = localStorage.getItem('auth_token');
@@ -25,16 +28,13 @@ const fetchOperations = async () => {
             }
         });
         
-        console.log("API Response:", response); // DEBUG
-        console.log("Data:", response.data); // DEBUG
-
         // Laravel Resources wrap collections in a 'data' property
         operations.value = response.data.data || response.data; 
         
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
+        isError.value = true;
     } finally {
         isLoading.value = false;
     }
@@ -393,30 +393,41 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 </thead>
 
                                 <tbody>
-                                    <tr v-if="isLoading" class="border border-gray-300">
-                                        <td colspan="4" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                            جاري تحميل البيانات...
+                                    <tr v-if="isLoading">
+                                        <td colspan="4" class="p-4">
+                                            <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
 
-                                    <tr
-                                        v-else
-                                        v-for="(op, index) in filteredOperations"
-                                        :key="index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">{{ op.fileNumber }}</td>
-                                        <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">
-                                            <div class="flex flex-col">
-                                                <span class="font-bold text-[#2E5077]">{{ getOperationDescription(op).title }}</span>
-                                                <span class="text-xs text-gray-500 font-medium">{{ getOperationDescription(op).detail }}</span>
-                                            </div>
+                                    <tr v-else-if="isError">
+                                        <td colspan="4" class="py-12">
+                                            <ErrorState :retry="fetchOperations" />
                                         </td>
-                                        <td class="operation-date-col">{{ op.operationDate }}</td>
-
+                                    </tr>
+                                    
+                                    <template v-else>
+                                        <tr
+                                            v-for="(op, index) in filteredOperations"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ op.fileNumber }}</td>
+                                            <td class="name-col">{{ op.name }}</td>
+                                            <td class="operation-type-col">
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-[#2E5077]">{{ getOperationDescription(op).title }}</span>
+                                                    <span class="text-xs text-gray-500 font-medium">{{ getOperationDescription(op).detail }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="operation-date-col">{{ op.operationDate }}</td>
                                         </tr>
-                                 
+                                        
+                                        <tr v-if="filteredOperations.length === 0">
+                                            <td colspan="4" class="py-12">
+                                                <EmptyState message="لم يتم العثور على أي عمليات مسجلة" />
+                                            </td>
+                                        </tr>
+                                     </template>
                                 </tbody>
                             </table>
                         </div>

@@ -7,7 +7,7 @@
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
                     <search v-model="searchTerm" />
 
-                    <div class="dropdown dropdown-start">
+                    <div class=" dropdown dropdown-start">
                         <div
                             tabindex="0"
                             role="button"
@@ -118,27 +118,8 @@
                 </div>
             </div>
 
-            <!-- حالة التحميل -->
-            <div v-if="isLoading" class="text-center py-10">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mx-auto"></div>
-                <p class="text-gray-600 mt-4">جاري تحميل البيانات...</p>
-            </div>
-
-            <!-- حالة الخطأ -->
-            <div v-else-if="error" class="text-center py-10">
-                <div class="text-red-600 text-4xl mb-4">⚠️</div>
-                <p class="text-red-600 font-semibold mb-4">{{ error }}</p>
-                <button 
-                    @click="fetchShipments" 
-                    class="px-6 py-2 bg-[#4DA1A9] text-white rounded-lg hover:bg-[#3a8c94] transition-colors"
-                >
-                    حاول مرة أخرى
-                </button>
-            </div>
-
             <!-- جدول البيانات -->
             <div
-                v-else
                 class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col"
             >
                 <div
@@ -172,105 +153,113 @@
                             </thead>
 
                             <tbody class="text-gray-800">
-                                <tr
-                                    v-if="filteredShipments.length === 0"
-                                    class="text-center py-8"
-                                >
-                                    <td colspan="4" class="py-8 text-gray-500">
-                                        لا توجد شحنات لعرضها
+                                <tr v-if="isLoading">
+                                    <td colspan="4" class="p-4">
+                                        <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
-                                
-                                <tr
-                                    v-for="shipment in filteredShipments"
-                                    :key="shipment.id"
-                                    class="hover:bg-gray-100 bg-white border-b border-gray-200"
-                                >
-                                    <td class="font-semibold text-gray-700">
-                                        {{ shipment.shipmentNumber }}
+                                <tr v-else-if="error">
+                                    <td colspan="4" class="py-12">
+                                        <ErrorState :message="error" :retry="fetchShipments" />
                                     </td>
-                                    <td>
-                                        {{ formatDate(shipment.requestDate) }}
-                                    </td>
-                                    <td
-                                        :class="{
-                                            'text-red-600 font-semibold':
-                                                shipment.status === 'مرفوضة' ||
-                                                shipment.status === 'rejected',
-                                            'text-green-600 font-semibold':
-                                                shipment.status === 'تم الإستلام' ||
-                                                shipment.status === 'fulfilled' ||
-                                                shipment.status === 'قيد التجهيز',
-                                            'text-yellow-600 font-semibold':
-                                                shipment.status === 'جديد' ||
-                                                shipment.status === 'قيد الانتظار' ||
-                                                shipment.status === 'pending' ||
-                                                shipment.status === 'approved',
-                                        }"
+                                </tr>
+                                <template v-else>
+                                    <tr
+                                        v-for="shipment in filteredShipments"
+                                        :key="shipment.id"
+                                        class="hover:bg-gray-100 bg-white border-b border-gray-200"
                                     >
-                                        {{ shipment.status }}
-                                    </td>
-                                    <td class="actions-col">
-                                        <div class="flex gap-3 justify-center">
-                                            <button 
-                                                @click="openRequestViewModal(shipment)"
-                                                class="tooltip" 
-                                                data-tip="معاينة تفاصيل الشحنة">
-                                                <Icon
-                                                    icon="famicons:open-outline"
-                                                    class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
-                                                />
-                                            </button>
-                                            
-                                            <template v-if="shipment.status === 'مرفوضة' || shipment.status === 'rejected'">
-                                                <button class="tooltip" data-tip="طلب مرفوض">
-                                                    <Icon
-                                                        icon="tabler:circle-x" 
-                                                        class="w-5 h-5 text-red-600"
-                                                    />
-                                                </button>
-                                            </template>
-                                            
-                                            <template v-else-if="shipment.status === 'تم الإرسال' || shipment.status === 'fulfilled' || shipment.status === 'تم الإستلام'">
+                                        <td class="font-semibold text-gray-700">
+                                            {{ shipment.shipmentNumber }}
+                                        </td>
+                                        <td>
+                                            {{ formatDate(shipment.requestDate) }}
+                                        </td>
+                                        <td
+                                            :class="{
+                                                'text-red-600 font-semibold':
+                                                    shipment.status === 'مرفوضة' ||
+                                                    shipment.status === 'rejected',
+                                                'text-green-600 font-semibold':
+                                                    shipment.status === 'تم الإستلام' ||
+                                                    shipment.status === 'fulfilled' ||
+                                                    shipment.status === 'قيد التجهيز',
+                                                'text-yellow-600 font-semibold':
+                                                    shipment.status === 'جديد' ||
+                                                    shipment.status === 'قيد الانتظار' ||
+                                                    shipment.status === 'pending' ||
+                                                    shipment.status === 'approved',
+                                            }"
+                                        >
+                                            {{ shipment.status }}
+                                        </td>
+                                        <td class="actions-col">
+                                            <div class="flex gap-3 justify-center">
                                                 <button 
-                                                    @click="openReviewModal(shipment)"
+                                                    @click="openRequestViewModal(shipment)"
                                                     class="tooltip" 
-                                                    data-tip="مراجعة تفاصيل الشحنة">
+                                                    data-tip="معاينة تفاصيل الشحنة">
                                                     <Icon
-                                                        icon="healthicons:yes-outline"
+                                                        icon="famicons:open-outline"
                                                         class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
-                                            </template>
-                                            
-                                            <template v-else-if="shipment.status === 'جديد' || shipment.status === 'قيد الانتظار' || shipment.status === 'pending'">
-                                                <!-- طلب جديد، يمكن قبوله أو رفضه -->
-                                                <button
-                                                    @click="openConfirmationModal(shipment)" 
-                                                    class="tooltip"
-                                                    data-tip="قبول أو رفض الطلب">
-                                                    <Icon
-                                                        icon="fluent:box-28-regular"
-                                                        class="w-5 h-5 text-orange-500 cursor-pointer hover:scale-110 transition-transform"
-                                                    />
-                                                </button>
-                                            </template>
-                                            
-                                            <template v-else>
-                                                <!-- حالات أخرى (مثل معتمدة مبدئياً) - يمكن مراجعتها فقط -->
-                                                <button
-                                                    @click="openRequestViewModal(shipment)" 
-                                                    class="tooltip"
-                                                    data-tip="معاينة الطلب">
-                                                    <Icon
-                                                        icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
-                                                    />
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </td>
-                                </tr>
+                                                
+                                                <template v-if="shipment.status === 'مرفوضة' || shipment.status === 'rejected'">
+                                                    <button class="tooltip" data-tip="طلب مرفوض">
+                                                        <Icon
+                                                            icon="tabler:circle-x" 
+                                                            class="w-5 h-5 text-red-600"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else-if="shipment.status === 'تم الإرسال' || shipment.status === 'fulfilled' || shipment.status === 'تم الإستلام'">
+                                                    <button 
+                                                        @click="openReviewModal(shipment)"
+                                                        class="tooltip" 
+                                                        data-tip="مراجعة تفاصيل الشحنة">
+                                                        <Icon
+                                                            icon="healthicons:yes-outline"
+                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else-if="shipment.status === 'جديد' || shipment.status === 'قيد الانتظار' || shipment.status === 'pending'">
+                                                    <!-- طلب جديد، يمكن قبوله أو رفضه -->
+                                                    <button
+                                                        @click="openConfirmationModal(shipment)" 
+                                                        class="tooltip"
+                                                        data-tip="قبول أو رفض الطلب">
+                                                        <Icon
+                                                            icon="fluent:box-28-regular"
+                                                            class="w-5 h-5 text-orange-500 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else>
+                                                    <!-- حالات أخرى (مثل معتمدة مبدئياً) - يمكن مراجعتها فقط -->
+                                                    <button
+                                                        @click="openRequestViewModal(shipment)" 
+                                                        class="tooltip"
+                                                        data-tip="معاينة الطلب">
+                                                        <Icon
+                                                            icon="famicons:open-outline"
+                                                            class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="filteredShipments.length === 0">
+                                        <td colspan="4" class="py-12">
+                                            <EmptyState message="لا توجد شحنات لعرضها" />
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>
@@ -322,6 +311,9 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import RequestViewModal from "@/components/forhospitaladmin/RequestViewModal.vue"; 
 import ConfirmationModal from "@/components/forhospitaladmin/ConfirmationModal.vue"; 
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue"; 
 
 // ----------------------------------------------------
 // 1. إعدادات axios ونقاط النهاية API
@@ -392,7 +384,10 @@ const isConfirming = ref(false);
 // ----------------------------------------------------
 // 3. جلب البيانات من API
 // ----------------------------------------------------
-const isLoading = ref(false);
+// ----------------------------------------------------
+// 3. جلب البيانات من API
+// ----------------------------------------------------
+const isLoading = ref(true);
 
 const fetchShipments = async () => {
     isLoading.value = true;
@@ -436,11 +431,8 @@ const fetchShipments = async () => {
         }
     } catch (err) {
         console.error('Error fetching shipments:', err);
-        console.error('Error response:', err.response);
-        console.error('Error message:', err.message);
         const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'خطأ غير معروف';
         error.value = `فشل في تحميل البيانات: ${errorMsg}`;
-        showSuccessAlert(`❌ ${errorMsg}`);
     } finally {
         isLoading.value = false;
     }

@@ -2,6 +2,10 @@
 import { ref, computed, onMounted } from "vue";
 import axios from "axios";
 import { Icon } from "@iconify/vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import inputadd from "@/components/btnaddEmp.vue";
@@ -818,25 +822,13 @@ const printTable = () => {
     <DefaultLayout>
         <main class="flex-1 p-4 sm:p-5 pt-3">
             <!-- حالة التحميل -->
-            <div v-if="loading || loadingDepartments || loadingRoles" class="flex justify-center items-center h-64">
-                <div class="text-center">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] animate-spin mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تحميل البيانات...</p>
-                </div>
-            </div>
+           
 
             <!-- حالة الخطأ -->
-            <div v-else-if="error || departmentsError || rolesError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                <p v-if="error">{{ error }}</p>
-                <p v-if="departmentsError">{{ departmentsError }}</p>
-                <p v-if="rolesError">{{ rolesError }}</p>
-                <button @click="fetchAllData" class="mt-2 text-sm underline">
-                    حاول مرة أخرى
-                </button>
-            </div>
+           
 
             <!-- المحتوى الرئيسي -->
-            <div v-else>
+            <div>
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
@@ -1080,108 +1072,102 @@ const printTable = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody>
-                                    <tr
-                                        v-for="(employee, index) in filteredEmployees"
-                                        :key="employee.fileNumber || index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">
-                                            {{ employee.fileNumber || 'N/A' }}
-                                        </td>
-                                        <td class="name-col">
-                                            {{ employee.name || 'N/A' }}
-                                        </td>
-                                        <td class="role-col">
-                                            {{ typeof employee.role === 'object' ? employee.role.name : employee.role || 'N/A' }}
-                                        </td>
-                                        <td class="department-col">
-                                            {{ employee.department || "-" }}
-                                        </td>
-                                        <td class="status-col">
-                                            <span
-                                                :class="[
-                                                    'px-2 py-1 rounded-full text-xs font-semibold',
-                                                    employee.isActive
-                                                        ? 'bg-green-100 text-green-800 border border-green-200'
-                                                        : 'bg-red-100 text-red-800 border border-red-200',
-                                                ]"
+                                    <tbody class="text-gray-800">
+                                        <tr v-if="loading">
+                                            <td colspan="7" class="p-4">
+                                                <TableSkeleton :rows="5" />
+                                            </td>
+                                        </tr>
+                                        <tr v-else-if="error">
+                                            <td colspan="7" class="py-12">
+                                                <ErrorState :message="error" :retry="fetchEmployees" />
+                                            </td>
+                                        </tr>
+                                        <template v-else>
+                                            <tr
+                                                v-for="employee in filteredEmployees"
+                                                :key="employee.fileNumber"
+                                                class="hover:bg-gray-100 bg-white border-b border-gray-200"
                                             >
-                                                {{
-                                                    employee.isActive
-                                                        ? "مفعل"
-                                                        : "معطل"
-                                                }}
-                                            </span>
-                                        </td>
-                                        <td class="phone-col">
-                                            {{ employee.phone || 'N/A' }}
-                                        </td>
-
-                                        <td class="actions-col">
-                                            <div class="flex gap-3 justify-center items-center">
-                                                <button
-                                                    @click="openViewModal(employee)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                                                    title="عرض البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-
-                                                <button
-                                                    @click="openEditModal(employee)"
-                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
-                                                    title="تعديل البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="line-md:pencil"
-                                                        class="w-5 h-5 text-yellow-500"
-                                                    />
-                                                </button>
-
-                                                <!-- زر تفعيل/تعطيل الحساب -->
-                                                <button
-                                                    @click="openStatusConfirmationModal(employee)"
-                                                    :class="[
-                                                        'p-1 rounded-full transition-colors',
-                                                        employee.isActive
-                                                            ? 'hover:bg-red-100'
-                                                            : 'hover:bg-green-100',
-                                                    ]"
-                                                    :title="getStatusTooltip(employee.isActive)"
-                                                >
-                                                    <Icon
-                                                        v-if="employee.isActive"
-                                                        icon="pepicons-pop:power-off"
-                                                        class="w-5 h-5 text-red-600"
-                                                    />
-                                                    <Icon
-                                                        v-else
-                                                        icon="quill:off"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    <tr v-if="filteredEmployees.length === 0">
-                                        <td
-                                            colspan="8"
-                                            class="text-center py-8 text-gray-500"
-                                        >
-                                            لا توجد بيانات لعرضها
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                                <td class="font-semibold text-gray-700">
+                                                    {{ employee.fileNumber }}
+                                                </td>
+                                                <td>
+                                                    {{ employee.nameDisplay }}
+                                                </td>
+                                                <td>
+                                                    {{ employee.role && typeof employee.role === 'object' ? employee.role.name : employee.role }}
+                                                </td>
+                                                <td>
+                                                    {{ employee.department || "-" }}
+                                                </td>
+                                                <td class="status-col">
+                                                    <span
+                                                        :class="[
+                                                            'status-badge px-3 py-1 rounded-full text-xs font-bold inline-block border',
+                                                            employee.isActive
+                                                                ? 'bg-green-100/70 text-green-700 border-green-700/60'
+                                                                : 'bg-red-100/70 text-red-700 border-red-700/60',
+                                                        ]"
+                                                    >
+                                                        {{ employee.isActive ? "مفعل" : "معطل" }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {{ employee.phone || "-" }}
+                                                </td>
+                                                <td class="actions-col">
+                                                    <div class="flex gap-3 justify-center">
+                                                        <button
+                                                            @click="openViewModal(employee)"
+                                                            class="tooltip"
+                                                            data-tip="عرض التفاصيل"
+                                                        >
+                                                            <Icon
+                                                                icon="tabler:eye"
+                                                                class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            />
+                                                        </button>
+                                                        <button
+                                                            v-if="employee.isActive"
+                                                            @click="openEditModal(employee)"
+                                                            class="tooltip"
+                                                            data-tip="تعديل الموظف"
+                                                        >
+                                                            <Icon
+                                                                icon="tabler:edit"
+                                                                class="w-5 h-5 text-gray-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            />
+                                                        </button>
+                                                        <button
+                                                            @click="openStatusConfirmationModal(employee)"
+                                                            class="tooltip"
+                                                            :data-tip="getStatusTooltip(employee.isActive)"
+                                                        >
+                                                            <Icon
+                                                                :icon="employee.isActive ? 'tabler:circle-x' : 'tabler:circle-check'"
+                                                                :class="[
+                                                                    'w-5 h-5 cursor-pointer hover:scale-110 transition-transform',
+                                                                    employee.isActive ? 'text-red-500' : 'text-green-500'
+                                                                ]"
+                                                            />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="filteredEmployees.length === 0">
+                                                <td colspan="7" class="py-12">
+                                                    <EmptyState message="لا يوجد موظفين لعرضهم" />
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+          
         </main>
     </DefaultLayout>
 

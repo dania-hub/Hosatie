@@ -34,11 +34,14 @@ import btnprint from "@/components/btnprint.vue";
 
 
 const operations = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
+const isError = ref(false);
 
+// دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
+    isError.value = false;
     try {
         const response = await api.get('/operations');
         
@@ -47,7 +50,6 @@ const fetchOperations = async () => {
         
         if (operationsData && Array.isArray(operationsData)) {
             operations.value = operationsData;
-            showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
         } else {
             operations.value = [];
             console.error('شكل البيانات غير متوقع:', response.data);
@@ -56,6 +58,7 @@ const fetchOperations = async () => {
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("فشل في جلب العمليات:", error);
+        isError.value = true;
         
         if (error.response) {
             const status = error.response.status;
@@ -71,8 +74,6 @@ const fetchOperations = async () => {
         } else {
             showSuccessAlert("❌ فشل في تحميل البيانات.");
         }
-        
-        operations.value = [];
     } finally {
         isLoading.value = false;
     }
@@ -390,34 +391,41 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 </thead>
 
                                 <tbody>
-                                    <tr v-if="isLoading" class="border border-gray-300">
-                                        <td colspan="4" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                            جاري تحميل البيانات...
+                                    <tr v-if="isLoading">
+                                        <td colspan="4" class="p-4">
+                                            <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
 
-                                    <tr
-                                        v-else
-                                        v-for="(op, index) in filteredOperations"
-                                        :key="index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">{{ op.fileNumber }}</td>
-                                        <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">
-                                            <div class="font-semibold">{{ op.operationType }}</div>
-                                            <div v-if="op.drugName && op.quantity" class="text-sm text-gray-600 mt-1">
-                                                الدواء: {{ op.drugName }} - الكمية: {{ op.quantity }}
-                                            </div>
+                                    <tr v-else-if="isError">
+                                        <td colspan="4" class="py-12">
+                                            <ErrorState :retry="fetchOperations" />
                                         </td>
-                                        <td class="operation-date-col">{{ op.operationDate }}</td>
+                                    </tr>
+
+                                    <template v-else>
+                                        <tr
+                                            v-for="(op, index) in filteredOperations"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ op.fileNumber }}</td>
+                                            <td class="name-col">{{ op.name }}</td>
+                                            <td class="operation-type-col">
+                                                <div class="font-semibold">{{ op.operationType }}</div>
+                                                <div v-if="op.drugName && op.quantity" class="text-sm text-gray-600 mt-1">
+                                                    الدواء: {{ op.drugName }} - الكمية: {{ op.quantity }}
+                                                </div>
+                                            </td>
+                                            <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
-                                    <tr v-if="!isLoading && filteredOperations.length === 0">
-                                        <td colspan="4" class="p-6 text-center text-gray-500 text-lg">
-                                            ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
-                                        </td>
-                                    </tr>
+                                        <tr v-if="filteredOperations.length === 0">
+                                            <td colspan="4" class="py-12">
+                                                <EmptyState message="لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                             <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">

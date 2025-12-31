@@ -11,6 +11,9 @@ import btnprint from "@/components/btnprint.vue";
 // استيراد المكونات المنفصلة
 import PatientViewModal from "@/components/forpharmacist/PatientViewModal.vue";
 import DispensationModal from "@/components/patientDoctor/DispensationModal.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 0. تهيئة API و حالة التحميل
@@ -42,12 +45,16 @@ api.interceptors.request.use(
 
 const patients = ref([]); // قائمة المرضى ستُملأ من الـ API
 const isLoading = ref(true); // حالة التحميل
+const hasError = ref(false);
+const errorMessage = ref(null);
 
 // ----------------------------------------------------
 // 1. دوال جلب البيانات وتحديثها.
 // ----------------------------------------------------
 const fetchPatients = async () => {
     isLoading.value = true;
+    hasError.value = false;
+    errorMessage.value = null;
     try {
         // جلب البيانات من الـ API:
         // GET /api/pharmacist/patients  ➜  PatientPharmacistController@index
@@ -82,14 +89,14 @@ const fetchPatients = async () => {
                 };
             });
 
-            showSuccessAlert(response.data?.message || "✅ تم تحديث قائمة المرضى بنجاح.");
         } else {
             patients.value = [];
-            showSuccessAlert("⚠️ تم الاتصال بالخادم لكن لم يتم العثور على بيانات مرضى.");
         }
     } catch (error) {
         console.error("خطأ في جلب بيانات المرضى:", error);
-        showSuccessAlert(`❌ فشل جلب البيانات: ${error.response?.data?.message || error.message}`);
+        hasError.value = true;
+        errorMessage.value = `فشل جلب البيانات: ${error.response?.data?.message || error.message}`;
+        showSuccessAlert(errorMessage.value);
     } finally {
         isLoading.value = false;
     }
@@ -628,16 +635,7 @@ const printTable = () => {
                 </div>
 
                 <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
-                    <div v-if="isLoading" class="flex-1 flex items-center justify-center p-10">
-                        <Icon icon="eos-icons:loading" class="w-10 h-10 text-[#4DA1A9] animate-spin" />
-                        <span class="text-lg text-gray-600 mr-3">جاري تحميل بيانات المرضى...</span>
-                    </div>
-                    
-                    <div v-else-if="!filteredPatients.length" class="flex-1 flex items-center justify-center p-10">
-                        <span class="text-lg text-gray-500">لا توجد بيانات مرضى لعرضها.</span>
-                    </div>
-
-                    <div v-else
+                    <div
                         class="overflow-y-auto flex-1"
                         style="
                             scrollbar-width: auto;
@@ -658,29 +656,46 @@ const printTable = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody>
-                                    <tr
-                                        v-for="(patient, index) in filteredPatients"
-                                        :key="index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">{{ patient.fileNumber }}</td>
-                                        <td class="name-col">{{ patient.name }}</td>
-                                        <td class="national-id-col">{{ patient.nationalId }}</td>
-                                        <td class="birth-date-col">{{ patient.birth }}</td>
-                                        <td class="phone-col">{{ patient.phone }}</td>
-
-                                        <td class="actions-col">
-                                            <div class="flex gap-3 justify-center">
-                                                <button @click="openViewModal(patient)">
-                                                    <Icon
-                                                        icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
-                                                    />
-                                                </button>
-                                            </div>
+                                <tbody class="text-gray-800">
+                                    <tr v-if="isLoading">
+                                        <td colspan="6" class="p-4">
+                                            <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
+                                    <tr v-else-if="hasError">
+                                        <td colspan="6" class="py-12">
+                                            <ErrorState :message="errorMessage" :retry="fetchPatients" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(patient, index) in filteredPatients"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ patient.fileNumber }}</td>
+                                            <td class="name-col">{{ patient.name }}</td>
+                                            <td class="national-id-col">{{ patient.nationalId }}</td>
+                                            <td class="birth-date-col">{{ patient.birth }}</td>
+                                            <td class="phone-col">{{ patient.phone }}</td>
+
+                                            <td class="actions-col">
+                                                <div class="flex gap-3 justify-center">
+                                                    <button @click="openViewModal(patient)">
+                                                        <Icon
+                                                            icon="famicons:open-outline"
+                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="filteredPatients.length === 0">
+                                            <td colspan="6" class="py-12">
+                                                <EmptyState message="لا توجد بيانات مرضى لعرضها" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>

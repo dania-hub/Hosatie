@@ -158,92 +158,109 @@
                             </thead>
 
                             <tbody class="text-gray-800">
-                                <tr
-                                    v-for="(shipment, index) in filteredShipments"
-                                    :key="index"
-                                    class="hover:bg-gray-100 bg-white border-b border-gray-200"
-                                >
-                                    <td class="font-semibold text-gray-700">
-                                        {{ shipment.shipmentNumber }}
+                                <tr v-if="isLoading">
+                                    <td colspan="4" class="p-4">
+                                        <TableSkeleton :rows="5" />
                                     </td>
-                                    <td>
-                                        {{ shipment.requestDate }}
+                                </tr>
+                                <tr v-else-if="error">
+                                    <td colspan="4" class="py-12">
+                                        <ErrorState :message="error" :retry="fetchAllData" />
                                     </td>
-                                    <td
-                                        :class="{
-                                            'text-red-600 font-semibold':
-                                                shipment.requestStatus === 'مرفوض',
-                                            'text-green-600 font-semibold':
-                                                shipment.requestStatus === 'تم التنفيذ',
-                                            'text-yellow-600 font-semibold':
-                                                shipment.requestStatus === 'قيد الانتظار',
-                                            'text-blue-600 font-semibold':
-                                                shipment.requestStatus === 'جديد',
-                                        }"
+                                </tr>
+                                <template v-else>
+                                    <tr
+                                        v-for="(shipment, index) in filteredShipments"
+                                        :key="index"
+                                        class="hover:bg-gray-100 bg-white border-b border-gray-200"
                                     >
-                                        {{ shipment.requestStatus }}
-                                    </td>
-                                    <td class="actions-col">
-                                        <div class="flex gap-3 justify-center">
-                                            <!-- زر معاينة تفاصيل الشحنة - يظهر دائماً -->
-                                            <button 
-                                                @click="openRequestViewModal(shipment)"
-                                                class="tooltip" 
-                                                data-tip="معاينة تفاصيل الشحنة">
-                                                <Icon
-                                                    icon="famicons:open-outline"
-                                                    class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
-                                                />
-                                            </button>
-                                            
-                                            <!-- زر الإجراء الثاني يختلف حسب الحالة -->
-                                            <template v-if="shipment.requestStatus === 'مرفوض'">
-                                                <button class="tooltip" data-tip="طلب مرفوض">
-                                                    <Icon
-                                                        icon="tabler:circle-x" 
-                                                        class="w-5 h-5 text-red-600"
-                                                    />
-                                                </button>
-                                            </template>
-                                            
-                                            <template v-else-if="shipment.requestStatus === 'تم التنفيذ'">
-                                                <!-- إذا كانت تم التنفيذ، تظهر زر مراجعة التفاصيل -->
+                                        <td class="font-semibold text-gray-700">
+                                            {{ shipment.shipmentNumber }}
+                                        </td>
+                                        <td>
+                                            {{ shipment.requestDate }}
+                                        </td>
+                                        <td
+                                            :class="{
+                                                'text-red-600 font-semibold':
+                                                    shipment.requestStatus === 'مرفوض',
+                                                'text-green-600 font-semibold':
+                                                    shipment.requestStatus === 'تم التنفيذ',
+                                                'text-yellow-600 font-semibold':
+                                                    shipment.requestStatus === 'قيد الانتظار',
+                                                'text-blue-600 font-semibold':
+                                                    shipment.requestStatus === 'جديد',
+                                            }"
+                                        >
+                                            {{ shipment.requestStatus }}
+                                        </td>
+                                        <td class="actions-col">
+                                            <div class="flex gap-3 justify-center">
+                                                <!-- زر معاينة تفاصيل الشحنة - يظهر دائماً -->
                                                 <button 
-                                                    @click="openReviewModal(shipment)"
+                                                    @click="openRequestViewModal(shipment)"
                                                     class="tooltip" 
-                                                    data-tip="مراجعة تفاصيل التنفيذ">
+                                                    data-tip="معاينة تفاصيل الشحنة">
                                                     <Icon
-                                                        icon="healthicons:yes-outline"
+                                                        icon="famicons:open-outline"
                                                         class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
-                                            </template>
-                                            
-                                            <template v-else-if="shipment.requestStatus === 'جديد' || shipment.statusOriginal === 'approved'">
-                                                <!-- يظهر زر تأكيد الاستلام فقط للطلبات المعتمدة من super-admin -->
-                                                <button
-                                                    @click="openConfirmationModal(shipment)" 
-                                                    class="tooltip"
-                                                    data-tip="تأكيد الإستلام">
-                                                    <Icon
-                                                        icon="tabler:truck-delivery"
-                                                        class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
-                                                    />
-                                                </button>
-                                            </template>
-                                            
-                                            <template v-else-if="shipment.requestStatus === 'قيد الانتظار'">
-                                                <!-- إذا كانت قيد الانتظار، تظهر رسالة انتظار -->
-                                                <button class="tooltip" data-tip="في انتظار اعتماد الطلب من المدير العام">
-                                                    <Icon
-                                                        icon="solar:clock-circle-bold"
-                                                        class="w-5 h-5 text-gray-400"
-                                                    />
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </td>
-                                </tr>
+                                                
+                                                <!-- زر الإجراء الثاني يختلف حسب الحالة -->
+                                                <template v-if="shipment.requestStatus === 'مرفوض'">
+                                                    <button class="tooltip" data-tip="طلب مرفوض">
+                                                        <Icon
+                                                            icon="tabler:circle-x" 
+                                                            class="w-5 h-5 text-red-600"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else-if="shipment.requestStatus === 'تم التنفيذ'">
+                                                    <!-- إذا كانت تم التنفيذ، تظهر زر مراجعة التفاصيل -->
+                                                    <button 
+                                                        @click="openReviewModal(shipment)"
+                                                        class="tooltip" 
+                                                        data-tip="مراجعة تفاصيل التنفيذ">
+                                                        <Icon
+                                                            icon="healthicons:yes-outline"
+                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else-if="shipment.requestStatus === 'جديد' || shipment.statusOriginal === 'approved'">
+                                                    <!-- يظهر زر تأكيد الاستلام فقط للطلبات المعتمدة من super-admin -->
+                                                    <button
+                                                        @click="openConfirmationModal(shipment)" 
+                                                        class="tooltip"
+                                                        data-tip="تأكيد الإستلام">
+                                                        <Icon
+                                                            icon="tabler:truck-delivery"
+                                                            class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else-if="shipment.requestStatus === 'قيد الانتظار'">
+                                                    <!-- إذا كانت قيد الانتظار، تظهر رسالة انتظار -->
+                                                    <button class="tooltip" data-tip="في انتظار اعتماد الطلب من المدير العام">
+                                                        <Icon
+                                                            icon="solar:clock-circle-bold"
+                                                            class="w-5 h-5 text-gray-400"
+                                                        />
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="filteredShipments.length === 0">
+                                        <td colspan="4" class="py-12">
+                                            <EmptyState message="لا توجد طلبات توريد" />
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>
@@ -299,6 +316,10 @@
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios"; // استيراد axios
+
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";

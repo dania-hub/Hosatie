@@ -3,6 +3,9 @@ import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
+import ErrorState from "@/components/Shared/ErrorState.vue"; 
+import LoadingState from "@/components/Shared/LoadingState.vue";
+ 
 
 // ----------------------------------------------------
 // 0. منطق رسالة النجاح (Success Alert Logic)
@@ -76,17 +79,18 @@ const API_URL = '/storekeeper/dashboard/stats';
 const stats = ref({
     totalRegistered: 0,
     todayRegistered: 0,
-    weekRegistered: 0,
-    isLoading: true,
-    error: null
+    weekRegistered: 0
 });
+
+const isLoading = ref(true);
+const error = ref(null);
 
 // ----------------------------------------------------
 // 2. دالة جلب البيانات باستخدام Axios
 // ----------------------------------------------------
 const fetchStats = async () => {
-    stats.value.isLoading = true;
-    stats.value.error = null;
+    isLoading.value = true;
+    error.value = null;
 
     try {
         const response = await api.get(API_URL);
@@ -96,15 +100,11 @@ const fetchStats = async () => {
         stats.value.todayRegistered = response.todayRegistered || 0;
         stats.value.weekRegistered = response.weekRegistered || 0;
         
-        showSuccessAlert("✅ تم تحميل الإحصائيات بنجاح.");
-    } catch (error) {
-        console.error("Error fetching dashboard statistics:", error);
-        stats.value.error = error.response?.data?.message || 'فشل تحميل الإحصائيات';
-        if (!error.response || (error.response.status !== 401 && error.response.status !== 403)) {
-            showSuccessAlert("❌ فشل في تحميل الإحصائيات.");
-        }
+    } catch (err) {
+        console.error("Error fetching dashboard statistics:", err);
+        error.value = err.response?.data?.message || err.message || 'فشل تحميل الإحصائيات';
     } finally {
-        stats.value.isLoading = false;
+        isLoading.value = false;
     }
 };
 
@@ -120,21 +120,13 @@ onMounted(() => {
 <DefaultLayout>
     <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-5 min-h-screen">
         <!-- حالة التحميل -->
-        <div 
-            v-if="stats.isLoading" 
-            class="flex flex-col justify-center items-center h-64 text-[#2E5077]"
-        >
-            <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 mb-4" />
-            <p class="font-semibold text-lg">جاري تحميل الإحصائيات...</p>
+        <div v-if="isLoading" class="flex justify-center h-64 items-center">
+             <LoadingState title="جاري تحميل الإحصائيات..." />
         </div>
 
         <!-- حالة الخطأ -->
-        <div 
-            v-else-if="stats.error" 
-            class="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center shadow-md"
-        >
-            <Icon icon="solar:danger-circle-bold-duotone" class="w-12 h-12 text-red-500 mx-auto mb-2" />
-            <p class="text-red-700 font-semibold">{{ stats.error }}</p>
+        <div v-else-if="error" class="flex justify-center h-64 items-center">
+            <ErrorState :message="error" :retry="fetchStats" />
         </div>
 
         <!-- الإحصائيات -->

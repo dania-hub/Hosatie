@@ -9,6 +9,9 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import DrugPreviewModal from "@/components/forpharmacist/DrugPreviewModal.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. تهيئة axios مع base URL الخاص بمدير المخزن
@@ -60,7 +63,11 @@ const selectedDrug = ref({});
 // ----------------------------------------------------
 // 4. حالة التحميل والأخطاء
 // ----------------------------------------------------
-const isLoading = ref(false);
+// ----------------------------------------------------
+// 4. حالة التحميل والأخطاء
+// ----------------------------------------------------
+const isLoading = ref(true);
+const error = ref(null);
 const hasData = ref(false); // لتحديد ما إذا كان هناك بيانات أم لا
 
 // ----------------------------------------------------
@@ -111,8 +118,10 @@ const filteredDrugss = computed(() => {
 // ----------------------------------------------------
 
 // جلب جميع الأدوية من مخزون المستودع
+// جلب جميع الأدوية من مخزون المستودع
 const fetchDrugs = async () => {
   isLoading.value = true;
+  error.value = null;
 
   try {
     // GET /api/storekeeper/drugs  -> WarehouseInventoryController@index
@@ -122,11 +131,9 @@ const fetchDrugs = async () => {
     drugsData.value = Array.isArray(data) ? data : [];
     hasData.value = drugsData.value.length > 0;
 
-    if (hasData.value) {
-      showSuccessAlert("✅ تم تحميل قائمة الأدوية في المستودع بنجاح");
-    }
-  } catch (error) {
-    console.warn("Warning: Could not fetch drugs data from API", error);
+  } catch (err) {
+    console.warn("Warning: Could not fetch drugs data from API", err);
+    error.value = err.response?.data?.message || err.message || "حدث خطأ أثناء تحميل البيانات";
     drugsData.value = [];
     hasData.value = false;
   } finally {
@@ -504,14 +511,8 @@ onMounted(async () => {
             <Navbar />
 
             <main class="flex-1 p-4 sm:p-5 pt-3">
-                <!-- رسالة تحميل -->
-                <div v-if="isLoading" class="text-center py-8">
-                    <Icon icon="eos-icons:loading" class="w-12 h-12 text-[#4DA1A9] mx-auto mb-4" />
-                    <p class="text-gray-600">جاري تحميل البيانات...</p>
-                </div>
-
                 <!-- المحتوى الرئيسي -->
-                <div v-else>
+                <div>
                     <div
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
@@ -725,7 +726,6 @@ onMounted(async () => {
                                 <table
                                     dir="rtl"
                                     class="table w-full text-right min-w-[1400px] border-collapse"
-                                    v-if="filteredDrugss.length > 0"
                                 >
                                     <thead
                                         class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
@@ -743,124 +743,126 @@ onMounted(async () => {
                                     </thead>
 
                                     <tbody class="text-gray-800">
-                                        <tr
-                                            v-for="(drug, index) in filteredDrugss"
-                                            :key="drug.id || index"
-                                            :class="[
-                                                'hover:bg-gray-100',
-                                                getRowColorClass(
-                                                    drug.quantity,
-                                                    drug.neededQuantity
-                                                ),
-                                            ]"
-                                        >
-                                           
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.drugName || drug.name }}
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.genericName || '-' }}
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.strength || '-' }}
-                                            </td>
-                                          
-                                          
-                                          
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                <span class="font-bold">{{
-                                                    drug.quantity || 0
-                                                }}</span>
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                <span class="font-bold">{{
-                                                    drug.neededQuantity || 0
-                                                }}</span>
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.expiryDate || '-' }}
-                                            </td>
-                                            <td class="actions-col">
-                                                <div
-                                                    class="flex gap-3 justify-center"
-                                                >
-                                                    <button
-                                                        @click="
-                                                            showDrugDetails(drug)
-                                                        "
-                                                    >
-                                                        <Icon
-                                                            icon="tabler:eye-minus"
-                                                            :class="[
-                                                                'w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-700',
-                                                            ]"
-                                                        />
-                                                    </button>
-                                                </div>
+                                        <tr v-if="isLoading">
+                                            <td colspan="7" class="p-4">
+                                                <TableSkeleton :rows="5" />
                                             </td>
                                         </tr>
+                                        <tr v-else-if="error">
+                                            <td colspan="7" class="py-12">
+                                                <ErrorState :message="error" :retry="retryLoading" />
+                                            </td>
+                                        </tr>
+                                        <template v-else>
+                                            <tr
+                                                v-for="(drug, index) in filteredDrugss"
+                                                :key="drug.id || index"
+                                                :class="[
+                                                    'hover:bg-gray-100',
+                                                    getRowColorClass(
+                                                        drug.quantity,
+                                                        drug.neededQuantity
+                                                    ),
+                                                ]"
+                                            >
+                                               
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity
+                                                        )
+                                                    "
+                                                >
+                                                    {{ drug.drugName || drug.name }}
+                                                </td>
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity
+                                                        )
+                                                    "
+                                                >
+                                                    {{ drug.genericName || '-' }}
+                                                </td>
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity
+                                                        )
+                                                    "
+                                                >
+                                                    {{ drug.strength || '-' }}
+                                                </td>
+                                              
+                                              
+                                              
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity
+                                                        )
+                                                    "
+                                                >
+                                                    <span class="font-bold">{{
+                                                        drug.quantity || 0
+                                                    }}</span>
+                                                </td>
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity
+                                                        )
+                                                    "
+                                                >
+                                                    <span class="font-bold">{{
+                                                        drug.neededQuantity || 0
+                                                    }}</span>
+                                                </td>
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity
+                                                        )
+                                                    "
+                                                >
+                                                    {{ drug.expiryDate || '-' }}
+                                                </td>
+                                                <td class="actions-col">
+                                                    <div
+                                                        class="flex gap-3 justify-center"
+                                                    >
+                                                        <button
+                                                            @click="
+                                                                showDrugDetails(drug)
+                                                            "
+                                                        >
+                                                            <Icon
+                                                                icon="tabler:eye-minus"
+                                                                :class="[
+                                                                    'w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-700',
+                                                                ]"
+                                                            />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="filteredDrugss.length === 0">
+                                                <td colspan="7" class="py-12">
+                                                    <EmptyState message="لا توجد أدوية في المستودع حالياً" />
+                                                </td>
+                                            </tr>
+                                        </template>
                                     </tbody>
                                 </table>
                                 
                                 <!-- -رسالة عند عدم وجود بيلانات -->
-                                <div v-if="!isLoading && filteredDrugss.length === 0" class="text-center py-12">
-                                    <div class="flex flex-col items-center">
-                                        <Icon icon="tabler:package-off" class="w-20 h-20 text-gray-300 mb-4" />
-                                        <p class="text-gray-500 text-lg mb-2">لا توجد أدوية في المخزون حالياً</p>
-                                        <p class="text-gray-400 text-sm mb-6">
-                                            يمكنك إضافة أدوية جديدة أو الانتظار حتى يتم تحميل البيانات من النظام
-                                        </p>
-                                        <button 
-                                            @click="retryLoading" 
-                                            class="inline-flex items-center px-4 py-2 border-2 border-[#4DA1A9] rounded-[30px] text-[#4DA1A9] bg-white hover:bg-[#EAF3F4] transition-all duration-200"
-                                        >
-                                            <Icon icon="tabler:refresh" class="w-5 h-5 ml-1" />
-                                            إعادة المحاولة
-                                        </button>
-                                    </div>
-                                </div>
+
                             </div>
                         </div>
                     </div>

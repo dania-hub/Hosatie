@@ -2,7 +2,9 @@
 import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
-import DefaultLayout from "@/components/DefaultLayout.vue"; 
+import DefaultLayout from "@/components/DefaultLayout.vue";
+import LoadingState from "@/components/Shared/LoadingState.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue"; 
 
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
@@ -108,23 +110,21 @@ onMounted(() => {
         <!-- حالة التحميل -->
         <div 
             v-if="stats.isLoading" 
-            class="flex flex-col justify-center items-center h-64 text-[#2E5077]"
+            class="flex items-center justify-center min-h-[400px]"
         >
-            <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 mb-4" />
-            <p class="font-semibold text-lg">جاري تحميل الإحصائيات...</p>
+            <LoadingState title="جاري تحميل الإحصائيات..." message="يرجى الانتظار قليلاً" />
         </div>
 
         <!-- حالة الخطأ -->
         <div 
             v-else-if="stats.error" 
-            class="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center shadow-md"
+            class="flex items-center justify-center min-h-[400px]"
         >
-            <Icon icon="solar:danger-circle-bold-duotone" class="w-12 h-12 text-red-500 mx-auto mb-2" />
-            <p class="text-red-700 font-semibold">{{ stats.error }}</p>
+            <ErrorState :message="stats.error" :retry="fetchStats" />
         </div>
 
         <!-- الإحصائيات -->
-        <div v-else class="space-y-8">
+        <div v-else class="space-y-8 animate-in fade-in duration-500">
             <!-- قسم: أعداد المستخدمين -->
             <div>
                 <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">

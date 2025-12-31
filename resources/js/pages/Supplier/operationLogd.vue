@@ -2,6 +2,11 @@
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from 'axios'; 
+
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
 import search from "@/components/search.vue";
@@ -43,11 +48,13 @@ api.interceptors.response.use(
 );
 
 const operations = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
+const error = ref(null);
 
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
+    error.value = null;
     try {
         const response = await api.get('/supplier/operations');
         
@@ -82,13 +89,13 @@ const fetchOperations = async () => {
             };
         });
         
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
-    } catch (error) {
-        // Axios يلتقط أخطاء الاتصال والخادم
-        console.error("Failed to fetch operations:", error);
-        if (!error.response || (error.response.status !== 401 && error.response.status !== 403)) {
-            showSuccessAlert("❌ فشل في تحميل البيانات.");
+        if (operations.value.length > 0) {
+            showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
         }
+    } catch (err) {
+        // Axios يلتقط أخطاء الاتصال والخادم
+        console.error("Failed to fetch operations:", err);
+        error.value = "فشل في تحميل سجل العمليات. يرجى المحاولة مرة أخرى.";
     } finally {
         isLoading.value = false;
     }
@@ -398,33 +405,34 @@ const printTable = () => {
                                 </thead>
 
                                 <tbody>
-                                    <tr v-if="isLoading" class="border border-gray-300">
-                                        <td colspan="4" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                            جاري تحميل البيانات...
+                                    <tr v-if="isLoading">
+                                        <td colspan="3" class="p-4">
+                                            <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
-
-                                    <tr
-                                        v-else
-                                        v-for="(op, index) in filteredOperations"
-                                        :key="index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">{{ op.fileNumber }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
-                                        <td class="operation-date-col">{{ op.operationDate }}</td>
-
+                                    <tr v-else-if="error">
+                                        <td colspan="3" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchOperations" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(op, index) in filteredOperations"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ op.fileNumber }}</td>
+                                            <td class="operation-type-col">{{ op.operationType }}</td>
+                                            <td class="operation-date-col">{{ op.operationDate }}</td>
                                         </tr>
-                                    <tr v-if="!isLoading && filteredOperations.length === 0">
-                                        <td colspan="4" class="p-6 text-center text-gray-500 text-lg">
-                                            ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
-                                        </td>
-                                    </tr>
+                                        <tr v-if="filteredOperations.length === 0">
+                                            <td colspan="3" class="py-12">
+                                                <EmptyState message="لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
-                            <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات  لعرضها.
-                            </div>
                         </div>
                     </div>
                 </div>

@@ -1,4 +1,8 @@
 <script setup>
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from 'axios'; 
@@ -8,22 +12,41 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
 
+// إعداد axios مع interceptor لإضافة التوكن
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 const operations = ref([]);
 const isLoading = ref(false);
+const error = ref(null);
 
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
+    error.value = null;
     try {
-        const response = await axios.get('/api/operations');
-        
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
-        
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
-    } catch (error) {
-        // Axios يلتقط أخطاء الاتصال والخادم
-        console.error("Failed to fetch operations:", error);
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
+        const response = await api.get('/super-admin/operations');
+        operations.value = response.data;
+    } catch (err) {
+        console.error("Failed to fetch operations:", err);
+        error.value = err.response?.data?.message || err.message || "فشل في تحميل البيانات.";
     } finally {
         isLoading.value = false;
     }
@@ -335,35 +358,36 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                         </tr>
                                 </thead>
 
-                                <tbody>
-                                    <tr v-if="isLoading" class="border border-gray-300">
-                                        <td colspan="4" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                            جاري تحميل البيانات...
+                                <tbody class="text-gray-800">
+                                    <tr v-if="isLoading">
+                                        <td colspan="4" class="p-4">
+                                            <TableSkeleton :rows="10" />
                                         </td>
                                     </tr>
-
-                                    <tr
-                                        v-else
-                                        v-for="(op, index) in filteredOperations"
-                                        :key="index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="file-number-col">{{ op.fileNumber }}</td>
-                                        <td class="name-col">{{ op.name }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
-                                        <td class="operation-date-col">{{ op.operationDate }}</td>
-
+                                    <tr v-else-if="error">
+                                        <td colspan="4" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchOperations" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(op, index) in filteredOperations"
+                                            :key="index"
+                                            class="hover:bg-gray-100 border border-gray-300"
+                                        >
+                                            <td class="file-number-col">{{ op.fileNumber }}</td>
+                                            <td class="name-col">{{ op.name }}</td>
+                                            <td class="operation-type-col">{{ op.operationType }}</td>
+                                            <td class="operation-date-col">{{ op.operationDate }}</td>
                                         </tr>
-                                    <tr v-if="!isLoading && filteredOperations.length === 0">
-                                        <td colspan="4" class="p-6 text-center text-gray-500 text-lg">
-                                            ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
-                                        </td>
-                                    </tr>
+                                        <tr v-if="filteredOperations.length === 0">
+                                            <td colspan="4" class="py-12">
+                                                <EmptyState message="لا توجد عمليات حالياً" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
-                            <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات  لعرضها.
-                            </div>
                         </div>
                     </div>
                 </div>

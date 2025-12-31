@@ -1,4 +1,8 @@
 <script setup>
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+
 import { ref, computed, onMounted } from "vue";
 import axios from "axios";
 import { Icon } from "@iconify/vue";
@@ -822,102 +826,111 @@ const printTable = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody>
-                                    <tr
-                                        v-for="(hospital, index) in filteredHospitals"
-                                        :key="hospital.id || index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="id-col">
-                                            {{ hospital.id }}
-                                        </td>
-                                        <td class="name-col">
-                                            {{ hospital.name }}
-                                        </td>
-                                        <td class="manager-col">
-                                            {{ hospital.managerNameDisplay || '-' }}
-                                        </td>
-                                        <td class="supplier-col">
-                                            {{ hospital.supplierNameDisplay || '-' }}
-                                        </td>
-                                        <td class="region-col">
-                                            {{ hospital.region}}
-                                        </td>
-                                        <td class="status-col">
-                                            <span
-                                                :class="[
-                                                    'px-2 py-1 rounded-full text-xs font-semibold',
-                                                    hospital.isActive
-                                                        ? 'bg-green-100 text-green-800 border border-green-200'
-                                                        : 'bg-red-100 text-red-800 border border-red-200',
-                                                ]"
-                                            >
-                                                {{
-                                                    hospital.isActive
-                                                        ? "مفعل"
-                                                        : "معطل"
-                                                }}
-                                            </span>
-                                        </td>
-
-                                        <td class="actions-col">
-                                            <div class="flex gap-3 justify-center items-center">
-                                                <button
-                                                    @click="openViewModal(hospital)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                                                    title="عرض البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-
-                                                <button
-                                                    @click="openEditModal(hospital)"
-                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
-                                                    title="تعديل البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="line-md:pencil"
-                                                        class="w-5 h-5 text-yellow-500"
-                                                    />
-                                                </button>
-
-                                                <!-- زر تفعيل/تعطيل المستشفى -->
-                                                <button
-                                                    @click="openStatusConfirmationModal(hospital)"
-                                                    :class="[
-                                                        'p-1 rounded-full transition-colors',
-                                                        hospital.isActive
-                                                            ? 'hover:bg-red-100'
-                                                            : 'hover:bg-green-100',
-                                                    ]"
-                                                    :title="getStatusTooltip(hospital.isActive)"
-                                                >
-                                                    <Icon
-                                                        v-if="hospital.isActive"
-                                                        icon="pepicons-pop:power-off"
-                                                        class="w-5 h-5 text-red-600"
-                                                    />
-                                                    <Icon
-                                                        v-else
-                                                        icon="quill:off"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-                                            </div>
+                                <tbody class="text-gray-800">
+                                    <tr v-if="loading">
+                                        <td colspan="8" class="p-4">
+                                            <TableSkeleton :rows="10" />
                                         </td>
                                     </tr>
-
-                                    <tr v-if="filteredHospitals.length === 0">
-                                        <td
-                                            colspan="8"
-                                            class="text-center py-8 text-gray-500"
+                                    <tr v-else-if="error">
+                                        <td colspan="8" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchAllData" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(hospital, index) in filteredHospitals"
+                                            :key="hospital.id || index"
+                                            class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            لا توجد بيانات لعرضها
-                                        </td>
-                                    </tr>
+                                            <td class="id-col">
+                                                {{ hospital.id }}
+                                            </td>
+                                            <td class="name-col">
+                                                {{ hospital.name }}
+                                            </td>
+                                            <td class="manager-col">
+                                                {{ hospital.managerNameDisplay || '-' }}
+                                            </td>
+                                            <td class="supplier-col">
+                                                {{ hospital.supplierNameDisplay || '-' }}
+                                            </td>
+                                            <td class="region-col">
+                                                {{ hospital.region}}
+                                            </td>
+                                            <td class="status-col">
+                                                <span
+                                                    :class="[
+                                                        'px-2 py-1 rounded-full text-xs font-semibold',
+                                                        hospital.isActive
+                                                            ? 'bg-green-100 text-green-800 border border-green-200'
+                                                            : 'bg-red-100 text-red-800 border border-red-200',
+                                                    ]"
+                                                >
+                                                    {{
+                                                        hospital.isActive
+                                                            ? "مفعل"
+                                                            : "معطل"
+                                                    }}
+                                                </span>
+                                            </td>
+
+                                            <td class="actions-col">
+                                                <div class="flex gap-3 justify-center items-center">
+                                                    <button
+                                                        @click="openViewModal(hospital)"
+                                                        class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                        title="عرض البيانات"
+                                                    >
+                                                        <Icon
+                                                            icon="tabler:eye-minus"
+                                                            class="w-5 h-5 text-green-600"
+                                                        />
+                                                    </button>
+
+                                                    <button
+                                                        @click="openEditModal(hospital)"
+                                                        class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                        title="تعديل البيانات"
+                                                    >
+                                                        <Icon
+                                                            icon="line-md:pencil"
+                                                            class="w-5 h-5 text-yellow-500"
+                                                        />
+                                                    </button>
+
+                                                    <!-- زر تفعيل/تعطيل المستشفى -->
+                                                    <button
+                                                        @click="openStatusConfirmationModal(hospital)"
+                                                        :class="[
+                                                            'p-1 rounded-full transition-colors',
+                                                            hospital.isActive
+                                                                ? 'hover:bg-red-100'
+                                                                : 'hover:bg-green-100',
+                                                        ]"
+                                                        :title="getStatusTooltip(hospital.isActive)"
+                                                    >
+                                                        <Icon
+                                                            v-if="hospital.isActive"
+                                                            icon="pepicons-pop:power-off"
+                                                            class="w-5 h-5 text-red-600"
+                                                        />
+                                                        <Icon
+                                                            v-else
+                                                            icon="quill:off"
+                                                            class="w-5 h-5 text-green-600"
+                                                        />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <tr v-if="filteredHospitals.length === 0">
+                                            <td colspan="8" class="py-12">
+                                                <EmptyState message="لا توجد بيانات مستشفيات حالياً" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>

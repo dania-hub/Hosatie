@@ -2,6 +2,8 @@
 import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
+import LoadingState from "@/components/Shared/LoadingState.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
 // ----------------------------------------------------
@@ -94,22 +96,18 @@ onMounted(() => {
 <DefaultLayout>
     <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-5 min-h-screen">
         <!-- حالة التحميل -->
-        <div 
+        <LoadingState 
             v-if="stats.isLoading" 
-            class="flex flex-col justify-center items-center h-64 text-[#2E5077]"
-        >
-            <Icon icon="svg-spinners:ring-resize" class="w-12 h-12 mb-4" />
-            <p class="font-semibold text-lg">جاري تحميل الإحصائيات...</p>
-        </div>
+            message="جاري تحميل الإحصائيات..."
+        />
 
         <!-- حالة الخطأ -->
-        <div 
+        <ErrorState 
             v-else-if="stats.error" 
-            class="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center shadow-md"
-        >
-            <Icon icon="solar:danger-circle-bold-duotone" class="w-12 h-12 text-red-500 mx-auto mb-2" />
-            <p class="text-red-700 font-semibold">{{ stats.error }}</p>
-        </div>
+            title="خطأ في تحميل البيانات"
+            :message="stats.error" 
+            :retry="fetchStats"
+        />
 
         <!-- الإحصائيات -->
         <div v-else class="space-y-8">

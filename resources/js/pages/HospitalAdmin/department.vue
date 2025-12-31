@@ -9,6 +9,9 @@ import btnprint from "@/components/btnprint.vue";
 import departmentAddModel from "@/components/forhospitaladmin/departmentAddModel.vue";
 import departmentEditModel from "@/components/forhospitaladmin/departmentEditModel.vue";
 import departmentViewModel from "@/components/forhospitaladmin/departmentViewModel.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -802,96 +805,105 @@ const printTable = () => {
                                     </tr>
                                 </thead>
 
-                                <tbody>
-                                    <tr
-                                        v-for="(department, index) in filteredDepartments"
-                                        :key="department.id || index"
-                                        class="hover:bg-gray-100 border border-gray-300"
-                                    >
-                                        <td class="id-col">
-                                            {{ department.id || 'N/A' }}
-                                        </td>
-                                        <td class="name-col">
-                                            {{ department.name || 'N/A' }}
-                                        </td>
-                                        <td class="manager-col">
-                                            {{ department.managerName || 'لا يوجد' }}
-                                        </td>
-                                        <td class="status-col">
-                                            <span
-                                                :class="[
-                                                    'px-2 py-1 rounded-full text-xs font-semibold',
-                                                    department.isActive
-                                                        ? 'bg-green-100 text-green-800 border border-green-200'
-                                                        : 'bg-red-100 text-red-800 border border-red-200',
-                                                ]"
-                                            >
-                                                {{
-                                                    department.isActive
-                                                        ? "مفعل"
-                                                        : "معطل"
-                                                }}
-                                            </span>
-                                        </td>
-
-                                        <td class="actions-col">
-                                            <div class="flex gap-3 justify-center items-center">
-                                                <button
-                                                    @click="openViewModal(department)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                                                    title="عرض البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-
-                                                <button
-                                                    @click="openEditModal(department)"
-                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
-                                                    title="تعديل البيانات"
-                                                >
-                                                    <Icon
-                                                        icon="line-md:pencil"
-                                                        class="w-5 h-5 text-yellow-500"
-                                                    />
-                                                </button>
-
-                                                <!-- زر تفعيل/تعطيل القسم -->
-                                                <button
-                                                    @click="openStatusConfirmationModal(department)"
-                                                    :class="[
-                                                        'p-1 rounded-full transition-colors',
-                                                        department.isActive
-                                                            ? 'hover:bg-red-100'
-                                                            : 'hover:bg-green-100',
-                                                    ]"
-                                                    :title="getStatusTooltip(department.isActive)"
-                                                >
-                                                    <Icon
-                                                        v-if="department.isActive"
-                                                        icon="pepicons-pop:power-off"
-                                                        class="w-5 h-5 text-red-600"
-                                                    />
-                                                    <Icon
-                                                        v-else
-                                                        icon="quill:off"
-                                                        class="w-5 h-5 text-green-600"
-                                                    />
-                                                </button>
-                                            </div>
+                                <tbody class="text-gray-800">
+                                    <tr v-if="loading">
+                                        <td colspan="5" class="p-4">
+                                            <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
-
-                                    <tr v-if="filteredDepartments.length === 0">
-                                        <td
-                                            colspan="5"
-                                            class="text-center py-8 text-gray-500"
+                                    <tr v-else-if="error">
+                                        <td colspan="5" class="py-12">
+                                            <ErrorState :message="error" :retry="fetchDepartments" />
+                                        </td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr
+                                            v-for="(department, index) in filteredDepartments"
+                                            :key="department.id || index"
+                                            class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            لا توجد بيانات لعرضها
-                                        </td>
-                                    </tr>
+                                            <td class="id-col">
+                                                {{ department.id || 'N/A' }}
+                                            </td>
+                                            <td class="name-col">
+                                                {{ department.name || 'N/A' }}
+                                            </td>
+                                            <td class="manager-col">
+                                                {{ department.managerName || 'لا يوجد' }}
+                                            </td>
+                                            <td class="status-col">
+                                                <span
+                                                    :class="[
+                                                        'px-2 py-1 rounded-full text-xs font-semibold',
+                                                        department.isActive
+                                                            ? 'bg-green-100 text-green-800 border border-green-200'
+                                                            : 'bg-red-100 text-red-800 border border-red-200',
+                                                    ]"
+                                                >
+                                                    {{
+                                                        department.isActive
+                                                            ? "مفعل"
+                                                            : "معطل"
+                                                    }}
+                                                </span>
+                                            </td>
+
+                                            <td class="actions-col">
+                                                <div class="flex gap-3 justify-center items-center">
+                                                    <button
+                                                        @click="openViewModal(department)"
+                                                        class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                        title="عرض البيانات"
+                                                    >
+                                                        <Icon
+                                                            icon="tabler:eye-minus"
+                                                            class="w-5 h-5 text-green-600"
+                                                        />
+                                                    </button>
+
+                                                    <button
+                                                        @click="openEditModal(department)"
+                                                        class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                        title="تعديل البيانات"
+                                                    >
+                                                        <Icon
+                                                            icon="line-md:pencil"
+                                                            class="w-5 h-5 text-yellow-500"
+                                                        />
+                                                    </button>
+
+                                                    <!-- زر تفعيل/تعطيل القسم -->
+                                                    <button
+                                                        @click="openStatusConfirmationModal(department)"
+                                                        :class="[
+                                                            'p-1 rounded-full transition-colors',
+                                                            department.isActive
+                                                                ? 'hover:bg-red-100'
+                                                                : 'hover:bg-green-100',
+                                                        ]"
+                                                        :title="getStatusTooltip(department.isActive)"
+                                                    >
+                                                        <Icon
+                                                            v-if="department.isActive"
+                                                            icon="pepicons-pop:power-off"
+                                                            class="w-5 h-5 text-red-600"
+                                                        />
+                                                        <Icon
+                                                            v-else
+                                                            icon="quill:off"
+                                                            class="w-5 h-5 text-green-600"
+                                                        />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <tr v-if="filteredDepartments.length === 0">
+                                            <td colspan="5" class="py-12">
+                                                <EmptyState message="لا توجد بيانات لعرضها" />
+                                            </td>
+                                        </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>

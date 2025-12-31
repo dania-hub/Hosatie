@@ -6,6 +6,9 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -51,29 +54,34 @@ api.interceptors.response.use(
 );
 
 const operations = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
+const error = ref(null);
 
+// دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
+    error.value = null;
     try {
         const response = await api.get('/admin-hospital/operations');
         
         operations.value = response.data; // 👈 تحديث البيانات المجلوبة
-        
-        showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
-    } catch (error) {
+
+    } catch (err) {
         // Axios يلتقط أخطاء الاتصال والخادم
-        console.error("Failed to fetch operations:", error);
-        if (error.response?.status === 401) {
-            showSuccessAlert("❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.");
-        } else if (error.response?.status === 403) {
-            showSuccessAlert("❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.");
-        } else if (!error.response) {
-            showSuccessAlert("❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.");
+        console.error("Failed to fetch operations:", err);
+        
+        if (err.response?.status === 401) {
+            error.value = "انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.";
+        } else if (err.response?.status === 403) {
+            error.value = "ليس لديك الصلاحية للوصول إلى هذه البيانات.";
+        } else if (!err.response) {
+            error.value = "فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.";
         } else {
-        showSuccessAlert("❌ فشل في تحميل البيانات.");
+            error.value = err.response?.data?.message || err.message || "فشل في تحميل البيانات.";
         }
+        
+        showSuccessAlert("❌ " + error.value);
     } finally {
         isLoading.value = false;
     }
@@ -404,33 +412,37 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                             </thead>
 
                             <tbody>
-                                <tr v-if="isLoading" class="border border-gray-300">
-                                    <td colspan="5" class="text-center py-10 text-[#4DA1A9] text-xl font-semibold">
-                                        جاري تحميل البيانات...
+                                <tr v-if="isLoading">
+                                    <td colspan="5" class="p-4">
+                                        <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
-
-                                <tr
-                                    v-else
-                                    v-for="(op, index) in filteredOperations"
-                                    :key="index"
-                                    class="hover:bg-gray-100 border border-gray-300"
-                                >
-                                    <td class="file-number-col">{{ op.fileNumber }}</td>
-                                    <td class="name-col">{{ op.name }}</td>
-                                    <td class="patient-name-col">{{ op.patientName || '-' }}</td>
-                                    <td class="operation-type-col">{{ op.operationType }}</td>
-                                    <td class="operation-date-col">{{ op.operationDate }}</td>
-                                </tr>
-                                <tr v-if="!isLoading && filteredOperations.length === 0">
-                                    <td colspan="5" class="p-6 text-center text-gray-500 text-lg">
-                                        ❌ لا توجد عمليات مطابقة لمعايير البحث أو التصفية الحالية.
+                                <tr v-else-if="error">
+                                    <td colspan="5" class="py-12">
+                                        <ErrorState :message="error" :retry="fetchOperations" />
                                     </td>
                                 </tr>
+                                <template v-else>
+                                    <tr
+                                        v-for="(op, index) in filteredOperations"
+                                        :key="index"
+                                        class="hover:bg-gray-100 border border-gray-300"
+                                    >
+                                        <td class="file-number-col">{{ op.fileNumber }}</td>
+                                        <td class="name-col">{{ op.name }}</td>
+                                        <td class="patient-name-col">{{ op.patientName || '-' }}</td>
+                                        <td class="operation-type-col">{{ op.operationType }}</td>
+                                        <td class="operation-date-col">{{ op.operationDate }}</td>
+                                    </tr>
+                                    <tr v-if="filteredOperations.length === 0">
+                                        <td colspan="5" class="py-12">
+                                            <EmptyState message="لا توجد عمليات مطابقة لمعايير البحث" />
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
-                        <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                            ⚠️ لا توجد بيانات  لعرضها.
+                        <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل' && !error" class="hidden">
                         </div>
                     </div>
                 </div>

@@ -105,20 +105,8 @@
         </div>
       </div>
 
-      <!-- حالة التحميل -->
-      <div v-if="isLoading && patientsData.length === 0" class="flex flex-col items-center justify-center h-64">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mb-4"></div>
-        <p class="text-gray-600">جاري تحميل البيانات...</p>
-      </div>
-
-      <!-- رسالة عدم وجود بيانات -->
-      <div v-else-if="!isLoading && patientsData.length === 0" class="flex flex-col items-center justify-center h-64">
-        <Icon icon="tabler:inbox-off" class="w-16 h-16 text-gray-400 mb-4" />
-        <p class="text-gray-600 text-lg">لا توجد شكاوى متاحة</p>
-      </div>
-
       <!-- جدول البيانات -->
-       <div v-if="!isLoading && patientsData.length > 0" class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
+       <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
           <div class="overflow-y-auto flex-1" style="scrollbar-width: auto; scrollbar-color: grey transparent; direction: ltr;">
             <div class="overflow-x-auto h-full">
               <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
@@ -135,69 +123,86 @@
               </thead>
 
               <tbody class="text-gray-800">
-                <tr
-                  v-for="patient in filteredPatients"
-                  :key="patient.id"
-                  class="hover:bg-gray-50  border-b border-gray-100 transition-colors"
-                >
-                  <td class="font-semibold text-gray-700 py-4">
-                    {{ patient.fileNumber || 'غير محدد' }}
-                  </td>
-                  <td class="py-4">
-                    {{ patient.patientName || 'غير محدد' }}
-                  </td>
-                  <td class="py-4">
-                    <span :class="getRequestTypeClass(patient.requestType)">
-                      {{ patient.requestType || 'غير محدد' }}
-                    </span>
-                  </td>
-                  <td class="py-4 max-w-xs" :title="patient.content">
-                    <div class="truncate">
-                      {{ truncateContent(patient.content) }}
-                    </div>
-                  </td>
-                  <td class="py-4">
-                    <span :class="getStatusClass(patient.status)" 
-                          class="px-3 py-1 rounded-full text-xs font-semibold inline-block">
-                      {{ patient.status || 'غير محدد' }}
-                    </span>
-                  </td>
-                  <td class="py-4">
-                    <div class="flex gap-3 justify-center">
-                      <!-- زر معاينة تفاصيل الملف -->
-                      <button
-                        @click="openPatientModal(patient)"
-                        class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
-                        data-tip="معاينة تفاصيل الملف"
-                        :disabled="isLoadingDetails"
-                      >
-                        <Icon
-                          icon="tabler:eye"
-                          class="w-5 h-5 text-green-600 hover:text-green-700 transition-colors"
-                          :class="{ 'opacity-50': isLoadingDetails }"
-                        />
-                      </button>
-
-                      <!-- زر الرد على الطلب -->
-                      <button
-                        @click="openResponseModal(patient)"
-                        class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
-                        data-tip="الرد على الطلب"
-                        :disabled="patient.status === 'تمت المراجعة' || isLoadingResponse"
-                      >
-                        <Icon
-                          icon="tabler:message-reply"
-                          class="w-5 h-5 text-blue-600 hover:text-blue-700 transition-colors"
-                          :class="{
-                            'opacity-50 cursor-not-allowed': 
-                              patient.status === 'تمت المراجعة' ||
-                              isLoadingResponse
-                          }"
-                        />
-                      </button>
-                    </div>
-                  </td>
+                <tr v-if="isLoading">
+                    <td colspan="6" class="p-4">
+                        <TableSkeleton :rows="5" />
+                    </td>
                 </tr>
+                <tr v-else-if="error">
+                    <td colspan="6" class="py-12">
+                        <ErrorState :message="error" :retry="fetchPatients" />
+                    </td>
+                </tr>
+                <template v-else>
+                  <tr
+                    v-for="patient in filteredPatients"
+                    :key="patient.id"
+                    class="hover:bg-gray-50  border-b border-gray-100 transition-colors"
+                  >
+                    <td class="font-semibold text-gray-700 py-4">
+                      {{ patient.fileNumber || 'غير محدد' }}
+                    </td>
+                    <td class="py-4">
+                      {{ patient.patientName || 'غير محدد' }}
+                    </td>
+                    <td class="py-4">
+                      <span :class="getRequestTypeClass(patient.requestType)">
+                        {{ patient.requestType || 'غير محدد' }}
+                      </span>
+                    </td>
+                    <td class="py-4 max-w-xs" :title="patient.content">
+                      <div class="truncate">
+                        {{ truncateContent(patient.content) }}
+                      </div>
+                    </td>
+                    <td class="py-4">
+                      <span :class="getStatusClass(patient.status)" 
+                            class="px-3 py-1 rounded-full text-xs font-semibold inline-block">
+                        {{ patient.status || 'غير محدد' }}
+                      </span>
+                    </td>
+                    <td class="py-4">
+                      <div class="flex gap-3 justify-center">
+                        <!-- زر معاينة تفاصيل الملف -->
+                        <button
+                          @click="openPatientModal(patient)"
+                          class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          data-tip="معاينة تفاصيل الملف"
+                          :disabled="isLoadingDetails"
+                        >
+                          <Icon
+                            icon="tabler:eye"
+                            class="w-5 h-5 text-green-600 hover:text-green-700 transition-colors"
+                            :class="{ 'opacity-50': isLoadingDetails }"
+                          />
+                        </button>
+
+                        <!-- زر الرد على الطلب -->
+                        <button
+                          @click="openResponseModal(patient)"
+                          class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          data-tip="الرد على الطلب"
+                          :disabled="patient.status === 'تمت المراجعة' || isLoadingResponse"
+                        >
+                          <Icon
+                            icon="tabler:message-reply"
+                            class="w-5 h-5 text-blue-600 hover:text-blue-700 transition-colors"
+                            :class="{
+                              'opacity-50 cursor-not-allowed': 
+                                patient.status === 'تمت المراجعة' ||
+                                isLoadingResponse
+                            }"
+                          />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="filteredPatients.length === 0">
+                    <td colspan="6" class="py-12">
+                        <EmptyState message="لا توجد شكاوى متاحة" icon="tabler:inbox-off" />
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -265,6 +270,9 @@ import search from '@/components/search.vue';
 import btnprint from '@/components/btnprint.vue';
 import PatientDetailsModal from '@/components/forhospitaladmin/PatientDetailsModal.vue';
 import RequestResponseModal from '@/components/forhospitaladmin/RequestResponseModal.vue';
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -322,7 +330,7 @@ const endpoints = {
 // 2. حالة المكون
 // ----------------------------------------------------
 const patientsData = ref([]);
-const isLoading = ref(false);
+const isLoading = ref(true);
 const isLoadingDetails = ref(false);
 const isLoadingResponse = ref(false);
 const error = ref(null);

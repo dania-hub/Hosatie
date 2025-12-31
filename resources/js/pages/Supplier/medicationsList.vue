@@ -732,15 +732,15 @@ onMounted(async () => {
                                                     class="flex gap-3 justify-center"
                                                 >
                                                     <button
+                                                    class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                    title=" معاينة الدواء"
                                                         @click="
                                                             showDrugDetails(drug)
                                                         "
                                                     >
                                                         <Icon
                                                             icon="tabler:eye-minus"
-                                                            :class="[
-                                                                'w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-700',
-                                                            ]"
+                                                             class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
                                                 </div>
@@ -801,41 +801,26 @@ onMounted(async () => {
     @confirm="handleRegistrationConfirm"
     @show-alert="showSuccessAlert"
 />
-        <!-- تنبيه النجاح -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
+        <!-- Alert Notification -->
+    <Transition
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="translate-x-full opacity-0"
+        enter-to-class="translate-x-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="translate-x-0 opacity-100"
+        leave-to-class="translate-x-full opacity-0"
+    >
+        <div 
+            v-if="isSuccessAlertVisible" 
+            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
+            dir="rtl"
+            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#a2c4c6]'"
         >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
+            <div class="flex-1 font-bold text-sm">
                 {{ successMessage }}
             </div>
-        </Transition>
-
-        <!-- تنبيه الخطأ -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isErrorAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-red-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ errorMessage }}
-            </div>
-        </Transition>
+        </div>
+    </Transition>
     </div>
 </template>
 

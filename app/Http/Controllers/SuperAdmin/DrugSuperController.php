@@ -57,6 +57,9 @@ class DrugSuperController extends BaseApiController
                     'status' => $drug->status,
                     'manufacturer' => $drug->manufacturer,
                     'country' => $drug->country,
+                    'utilization_type' => $drug->utilization_type,
+                    'warnings' => $drug->warnings,
+                    'indications' => $drug->indications,
                     'expiryDate' => $drug->expiry_date,
                     'createdAt' => optional($drug->created_at)->format('Y-m-d'),
                 ];
@@ -84,19 +87,34 @@ class DrugSuperController extends BaseApiController
 
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
-                'generic_name' => 'nullable|string|max:255',
-                'strength' => 'nullable|string|max:50',
-                'form' => 'nullable|string|max:50',
-                'category' => 'nullable|string|max:100',
-                'unit' => 'nullable|string|max:50',
-                'max_monthly_dose' => 'nullable|integer|min:1',
-                'manufacturer' => 'nullable|string|max:255',
-                'country' => 'nullable|string|max:100',
-                'utilization_type' => 'nullable|string|max:100',
-                'warnings' => 'nullable|string',
-                'expiry_date' => 'nullable|date',
+                'generic_name' => 'required|string|max:255',
+                'strength' => 'required|string|max:50',
+                'form' => 'required|string|max:50',
+                'category' => 'required|string|max:100',
+                'unit' => 'required|string|max:50',
+                'max_monthly_dose' => 'required|integer|min:1',
+                'status' => 'required|in:متوفر,غير متوفر,تم الصرف',
+                'manufacturer' => 'required|string|max:255',
+                'country' => 'required|string|max:100',
+                'utilization_type' => 'required|string|max:100',
+                'warnings' => 'required|string',
+                'indications' => 'required|string',
+                'expiry_date' => 'required|date',
             ], [
                 'name.required' => 'اسم الدواء مطلوب',
+                'generic_name.required' => 'الاسم العلمي مطلوب',
+                'strength.required' => 'التركيز مطلوب',
+                'form.required' => 'الشكل الصيدلاني مطلوب',
+                'category.required' => 'الفئة العلاجية مطلوبة',
+                'unit.required' => 'الوحدة مطلوبة',
+                'max_monthly_dose.required' => 'الجرعة الشهرية القصوى مطلوبة',
+                'status.required' => 'الحالة مطلوبة',
+                'manufacturer.required' => 'الشركة المصنعة مطلوبة',
+                'country.required' => 'الدولة مطلوبة',
+                'utilization_type.required' => 'نوع الاستخدام مطلوب',
+                'warnings.required' => 'التحذيرات مطلوبة',
+                'indications.required' => 'دواعي الاستعمال مطلوبة',
+                'expiry_date.required' => 'تاريخ الانتهاء مطلوب',
             ]);
 
             if ($validator->fails()) {
@@ -120,11 +138,12 @@ class DrugSuperController extends BaseApiController
                 'category' => $request->category,
                 'unit' => $request->unit ?? 'قرص',
                 'max_monthly_dose' => $request->max_monthly_dose,
-                'status' => 'متوفر',
+                'status' => $request->status ?? 'متوفر',
                 'manufacturer' => $request->manufacturer,
                 'country' => $request->country,
                 'utilization_type' => $request->utilization_type,
                 'warnings' => $request->warnings,
+                'indications' => $request->indications,
                 'expiry_date' => $request->expiry_date,
             ]);
 
@@ -155,17 +174,19 @@ class DrugSuperController extends BaseApiController
 
             $validator = Validator::make($request->all(), [
                 'name' => 'sometimes|required|string|max:255',
-                'generic_name' => 'nullable|string|max:255',
-                'strength' => 'nullable|string|max:50',
-                'form' => 'nullable|string|max:50',
-                'category' => 'nullable|string|max:100',
-                'unit' => 'nullable|string|max:50',
-                'max_monthly_dose' => 'nullable|integer|min:1',
-                'manufacturer' => 'nullable|string|max:255',
-                'country' => 'nullable|string|max:100',
-                'utilization_type' => 'nullable|string|max:100',
-                'warnings' => 'nullable|string',
-                'expiry_date' => 'nullable|date',
+                'generic_name' => 'sometimes|required|string|max:255',
+                'strength' => 'sometimes|required|string|max:50',
+                'form' => 'sometimes|required|string|max:50',
+                'category' => 'sometimes|required|string|max:100',
+                'unit' => 'sometimes|required|string|max:50',
+                'max_monthly_dose' => 'sometimes|required|integer|min:1',
+                'status' => 'sometimes|required|in:متوفر,غير متوفر,تم الصرف',
+                'manufacturer' => 'sometimes|required|string|max:255',
+                'country' => 'sometimes|required|string|max:100',
+                'utilization_type' => 'sometimes|required|string|max:100',
+                'warnings' => 'sometimes|required|string',
+                'indications' => 'sometimes|required|string',
+                'expiry_date' => 'sometimes|required|date',
             ]);
 
             if ($validator->fails()) {
@@ -174,8 +195,8 @@ class DrugSuperController extends BaseApiController
 
             $drug->update($request->only([
                 'name', 'generic_name', 'strength', 'form', 'category', 
-                'unit', 'max_monthly_dose', 'manufacturer', 'country',
-                'utilization_type', 'warnings', 'expiry_date'
+                'unit', 'max_monthly_dose', 'status', 'manufacturer', 'country',
+                'utilization_type', 'warnings', 'indications', 'expiry_date'
             ]));
 
             return $this->sendSuccess([

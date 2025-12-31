@@ -116,58 +116,63 @@ onMounted(() => {
             <!-- قسم: الشحنات -->
             <div>
                 <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:box-minimalistic-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
+                    <Icon icon="solar:delivery-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
                     الشحنات
                 </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- إجمالي الشحنات -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:box-minimalistic-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                                <Icon icon="solar:delivery-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
                             </div>
                             <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الشحنات</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.shipments.total }}</p>
                     </div>
 
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-yellow-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-yellow-500/10 rounded-xl">
-                                <Icon icon="solar:clock-circle-bold-duotone" class="icon w-8 h-8 text-yellow-600" />
-                            </div>
-                            <p class="text text-lg font-bold text-yellow-600" style="text-align: right;">قيد الانتظار</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-yellow-600" style="text-align: right; width: 100%;">{{ stats.shipments.pending }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-blue-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-blue-500/10 rounded-xl">
-                                <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-blue-600" />
-                            </div>
-                            <p class="text text-lg font-bold text-blue-600" style="text-align: right;">معتمدة</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-blue-600" style="text-align: right; width: 100%;">{{ stats.shipments.approved }}</p>
-                    </div>
-
+                    <!-- قيد الانتظار -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:plain-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                                <Icon icon="solar:clock-circle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">تم الإرسال</p>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">قيد الانتظار</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.shipments.fulfilled }}</p>
+                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.shipments.pending }}</p>
                     </div>
 
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-red-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                    <!-- معتمدة -->
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-red-500/10 rounded-xl">
-                                <Icon icon="solar:close-circle-bold-duotone" class="icon w-8 h-8 text-red-600" />
+                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
+                                <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
                             </div>
-                            <p class="text text-lg font-bold text-red-600" style="text-align: right;">مرفوضة</p>
+                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">معتمدة</p>
                         </div>
-                        <p class="number text-5xl font-bold text-red-600" style="text-align: right; width: 100%;">{{ stats.shipments.rejected }}</p>
+                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.shipments.approved }}</p>
+                    </div>
+
+                    <!-- تم الإرسال -->
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
+                                <Icon icon="solar:plain-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">تم الإرسال</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.shipments.fulfilled }}</p>
+                    </div>
+
+                    <!-- مرفوضة -->
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
+                                <Icon icon="solar:close-circle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">مرفوضة</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.shipments.rejected }}</p>
                     </div>
                 </div>
             </div>
@@ -179,6 +184,7 @@ onMounted(() => {
                     الأدوية
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- إجمالي الأدوية -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#2E5077]/10 rounded-xl">
@@ -189,14 +195,15 @@ onMounted(() => {
                         <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.drugs.total }}</p>
                     </div>
 
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-500 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                    <!-- أدوية منخفضة المخزون -->
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-orange-500/10 rounded-xl">
-                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-orange-600" />
+                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
+                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
                             </div>
-                            <p class="text text-lg font-bold text-orange-600" style="text-align: right;">أدوية منخفضة المخزون</p>
+                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">أدوية منخفضة المخزون</p>
                         </div>
-                        <p class="number text-5xl font-bold text-orange-600" style="text-align: right; width: 100%;">{{ stats.drugs.lowStock }}</p>
+                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.drugs.lowStock }}</p>
                     </div>
                 </div>
             </div>

@@ -770,7 +770,7 @@ const printTable = () => {
             v-if="isSuccessAlertVisible" 
             class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
             dir="rtl"
-            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#4DA1A9]'"
+            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#a2c4c6]'"
         >
             <div class="flex-1 font-bold text-sm">
                 {{ successMessage }}

@@ -73,14 +73,6 @@
                         <!-- أزرار الإجراءات -->
                         <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
                             <btnprint @click="printTable" />
-                            <button 
-                                @click="reloadData" 
-                                class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200"
-                                title="إعادة تحميل البيانات"
-                            >
-                                <Icon icon="material-symbols:refresh" class="w-5 h-5 ml-1" />
-                                تحديث القائمة
-                            </button>
                         </div>
                     </div>
 
@@ -209,25 +201,13 @@
         leave-from-class="translate-x-0 opacity-100"
         leave-to-class="translate-x-full opacity-0"
     >
-        <div
-            v-if="isAlertVisible"
-            class="fixed top-4 right-4 z-[1000] p-4 text-right text-white rounded-lg shadow-xl max-w-sm transition-all duration-300"
-            :class="alertTypeClass"
+        <div 
+            v-if="isSuccessAlertVisible" 
+            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 text-white"
             dir="rtl"
+            :class="successMessage.includes('خطأ') || successMessage.includes('فشل') || successMessage.includes('تعذر') ? 'bg-red-500' : 'bg-[#3a8c94]'"
         >
-            <div class="flex items-start gap-3">
-                <Icon :icon="alertIcon" class="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <div class="flex-1">
-                    <div v-html="alertMessage" class="font-medium"></div>
-                    <div v-if="alertDetails" class="text-sm opacity-90 mt-1">{{ alertDetails }}</div>
-                </div>
-                <button @click="hideAlert" class="text-white hover:text-gray-200">
-                    <Icon icon="mdi:close" class="w-4 h-4" />
-                </button>
-            </div>
-            <div class="mt-2 w-full bg-white bg-opacity-30 h-1 rounded-full overflow-hidden">
-                <div class="h-full bg-white progress-bar"></div>
-            </div>
+            {{ successMessage }}
         </div>
     </Transition>
 </template>
@@ -310,7 +290,7 @@ const fetchPatients = async () => {
   errorMessage.value = "";
   
   try {
-    showAlert('جاري تحميل بيانات المرضى...', '', 'info');
+    showSuccessAlert('جاري تحميل بيانات المرضى...');
     
     const response = await api.get('/patients');
     
@@ -319,11 +299,7 @@ const fetchPatients = async () => {
     if (patientsData && Array.isArray(patientsData)) {
       if (patientsData.length === 0) {
         patients.value = [];
-        showAlert(
-          ' تم الاتصال بالخادم بنجاح',
-          'لا توجد بيانات مرضى حالياً. يمكنك إضافة مرضى جدد',
-          'info'
-        );
+        showSuccessAlert('تم الاتصال بالخادم بنجاح. لا توجد بيانات مرضى حالياً. يمكنك إضافة مرضى جدد');
       } else {
         patients.value = patientsData.map(patient => ({
           ...patient,
@@ -334,19 +310,11 @@ const fetchPatients = async () => {
           phone: patient.phone || 'غير متوفر'
         }));
         
-        showAlert(
-          `تم تحميل ${patientsData.length} مريض بنجاح`,
-          'بيانات المرضى جاهزة للعرض',
-          'success'
-        );
+        showSuccessAlert(`تم تحميل ${patientsData.length} مريض بنجاح`);
       }
     } else {
       patients.value = [];
-      showAlert(
-        ' شكل البيانات غير متوقع',
-        'تأكد من صحة استجابة الخادم',
-        'warning'
-      );
+      showSuccessAlert('شكل البيانات غير متوقع. تأكد من صحة استجابة الخادم');
     }
   } catch (err) {
     hasError.value = true;
@@ -395,7 +363,7 @@ const fetchPatients = async () => {
     }
     
     errorMessage.value = alertMessage;
-    showAlert(alertTitle, alertMessage, alertType);
+    showSuccessAlert(`${alertTitle}: ${alertMessage}`);
     patients.value = [];
   } finally {
     isLoading.value = false;
@@ -560,63 +528,24 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 6. نظام التنبيهات المحسن
+// 6. نظام التنبيهات (مبسط)
 // ----------------------------------------------------
-const isAlertVisible = ref(false);
-const alertMessage = ref("");
-const alertDetails = ref("");
-const alertType = ref("success");
-const alertTimeout = ref(null);
+const isSuccessAlertVisible = ref(false);
+const successMessage = ref("");
+let alertTimeout = null;
 
-const alertConfig = {
-  success: {
-    icon: 'mdi:check-circle-outline',
-    bgClass: 'bg-green-500',
-    iconColor: 'text-white'
-  },
-  error: {
-    icon: 'mdi:alert-circle-outline',
-    bgClass: 'bg-red-500',
-    iconColor: 'text-white'
-  },
-  warning: {
-    icon: 'mdi:alert-outline',
-    bgClass: 'bg-yellow-500',
-    iconColor: 'text-white'
-  },
-  info: {
-    icon: 'mdi:information-outline',
-    bgClass: 'bg-blue-500',
-    iconColor: 'text-white'
-  }
-};
-
-const alertTypeClass = computed(() => alertConfig[alertType.value]?.bgClass || 'bg-green-500');
-const alertIcon = computed(() => alertConfig[alertType.value]?.icon || 'mdi:check-circle-outline');
-
-const showAlert = (title, details = '', type = 'success') => {
-  if (alertTimeout.value) {
-    clearTimeout(alertTimeout.value);
-  }
-
-  alertMessage.value = title;
-  alertDetails.value = details;
-  alertType.value = type;
-  isAlertVisible.value = true;
-
-  alertTimeout.value = setTimeout(() => {
-    hideAlert();
-  }, 5000);
-};
-
-const hideAlert = () => {
-  isAlertVisible.value = false;
-  alertMessage.value = "";
-  alertDetails.value = "";
-  if (alertTimeout.value) {
-    clearTimeout(alertTimeout.value);
-    alertTimeout.value = null;
-  }
+const showSuccessAlert = (message) => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
+    
+    successMessage.value = message;
+    isSuccessAlertVisible.value = true;
+    
+    alertTimeout = setTimeout(() => {
+        isSuccessAlertVisible.value = false;
+        successMessage.value = "";
+    }, 4000);
 };
 
 // ----------------------------------------------------
@@ -633,7 +562,7 @@ const dispensationHistory = ref([]);
 // ----------------------------------------------------
 const openViewModal = async (patient) => {
   try {
-    showAlert('جاري تحميل تفاصيل المريض...', '', 'info');
+    showSuccessAlert('جاري تحميل تفاصيل المريض...');
     
     const patientData = await fetchPatientDetails(patient.fileNumber);
     if (patientData) {
@@ -651,15 +580,15 @@ const openViewModal = async (patient) => {
         }))
       };
       isViewModalOpen.value = true;
-      showAlert('تم تحميل تفاصيل المريض', `بيانات ${patient.name} جاهزة للعرض`, 'success');
+      showSuccessAlert(`تم تحميل تفاصيل المريض: بيانات ${patient.name} جاهزة للعرض`);
     } else {
-      showAlert('تعذر تحميل التفاصيل', 'يبدو أن هناك مشكلة في اتصال الخادم', 'warning');
+      showSuccessAlert('تعذر تحميل التفاصيل. يبدو أن هناك مشكلة في اتصال الخادم');
       selectedPatient.value = patient;
       isViewModalOpen.value = true;
     }
   } catch (err) {
     console.error('خطأ في فتح نافذة المريض:', err);
-    showAlert('خطأ في فتح النافذة', 'تعذر تحميل تفاصيل المريض', 'error');
+    showSuccessAlert('خطأ في فتح النافذة: تعذر تحميل تفاصيل المريض');
   }
 };
 
@@ -680,22 +609,22 @@ const closeAddMedicationModal = () => {
 
 const openDispensationModal = async () => {
   try {
-    showAlert('جاري تحميل سجل الصرف...', '', 'info');
+    showSuccessAlert('جاري تحميل سجل الصرف...');
     
     const history = await fetchDispensationHistory(selectedPatient.value.fileNumber);
     dispensationHistory.value = history;
     
     if (history.length > 0) {
-      showAlert(`تم تحميل ${history.length} سجل صرف`, '', 'success');
+      showSuccessAlert(`تم تحميل ${history.length} سجل صرف`);
     } else {
-      showAlert('لا توجد سجلات صرف', 'لم يتم العثور على سجلات صرف لهذا المريض', 'info');
+      showSuccessAlert('لا توجد سجلات صرف لهذا المريض');
     }
     
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
   } catch (err) {
     console.error('خطأ في تحميل سجل الصرف:', err);
-    showAlert('تعذر تحميل سجل الصرف', 'تأكد من اتصال الخادم', 'warning');
+    showSuccessAlert('تعذر تحميل سجل الصرف. تأكد من اتصال الخادم');
     dispensationHistory.value = [];
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
@@ -712,7 +641,7 @@ const closeDispensationModal = () => {
 // ----------------------------------------------------
 const addMedicationToPatient = async (medicationsData) => {
   try {
-    showAlert('جاري إضافة الأدوية...', '', 'info');
+    showSuccessAlert('جاري إضافة الأدوية...');
     
     const medicationsPayload = medicationsData.map(med => {
       const dailyQty = med.dailyQuantity || med.quantity || 0;
@@ -745,11 +674,7 @@ const addMedicationToPatient = async (medicationsData) => {
         }
       }
 
-      showAlert(
-        `تم إضافة ${medicationsData.length} دواء بنجاح`,
-        `تمت إضافة الأدوية إلى سجل المريض ${selectedPatient.value.name}`,
-        'success'
-      );
+      showSuccessAlert(`تم إضافة ${medicationsData.length} دواء بنجاح ل سجل المريض ${selectedPatient.value.name}`);
     } catch (apiError) {
       const errorData = apiError.response?.data || {};
       let errorMsg = errorData.message || apiError.message || 'حدث خطأ غير معروف';
@@ -758,11 +683,11 @@ const addMedicationToPatient = async (medicationsData) => {
         errorMsg += ` (${errorData.error})`;
       }
       
-      showAlert('فشل في إضافة الأدوية', errorMsg, 'error');
+      showSuccessAlert(`فشل في إضافة الأدوية: ${errorMsg}`);
     }
   } catch (err) {
     console.error('خطأ في إضافة الأدوية:', err);
-    showAlert('خطأ في إضافة الأدوية', 'حدث خطأ غير متوقع', 'error');
+    showSuccessAlert(' خطأ في إضافة الأدوية: حدث خطأ غير متوقع');
   }
 };
 
@@ -779,7 +704,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const monthlyQuantity = Math.round(newDosage * 30);
 
     if (monthlyQuantity <= 0) {
-      showAlert('كمية غير صالحة', 'الكمية الشهرية يجب أن تكون أكبر من الصفر', 'warning');
+      showSuccessAlert('كمية غير صالحة: الجرعة يجب أن تكون أكبر من الصفر');
       return;
     }
 
@@ -788,7 +713,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
       daily_quantity: Math.round(newDosage)
     };
 
-    showAlert(' جاري تعديل الدواء...', '', 'info');
+    showSuccessAlert('جاري تعديل الدواء...');
 
     try {
       await updateMedicationAPI(
@@ -807,21 +732,13 @@ const handleEditMedication = async (medIndex, newDosage) => {
         }
       }
 
-      showAlert(
-        ' تم تعديل الجرعة الدوائية بنجاح',
-        `تم تحديث جرعة ${medication.drugName || 'الدواء'}`,
-        'success'
-      );
+      showSuccessAlert(`تم تعديل الجرعة الدوائية لـ ${medication.drugName || 'الدواء'} بنجاح`);
     } catch (apiError) {
-      showAlert(
-        ' فشل في تعديل الدواء',
-        apiError.response?.data?.message || apiError.message,
-        'error'
-      );
+      showSuccessAlert(`فشل في تعديل الدواء: ${apiError.response?.data?.message || apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في تعديل الدواء:', err);
-    showAlert(' خطأ في تعديل الدواء', 'حدث خطأ غير متوقع', 'error');
+    showSuccessAlert('خطأ في تعديل الدواء: حدث خطأ غير متوقع');
   }
 };
 
@@ -832,11 +749,11 @@ const handleDeleteMedication = async (medIndex) => {
     const pivotId = medication.pivot_id || medication.id;
 
     if (!pivotId) {
-      showAlert(' لا يمكن تحديد الدواء', 'معرّف الدواء غير موجود', 'warning');
+      showAlert('لا يمكن تحديد الدواء', 'معرّف الدواء غير موجود', 'warning');
       return;
     }
 
-    showAlert(' جاري حذف الدواء...', '', 'info');
+    showSuccessAlert('جاري حذف الدواء...');
 
     try {
       await deleteMedicationAPI(selectedPatient.value.fileNumber, pivotId);
@@ -851,21 +768,13 @@ const handleDeleteMedication = async (medIndex) => {
         }
       }
 
-      showAlert(
-        ' تم حذف الدواء بنجاح',
-        `تم حذف ${medicationName} من سجل المريض`,
-        'success'
-      );
+      showSuccessAlert(`تم حذف ${medicationName} بنجاح من سجل المريض`);
     } catch (apiError) {
-      showAlert(
-        ' فشل في حذف الدواء',
-        apiError.response?.data?.message || apiError.message,
-        'error'
-      );
+      showSuccessAlert(`فشل في حذف الدواء: ${apiError.response?.data?.message || apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في حذف الدواء:', err);
-    showAlert(' خطأ في حذف الدواء', 'حدث خطأ غير متوقع', 'error');
+    showSuccessAlert('خطأ في حذف الدواء: حدث خطأ غير متوقع');
   }
 };
 
@@ -876,18 +785,14 @@ const printTable = () => {
     const resultsCount = filteredPatients.value.length;
 
     if (resultsCount === 0) {
-        showAlert(' لا توجد بيانات للطباعة', 'لم يتم العثور على مرضى لعرضهم في التقرير', 'warning');
+        showSuccessAlert('لا توجد بيانات للطباعة: لم يتم العثور على مرضى');
         return;
     }
 
     const printWindow = window.open('', '_blank', 'height=600,width=800');
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showAlert(
-            ' تعذر فتح نافذة الطباعة',
-            'يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع أو استخدام Ctrl+P للطباعة المباشرة',
-            'error'
-        );
+        showSuccessAlert('تعذر فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة');
         return;
     }
 
@@ -949,11 +854,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showAlert(
-            '📄 تم تحضير التقرير للطباعة',
-            'يتم فتح نافذة الطباعة الآن',
-            'info'
-        );
+        showSuccessAlert('تم تحضير التقرير للطباعة. يتم فتح نافذة الطباعة الآن');
     };
 };
 

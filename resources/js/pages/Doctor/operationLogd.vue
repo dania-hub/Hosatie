@@ -49,10 +49,11 @@ const fetchOperations = async () => {
         
         if (operationsData && Array.isArray(operationsData)) {
             operations.value = operationsData;
+            showSuccessAlert("تم تحميل سجل العمليات بنجاح.");
         } else {
             operations.value = [];
             console.error('شكل البيانات غير متوقع:', response.data);
-            showSuccessAlert("⚠️ تم الاتصال بالخادم لكن البيانات بصيغة غير متوقعة");
+            showSuccessAlert("تم الاتصال بالخادم لكن البيانات بصيغة غير متوقعة");
         }
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
@@ -62,16 +63,16 @@ const fetchOperations = async () => {
         if (error.response) {
             const status = error.response.status;
             if (status === 401) {
-                showSuccessAlert("🔒 خطأ في المصادقة. يرجى تسجيل الدخول مرة أخرى");
+                showSuccessAlert("خطأ في المصادقة. يرجى تسجيل الدخول مرة أخرى");
             } else if (status === 403) {
-                showSuccessAlert("🚫 ليس لديك صلاحية للوصول إلى هذه البيانات");
+                showSuccessAlert("ليس لديك صلاحية للوصول إلى هذه البيانات");
             } else {
-                showSuccessAlert(`❌ فشل في تحميل البيانات: ${error.response.data?.message || 'خطأ غير معروف'}`);
+                showSuccessAlert(`فشل في تحميل البيانات: ${error.response.data?.message || 'خطأ غير معروف'}`);
             }
         } else if (error.request) {
-            showSuccessAlert("📡 لا يمكن الاتصال بالخادم. تحقق من اتصال الإنترنت");
+            showSuccessAlert("لا يمكن الاتصال بالخادم. تحقق من اتصال الإنترنت");
         } else {
-            showSuccessAlert("❌ فشل في تحميل البيانات.");
+            showSuccessAlert("فشل في تحميل البيانات.");
         }
     } finally {
         isLoading.value = false;
@@ -189,7 +190,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert("فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -276,7 +277,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert("تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
@@ -292,7 +293,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي أو الإسم الرباعي" />
                         </div>
                         
                         <div class="dropdown dropdown-start">
@@ -427,9 +428,6 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                     </template>
                                 </tbody>
                             </table>
-                            <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات  لعرضها.
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -446,7 +444,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#3a8c94] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
             dir="rtl"
         >
             {{ successMessage }}

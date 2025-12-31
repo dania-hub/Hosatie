@@ -7,16 +7,19 @@ use Illuminate\Http\Request;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log; // ✅ أضف هذا
-use App\Services\PatientNotificationService;
+use Illuminate\Support\Facades\Log;
 use App\Observers\PrescriptionDrugObserver;
+use App\Services\ResalaService;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use App\Services\PatientNotificationService;
 
 class PrescriptionDoctorController extends BaseApiController
 {
     /**
      * Add Drugs (Auto-create Prescription if missing)
      */
-    public function store(Request $request, $patientId, PatientNotificationService $notifications)
+    public function store(Request $request, $patientId, ResalaService $resalaService, PatientNotificationService $notificationService)
     {
         Log::info('🔄 ========== START store() ==========', ['patientId' => $patientId]);
         
@@ -41,6 +44,24 @@ class PrescriptionDoctorController extends BaseApiController
                 DB::rollBack();
                 Log::error('❌ Patient not found');
                 return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+            }
+
+            // إرسال رسالة التفعيل إذا كان بانتظار التفعيل (دون تغيير الحالة)
+            if ($patient->status === 'pending_activation') {
+                $plainPassword = Str::random(8); // إنشاء كلمة مرور عشوائية
+                
+                $patient->update([
+                    'password' => Hash::make($plainPassword),
+                    // 'status'   => 'active' // تم التعطيل بناءً على طلب المستخدم
+                ]);
+
+                // إرسال رسالة التفعيل
+                $resalaService->sendActivationSms($patient->phone, $plainPassword);
+                
+                Log::info('✅ Activation SMS sent (status remains pending_activation)', [
+                    'patient_id' => $patient->id,
+                    'phone' => $patient->phone
+                ]);
             }
 
             $prescription = Prescription::where('patient_id', $patientId)
@@ -131,22 +152,13 @@ class PrescriptionDoctorController extends BaseApiController
             
             if (!empty($createdDrugs)) {
                 $prescription->loadMissing('patient');
-                
-                Log::info('📤 Controller sending notifications for drugs', [
-                    'count' => count($createdDrugs),
-                    'skipNotification' => PrescriptionDrugObserver::$skipNotification
-                ]);
-                
-                foreach ($createdDrugs as $drug) {
-                    $drug->loadMissing('drug');
-                    $notifications->notifyDrugAssigned(
-                        $prescription->patient,
-                        $prescription,
-                        $drug->drug
-                    );
+                Log::info('✅ Drugs created successfully');
+
+                // Trigger Push Notifications
+                foreach ($createdDrugs as $pd) {
+                    $pd->loadMissing('drug');
+                    $notificationService->notifyDrugAssigned($patient, $prescription, $pd->drug);
                 }
-                
-                Log::info('✅ Controller notifications sent successfully');
             }
             
             // ✅ إعادة تعيين الفلاغ بعد الإرسال مباشرة
@@ -188,7 +200,7 @@ class PrescriptionDoctorController extends BaseApiController
     /**
      * Edit Drug Quantity
      */
-    public function update(Request $request, $patientId, $pivotId, PatientNotificationService $notifications)
+    public function update(Request $request, $patientId, $pivotId, PatientNotificationService $notificationService)
     {
         Log::info('🔄 ========== START update() ==========', [
             'patientId' => $patientId,
@@ -245,17 +257,10 @@ class PrescriptionDoctorController extends BaseApiController
             $item->save();
             Log::info('✅ Prescription drug updated successfully');
             
-            // ✅ ثالثاً: إرسال الإشعار من الـ Controller
-            $item->loadMissing(['prescription.patient', 'drug']);
-            
-            Log::info('📤 Controller sending notification for updated drug');
-            $notifications->notifyDrugUpdated(
-                $item->prescription->patient,
-                $item->prescription,
-                $item->drug
-            );
-            Log::info('✅ Controller notification sent successfully');
-            
+            // Trigger Push Notification
+            $item->loadMissing('drug');
+            $notificationService->notifyDrugUpdated($patient, $prescription, $item->drug);
+
             DB::commit();
             
             Log::info('✅ ========== END update() - SUCCESS ==========');
@@ -283,7 +288,7 @@ class PrescriptionDoctorController extends BaseApiController
     /**
      * Remove Drug (Auto-delete Prescription if empty)
      */
-    public function destroy(Request $request, $patientId, $pivotId, PatientNotificationService $notifications)
+    public function destroy(Request $request, $patientId, $pivotId, PatientNotificationService $notificationService)
     {
         Log::info('🔄 ========== START destroy() ==========', [
             'patientId' => $patientId,
@@ -322,14 +327,7 @@ class PrescriptionDoctorController extends BaseApiController
             PrescriptionDrugObserver::$skipNotification = true;
             Log::info('🔧 skipNotification after setting', ['value' => PrescriptionDrugObserver::$skipNotification]);
             
-            Log::info('📤 Controller sending notification for deletion');
-            $notifications->notifyDrugDeleted(
-                $item->prescription->patient,
-                $item->prescription,
-                $item->drug
-            );
-            Log::info('✅ Controller notification sent successfully');
-
+            
             Log::info('🗑️ Deleting prescription drug', [
                 'id' => $item->id,
                 'skipNotification' => PrescriptionDrugObserver::$skipNotification
@@ -338,6 +336,9 @@ class PrescriptionDoctorController extends BaseApiController
             // 1. Delete the Drug
             $item->delete();
             Log::info('✅ Drug deleted successfully');
+
+            // Trigger Push Notification
+            $notificationService->notifyDrugDeleted($patient, $prescription, $item->drug);
 
             // 2. Check if Prescription is empty -> Delete it (End of lifecycle)
             if ($prescription->drugs()->count() == 0) {

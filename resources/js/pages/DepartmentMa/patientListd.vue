@@ -1008,7 +1008,7 @@ const reloadData = () => {
             dir="rtl"
             :class="{
                 'bg-green-50 border border-green-200 text-green-800': successMessage.includes('✅'),
-                'bg-[#a2c4c6] border border-blue-200 text-white': !successMessage.includes('✅')
+                'bg-[#3a8c94] border border-blue-200 text-white': !successMessage.includes('✅')
             }"
         >
             <div class="flex items-start gap-3">

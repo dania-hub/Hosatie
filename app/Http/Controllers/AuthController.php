@@ -157,9 +157,9 @@ public function forceChangePassword(Request $request)
             return $this->sendError('هذا الإجراء مخصص للمرضى فقط.', [], 403);
         }
 
-        // 2. التحقق: يجب أن يكون pending_activation فقط
+        // 2. التحقق: يجب أن يكون pending_activation فقط لتفعيل الحساب
         if ($user->status !== 'pending_activation') {
-            return $this->sendError('لا تحتاج لتغيير كلمة المرور.', [], 400);
+            return $this->sendError('لا تحتاج لتغيير كلمة المرور أو أن الحساب مفعل مسبقاً.', [], 400);
         }
 
         // 3. التحقق من البيانات المدخلة

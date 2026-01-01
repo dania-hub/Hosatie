@@ -57,7 +57,7 @@ const routeNames = {
     '/superAdmin/statistics': 'الإحصائيات',
     '/superAdmin/employees': 'المدراء و الموردين',
     '/superAdmin/AllemployeesList': 'الموظفين',
-    '/superAdmin/requests': 'الطلبات',
+    '/superAdmin/requests': 'طلبات التوريد الداخلي',
     '/superAdmin/hospital': 'المستشفيات',
     '/superAdmin/Supply': 'شركات التوريد',
     // Hospital Admin
@@ -66,7 +66,7 @@ const routeNames = {
     '/admin/all-operations': 'سجل العمليات الشامل',
     '/admin/statistics': 'الإحصائيات',
     '/admin/employees': 'الموظفين',
-    '/admin/requests': 'الطلبات',
+    '/admin/requests': 'طلبات التوريد الداخلي',
     '/admin/departments': 'الأقسام',
     '/admin/supply-requests': 'طلبات التوريد',
     '/admin/transfer-requests': 'طلبات النقل',
@@ -77,7 +77,7 @@ const routeNames = {
     '/pharmacist/operations': 'سجل العمليات',
     '/pharmacist/patients': 'قائمة المرضى',
     '/pharmacist/statistics': 'الإحصائيات',
-    '/pharmacist/requests': 'الطلبات',
+    '/pharmacist/requests': 'طلبات التوريد الداخلي',
     // Doctor
     '/doctor/patients': 'قائمة المرضى',
     '/doctor/operations': 'سجل العمليات',
@@ -90,18 +90,18 @@ const routeNames = {
     '/department/patients': 'قائمة المرضى',
     '/department/operations': 'سجل العمليات',
     '/department/statistics': 'الإحصائيات',
-    '/department/requests': 'الطلبات',
+    '/department/requests': 'طلبات التوريد الداخلي',
     // Storekeeper
     '/storekeeper/medications': 'قائمة الأدوية',
     '/storekeeper/operations': 'سجل العمليات',
-    '/storekeeper/requests': 'الطلبات',
+    '/storekeeper/requests': 'طلبات التوريد الداخلي',
     '/storekeeper/statistics': 'الإحصائيات',
     '/storekeeper/supply-requests': 'طلبات التوريد',
     // Supplier
     '/Supplier/statistics': 'الإحصائيات',
     '/Supplier/medications': 'قائمة الأدوية',
     '/Supplier/operations': 'سجل العمليات',
-    '/Supplier/requests': 'الطلبات',
+    '/Supplier/requests': 'طلبات التوريد الداخلي',
     '/Supplier/supply-requests': 'طلبات التوريد',
 };
 

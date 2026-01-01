@@ -257,7 +257,7 @@
 
                                     <tr v-if="filteredShipments.length === 0">
                                         <td colspan="4" class="py-12">
-                                            <EmptyState message="لم يتم العثور على طلبات توريد" />
+                                            <EmptyState message="لم يتم العثور على طلبات التوريد الداخلي" />
                                         </td>
                                     </tr>
                                 </template>
@@ -391,7 +391,7 @@ const fetchAllData = async () => {
     isLoading.value = true;
     error.value = null;
     
-    showSuccessAlert('جاري تحميل طلبات...');
+    showSuccessAlert('جاري تحميل طلبات التوريد الداخلي...');
     
     try {
         // جلب البيانات بالتوازي
@@ -401,7 +401,7 @@ const fetchAllData = async () => {
             fetchDrugs()
         ]);
         
-        showSuccessAlert('تم تحميل الطلبات بنجاح');
+        showSuccessAlert('تم تحميل طلبات التوريد الداخلي بنجاح');
     } catch (err) {
         error.value = 'حدث خطأ في تحميل البيانات. يرجى المحاولة مرة أخرى.';
         console.error('Error fetching data:', err);

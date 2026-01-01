@@ -180,7 +180,7 @@
                                             {{ shipment.shipmentNumber }}
                                         </td>
                                         <td>
-                                            {{ shipment.requestDate }}
+                                            {{ formatDate(shipment.requestDate) }}
                                         </td>
                                         <td
                                             :class="{
@@ -303,8 +303,9 @@
         >
             <div
                 v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+                class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 text-white"
                 dir="rtl"
+                :class="successMessage.includes('❌') || successMessage.includes('فشل') || successMessage.includes('خطأ') || successMessage.includes('تعذر') ? 'bg-red-500' : 'bg-[#3a8c94]'"
             >
                 {{ successMessage }}
             </div>
@@ -390,6 +391,8 @@ const fetchAllData = async () => {
     isLoading.value = true;
     error.value = null;
     
+    showSuccessAlert('جاري تحميل طلبات...');
+    
     try {
         // جلب البيانات بالتوازي
         await Promise.all([
@@ -397,6 +400,8 @@ const fetchAllData = async () => {
             fetchCategories(),
             fetchDrugs()
         ]);
+        
+        showSuccessAlert('تم تحميل الطلبات بنجاح');
     } catch (err) {
         error.value = 'حدث خطأ في تحميل البيانات. يرجى المحاولة مرة أخرى.';
         console.error('Error fetching data:', err);
@@ -415,15 +420,6 @@ const fetchShipments = async () => {
         shipmentsData.value = shipmentsList.map(shipment => {
             // معالجة التاريخ
             let requestDate = shipment.requestDate || shipment.request_date || shipment.created_at || shipment.createdAt;
-            if (requestDate && typeof requestDate === 'string') {
-                // تحويل ISO string إلى تنسيق قابل للقراءة
-                try {
-                    const date = new Date(requestDate);
-                    requestDate = date.toISOString();
-                } catch (e) {
-                    // إذا فشل التحويل، نستخدم القيمة كما هي
-                }
-            }
             
             // معالجة الحالة
             const status = shipment.status || shipment.requestStatus || shipment.request_status || 'غير محدد';
@@ -502,7 +498,13 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA');
+        // Format: DD/MM/YYYY HH:mm (English numbers)
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
     } catch {
         return dateString;
     }
@@ -613,7 +615,7 @@ const handleSupplyConfirm = async (data) => {
         // BaseApiController يُرجع البيانات في response.data.data
         const responseData = response.data?.data || response.data || response;
         
-        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${responseData.requestNumber || responseData.id} بنجاح!`);
+        showSuccessAlert(` تم إنشاء طلب التوريد رقم ${responseData.requestNumber || responseData.id} بنجاح!`);
         closeSupplyRequestModal();
         
         await fetchShipments();
@@ -621,7 +623,7 @@ const handleSupplyConfirm = async (data) => {
     } catch (err) {
         console.error('خطأ في إنشاء طلب التوريد:', err);
         const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
-        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${errorMessage}`);
+        showSuccessAlert(` فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
@@ -809,7 +811,7 @@ const handleConfirmation = async (confirmationData) => {
             }
         }
         
-        showSuccessAlert(`✅ تم تأكيد استلام الشحنة بنجاح!`);
+        showSuccessAlert(` تم تأكيد استلام الشحنة بنجاح!`);
         closeConfirmationModal();
         
         // إعادة تحميل الشحنات لتحديث البيانات
@@ -817,7 +819,7 @@ const handleConfirmation = async (confirmationData) => {
         
     } catch (err) {
         const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
-        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${errorMessage}`);
+        showSuccessAlert(` فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
@@ -840,7 +842,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -871,7 +873,6 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '✅' : '❌';
         tableHtml += `
 <tr>
     <td>${shipment.shipmentNumber}</td>
@@ -896,7 +897,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 

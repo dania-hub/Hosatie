@@ -77,6 +77,39 @@ const updatedMonthlyQuantity = computed(() => {
     return Math.round(dosage * 30);
 });
 
+// دالة لحساب الكمية الشهرية للعرض (دائماً الجرعة اليومية * 30)
+const getMonthlyQuantityDisplay = (med) => {
+    // 1. محاولة الحصول على الكمية اليومية الرقمية
+    let dailyQty = med.dailyQuantity || med.daily_quantity || med.daily_dosage;
+    
+    // 2. إذا لم تكن موجودة، نحاول استخراجها من نص الجرعة (مثال: "2 حبة يومياً" ← 2)
+    if (dailyQty === undefined || dailyQty === null || dailyQty === 0) {
+        const dosageText = String(med.dosage || '');
+        const match = dosageText.match(/(\d+(?:\.\d+)?)/);
+        if (match) {
+            dailyQty = parseFloat(match[1]);
+        }
+    }
+    
+    // 3. الحساب والتحويل
+    if (dailyQty && !isNaN(dailyQty)) {
+        const monthlyAmount = Math.round(dailyQty * 30);
+        // تحديد الوحدة
+        let unit = med.unit;
+        if (!unit) {
+            const dosageText = String(med.dosage || '');
+            if (dosageText.includes('مل')) unit = 'مل';
+            else if (dosageText.includes('أمبول')) unit = 'أمبول';
+            else if (dosageText.includes('جرام')) unit = 'جرام';
+            else unit = 'حبة';
+        }
+        return `${monthlyAmount} ${unit}`;
+    }
+    
+    // في حالة عدم توفر الجرعة اليومية، نعود للقيمة المخزنة أو "-"
+    return med.monthlyQuantity || '-';
+};
+
 // دالة لتنسيق التاريخ
 const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
@@ -199,7 +232,7 @@ const formatDate = (dateString) => {
                                             {{ med.dosage }}
                                         </span>
                                     </td>
-                                    <td class="p-4 text-gray-600">{{ med.monthlyQuantity || '-' }}</td>
+                                    <td class="p-4 text-gray-600">{{ getMonthlyQuantityDisplay(med) }}</td>
                                     <td class="p-4 text-gray-500 text-sm">{{ formatDate(med.assignmentDate) }}</td>
                                     <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy || '-' }}</td>
                                     <td class="p-4">
@@ -333,3 +366,21 @@ const formatDate = (dateString) => {
         </div>
     </div>
 </template>
+
+<style>
+/* تنسيقات شريط التمرير */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background-color: #4da1a9;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: #3a8c94;
+}
+</style>
+成功

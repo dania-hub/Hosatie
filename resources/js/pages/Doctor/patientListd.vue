@@ -808,7 +808,7 @@ const printTable = () => {
             .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
         </style>
 
-        <h1>قائمة المرضى - تقرير طباعة</h1>
+        <h1> قائمة المرضى</h1>
         <div class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</div>
         <p class="results-info">عدد المرضى: ${resultsCount}</p>
 

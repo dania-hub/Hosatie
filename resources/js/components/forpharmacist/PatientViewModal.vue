@@ -89,6 +89,39 @@ const handleConfirmation = () => {
     }, 500); // تأخير بسيط لضمان إرسال الحدث
 };
 
+// دالة لحساب الكمية الشهرية للعرض (دائماً الجرعة اليومية * 30)
+const getMonthlyQuantityDisplay = (med) => {
+    // 1. محاولة الحصول على الكمية اليومية الرقمية
+    let dailyQty = med.dailyQuantity || med.daily_quantity || med.daily_dosage;
+    
+    // 2. إذا لم تكن موجودة، نحاول استخراجها من نص الجرعة (مثال: "2 حبة يومياً" ← 2)
+    if (dailyQty === undefined || dailyQty === null || dailyQty === 0) {
+        const dosageText = String(med.dosage || '');
+        const match = dosageText.match(/(\d+(?:\.\d+)?)/);
+        if (match) {
+            dailyQty = parseFloat(match[1]);
+        }
+    }
+    
+    // 3. الحساب والتحويل
+    if (dailyQty && !isNaN(dailyQty)) {
+        const monthlyAmount = Math.round(dailyQty * 30);
+        // تحديد الوحدة
+        let unit = med.unit;
+        if (!unit) {
+            const dosageText = String(med.dosage || '');
+            if (dosageText.includes('مل')) unit = 'مل';
+            else if (dosageText.includes('أمبول')) unit = 'أمبول';
+            else if (dosageText.includes('جرام')) unit = 'جرام';
+            else unit = 'حبة';
+        }
+        return `${monthlyAmount} ${unit}`;
+    }
+    
+    // في حالة عدم توفر الجرعة اليومية، نعود للقيمة المخزنة أو "-"
+    return med.monthlyQuantity || '-';
+};
+
 // إلغاء التأكيد
 const cancelConfirmation = () => {
     showConfirmationModal.value = false;
@@ -186,7 +219,7 @@ const cancelConfirmation = () => {
                                     </td>
                                     <td class="p-4 text-gray-600">
                                         <div class="space-y-1">
-                                            <div class="font-medium">{{ med.monthlyQuantity }}</div>
+                                            <div class="font-medium">{{ getMonthlyQuantityDisplay(med) }}</div>
                                             <div v-if="med.totalDispensedThisMonth > 0" class="text-xs space-y-0.5">
                                                 <div class="text-orange-600">
                                                     مصروف: {{ med.totalDispensedThisMonth }} {{ med.unit || 'حبة' }}
@@ -344,3 +377,21 @@ const cancelConfirmation = () => {
         </Transition>
     </div>
 </template>
+
+<style>
+/* تنسيقات شريط التمرير */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background-color: #4da1a9;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: #3a8c94;
+}
+</style>
+成功

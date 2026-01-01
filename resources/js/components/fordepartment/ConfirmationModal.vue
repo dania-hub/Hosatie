@@ -196,7 +196,13 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA');
+        // Format: DD/MM/YYYY HH:mm (English numbers)
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
     } catch {
         return dateString;
     }
@@ -205,9 +211,9 @@ const formatDate = (dateString) => {
 // تهيئة receivedItems
 watch(() => props.requestData.items, (newItems) => {
     if (newItems && newItems.length > 0) {
-        console.log('📦 Department ConfirmationModal - Raw items:', newItems);
+        console.log(' Department ConfirmationModal - Raw items:', newItems);
         receivedItems.value = newItems.map(item => {
-            console.log('📦 Processing item:', item);
+            console.log(' Processing item:', item);
             // الحصول على الكمية المطلوبة
             const requestedQty = Number(item.requested_qty || item.requestedQty || item.quantity || 0);
             
@@ -300,7 +306,7 @@ watch(() => props.requestData.items, (newItems) => {
                 receivedQuantity: defaultReceivedQty,
                 unit: item.unit || 'وحدة'
             };
-            console.log('📦 Mapped item:', result, 'Source approved_qty:', item.approved_qty, 'sentQuantity:', item.sentQuantity);
+            console.log(' Mapped item:', result, 'Source approved_qty:', item.approved_qty, 'sentQuantity:', item.sentQuantity);
             return result;
         });
         notes.value = '';

@@ -75,8 +75,7 @@
                                     @focus="showAllDrugsOnFocus"
                                     @blur="hideResults"
                                     placeholder="ابحث عن دواء..."
-                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
-                                    :disabled="selectedDrugName.length > 0"
+                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all"
                                 />
                             </div>
 
@@ -112,9 +111,8 @@
                                 type="number"
                                 min="0"
                                 v-model.number="dailyQuantity"
-                                class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all"
                                 placeholder="0"
-                                :disabled="!selectedDrugName"
                             />
                             <p v-if="quantityError" class="text-xs text-red-500 flex items-center gap-1">
                                 <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -370,8 +368,7 @@ const fetchDrugsData = () => {
 
 let debounceTimer;
 const handleInput = () => {
-    selectedDrugName.value = "";
-    selectedDrugType.value = "";
+    // Don't clear selection when user types - allow them to modify their choice
     dailyQuantity.value = null;
 
     clearTimeout(debounceTimer);
@@ -380,7 +377,6 @@ const handleInput = () => {
             fetchDrugsData();
             showResults.value = true;
         } else {
-            filteredDrugs.value = [];
             showResults.value = false;
         }
     }, 300);
@@ -433,7 +429,7 @@ const addNewDrug = () => {
             }),
         });
 
-        emit('show-alert', `✅ تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد.`);
+        emit('show-alert', ` تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد.`);
 
         searchTermDrug.value = "";
         selectedCategory.value = "";
@@ -444,13 +440,13 @@ const addNewDrug = () => {
         const errorMessage =
             quantityError.value ||
             "الرجاء تحديد دواء وإدخال كمية توريد صحيحة أكبر من الصفر.";
-        emit('show-alert', `❌ فشل الإضافة: ${errorMessage}`);
+        emit('show-alert', ` فشل الإضافة: ${errorMessage}`);
     }
 };
 
 const removeItem = (index) => {
     dailyDosageList.value.splice(index, 1);
-    emit('show-alert', "🗑️ تم حذف الدواء من القائمة بنجاح.");
+    emit('show-alert', " تم حذف الدواء من القائمة بنجاح.");
 };
 
 const confirmAddition = () => {
@@ -480,7 +476,7 @@ const confirmAddition = () => {
     }
 
     if (dailyDosageList.value.length === 0) {
-        emit('show-alert', "⚠️ لا يمكنك التأكيد دون إضافة دواء واحد على الأقل.");
+        emit('show-alert', " لا يمكنك التأكيد دون إضافة دواء واحد على الأقل.");
     } else {
         const confirmationData = {
             items: dailyDosageList.value,
@@ -534,7 +530,7 @@ watch(() => props.isOpen, (isOpen) => {
             });
 
             dailyDosageList.value = reorderList;
-            emit('show-alert', `💡 تم إدراج ${reorderList.length} دواء ناقص في القائمة تلقائياً.`);
+            emit('show-alert', ` تم إدراج ${reorderList.length} دواء ناقص في القائمة تلقائياً.`);
         }
     }
 });

@@ -634,6 +634,15 @@ class PatientDepartmentAdminController extends BaseApiController
         $prescription = $item->prescription;
 
         $item->monthly_quantity = $request->dosage;
+        
+        // تحديث الجرعة اليومية أيضاً إذا تم إرسالها
+        if ($request->has('daily_quantity')) {
+            $item->daily_quantity = $request->daily_quantity;
+        } else {
+            // حساب الجرعة اليومية من الشهرية (الشهرية / 30)
+            $item->daily_quantity = round($request->dosage / 30);
+        }
+        
         $item->save();
 
         // Trigger Push Notification

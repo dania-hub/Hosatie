@@ -4,11 +4,8 @@ import { Icon } from "@iconify/vue";
 import { Link, usePage } from "@inertiajs/vue3"; // 👈 تم استيراد Link و usePage
 import axios from 'axios'; 
 
-// ⚠️ عدل هذا الثابت ليطابق نقطة النهاية (Endpoint) الخاصة بك
-const NOTIFICATIONS_ENDPOINT = "/api/v1/user/notifications"; 
-// 🆕 نقطة نهاية تسجيل الخروج
+const NOTIFICATIONS_ENDPOINT = "/api/notifications/mobile"; 
 const LOGOUT_ENDPOINT = "/api/logout/dashboard"; 
-// 🆕 نقطة نهاية الملف الشخصي
 const PROFILE_ENDPOINT = "/api/profile/dashboard"; 
 
 // حالات المكون
@@ -20,7 +17,6 @@ const error = ref(null);
 // حالة التحكم في نافذة تأكيد تسجيل الخروج
 const showLogoutConfirmation = ref(false);
 
-// 🆕 بيانات المستخدم
 const userData = ref({
     name: '',
     email: '',
@@ -45,7 +41,7 @@ const userName = computed(() => {
 // 💡 لإضافة أدوار جديدة: أضف نوع المستخدم في المصفوفة allowedTypes
 const canShowNotifications = computed(() => {
     const userType = userData.value.type || page.props.auth?.user?.type || '';
-    const allowedTypes = ['supplier_admin', 'warehouse_manager']; // 👈 أضف الأدوار هنا
+    const allowedTypes = ['supplier_admin', 'warehouse_manager', 'department_head', 'department_admin', 'pharmacist']; // 👈 أضف الأدوار هنا
     return allowedTypes.includes(userType);
 });
 
@@ -186,7 +182,7 @@ const fetchUserProfile = async () => {
         
         // جلب الإشعارات فقط إذا كان المستخدم من النوع المصرح له
         // 💡 لإضافة أدوار جديدة: أضف نوع المستخدم في المصفوفة allowedTypes
-        const allowedTypes = ['supplier_admin', 'warehouse_manager']; // 👈 أضف الأدوار هنا
+        const allowedTypes = ['supplier_admin', 'warehouse_manager', 'department_head', 'department_admin', 'pharmacist']; // 👈 أضف الأدوار هنا
         if (allowedTypes.includes(userData.value.type)) {
             fetchNotifications();
         }
@@ -204,15 +200,29 @@ const fetchNotifications = async () => {
     error.value = null;
     
     try {
-        const response = await axios.get(NOTIFICATIONS_ENDPOINT); 
+        const response = await axios.get(NOTIFICATIONS_ENDPOINT, getAuthHeaders()); 
         const data = response.data;
         
-        notifications.value = data.notifications || data; 
-        unreadCount.value = notifications.value.filter(n => !n.read).length;
+        // دعم الهيكل { success: true, data: [...] } أو المصفوفة المباشرة
+        const rawList = data.data || data.notifications || data; 
+        
+        // التأكد من أنها مصفوفة ومواءمة الحقول
+        if (Array.isArray(rawList)) {
+            notifications.value = rawList.map(n => ({
+                ...n,
+                message: n.message || n.body, // تعيين الرسالة من body إذا لم توجد message
+                date: n.date || n.created_at, // تعيين التاريخ من created_at إذا لم يوجد date
+                is_read: n.is_read || n.read // توحيد حقل القراءة
+            }));
+        } else {
+            notifications.value = [];
+        }
+
+        unreadCount.value = notifications.value.filter(n => !n.is_read && !n.read).length;
 
     } catch (e) {
         console.error("Failed to fetch notifications:", e);
-        error.value = "تعذر جلب البيانات. (تأكد من عمل الـ API)";
+        error.value = "تعذر جلب البيانات.";
         notifications.value = [];
         unreadCount.value = 0;
     } finally {
@@ -224,15 +234,16 @@ const fetchNotifications = async () => {
  * دالة لتحديد الإشعار كمقروء وإرسال تحديث للسيرفر باستخدام Axios (لم تتغير)
  */
 const markAsRead = async (notification) => {
-    if (notification.read) return;
+    if (notification.is_read || notification.read) return;
 
     // 1. تحديث الواجهة أولاً
+    notification.is_read = true;
     notification.read = true;
-    unreadCount.value = notifications.value.filter(n => !n.read).length;
+    unreadCount.value = notifications.value.filter(n => !n.is_read && !n.read).length;
     
     // 2. إرسال طلب تحديث للسيرفر
     try {
-        await axios.patch(`${NOTIFICATIONS_ENDPOINT}/${notification.id}/read`); 
+        await axios.post('/api/notifications/mark-as-read', { notification_ids: [notification.id] }, getAuthHeaders()); 
         
     } catch (e) {
         console.error("Failed to mark notification as read:", e);
@@ -309,6 +320,53 @@ const confirmLogout = async () => {
 onMounted(() => {
     fetchUserProfile();
 });
+
+// 🛠️ دوال مساعدة للعرض
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        }).format(date);
+    } catch (e) {
+        return dateString;
+    }
+};
+
+const getNotificationIcon = (type) => {
+    switch (type) {
+        case 'success':
+        case 'عادي':
+            return 'ph:check-circle-fill';
+        case 'error':
+        case 'warning':
+        case 'مستعجل':
+            return 'ph:x-circle-fill'; 
+        case 'info':
+        default:
+            return 'ph:info-fill';
+    }
+};
+
+const getNotificationColor = (type) => {
+    switch (type) {
+        case 'success':
+        case 'عادي':
+            return 'text-green-500';
+        case 'error':
+        case 'warning':
+        case 'مستعجل':
+            return 'text-red-500';
+        default:
+            return 'text-[#7093bb]';
+    }
+};
 </script>
 <template>
   <header
@@ -365,15 +423,15 @@ onMounted(() => {
               >
                 <div class="flex items-center w-full mb-1">
                   <Icon
-                    :icon="notification.icon || 'ph:info'"
-                    class="w-5 h-5 ml-3 text-[#7093bb] flex-shrink-0"
+                    :icon="getNotificationIcon(notification.type)"
+                    :class="['w-6 h-6 ml-3 flex-shrink-0', getNotificationColor(notification.type)]"
                   />
                   <p class="font-medium text-sm text-gray-800">
                     {{ notification.message }}
                   </p>
                 </div>
-                <p class="text-xs text-gray-500 mt-1 mr-8">
-                  {{ notification.date }}
+                <p class="text-xs text-gray-400 mt-1 mr-9" dir="ltr">
+                  {{ formatDate(notification.date) }}
                 </p>
               </a>
             </li>

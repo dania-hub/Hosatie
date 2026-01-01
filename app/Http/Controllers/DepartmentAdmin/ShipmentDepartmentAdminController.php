@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\InternalSupplyRequest;
 use App\Models\AuditLog;
 use Carbon\Carbon;
+use App\Models\User;
+use App\Models\Notification;
 
 class ShipmentDepartmentAdminController extends BaseApiController
 {
@@ -207,6 +209,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
      */
     public function confirm(Request $request, $id)
     {
+        $user = $request->user(); // Move this up
+
         $shipment = InternalSupplyRequest::with('items.drug')->find($id);
         
         if (!$shipment) {
@@ -233,6 +237,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
             }
         }
         
+        $shortageItems = [];
+
         // تحديث fulfilled_qty لكل عنصر
         foreach ($shipment->items as $item) {
             // أولوية: الكمية المستلمة من الطلب > approved_qty > requested_qty
@@ -248,12 +254,82 @@ class ShipmentDepartmentAdminController extends BaseApiController
             }
             
             // تحديث fulfilled_qty بالكمية المستلمة الفعلية
-            // ملاحظة:
-            // - requested_qty: الكمية المطلوبة الأصلية (لا يتم تعديلها)
-            // - approved_qty: الكمية المرسلة من storekeeper (لا يتم تعديلها)
-            // - fulfilled_qty: الكمية المستلمة الفعلية من department (يتم تحديثها هنا)
             $item->fulfilled_qty = $qtyToSet;
             $item->save();
+
+            // التحقق من وجود نقص
+            // المقارنة مع الكمية التي أرسلها أمين المستودع (approved_qty)
+            $sentQty = $item->approved_qty ?? $item->requested_qty ?? 0;
+
+            \Log::info("Checking item for shortage", [
+                'item_id' => $item->id,
+                'received' => $qtyToSet,
+                'sent' => $sentQty,
+                'is_shortage' => ($qtyToSet < $sentQty)
+            ]);
+
+            if ($qtyToSet < $sentQty) {
+                $shortageItems[] = [
+                    'name'     => $item->drug->name ?? 'غير معروف',
+                    'sent'     => $sentQty,
+                    'received' => $qtyToSet,
+                    'unit'     => $item->drug->unit ?? 'وحدة'
+                ];
+            }
+        }
+
+        // إرسال إشعار بالنقص إذا وجد
+        if (!empty($shortageItems)) {
+            \Log::info("Shortage detected, preparing notification", ['count' => count($shortageItems)]);
+
+            $msg = "تنبيه: تم اكتشاف نقص في استلام الشحنة رقم {$shipment->id}.";
+            foreach ($shortageItems as $s) {
+                $msg .= "\n- {$s['name']}: أرسل {$s['sent']}، استلم {$s['received']} {$s['unit']}";
+            }
+
+            $userIdsToNotify = [];
+
+            // 1. Hospital Admins
+            if ($user->hospital_id) {
+                $admins = User::where('hospital_id', $user->hospital_id)
+                              ->where('type', 'hospital_admin')
+                              ->pluck('id')
+                              ->toArray();
+                \Log::info("Found Hospital Admins to notify", ['ids' => $admins]);
+                $userIdsToNotify = array_merge($userIdsToNotify, $admins);
+            } else {
+                \Log::warning("User has no hospital_id", ['user_id' => $user->id]);
+            }
+
+            // 2. Storekeeper (Approver/Handler)
+            if ($shipment->handeled_by) {
+                \Log::info("Found Storekeeper (Handler) to notify", ['id' => $shipment->handeled_by]);
+                $userIdsToNotify[] = $shipment->handeled_by;
+            } else {
+                \Log::warning("Shipment has no handeled_by", ['shipment_id' => $shipment->id]);
+            }
+
+            $userIdsToNotify = array_unique($userIdsToNotify);
+            \Log::info("Final list of users to notify", ['ids' => $userIdsToNotify]);
+
+            foreach ($userIdsToNotify as $uid) {
+                if ($uid == $user->id) continue; // Don't notify self
+
+                try {
+                    Notification::create([
+                        'user_id' => $uid,
+                        'type'    => 'مستعجل',
+                        'title'   => 'نقص في استلام شحنة',
+                        'message' => $msg,
+                        'is_read' => false,
+                    ]);
+                    \Log::info("Shortage notification sent", ['user_id' => $uid]);
+                } catch (\Exception $e) {
+                    \Log::error("Failed to send shortage notification", ['user_id' => $uid, 'error' => $e->getMessage()]);
+                }
+            }
+        } else {
+            \Log::info("No shortage detected in shipment", ['shipment_id' => $shipment->id]);
         }
         
         // تسجيل العملية في audit_log

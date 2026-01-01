@@ -407,12 +407,39 @@ class InternalSupplyRequestController extends BaseApiController
                 ]),
                 'ip_address' => $request->ip(),
             ]);
+
+            // إنشاء إشعار للمستخدم الطالب (requester)
+            \Log::info('Attempting to create rejection notification', [
+                'requested_by' => $req->requested_by,
+                'handeled_by'  => $req->handeled_by,
+                'request_id'   => $req->id
+            ]);
+
+            $usersToNotify = array_unique(array_filter([$req->requested_by, $req->handeled_by]));
+
+            if (empty($usersToNotify)) {
+                \Log::warning('No requested_by or approved_by found for request', ['request_id' => $req->id]);
+            }
+
+            foreach ($usersToNotify as $userId) {
+                // ملاحظة: الحقل type في قاعدة البيانات هو enum يقبل فقط ['عادي', 'مستعجل']
+                $notif = \App\Models\Notification::create([
+                    'user_id' => $userId,
+                    'type'    => 'مستعجل',
+                    'title'   => 'تم رفض طلب التوريد',
+                    'message' => "تم رفض طلب التوريد رقم {$req->id}. السبب: {$validated['rejectionReason']}",
+                    'is_read' => false,
+                ]);
+                \Log::info('Rejection notification created', ['notification_id' => $notif->id, 'user_id' => $userId]);
+            }
+
         } catch (\Exception $e) {
-            \Log::error('Failed to log rejection reason', ['error' => $e->getMessage()]);
+            \Log::error('Failed to log rejection reason or send notification', ['error' => $e->getMessage()]);
         }
 
         return response()->json(['message' => 'تم رفض الطلب الداخلي بنجاح']);
     }
+
     // POST /api/storekeeper/shipments/{id}/confirm
     public function confirm(Request $request, $id)
     {
@@ -554,6 +581,8 @@ class InternalSupplyRequestController extends BaseApiController
             
             // تحديث حالة الطلب
             $req->status = 'approved';
+            $req->handeled_by = $user->id; // Assign the storekeeper who approved it
+            $req->handeled_at = now();
             // ملاحظة: تم إزالة عمود notes من الجدول، لذا نحفظ الملاحظات في audit_log فقط
             $req->save();
 
@@ -580,9 +609,35 @@ class InternalSupplyRequestController extends BaseApiController
                     ]),
                     'ip_address' => $request->ip(),
                 ]);
+
+                // إنشاء إشعار للمستخدم الطالب (requester)
+                \Log::info('Attempting to create success notification', [
+                    'requested_by' => $req->requested_by,
+                    'handeled_by'  => $user->id,
+                    'request_id'   => $req->id
+                ]);
+
+                $usersToNotify = array_unique(array_filter([$req->requested_by, $user->id]));
+
+                if (empty($usersToNotify)) {
+                    \Log::warning('No requested_by or approved_by found for request', ['request_id' => $req->id]);
+                }
+
+                foreach ($usersToNotify as $userId) {
+                    // ملاحظة: الحقل type في قاعدة البيانات هو enum يقبل فقط ['عادي', 'مستعجل']
+                    $notif = \App\Models\Notification::create([
+                        'user_id' => $userId,
+                        'type'    => 'عادي',
+                        'title'   => 'تم قبول طلب التوريد',
+                        'message' => "تم قبول طلب التوريد رقم {$req->id}وتم إرسال الشحنة. ",
+                        'is_read' => false,
+                    ]);
+                    \Log::info('Success notification created', ['notification_id' => $notif->id, 'user_id' => $userId]);
+                }
+
             } catch (\Exception $auditError) {
                 // لا نفشل العملية إذا فشل الـ logging
-                \Log::error('Failed to create audit log', ['error' => $auditError->getMessage()]);
+                \Log::error('Failed to create audit log/notification', ['error' => $auditError->getMessage()]);
             }
 
             return response()->json(['message' => 'تم تأكيد تجهيز الطلب الداخلي وخصم الكميات من مخزون المستودع بنجاح']);

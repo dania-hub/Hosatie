@@ -11,6 +11,12 @@ use App\Models\Drug;
 use App\Models\Dispensing;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\ResalaService;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use App\Observers\PrescriptionDrugObserver;
+use App\Services\PatientNotificationService;
 
 class PatientDepartmentAdminController extends BaseApiController
 {
@@ -211,7 +217,7 @@ class PatientDepartmentAdminController extends BaseApiController
      * POST /api/department-admin/patients/{id}/medications
      * Add new medications (like doctor/patients)
      */
-    public function store(Request $request, $id)
+    public function store(Request $request, $id, ResalaService $resalaService, PatientNotificationService $notificationService)
     {
         try {
             $request->validate([
@@ -239,6 +245,20 @@ class PatientDepartmentAdminController extends BaseApiController
                 return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
             }
 
+            // إرسال رسالة التفعيل إذا كان بانتظار التفعيل (دون تغيير الحالة)
+            if ($patient->status === 'pending_activation') {
+                $plainPassword = \Illuminate\Support\Str::random(8); // إنشاء كلمة مرور عشوائية
+                
+                $patient->update([
+                    'password' => \Illuminate\Support\Facades\Hash::make($plainPassword),
+                    // 'status'   => 'active' // تم التعطيل بناءً على طلب المستخدم
+                ]);
+
+                $resalaService->sendActivationSms($patient->phone, $plainPassword);
+                
+                Log::info('✅ Activation SMS sent by Department Head (status remains pending_activation)', ['id' => $patient->id]);
+            }
+
             // 1. Find existing active prescription (from any hospital)
             $prescription = Prescription::where('patient_id', $patient->id)
                 ->where('status', 'active')
@@ -257,6 +277,10 @@ class PatientDepartmentAdminController extends BaseApiController
 
             // 3. Add Drugs (only if they don't exist, or update quantity if exists)
             $createdDrugs = [];
+            $updatedDrugs = [];
+
+            // منع Observer من إرسال إشعار مكرر (إذا كان يفعل ذلك)
+            PrescriptionDrugObserver::$skipNotification = true;
 
             foreach ($request->medications as $med) {
                 $existingPd = PrescriptionDrug::where('prescription_id', $prescription->id)
@@ -270,25 +294,42 @@ class PatientDepartmentAdminController extends BaseApiController
                         ? (int)$med['daily_quantity'] 
                         : null;
                     
-                    $createdDrugs[] = PrescriptionDrug::create([
+                    $newPd = PrescriptionDrug::create([
                         'prescription_id' => $prescription->id,
                         'drug_id'         => $med['drug_id'],
                         'monthly_quantity'=> $monthlyQuantity,
                         'daily_quantity'  => $dailyQuantity,
                     ]);
+                    $newPd->load('drug');
+                    $createdDrugs[] = $newPd;
                 } else {
-                    // إذا كان الدواء موجوداً، قم بتحديث الكمية فقط (مثل doctor/patients)
+                    // إذا كان الدواء موجوداً، قم بتحديث الكمية فقط
+                    $oldQty = $existingPd->monthly_quantity;
                     $existingPd->monthly_quantity = $med['quantity'];
                     if (isset($med['daily_quantity']) && $med['daily_quantity'] !== null) {
                         $existingPd->daily_quantity = (int)$med['daily_quantity'];
                     }
-                    $existingPd->save();
+                    if ($existingPd->isDirty()) {
+                        $existingPd->save();
+                        $existingPd->load('drug');
+                        $updatedDrugs[] = $existingPd;
+                    }
                 }
             }
 
             DB::commit();
-            return $this->sendSuccess([], 'تم إضافة الأدوية بنجاح.');
 
+            PrescriptionDrugObserver::$skipNotification = false;
+
+            // Trigger Push Notifications
+            foreach ($createdDrugs as $pd) {
+                $notificationService->notifyDrugAssigned($patient, $prescription, $pd->drug);
+            }
+            foreach ($updatedDrugs as $pd) {
+                $notificationService->notifyDrugUpdated($patient, $prescription, $pd->drug);
+            }
+
+            return $this->sendSuccess([], 'تم إضافة الأدوية بنجاح.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             if (DB::transactionLevel() > 0) {
                 DB::rollBack();
@@ -310,7 +351,7 @@ class PatientDepartmentAdminController extends BaseApiController
      * PUT /api/department-admin/patients/{id}/medications
      * Sync medications list (Add/Remove/Update all at once)
      */
-    public function updateMedications(Request $request, $id)
+    public function updateMedications(Request $request, $id, ResalaService $resalaService, PatientNotificationService $notificationService)
     {
         $request->validate([
             'medications' => 'required|array',
@@ -334,6 +375,20 @@ class PatientDepartmentAdminController extends BaseApiController
             
             if (!$patient) {
                 return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+            }
+
+            // إرسال رسالة التفعيل إذا كان بانتظار التفعيل (دون تغيير الحالة)
+            if ($patient->status === 'pending_activation') {
+                $plainPassword = \Illuminate\Support\Str::random(8); // إنشاء كلمة مرور عشوائية
+                
+                $patient->update([
+                    'password' => \Illuminate\Support\Facades\Hash::make($plainPassword),
+                    // 'status'   => 'active' // تم التعطيل بناءً على طلب المستخدم
+                ]);
+
+                $resalaService->sendActivationSms($patient->phone, $plainPassword);
+                
+                Log::info('✅ Activation SMS sent by Department Head sync (status remains pending_activation)', ['id' => $patient->id]);
             }
 
             // البحث عن وصفة نشطة أو إنشاء واحدة
@@ -364,7 +419,8 @@ class PatientDepartmentAdminController extends BaseApiController
                 ->pluck('drug_id')
                 ->toArray();
 
-            $created = [];
+            $createdRecords = [];
+            $updatedRecords = [];
             $processedDrugIds = [];
             
             // إضافة أو تحديث الأدوية
@@ -476,11 +532,12 @@ class PatientDepartmentAdminController extends BaseApiController
                             $needsUpdate = true;
                         }
                         
-                        // حفظ فقط إذا كان هناك تغيير فعلي (لتجنب إنشاء audit_log غير ضروري)
+                        // حفظ فقط إذا كان هناك تغيير فعلي
                         if ($needsUpdate) {
                             $existingPd->save();
+                            $existingPd->load('drug');
+                            $updatedRecords[] = $existingPd;
                         }
-                        $pd = $existingPd;
                     } else {
                         // إضافة دواء جديد فقط
                         $pd = PrescriptionDrug::create([
@@ -491,44 +548,41 @@ class PatientDepartmentAdminController extends BaseApiController
                                 ? (int)$med['daily_quantity'] 
                                 : null,
                         ]);
+                        $pd->load('drug');
+                        $createdRecords[] = $pd;
                     }
 
                     $processedDrugIds[] = $drug->id;
-
-                    // تحديد وحدة القياس من بيانات الدواء
-                    $unit = $this->getDrugUnit($drug);
-                    // استخدام daily_quantity من البيانات المرسلة مباشرة
-                    $dailyQty = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
-                        ? (int)$med['daily_quantity'] 
-                        : 0;
-                    $dosageText = $dailyQty > 0 
-                        ? $dailyQty . ' ' . $unit . ' يومياً'
-                        : 'غير محدد';
-                    $monthlyQuantityText = $monthlyQuantity > 0 ? $monthlyQuantity . ' ' . $unit : 'غير محدد';
-
-                    $created[] = [
-                        'id' => $drug->id,
-                        'pivot_id' => $pd->id,
-                        'drugName' => $drug->name,
-                        'dosage' => $dosageText,
-                        'monthlyQuantity' => $monthlyQuantityText,
-                        'monthlyQuantityNum' => $monthlyQuantity,
-                        'unit' => $unit,
-                        'assignmentDate' => $prescription->start_date ? $prescription->start_date->format('Y-m-d') : null,
-                        'assignedBy' => $request->user()->full_name, // اسم المستخدم الحالي
-                    ];
                 }
             }
 
             // حذف الأدوية التي لم تعد موجودة في القائمة الجديدة
             $drugsToDelete = array_diff($existingDrugs, $processedDrugIds);
             if (!empty($drugsToDelete)) {
-                PrescriptionDrug::where('prescription_id', $prescription->id)
+                $deletedDrugRecords = PrescriptionDrug::with('drug')
+                    ->where('prescription_id', $prescription->id)
                     ->whereIn('drug_id', $drugsToDelete)
-                    ->delete();
+                    ->get();
+                
+                foreach ($deletedDrugRecords as $dr) {
+                    $dr->delete();
+                }
             }
 
             DB::commit();
+
+            // Trigger Push Notifications
+            foreach ($createdRecords as $pd) {
+                $notificationService->notifyDrugAssigned($patient, $prescription, $pd->drug);
+            }
+            foreach ($updatedRecords as $pd) {
+                $notificationService->notifyDrugUpdated($patient, $prescription, $pd->drug);
+            }
+            if (!empty($drugsToDelete)) {
+                foreach ($deletedDrugRecords as $dr) {
+                    $notificationService->notifyDrugDeleted($patient, $prescription, $dr->drug);
+                }
+            }
 
             // إعادة جلب البيانات المحدثة
             return $this->show($request, $id);
@@ -562,39 +616,12 @@ class PatientDepartmentAdminController extends BaseApiController
      * PUT /api/department-admin/patients/{id}/medications/{pivotId}
      * Update single medication quantity
      */
-    public function update(Request $request, $patientId, $pivotId)
+    public function update(Request $request, $patientId, $pivotId, PatientNotificationService $notificationService)
     {
         $request->validate(['dosage' => 'required|integer|min:1']);
         $hospitalId = $request->user()->hospital_id;
 
-        $item = PrescriptionDrug::where('id', $pivotId)->first();
-        if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
-
-        // تأكد أن المريض موجود وفي نفس المستشفى (الأذونات تُعطى على مستوى المريض، وليس منشأ الوصفة)
-        $patient = User::where('type', 'patient')
-            ->where('hospital_id', $hospitalId)
-            ->where('id', $patientId)
-            ->first();
-        if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
-
-        // نسمح بالتعديل حتى لو كانت الوصفة مُنشأة في مستشفى آخر
-        $prescription = Prescription::find($item->prescription_id);
-
-        $item->monthly_quantity = $request->dosage;
-        $item->save();
-
-        return $this->sendSuccess($item, 'تم تحديث جرعة الدواء بنجاح.');
-    }
-
-    /**
-     * DELETE /api/department-admin/patients/{id}/medications/{pivotId}
-     * Delete single medication
-     */
-    public function destroy(Request $request, $patientId, $pivotId)
-    {
-        $hospitalId = $request->user()->hospital_id;
-
-        $item = PrescriptionDrug::where('id', $pivotId)->first();
+        $item = PrescriptionDrug::with(['prescription.patient', 'drug'])->where('id', $pivotId)->first();
         if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
 
         // تأكد أن المريض موجود وفي نفس المستشفى
@@ -604,11 +631,52 @@ class PatientDepartmentAdminController extends BaseApiController
             ->first();
         if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
 
-        // نسمح بالحذف حتى لو كانت الوصفة مُنشأة في مستشفى آخر
-        $prescription = Prescription::find($item->prescription_id);
+        $prescription = $item->prescription;
 
-        // حذف الدواء (سيتم استدعاء observer تلقائياً)
+        $item->monthly_quantity = $request->dosage;
+        
+        // تحديث الجرعة اليومية أيضاً إذا تم إرسالها
+        if ($request->has('daily_quantity')) {
+            $item->daily_quantity = $request->daily_quantity;
+        } else {
+            // حساب الجرعة اليومية من الشهرية (الشهرية / 30)
+            $item->daily_quantity = round($request->dosage / 30);
+        }
+        
+        $item->save();
+
+        // Trigger Push Notification
+        $notificationService->notifyDrugUpdated($patient, $prescription, $item->drug);
+
+        return $this->sendSuccess($item, 'تم تحديث جرعة الدواء بنجاح.');
+    }
+
+    /**
+     * DELETE /api/department-admin/patients/{id}/medications/{pivotId}
+     * Delete single medication
+     */
+    public function destroy(Request $request, $patientId, $pivotId, PatientNotificationService $notificationService)
+    {
+        $hospitalId = $request->user()->hospital_id;
+
+        $item = PrescriptionDrug::with(['prescription.patient', 'drug'])->where('id', $pivotId)->first();
+        if (!$item) return $this->sendError('الدواء غير موجود في السجل.', [], 404);
+
+        // تأكد أن المريض موجود وفي نفس المستشفى
+        $patient = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->where('id', $patientId)
+            ->first();
+        if (!$patient) return $this->sendError('المريض غير موجود أو غير مرتبط بنفس المستشفى.', [], 404);
+
+        $prescription = $item->prescription;
+        $drug = $item->drug;
+ 
+        // حذف الدواء
         $item->delete();
+
+        // Trigger Push Notification
+        $notificationService->notifyDrugDeleted($patient, $prescription, $drug);
 
         // التحقق من أن الروشتة ليست فارغة، وإذا كانت فارغة يمكن حذفها
         if ($prescription->drugs()->count() == 0) {

@@ -141,7 +141,8 @@ class PatientDataEntryController extends BaseApiController
             ->where('hospital_id', $hospitalId)
             ->pluck('id');
 
-        $logs = AuditLog::where('table_name', 'users')
+        $logs = AuditLog::where('user_id', $user->id)
+            ->where('table_name', 'users')
             ->whereIn('record_id', $patientIds)
             ->latest()
             ->get();

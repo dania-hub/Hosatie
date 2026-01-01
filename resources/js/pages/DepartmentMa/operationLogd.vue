@@ -50,29 +50,30 @@ const fetchOperations = async () => {
         
         if (operationsData && Array.isArray(operationsData)) {
             operations.value = operationsData;
+            showSuccessAlert("تم تحميل سجل العمليات بنجاح.");
         } else {
             operations.value = [];
             console.error('شكل البيانات غير متوقع:', response.data);
-            showSuccessAlert("⚠️ تم الاتصال بالخادم لكن البيانات بصيغة غير متوقعة");
+            showSuccessAlert("تم الاتصال بالخادم لكن البيانات بصيغة غير متوقعة");
         }
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
-        console.error("فشل في جلب العمليات:", error);
+        console.error("Failed to fetch operations:", error);
         isError.value = true;
         
         if (error.response) {
             const status = error.response.status;
             if (status === 401) {
-                showSuccessAlert("🔒 خطأ في المصادقة. يرجى تسجيل الدخول مرة أخرى");
+                showSuccessAlert("خطأ في المصادقة. يرجى تسجيل الدخول مرة أخرى");
             } else if (status === 403) {
-                showSuccessAlert("🚫 ليس لديك صلاحية للوصول إلى هذه البيانات");
+                showSuccessAlert("ليس لديك صلاحية للوصول إلى هذه البيانات");
             } else {
-                showSuccessAlert(`❌ فشل في تحميل البيانات: ${error.response.data?.message || 'خطأ غير معروف'}`);
+                showSuccessAlert(`فشل في تحميل البيانات: ${error.response.data?.message || 'خطأ غير معروف'}`);
             }
         } else if (error.request) {
-            showSuccessAlert("📡 لا يمكن الاتصال بالخادم. تحقق من اتصال الإنترنت");
+            showSuccessAlert("لا يمكن الاتصال بالخادم. تحقق من اتصال الإنترنت");
         } else {
-            showSuccessAlert("❌ فشل في تحميل البيانات.");
+            showSuccessAlert("فشل في تحميل البيانات.");
         }
     } finally {
         isLoading.value = false;
@@ -190,7 +191,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -229,7 +230,7 @@ const printTable = () => {
             }
         </style>
 
-        <h1>سجل العمليات (تقرير طباعة)</h1>
+        <h1>سجل العمليات </h1>
         
         <p class="results-info">
             عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
@@ -277,7 +278,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
@@ -447,7 +448,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     >
         <div 
             v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#3a8c94] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
             dir="rtl"
         >
             {{ successMessage }}

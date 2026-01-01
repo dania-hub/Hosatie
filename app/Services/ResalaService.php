@@ -207,6 +207,20 @@ class ResalaService
         return array_unique($formats);
     }
 
+    private function formatPhoneForMessages($phone)
+    {
+        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+        // إذا كان الرقم يبدأ بـ 09، نحذف الصفر ليصبح 9xxxxxxxx
+        if (strlen($cleaned) === 10 && strpos($cleaned, '09') === 0) {
+            return substr($cleaned, 1);
+        }
+        // إذا كان الرقم يبدأ بـ 2189، نحذف 218 ليصبح 9xxxxxxxx
+        if (strlen($cleaned) === 12 && strpos($cleaned, '2189') === 0) {
+            return substr($cleaned, 3);
+        }
+        return $cleaned;
+    }
+
     // =================================================================
     // === التعديل الثاني هنا: التحقق من الـ OTP المشفر ===
     // =================================================================
@@ -260,7 +274,6 @@ class ResalaService
         }
     }
 
-    // ... بقية الدوال تبقى كما هي تمامًا ...
     public function deleteOtpFromDatabase($phone)
     {
         try {
@@ -288,20 +301,35 @@ class ResalaService
     {
         try {
             Log::info('Sending custom message to: ' . $phone);
-            $formattedPhone = $this->formatPhoneForResala($phone);
+            $formattedPhone = $this->formatPhoneForMessages($phone);
+            Log::info('Formatted phone for Custom Message: ' . $formattedPhone);
+            
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->token,
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-            ])->post($this->baseUrl . '/message', [
+            ])->post($this->baseUrl . '/messages', [
                 'phone' => $formattedPhone,
                 'content' => $message,
             ]);
+            
+            Log::info('Resala Custom Message Response: ' . $response->status());
             return $response->successful();
         } catch (\Exception $e) {
             Log::error('Resala Custom Message Error: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * إرسال رسالة تفعيل الحساب للمريض
+     */
+    public function sendActivationSms($phone, $password)
+    {
+        $message = "مرحبا عزيزي المواطن تم تفعيل حسابك في نظام حصتي\nرقم الهاتف : {$phone}\nكلمة المرور : {$password}";
+        
+        Log::info("Sending activation SMS to {$phone}");
+        return $this->sendCustomMessage($phone, $message);
     }
 
     public function getMessageHistory($phone = null)

@@ -33,7 +33,10 @@ class PrescriptionDrugObserver
      */
     public function created(PrescriptionDrug $prescriptionDrug)
     {
-        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر - تم الإضافة
+        Log::info('Observer Created Triggered', ['id' => $prescriptionDrug->id]);
+        $this->logAction('إضافة دواء', $prescriptionDrug);
+
+        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر
         if (self::$skipNotification) {
             Log::info('Observer Created: SKIPPING notification - Controller will send it', [
                 'id' => $prescriptionDrug->id,
@@ -42,8 +45,7 @@ class PrescriptionDrugObserver
             return;
         }
 
-        Log::info('Observer Created Triggered - Sending notification', ['id' => $prescriptionDrug->id]);
-        $this->logAction('إضافة دواء', $prescriptionDrug);
+        Log::info('Observer Created: Sending notification', ['id' => $prescriptionDrug->id]);
     }
 
     /**
@@ -51,7 +53,10 @@ class PrescriptionDrugObserver
      */
     public function updated(PrescriptionDrug $prescriptionDrug)
     {
-        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر - تم الإضافة
+        Log::info('Observer Updated Triggered', ['id' => $prescriptionDrug->id]);
+        $this->logAction('تعديل دواء', $prescriptionDrug, $prescriptionDrug->getOriginal());
+
+        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر
         if (self::$skipNotification) {
             Log::info('Observer Updated: SKIPPING notification - Controller will send it', [
                 'id' => $prescriptionDrug->id,
@@ -63,8 +68,7 @@ class PrescriptionDrugObserver
         // ✅ عند التحديث: لا نغيّر monthly_quantity حتى لو تغيّر daily_quantity
         // هذا المنطق يطبّق على الإنشاء فقط
         
-        Log::info('Observer Updated Triggered - Sending notification', ['id' => $prescriptionDrug->id]);
-        $this->logAction('تعديل دواء', $prescriptionDrug, $prescriptionDrug->getOriginal());
+        Log::info('Observer Updated: Sending notification', ['id' => $prescriptionDrug->id]);
     }
 
     /**
@@ -72,16 +76,7 @@ class PrescriptionDrugObserver
      */
     public function deleted(PrescriptionDrug $prescriptionDrug)
     {
-        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر - تم الإضافة
-        if (self::$skipNotification) {
-            Log::info('Observer Deleted: SKIPPING notification - Controller will send it', [
-                'id' => $prescriptionDrug->id,
-                'skipNotification' => self::$skipNotification
-            ]);
-            return;
-        }
-        
-        Log::info('Observer Deleted Triggered - Sending notification', ['id' => $prescriptionDrug->id]);
+        Log::info('Observer Deleted Triggered', ['id' => $prescriptionDrug->id]);
         
         // عند الحذف، يجب حفظ معلومات المريض قبل أن يتم حذف السجل
         $patientInfo = null;
@@ -96,6 +91,17 @@ class PrescriptionDrugObserver
         }
         
         $this->logAction('حذف دواء', $prescriptionDrug, null, $patientInfo);
+
+        // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر
+        if (self::$skipNotification) {
+            Log::info('Observer Deleted: SKIPPING notification - Controller will send it', [
+                'id' => $prescriptionDrug->id,
+                'skipNotification' => self::$skipNotification
+            ]);
+            return;
+        }
+        
+        Log::info('Observer Deleted: Sending notification', ['id' => $prescriptionDrug->id]);
     }
 
     /**
@@ -104,13 +110,19 @@ class PrescriptionDrugObserver
     protected function logAction($action, $record, $oldValues = null, $patientInfo = null)
     {
         // 1. Try getting user from Auth Facade
-        $userId = Auth::id();
+        $user = Auth::user();
+        $userId = $user ? $user->id : null;
 
         // 2. Fallback: Try getting user from Request (API specific)
         if (!$userId) {
-            $userId = request()->user() ? request()->user()->id : null;
+            $user = request()->user();
+            $userId = $user ? $user->id : null;
         }
 
+       
+        if ($user && $user->type === 'pharmacist' && $action === 'تعديل دواء') {
+            $action = 'صرف دواء';
+        }
         // 3. If User ID found, Create Log
         if ($userId) {
             // إضافة معلومات المريض إلى new_values لتسهيل العرض لاحقاً

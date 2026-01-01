@@ -86,7 +86,7 @@
                                     @blur="hideResults"
                                     placeholder="ابحث عن دواء..."
                                     class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
-                                    :disabled="selectedDrugName.length > 0 || isLoadingDrugs"
+                                    :disabled="isLoadingDrugs"
                                 />
                                 <div v-if="isLoadingDrugs" class="absolute left-3 top-1/2 -translate-y-1/2">
                                     <Icon icon="svg-spinners:ring-resize" class="w-5 h-5 text-[#4DA1A9]" />
@@ -614,9 +614,6 @@ const addNewDrug = () => {
         selectedDrugUnit.value = '';
         selectedDrugForm.value = '';
         dailyQuantity.value = null;
-        
-        // إعادة عرض جميع الأدوية بعد الإضافة
-        showAllDrugs();
     }
 };
 
@@ -718,7 +715,6 @@ const closeModal = () => {
 // دورة حياة المكون
 onMounted(async () => {
     await fetchCategories();
-    await showAllDrugs();
 });
 
 // مراقبة فتح النافذة
@@ -727,7 +723,7 @@ watch(() => props.isOpen, async (isOpen) => {
         // إعادة تعيين البيانات عند فتح النافذة
         clearForm();
         await fetchCategories();
-        await showAllDrugs();
     }
 });
 </script>
+成功

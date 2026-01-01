@@ -119,19 +119,29 @@
                         </div>
                     </div>
 
-                    <!-- Notes -->
+                    <!-- Notes Container -->
                     <div class="space-y-2">
                         <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                            ملاحظات الاستلام <span class="text-sm font-normal text-gray-400">(اختياري)</span>
+                            ملاحظات الاستلام
+                            <span v-if="isShortageDetected" class="text-red-500 font-bold">* (إجباري لوجود نقص)</span>
+                            <span v-else class="text-sm font-normal text-gray-400">(اختياري)</span>
                         </h3>
-                        <textarea
-                            v-model="notes"
-                            rows="3"
-                            placeholder="أدخل أي ملاحظات حول الاستلام (مثل: نقص في الكمية، تغليف تالف، إلخ)..."
-                            class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
-                            :disabled="props.isLoading || isConfirming"
-                        ></textarea>
+                        <div class="relative">
+                            <textarea
+                                v-model="notes"
+                                rows="3"
+                                placeholder="أدخل أي ملاحظات حول الاستلام (مثل: نقص في الكمية، تغليف تالف، إلخ)..."
+                                class="w-full p-4 bg-white border rounded-xl text-gray-700 focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
+                                :class="[
+                                    (props.isLoading || isConfirming) ? 'bg-gray-50' : 'bg-white',
+                                    noteError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-[#4DA1A9]'
+                                ]"
+                                :disabled="props.isLoading || isConfirming"
+                                @input="noteError = false"
+                            ></textarea>
+                            <p v-if="noteError" class="text-red-500 text-xs mt-1">يجب إدخال ملاحظات التبرير عند وجود نقص في الكمية المستلمة.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -156,12 +166,30 @@
                     {{ isConfirming ? 'جاري التأكيد...' : 'تأكيد الاستلام' }}
                 </button>
             </div>
+
+            <!-- Error Alert Notification -->
+            <Transition
+                enter-active-class="transition duration-300 ease-out transform"
+                enter-from-class="-translate-y-full opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition duration-200 ease-in transform"
+                leave-from-class="translate-y-0 opacity-100"
+                leave-to-class="-translate-y-full opacity-0"
+            >
+                <div 
+                    v-if="localAlert.show" 
+                    class="fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-[#3a8c94] text-white rounded-2xl shadow-2xl flex items-center gap-3 border border-white/20 backdrop-blur-md"
+                >
+                    <Icon icon="solar:danger-triangle-bold-duotone" class="w-6 h-6 text-white" />
+                    <span class="font-bold">{{ localAlert.message }}</span>
+                </div>
+            </Transition>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Icon } from "@iconify/vue";
 
 const props = defineProps({
@@ -189,14 +217,42 @@ const emit = defineEmits(['close', 'confirm']);
 // البيانات
 const receivedItems = ref([]);
 const notes = ref('');
+const noteError = ref(false);
 const isConfirming = ref(false);
+
+const localAlert = ref({
+    show: false,
+    message: ''
+});
+
+const showLocalAlert = (msg) => {
+    localAlert.value.message = msg;
+    localAlert.value.show = true;
+    setTimeout(() => {
+        localAlert.value.show = false;
+    }, 5000);
+};
+
+// اكتشاف وجود نقص في الكميات المستلمة مقارنة بالمرسلة
+const isShortageDetected = computed(() => {
+    return receivedItems.value.some(item => {
+        const sent = Number(item.sentQuantity || item.originalQuantity || 0);
+        const received = Number(item.receivedQuantity || 0);
+        return received < sent;
+    });
+});
 
 // دالة مساعدة لتنسيق التاريخ
 const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA');
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
     } catch {
         return dateString;
     }
@@ -205,103 +261,24 @@ const formatDate = (dateString) => {
 // تهيئة receivedItems
 watch(() => props.requestData.items, (newItems) => {
     if (newItems && newItems.length > 0) {
-        console.log('📦 Department ConfirmationModal - Raw items:', newItems);
         receivedItems.value = newItems.map(item => {
-            console.log('📦 Processing item:', item);
-            // الحصول على الكمية المطلوبة
             const requestedQty = Number(item.requested_qty || item.requestedQty || item.quantity || 0);
+            let sentQty = 0;
             
-            // الحصول على الكمية المرسلة من أمين المخزن
-            // approved_qty = الكمية المرسلة من أمين المخزن
-            // fulfilled_qty = الكمية المستلمة (تُحدث بعد التأكيد من المستلم)
-            let sentQty = null;
+            if (item.approved_qty !== null && item.approved_qty !== undefined) sentQty = Number(item.approved_qty);
+            else if (item.approvedQty !== null && item.approvedQty !== undefined) sentQty = Number(item.approvedQty);
+            else if (item.sentQuantity !== null && item.sentQuantity !== undefined) sentQty = Number(item.sentQuantity);
             
-            // التحقق من approved_qty أولاً (الكمية المرسلة من أمين المخزن) - أولوية عالية
-            if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
-                const val = Number(item.approved_qty);
-                if (!isNaN(val) && val > 0) {
-                    sentQty = val;
-                }
-            }
-            // التحقق من approvedQty (camelCase)
-            else if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
-                const val = Number(item.approvedQty);
-                if (!isNaN(val) && val > 0) {
-                    sentQty = val;
-                }
-            }
-            // التحقق من sentQuantity
-            else if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
-                const val = Number(item.sentQuantity);
-                if (!isNaN(val) && val > 0) {
-                    sentQty = val;
-                }
-            }
-            // التحقق من sent
-            else if (item.sent !== null && item.sent !== undefined && item.sent !== '') {
-                const val = Number(item.sent);
-                if (!isNaN(val) && val > 0) {
-                    sentQty = val;
-                }
-            }
-            // التحقق من approved
-            else if (item.approved !== null && item.approved !== undefined && item.approved !== '') {
-                const val = Number(item.approved);
-                if (!isNaN(val) && val > 0) {
-                    sentQty = val;
-                }
-            }
+            let receivedQty = item.fulfilled_qty ?? item.fulfilledQty ?? item.receivedQuantity ?? sentQty;
             
-            // الحصول على الكمية المستلمة الفعلية - فقط fulfilled_qty، لا نستخدم approved_qty كبديل
-            let receivedQty = null;
-            
-            // التحقق من fulfilled_qty أولاً (الكمية المستلمة الفعلية)
-            if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '') {
-                const val = Number(item.fulfilled_qty);
-                if (!isNaN(val) && val >= 0) {
-                    receivedQty = val;
-                }
-            }
-            // التحقق من fulfilledQty
-            else if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '') {
-                const val = Number(item.fulfilledQty);
-                if (!isNaN(val) && val >= 0) {
-                    receivedQty = val;
-                }
-            }
-            // التحقق من fulfilled
-            else if (item.fulfilled !== null && item.fulfilled !== undefined && item.fulfilled !== '') {
-                const val = Number(item.fulfilled);
-                if (!isNaN(val) && val >= 0) {
-                    receivedQty = val;
-                }
-            }
-            // التحقق من receivedQuantity فقط إذا لم يكن نفس approved_qty
-            else if (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity !== '') {
-                const approved = item.approved_qty ?? item.approvedQty ?? null;
-                // إذا كان receivedQuantity مختلف عن approved_qty، نستخدمه
-                if (approved === null || Number(item.receivedQuantity) !== Number(approved)) {
-                    const val = Number(item.receivedQuantity);
-                    if (!isNaN(val) && val >= 0) {
-                        receivedQty = val;
-                    }
-                }
-            }
-            
-            // إذا لم توجد كمية مستلمة فعلية، نستخدم الكمية المرسلة كقيمة افتراضية للعرض فقط
-            // لكن المستخدم يمكنه تعديلها
-            const defaultReceivedQty = receivedQty !== null ? receivedQty : (sentQty !== null && sentQty !== undefined ? sentQty : 0);
-            
-            const result = {
+            return {
                 id: item.id || item.drugId,
                 name: item.name || item.drugName || 'دواء غير محدد',
                 originalQuantity: requestedQty,
                 sentQuantity: sentQty,
-                receivedQuantity: defaultReceivedQty,
+                receivedQuantity: Number(receivedQty),
                 unit: item.unit || 'وحدة'
             };
-            console.log('📦 Mapped item:', result, 'Source approved_qty:', item.approved_qty, 'sentQuantity:', item.sentQuantity);
-            return result;
         });
         notes.value = '';
     }
@@ -309,18 +286,9 @@ watch(() => props.requestData.items, (newItems) => {
 
 const validateQuantity = (index, maxQuantity) => {
     let value = receivedItems.value[index].receivedQuantity;
-
-    if (isNaN(value) || value === null) {
-        value = 0;
-    }
-    
-    if (value > maxQuantity) {
-        value = maxQuantity;
-    }
-    if (value < 0) {
-        value = 0;
-    }
-
+    if (isNaN(value) || value === null) value = 0;
+    if (value > maxQuantity) value = maxQuantity;
+    if (value < 0) value = 0;
     receivedItems.value[index].receivedQuantity = value;
 };
 
@@ -330,12 +298,17 @@ const confirmReceipt = async () => {
     );
     
     if (hasInvalidQuantity) {
-        alert('يرجى التأكد من إدخال كميات صحيحة لجميع الأصناف.');
+        showLocalAlert('يرجى التأكد من إدخال كميات صحيحة لجميع الأصناف.');
+        return;
+    }
+
+    if (isShortageDetected.value && !notes.value.trim()) {
+        noteError.value = true;
+        showLocalAlert('يجب إدخال ملاحظات الاستلام لتوضيح سبب النقص في الكمية.');
         return;
     }
     
     isConfirming.value = true;
-    
     try {
         const confirmationData = {
             receivedItems: receivedItems.value.map(item => ({
@@ -347,12 +320,10 @@ const confirmReceipt = async () => {
             })),
             notes: notes.value.trim()
         };
-
         emit('confirm', confirmationData);
-        
     } catch (error) {
         console.error('Error confirming receipt:', error);
-        alert('حدث خطأ أثناء تأكيد الاستلام. يرجى المحاولة مرة أخرى.');
+        showLocalAlert('حدث خطأ أثناء تأكيد الاستلام. يرجى المحاولة مرة أخرى.');
     } finally {
         isConfirming.value = false;
     }

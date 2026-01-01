@@ -31,6 +31,7 @@ const fetchOperations = async () => {
         // Laravel Resources wrap collections in a 'data' property
         operations.value = response.data.data || response.data; 
         
+        showSuccessAlert(" تم تحميل سجل العمليات بنجاح.");
     } catch (error) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", error);
@@ -151,7 +152,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -237,7 +238,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
@@ -295,7 +296,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي أو الإسم رباعي" />
                         </div>
                         
                         <div class="dropdown dropdown-start">
@@ -448,7 +449,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
             v-if="isSuccessAlertVisible" 
             class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
             dir="rtl"
-            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#4DA1A9]'"
+            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#3a8c94]'"
         >
             <div class="flex-1 font-bold text-sm">
                 {{ successMessage }}

@@ -14,9 +14,8 @@ class InternalSupplyRequest extends Model
     protected $fillable = [
         'pharmacy_id',
         'requested_by',
+        'handeled_by', // Use existing column
         'status',
-        // 'handeled_by',
-        // 'handeled_at',
     ];
 
     protected $casts = [
@@ -35,7 +34,7 @@ class InternalSupplyRequest extends Model
 
     public function approver()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'handeled_by');
     }
 
     public function items()

@@ -38,7 +38,7 @@ Route::prefix('super-admin')->group(function () {
 // Hospital Admin
 Route::prefix('admin')->group(function () {
     Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
-        Route::get('/medications', function () { return Inertia::render('HospitalAdmin/medicationsList'); });
+    Route::get('/medications', function () { return Inertia::render('HospitalAdmin/medicationsList'); });
     Route::get('/operations', function () { return Inertia::render('HospitalAdmin/operationLog'); });
     Route::get('/all-operations', function () { return Inertia::render('HospitalAdmin/operationLogforall'); });
     Route::get('/statistics', function () { return Inertia::render('HospitalAdmin/statistics'); });
@@ -50,10 +50,6 @@ Route::prefix('admin')->group(function () {
     Route::get('/complaints', function () { return Inertia::render('HospitalAdmin/complaints'); });
 });
 
-// Hospital Admin (alias for hospital-admin)
-Route::prefix('hospital-admin')->group(function () {
-    Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
-});
 
 // Pharmacist
 Route::prefix('pharmacist')->group(function () {

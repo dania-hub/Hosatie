@@ -22,17 +22,36 @@ class OperationLogController extends BaseApiController
             
             // إضافة تفاصيل الدواء إذا كانت العملية متعلقة بدواء
             $operationType = $this->addDrugDetails($log, $translatedAction);
+            
+            // إضافة رقم الشحنة إذا كانت العملية متعلقة بطلب
+            $operationType = $this->addRequestDetails($log, $operationType);
 
             // الحصول على رقم الملف المناسب (رقم ملف الشحنة للشحنات، رقم المريض للمرضى)
             $fileNumber = $this->getFileNumber($log);
 
-            return [
+            $result = [
                 'fileNumber'    => $fileNumber,
                 'name'          => $user->full_name ?? 'غير معروف',
+                'role'          => $this->translateUserType($user->type ?? ''),
                 'patientName'   => $patientName,                          // اسم المريض أو "-"
                 'operationType' => $operationType,                       // نوع العملية معرّب مع تفاصيل الدواء إن وجدت
                 'operationDate' => $log->created_at?->format('Y/m/d'),
             ];
+
+            // إضافة changes للعمليات المتعلقة بالمرضى (مثل dataEntry/operationLog)
+            if ($log->table_name === 'users') {
+                $patient = User::find($log->record_id);
+                if ($patient && $patient->type === 'patient') {
+                    $old = $log->old_values ? json_decode($log->old_values, true) : [];
+                    $new = $log->new_values ? json_decode($log->new_values, true) : [];
+                    $result['changes'] = [
+                        'old' => $old,
+                        'new' => $new,
+                    ];
+                }
+            }
+
+            return $result;
         });
 
         return response()->json($data);
@@ -223,6 +242,7 @@ class OperationLogController extends BaseApiController
             'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام توريد خارجي',
             'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
+            'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',
             'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي (مورد)',
             'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
             'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
@@ -315,6 +335,32 @@ class OperationLogController extends BaseApiController
      */
     private function addDrugDetails($log, $translatedAction)
     {
+        // معالجة عمليات التراجع عن صرف وصفة طبية
+        if ($log->action === 'تراجع عن صرف وصفة طبية' || $translatedAction === 'تراجع عن صرف وصفة طبية') {
+            try {
+                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+                
+                if ($newValues && isset($newValues['drugs']) && is_array($newValues['drugs'])) {
+                    // إذا كان هناك عدة أدوية، عرضها جميعاً
+                    $drugsDetails = [];
+                    foreach ($newValues['drugs'] as $drug) {
+                        if (isset($drug['drug_name']) && isset($drug['quantity'])) {
+                            $drugsDetails[] = $drug['drug_name'] . ' (الكمية -' . $drug['quantity'] . ')';
+                        }
+                    }
+                    
+                    if (!empty($drugsDetails)) {
+                        return $translatedAction . ' - الدواء: ' . implode('، ', $drugsDetails);
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to get revert dispense details for audit log', [
+                    'log_id' => $log->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        
         // فقط للعمليات المتعلقة بالأدوية في الوصفات
         if ($log->table_name !== 'prescription_drug' && $log->table_name !== 'prescription_drugs') {
             return $translatedAction;
@@ -369,5 +415,78 @@ class OperationLogController extends BaseApiController
 
         // إذا لم توجد تفاصيل الدواء، أعد النص الأصلي
         return $translatedAction;
+    }
+
+    /**
+     * إضافة رقم الشحنة إلى نوع العملية للطلبات
+     * 
+     * @param AuditLog $log
+     * @param string $operationType
+     * @return string
+     */
+    private function addRequestDetails($log, $operationType)
+    {
+        // فقط للعمليات المتعلقة بالطلبات
+        if ($log->table_name !== 'internal_supply_request' && $log->table_name !== 'external_supply_request') {
+            return $operationType;
+        }
+
+        $requestNumber = null;
+
+        try {
+            // محاولة استخراج request_id من JSON أولاً
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            $requestId = null;
+            
+            if (is_array($values) && isset($values['request_id'])) {
+                $requestId = $values['request_id'];
+            } elseif ($log->record_id) {
+                $requestId = $log->record_id;
+            }
+
+            if ($requestId) {
+                if ($log->table_name === 'internal_supply_request') {
+                    $requestNumber = 'INT-' . $requestId;
+                } elseif ($log->table_name === 'external_supply_request') {
+                    $requestNumber = 'EXT-' . $requestId;
+                }
+            }
+        } catch (\Exception $e) {
+            // في حالة الخطأ، نستمر بدون رقم الشحنة
+            \Log::warning('Failed to get request number for audit log', [
+                'log_id' => $log->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        // بناء النص مع رقم الشحنة
+        if ($requestNumber) {
+            return $operationType . ' - رقم الشحنة: ' . $requestNumber;
+        }
+
+        // إذا لم يوجد رقم الشحنة، أعد النص الأصلي
+        return $operationType;
+    }
+
+    /**
+     * ترجمة نوع المستخدم إلى العربية
+     * 
+     * @param string $type
+     * @return string
+     */
+    private function translateUserType($type)
+    {
+        return match($type) {
+            'hospital_admin' => 'مدير نظام المستشفى',
+            'supplier_admin' => 'مدير المورد',
+            'super_admin' => 'المدير الأعلى',
+            'warehouse_manager' => 'مسؤول المخزن',
+            'pharmacist' => 'صيدلي',
+            'doctor' => 'طبيب',
+            'department_head' => 'مدير القسم',
+            'data_entry' => 'مدخل بيانات',
+            'patient' => 'مريض',
+            default => $type,
+        };
     }
 }

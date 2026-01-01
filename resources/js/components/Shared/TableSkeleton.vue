@@ -1,7 +1,7 @@
 <template>
     <div class="animate-pulse space-y-4 w-full">
         <!-- Header Skeleton -->
-        <div class="h-12 bg-gray-200 rounded-xl w-full mb-6"></div>
+        <!-- <div class="h-12 bg-gray-200 rounded-xl w-full mb-6"></div> -->
         
         <!-- Rows Skeleton -->
         <div v-for="i in rows" :key="i" class="flex gap-4">

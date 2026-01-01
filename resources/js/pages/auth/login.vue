@@ -319,7 +319,7 @@ const redirectByRole = (role) => {
         'data_entry': '/data-entry/patients',
         'doctor': '/doctor/patients',
         'pharmacist': '/pharmacist/patients',
-        'hospital_admin': '/hospital-admin/patients',
+        'hospital_admin': '/admin/patients',
         'super_admin': '/super-admin/patients',
         'warehouse_manager': '/storekeeper/medications',
         'storekeeper': '/storekeeper/medications',

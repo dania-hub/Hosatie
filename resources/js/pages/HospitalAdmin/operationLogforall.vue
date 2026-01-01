@@ -260,12 +260,17 @@ const printTable = () => {
     `;
 
     filteredOperations.value.forEach(op => {
+        const desc = getOperationDescription(op);
+        const operationDisplay = desc.detail 
+            ? `<strong>${desc.title}</strong><br><span style="font-size: 12px; color: #666;">${desc.detail}</span>`
+            : op.operationType;
+        
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
+                <td>${op.name}${op.role ? ' (' + op.role + ')' : ''}</td>
                 <td>${op.patientName || '-'}</td>
-                <td>${op.operationType}</td>
+                <td>${operationDisplay}</td>
                 <td>${op.operationDate}</td>
             </tr>
         `;
@@ -292,6 +297,81 @@ const printTable = () => {
 
 const openViewModal = (op) => console.log('عرض العملية:', op);
 const openEditModal = (op) => console.log('تعديل العملية:', op);
+
+// دالة لتنسيق تاريخ الميلاد (إزالة الوقت والأصفار)
+const formatBirthDate = (dateString) => {
+    if (!dateString) return '';
+    
+    // إزالة الوقت إذا كان موجوداً
+    let dateOnly = dateString.split(' ')[0];
+    
+    // تحويل من YYYY-MM-DD إلى YYYY/M/D (إزالة الأصفار الزائدة)
+    const parts = dateOnly.split('-');
+    if (parts.length === 3) {
+        const year = parts[0];
+        const month = parseInt(parts[1], 10).toString();
+        const day = parseInt(parts[2], 10).toString();
+        return `${year}/${month}/${day}`;
+    }
+    
+    return dateOnly;
+};
+
+// دالة للحصول على وصف العملية (مثل dataEntry/operationLog)
+const getOperationDescription = (op) => {
+    // إذا كانت العملية متعلقة بمريض ولديها changes، استخدم نفس التنسيق
+    if (op.changes) {
+        const opType = op.operationType;
+        
+        // التحقق من بداية operationType (قبل أي تفاصيل إضافية)
+        if (opType.startsWith('إضافة مريض')) {
+            return {
+                title: 'إضافة',
+                detail: `تم اضافة ملف مريض ${op.patientName || op.name} رقم الملف ${op.fileNumber}`
+            };
+        } else if (opType.startsWith('حذف مريض')) {
+            return {
+                title: 'حذف',
+                detail: `تم حذف ملف المريض ${op.patientName || op.name} رقم ملفه ${op.fileNumber}`
+            };
+        } else if (opType.startsWith('تعديل مريض')) {
+            // تحليل التغييرات
+            let details = [];
+            const oldVals = op.changes?.old || {};
+            const newVals = op.changes?.new || {};
+
+            if (newVals.phone && oldVals.phone !== newVals.phone) {
+                details.push(`تعديل الرقم إلى ${newVals.phone}`);
+            }
+            if (newVals.full_name && oldVals.full_name !== newVals.full_name) {
+                details.push(`تعديل الاسم إلى ${newVals.full_name}`);
+            }
+            if (newVals.national_id && oldVals.national_id !== newVals.national_id) {
+                details.push(`تعديل الرقم الوطني إلى ${newVals.national_id}`);
+            }
+            if (newVals.email && oldVals.email !== newVals.email) {
+                details.push(`تعديل البريد الإلكتروني إلى ${newVals.email}`);
+            }
+            if (newVals.birth_date && oldVals.birth_date !== newVals.birth_date) {
+                const formattedDate = formatBirthDate(newVals.birth_date);
+                details.push(`تعديل تاريخ الميلاد إلى ${formattedDate}`);
+            }
+            
+            // إذا لم يتم اكتشاف تغيير محدد، استخدم رسالة عامة
+            if (details.length === 0) {
+                return { title: 'تعديل', detail: 'تم تعديل بيانات الملف' };
+            }
+
+            return {
+                title: 'تعديل',
+                detail: details.join('، ')
+            };
+        }
+    }
+    
+    // للعمليات الأخرى، أعد النص الأصلي
+    return { title: op.operationType, detail: '' };
+};
 
 </script>
 
@@ -429,9 +509,24 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                         class="hover:bg-gray-100 border border-gray-300"
                                     >
                                         <td class="file-number-col">{{ op.fileNumber }}</td>
-                                        <td class="name-col">{{ op.name }}</td>
+                                        <td class="name-col">
+                                            <div class="flex flex-col">
+                                                <span>{{ op.name }}</span>
+                                                <span class="text-sm text-[#4DA1A9] font-medium">{{ op.role || '-' }}</span>
+                                            </div>
+                                        </td>
                                         <td class="patient-name-col">{{ op.patientName || '-' }}</td>
-                                        <td class="operation-type-col">{{ op.operationType }}</td>
+                                        <td class="operation-type-col">
+                                            <template v-if="getOperationDescription(op).detail">
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-[#2E5077]">{{ getOperationDescription(op).title }}</span>
+                                                    <span class="text-xs text-gray-500 font-medium">{{ getOperationDescription(op).detail }}</span>
+                                                </div>
+                                            </template>
+                                            <template v-else>
+                                                {{ op.operationType }}
+                                            </template>
+                                        </td>
                                         <td class="operation-date-col">{{ op.operationDate }}</td>
                                     </tr>
                                     <tr v-if="filteredOperations.length === 0">
@@ -486,20 +581,20 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 
 /* تنسيقات عرض أعمدة الجدول */
 .file-number-col {
-    width: 80px;
-    min-width: 80px;
+    width: 20px;
+    min-width: 20px;
 }
 .name-col {
     width: 150px;
     min-width: 130px;
 }
 .patient-name-col {
-    width: 150px;
-    min-width: 130px;
+    width: 100px;
+    min-width: 100px;
 }
 .operation-type-col {
-    width: 110px;
-    min-width: 110px;
+    width: 130px;
+    min-width: 130px;
 }
 .operation-date-col {
     width: 110px;

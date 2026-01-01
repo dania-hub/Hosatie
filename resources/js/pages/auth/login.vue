@@ -177,7 +177,7 @@
 
           <div class="text-center text-sm mt-1">
             <a
-              href="/Forgotpassword"
+              href="/forgot-password"
               class="inline-block text-[#2E5077] hover:underline transition duration-200"
             >
               هل نسيت كلمة المرور؟

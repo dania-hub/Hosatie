@@ -1117,39 +1117,47 @@ const printTable = () => {
                                                     {{ employee.phone || "-" }}
                                                 </td>
                                                 <td class="actions-col">
-                                                    <div class="flex gap-3 justify-center">
+                                                    <div class="flex gap-3 justify-center items-center">
                                                         <button
                                                             @click="openViewModal(employee)"
-                                                            class="tooltip"
-                                                            data-tip="عرض التفاصيل"
+                                                             class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                            title="عرض البيانات"
                                                         >
                                                             <Icon
-                                                                icon="tabler:eye"
-                                                                class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
-                                                            />
+                                                            icon="tabler:eye-minus"
+                                                            class="w-5 h-5 text-green-600"   />
                                                         </button>
                                                         <button
-                                                            v-if="employee.isActive"
+                                                          
                                                             @click="openEditModal(employee)"
-                                                            class="tooltip"
-                                                            data-tip="تعديل الموظف"
+                                                              class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                            title="تعديل البيانات"
                                                         >
                                                             <Icon
-                                                                icon="tabler:edit"
-                                                                class="w-5 h-5 text-gray-600 cursor-pointer hover:scale-110 transition-transform"
-                                                            />
+                                                            icon="line-md:pencil"
+                                                            class="w-5 h-5 text-yellow-500"    />
                                                         </button>
                                                         <button
                                                             @click="openStatusConfirmationModal(employee)"
-                                                            class="tooltip"
-                                                            :data-tip="getStatusTooltip(employee.isActive)"
+                                                            :class="[
+                                                                'p-1 rounded-full transition-colors',
+                                                                employee.isActive
+                                                                    ? 'hover:bg-red-100'
+                                                                    : 'hover:bg-green-100',
+                                                            ]"
+                                                            :title="getStatusTooltip(employee.isActive)"
+                                                           
+ 
                                                         >
                                                             <Icon
-                                                                :icon="employee.isActive ? 'tabler:circle-x' : 'tabler:circle-check'"
-                                                                :class="[
-                                                                    'w-5 h-5 cursor-pointer hover:scale-110 transition-transform',
-                                                                    employee.isActive ? 'text-red-500' : 'text-green-500'
-                                                                ]"
+                                                            v-if="employee.isActive"
+                                                                icon="pepicons-pop:power-off"
+                                                                class="w-5 h-5 text-red-600"
+                                                            />
+                                                            <Icon
+                                                                v-else
+                                                                icon="quill:off"
+                                                                class="w-5 h-5 text-green-600"
                                                             />
                                                         </button>
                                                     </div>

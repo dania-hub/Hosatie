@@ -216,11 +216,11 @@
                                                 <!-- زر معاينة تفاصيل الطلب -->
                                                 <button 
                                                     @click="openRequestModal(request)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="معاينة تفاصيل الطلب">
                                                     <Icon
                                                         icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                                 
@@ -246,11 +246,11 @@
                                                 <button 
                                                     v-else
                                                     @click="openResponseModal(request)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="الرد على طلب النقل">
                                                     <Icon
-                                                        icon="tabler:message-reply" 
-                                                        class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        icon="streamline:mail-send-reply-all-email-message-reply-all-actions-action-arrow" 
+                                                        class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                             </div>

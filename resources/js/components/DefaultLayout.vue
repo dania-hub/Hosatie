@@ -6,16 +6,21 @@ import Sidebar from "@/components/Sidebar.vue";
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
+    <div class="drawer lg:drawer-open h-screen overflow-hidden" dir="rtl">
         <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
 
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
+        <div class="drawer-content flex flex-col bg-white h-full overflow-hidden">
+            <Navbar class="flex-shrink-0" />
 
-            <slot></slot>
+            <div class="flex-grow overflow-y-auto bg-gray-50">
+                <slot></slot>
+            </div>
         </div>
 
-        <Sidebar />
+        <div class="drawer-side h-full overflow-hidden">
+            <label for="my-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+            <Sidebar />
+        </div>
     </div>
 </template>
 

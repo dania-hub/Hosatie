@@ -112,6 +112,13 @@ class PatientTransferAdminHospitalController extends BaseApiController
             
             if ($data['status'] === 'approved') {
                 $r->load('patient');
+                
+                // تحديث hospital_id للمريض إلى المستشفى الجديد
+                if ($r->patient && $r->to_hospital_id) {
+                    $r->patient->hospital_id = $r->to_hospital_id;
+                    $r->patient->save();
+                }
+                
                 $this->notifications->notifyTransferApproved($r->patient, $r);
             } else {
                 $r->rejection_reason = $data['rejectionReason'] ?? null;

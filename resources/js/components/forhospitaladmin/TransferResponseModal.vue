@@ -77,21 +77,6 @@
                     </div>
                 </div>
 
-                <!-- نموذج الرد -->
-                <div v-if="!showRejectionNote" class="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                        <Icon icon="solar:chat-line-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                        تفاصيل الموافقة
-                    </label>
-                    <textarea
-                        v-model="responseText"
-                        rows="6"
-                        class="w-full p-4 border-2 border-gray-200 rounded-2xl focus:border-[#4DA1A9] focus:ring-4 focus:ring-[#4DA1A9]/20 transition-all resize-none text-gray-700 bg-white"
-                        placeholder="أدخل تفاصيل الموافقة على النقل (مثال: الموعد المقترح، الشروط، التعليمات، إلخ)..."
-                        :disabled="isLoading"
-                    ></textarea>
-                </div>
-
                 <!-- نموذج الرفض -->
                 <div v-if="showRejectionNote" class="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300">
                     <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
@@ -191,7 +176,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'submit', 'reject']);
 
 // البيانات
-const responseText = ref('');
 const rejectionReason = ref('');
 const showRejectionNote = ref(false);
 const rejectionError = ref(false);
@@ -199,7 +183,6 @@ const rejectionError = ref(false);
 // إعادة تعيين الحقول عند فتح المودال
 watch(() => props.isOpen, (newVal) => {
     if (newVal) {
-        responseText.value = '';
         rejectionReason.value = '';
         showRejectionNote.value = false;
         rejectionError.value = false;
@@ -298,7 +281,7 @@ const cancelRejection = () => {
 const handleApproveRequest = () => {
     emit('submit', {
         status: 'approved',
-        response: responseText.value.trim(),
+        response: null,
         notes: null,
     });
 };

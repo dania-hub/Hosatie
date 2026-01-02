@@ -585,8 +585,8 @@ const getOperationDescription = (op) => {
     min-width: 20px;
 }
 .name-col {
-    width: 150px;
-    min-width: 130px;
+    width: 100px;
+    min-width: 100px;
 }
 .patient-name-col {
     width: 100px;

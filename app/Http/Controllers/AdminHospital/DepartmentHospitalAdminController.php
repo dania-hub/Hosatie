@@ -36,6 +36,7 @@ class DepartmentHospitalAdminController extends BaseApiController
                     'name'        => $dep->name,
                     'managerId'   => $dep->head_user_id,
                     'managerName' => $dep->head?->full_name ?? null,
+                    'managerEmail' => $dep->head?->email ?? null,
                     'isActive'    => $dep->status === 'active',
                     'lastUpdated' => $dep->updated_at?->toIso8601String(),
                 ];
@@ -119,6 +120,7 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'name'        => $dep->name,
                 'managerId'   => $dep->head_user_id,
                 'managerName' => $dep->head?->full_name ?? null,
+                'managerEmail' => $dep->head?->email ?? null,
                 'isActive'    => $dep->status === 'active',
                 'lastUpdated' => $dep->updated_at?->toIso8601String(),
             ], 'تم إنشاء القسم بنجاح.');
@@ -171,6 +173,7 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'name'        => $dep->name,
                 'managerId'   => $dep->head_user_id,
                 'managerName' => $dep->head?->full_name ?? null,
+                'managerEmail' => $dep->head?->email ?? null,
                 'isActive'    => $dep->status === 'active',
                 'lastUpdated' => $dep->updated_at?->toIso8601String(),
             ], 'تم تحديث بيانات القسم بنجاح.' . $action);
@@ -182,6 +185,43 @@ class DepartmentHospitalAdminController extends BaseApiController
         }
     }
 
+
+    // 4) عرض قسم واحد
+    public function show(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
+
+            $hospitalId = $user->hospital_id;
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            $dep = Department::with('head')
+                ->where('hospital_id', $hospitalId)
+                ->find($id);
+
+            if (!$dep) {
+                return $this->sendError('القسم غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+            }
+
+            return $this->sendSuccess([
+                'id'          => $dep->id,
+                'name'        => $dep->name,
+                'managerId'   => $dep->head_user_id,
+                'managerName' => $dep->head?->full_name ?? null,
+                'managerEmail' => $dep->head?->email ?? null,
+                'isActive'    => $dep->status === 'active',
+                'lastUpdated' => $dep->updated_at?->toIso8601String(),
+            ], 'تم جلب بيانات القسم بنجاح.');
+        } catch (\Exception $e) {
+            Log::error('Get Department Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في جلب بيانات القسم.', [], 500);
+        }
+    }
 
     // 5) تفعيل/تعطيل قسم
     public function toggleStatus(Request $request, $id)

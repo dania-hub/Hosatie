@@ -257,6 +257,87 @@ class StaffController extends BaseApiController
     }
 
     /**
+     * Update staff member
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            $currentUser = $request->user();
+            
+            if (!$currentUser) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
+
+            $hospitalId = $currentUser->hospital_id;
+            
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            // البحث عن الموظف في نفس المستشفى
+            $staff = User::where('hospital_id', $hospitalId)
+                ->whereIn('type', ['doctor', 'pharmacist', 'warehouse_manager', 'department_head', 'data_entry'])
+                ->findOrFail($id);
+
+            // Validate
+            $validated = $request->validate([
+                'full_name' => 'sometimes|required|string|max:255',
+                'email'     => 'sometimes|required|email|unique:users,email,' . $id,
+                'role'      => 'sometimes|required|string|in:doctor,pharmacist,warehouse_manager,department_head,data_entry',
+                'phone'     => 'nullable|string|unique:users,phone,' . $id,
+                'national_id' => 'nullable|string|unique:users,national_id,' . $id,
+                'birth_date' => 'nullable|date',
+            ]);
+
+            DB::beginTransaction();
+
+            // تحديث بيانات الموظف
+            if (isset($validated['full_name'])) {
+                $staff->full_name = $validated['full_name'];
+            }
+            if (isset($validated['email'])) {
+                $staff->email = $validated['email'];
+            }
+            if (isset($validated['role'])) {
+                $staff->type = $validated['role'];
+            }
+            if (isset($validated['phone'])) {
+                $staff->phone = $validated['phone'];
+            }
+            if (isset($validated['national_id'])) {
+                $staff->national_id = $validated['national_id'];
+            }
+            if (isset($validated['birth_date'])) {
+                $staff->birth_date = $validated['birth_date'];
+            }
+
+            $staff->save();
+
+            DB::commit();
+
+            return $this->sendSuccess([
+                'id' => $staff->id,
+                'name' => $staff->full_name,
+                'email' => $staff->email,
+                'role' => $staff->type,
+            ], 'تم تحديث بيانات الموظف ' . ($staff->full_name) . ' بنجاح.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return $this->sendError('الموظف غير موجود أو لا ينتمي إلى هذا المستشفى.', [], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Update Staff Error: ' . $e->getMessage(), [
+                'exception' => $e,
+                'staff_id' => $id,
+                'request_data' => $request->all()
+            ]);
+            return $this->sendError('فشل في تحديث بيانات الموظف: ' . $e->getMessage(), [], 500);
+        }
+    }
+
+    /**
      * Toggle staff status (activate/deactivate)
      */
     public function toggleStatus(Request $request, $id)
@@ -304,6 +385,92 @@ class StaffController extends BaseApiController
                 'request_data' => $request->all()
             ]);
             return $this->sendError('فشل في تحديث حالة الموظف: ' . $e->getMessage(), [], 500);
+        }
+    }
+
+    /**
+     * Check if phone, email, or national_id already exists
+     */
+    public function checkUnique(Request $request)
+    {
+        try {
+            $currentUser = $request->user();
+            
+            if (!$currentUser) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
+
+            $hospitalId = $currentUser->hospital_id;
+            
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            $phone = $request->input('phone');
+            $email = $request->input('email');
+            $nationalId = $request->input('national_id');
+            $excludeId = $request->input('exclude_id'); // For edit mode
+
+            $exists = [];
+            $messages = [];
+
+            // Check phone
+            if ($phone) {
+                $phoneQuery = User::where('hospital_id', $hospitalId)
+                    ->where('phone', $phone);
+                
+                if ($excludeId) {
+                    $phoneQuery->where('id', '!=', $excludeId);
+                }
+                
+                if ($phoneQuery->exists()) {
+                    $exists['phone'] = true;
+                    $messages['phone'] = 'رقم الهاتف موجود بالفعل في النظام';
+                }
+            }
+
+            // Check email
+            if ($email) {
+                $emailQuery = User::where('hospital_id', $hospitalId)
+                    ->where('email', $email);
+                
+                if ($excludeId) {
+                    $emailQuery->where('id', '!=', $excludeId);
+                }
+                
+                if ($emailQuery->exists()) {
+                    $exists['email'] = true;
+                    $messages['email'] = 'البريد الإلكتروني موجود بالفعل في النظام';
+                }
+            }
+
+            // Check national_id
+            if ($nationalId) {
+                $nationalIdQuery = User::where('hospital_id', $hospitalId)
+                    ->where('national_id', $nationalId);
+                
+                if ($excludeId) {
+                    $nationalIdQuery->where('id', '!=', $excludeId);
+                }
+                
+                if ($nationalIdQuery->exists()) {
+                    $exists['national_id'] = true;
+                    $messages['national_id'] = 'الرقم الوطني موجود بالفعل في النظام';
+                }
+            }
+
+            return $this->sendSuccess([
+                'exists' => count($exists) > 0,
+                'fields' => $exists,
+                'messages' => $messages
+            ], count($exists) > 0 ? 'يوجد تكرار في البيانات' : 'البيانات متاحة');
+
+        } catch (\Exception $e) {
+            Log::error('Check Unique Error: ' . $e->getMessage(), [
+                'exception' => $e,
+                'request_data' => $request->all()
+            ]);
+            return $this->sendError('فشل في التحقق من البيانات: ' . $e->getMessage(), [], 500);
         }
     }
 

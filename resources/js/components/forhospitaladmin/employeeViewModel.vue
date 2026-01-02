@@ -37,7 +37,7 @@ const formatDate = (dateString) => {
 
 <template>
     <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="$emit('close')">
-        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100" dir="rtl">
             
             <!-- Header -->
             <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
@@ -46,9 +46,9 @@ const formatDate = (dateString) => {
                 
                 <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                        <Icon icon="solar:user-id-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                        <Icon icon="solar:eye-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
-                    ملف الموظف
+                    عرض بيانات الموظف
                 </h2>
                 <button @click="$emit('close')" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
                     <Icon icon="mingcute:close-fill" class="w-6 h-6" />
@@ -56,78 +56,179 @@ const formatDate = (dateString) => {
             </div>
 
             <!-- Body -->
-            <div class="p-8 space-y-8">
-                
-                <!-- المعلومات الشخصية -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
-                        <Icon icon="solar:user-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        البيانات الشخصية
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">الاسم الرباعي</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.nameDisplay || patient.name || 'غير محدد' }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">الرقم الوطني</label>
-                            <div class="font-bold text-[#2E5077] text-lg font-mono">{{ patient.nationalIdDisplay || patient.nationalId || 'غير محدد' }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ formatDate(patient.birthDisplay || patient.birth) }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- المعلومات الوظيفية -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
-                        <Icon icon="solar:case-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        المعلومات الوظيفية
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">الدور الوظيفي</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.role || 'غير محدد' }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">القسم</label>
-                            <div class="font-bold text-[#2E5077] text-lg">{{ patient.department || 'غير محدد' }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- معلومات الإتصال والحالة -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
-                        <Icon icon="solar:phone-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        معلومات الإتصال والحالة
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">رقم الهاتف</label>
-                            <div class="font-bold text-[#2E5077] text-lg font-mono">{{ patient.phone || 'غير محدد' }}</div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">البريد الإلكتروني</label>
-                            <div class="font-bold text-[#2E5077] text-lg font-mono">{{ patient.email || 'غير محدد' }}</div>
-                        </div>
-                        <div class="space-y-2 md:col-span-2">
-                            <label class="text-sm font-semibold text-gray-500">حالة الحساب</label>
-                            <div class="mt-1">
-                                <span
-                                    :class="[
-                                        'px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 w-fit',
-                                        patient.isActive
-                                            ? 'bg-green-100 text-green-700 border border-green-200'
-                                            : 'bg-red-100 text-red-700 border border-red-200',
-                                    ]"
-                                >
-                                    <Icon :icon="patient.isActive ? 'solar:check-circle-bold' : 'solar:close-circle-bold'" class="w-5 h-5" />
-                                    {{ patient.isActive ? "مفعل" : "معطل" }}
-                                </span>
+            <div class="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- File Number / ID -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:file-text-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            رقم الملف
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.id || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- National ID -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:card-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الرقم الوطني
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.nationalId || patient.nationalIdDisplay || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Name -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:user-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الاسم رباعي
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.name || patient.nameDisplay || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Role -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:user-id-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الدور الوظيفي
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.role || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Birth Date -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            تاريخ الميلاد
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="formatDate(patient.birthDisplay || patient.birth) || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Department -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:case-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            القسم
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.department || '- '" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phone -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            رقم الهاتف
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.phone || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="space-y-2 group">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:letter-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            البريد الإلكتروني
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                :value="patient.email || 'غير متوفر'" 
+                                readonly 
+                                class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-medium cursor-default focus:outline-none"
+                            />
+                            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                <Icon icon="solar:lock-bold" class="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Account Status -->
+                    <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:shield-user-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            حالة الحساب
+                        </label>
+                        <div class="mt-1">
+                            <span
+                                :class="[
+                                    'px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 w-fit',
+                                    patient.isActive
+                                        ? 'bg-green-100 text-green-700 border border-green-200'
+                                        : 'bg-red-100 text-red-700 border border-red-200',
+                                ]"
+                            >
+                                <Icon :icon="patient.isActive ? 'solar:check-circle-bold' : 'solar:close-circle-bold'" class="w-5 h-5" />
+                                {{ patient.isActive ? "مفعل" : "معطل" }}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -137,7 +238,7 @@ const formatDate = (dateString) => {
             <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
                 <button 
                     @click="$emit('close')" 
-                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2"
                 >
                     إغلاق
                 </button>

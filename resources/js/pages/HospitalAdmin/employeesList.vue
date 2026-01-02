@@ -369,22 +369,55 @@ const filteredEmployees = computed(() => {
         list = list.filter((employee) => employee.isActive === isActiveFilter);
     }
 
-    // فلتر حسب البحث
+    // فلتر حسب البحث - تم التحديث للبحث في جميع الحقول
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
-        list = list.filter(
-            (employee) =>
-                employee.fileNumber?.toString().includes(search) ||
-                employee.name?.toLowerCase().includes(search) ||
-                employee.nationalId?.includes(search) ||
-                employee.birth?.includes(search) ||
-                employee.phone?.includes(search) ||
-                (employee.role && 
-                    (typeof employee.role === 'object' 
-                        ? employee.role.name?.toLowerCase().includes(search)
-                        : employee.role.toLowerCase().includes(search))) ||
-                (employee.department && employee.department.toLowerCase().includes(search))
-        );
+        list = list.filter((employee) => {
+            // إنشاء قائمة بجميع الحقول الممكنة للبحث
+            const searchFields = [
+                // الحقول الأساسية
+                employee.fileNumber?.toString(),
+                employee.name,
+                employee.nationalId,
+                employee.phone,
+                employee.email,
+                
+                // الدور الوظيفي (إذا كان كائن)
+                employee.role ? 
+                    (typeof employee.role === 'object' ? employee.role.name : employee.role) : 
+                    '',
+                
+                // القسم
+                employee.department,
+                
+                // تاريخ الميلاد (بصيغ مختلفة)
+                employee.birth,
+                formatDateForDisplay(employee.birth),
+                
+                // الحالة (نشط/غير نشط)
+                employee.isActive ? "مفعل" : "معطل",
+                employee.isActive ? "نشط" : "غير نشط",
+                employee.isActive ? "active" : "inactive",
+                
+                // معلومات إضافية قد تكون في بيانات الموظف
+                employee.full_name,
+                employee.national_id,
+                employee.birth_date,
+                employee.role_name,
+                employee.department_name,
+                
+                // تحويل جميع الحقول الرقمية إلى نص للبحث
+                employee.age?.toString(),
+                employee.salary?.toString(),
+                employee.id?.toString(),
+                employee.user_id?.toString(),
+            ];
+
+            // البحث في جميع الحقول
+            return searchFields.some(field => 
+                field && field.toString().toLowerCase().includes(search)
+            );
+        });
     }
 
     // الفرز
@@ -427,7 +460,6 @@ const filteredEmployees = computed(() => {
 
     return list;
 });
-
 // ----------------------------------------------------
 // 9. منطق رسالة النجاح
 // ----------------------------------------------------
@@ -620,9 +652,12 @@ const updateEmployee = async (updatedEmployee) => {
             role.name === "مدير المخزن" || role === "مدير المخزن"
         );
         
+        // استخدام id إذا كان fileNumber غير موجود
+        const employeeId = updatedEmployee.fileNumber || updatedEmployee.id;
+        
         if (warehouseManagerRole && updatedEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
             const currentEmployee = employees.value.find(
-                (p) => p.fileNumber === updatedEmployee.fileNumber
+                (p) => (p.fileNumber || p.id) === employeeId
             );
             
             const currentRoleName = currentEmployee ? 
@@ -642,16 +677,17 @@ const updateEmployee = async (updatedEmployee) => {
         
         if (departmentManagerRole && updatedEmployee.role === "مدير القسم") {
             const currentEmployee = employees.value.find(
-                emp => emp.fileNumber === updatedEmployee.fileNumber
+                emp => (emp.fileNumber || emp.id) === employeeId
             );
             
             const existingManager = employees.value.find(
                 emp => {
                     const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+                    const empId = emp.fileNumber || emp.id;
                     return roleName === "مدير القسم" && 
                            emp.department === updatedEmployee.department && 
                            emp.isActive &&
-                           emp.fileNumber !== updatedEmployee.fileNumber;
+                           empId !== employeeId;
                 }
             );
             
@@ -671,9 +707,14 @@ const updateEmployee = async (updatedEmployee) => {
             birth_date: updatedEmployee.birth || null,
         };
 
+        if (!employeeId) {
+            showSuccessAlert("❌ فشل تعديل بيانات الموظف: رقم الموظف غير محدد.");
+            return;
+        }
+        
         // ملاحظة: قد تحتاج إلى إضافة route للتحديث في API
         const response = await api.put(
-            `/admin-hospital/staff/${updatedEmployee.fileNumber}`,
+            `/admin-hospital/staff/${employeeId}`,
             employeeData
         );
 
@@ -681,8 +722,9 @@ const updateEmployee = async (updatedEmployee) => {
         await fetchEmployees();
 
         closeEditModal();
+        const employeeName = updatedEmployee.name || 'الموظف';
         showSuccessAlert(
-            `✅ تم تعديل بيانات الموظف ${updatedEmployee.fileNumber} بنجاح!`
+            `✅ تم تعديل بيانات الموظف ${employeeName} بنجاح!`
         );
     } catch (error) {
         console.error("Error updating employee:", error);
@@ -1120,30 +1162,30 @@ const printTable = () => {
                                                     <div class="flex gap-3 justify-center items-center">
                                                         <button
                                                             @click="openViewModal(employee)"
-                                                             class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                             class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             title="عرض البيانات"
                                                         >
                                                             <Icon
                                                             icon="tabler:eye-minus"
-                                                            class="w-5 h-5 text-green-600"   />
+                                                            class="w-4 h-4 text-green-600"   />
                                                         </button>
                                                         <button
                                                           
                                                             @click="openEditModal(employee)"
-                                                              class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                              class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             title="تعديل البيانات"
                                                         >
                                                             <Icon
                                                             icon="line-md:pencil"
-                                                            class="w-5 h-5 text-yellow-500"    />
+                                                            class="w-4 h-4 text-yellow-500"    />
                                                         </button>
                                                         <button
                                                             @click="openStatusConfirmationModal(employee)"
                                                             :class="[
-                                                                'p-1 rounded-full transition-colors',
+                                                                'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                                 employee.isActive
-                                                                    ? 'hover:bg-red-100'
-                                                                    : 'hover:bg-green-100',
+                                                                    ? 'bg-red-50 hover:bg-red-100 border-red-200'
+                                                                    : 'bg-green-50 hover:bg-green-100 border-green-200',
                                                             ]"
                                                             :title="getStatusTooltip(employee.isActive)"
                                                            

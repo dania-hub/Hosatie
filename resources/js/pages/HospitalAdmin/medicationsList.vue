@@ -211,8 +211,8 @@ const fetchAllDrugsData = async () => {
 const getRowColorClass = (quantity, neededQuantity) => {
   if (!quantity || !neededQuantity) return "bg-white border-gray-300 border";
   
-  const dangerThreshold = neededQuantity * 0.25; 
-  const warningThreshold = neededQuantity * 0.5;  
+  const dangerThreshold = neededQuantity * 0.5; 
+  const warningThreshold = neededQuantity * 0.75;  
 
   if (quantity < dangerThreshold) {
     return " bg-red-50/70 border-r-4 border-red-500 ";
@@ -226,8 +226,8 @@ const getRowColorClass = (quantity, neededQuantity) => {
 const getTextColorClass = (quantity, neededQuantity) => {
   if (!quantity || !neededQuantity) return "text-gray-800";
   
-  const dangerThreshold = neededQuantity * 0.25;
-  const warningThreshold = neededQuantity * 0.5;
+  const dangerThreshold = neededQuantity * 0.5;
+  const warningThreshold = neededQuantity * 0.75;
 
   if (quantity < dangerThreshold) {
     return "text-red-700 font-semibold";
@@ -628,12 +628,12 @@ onMounted(async () => {
                                                     <div class="flex gap-3 justify-center">
                                                         <button
                                                             @click="showDrugDetails(drug)"
-                                                            class="tooltip"
+                                                            class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             data-tip="عرض التفاصيل"
                                                         >
                                                             <Icon
                                                                 icon="tabler:eye"
-                                                                class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                                class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                             />
                                                         </button>
                                                     </div>

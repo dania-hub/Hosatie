@@ -4,8 +4,67 @@
             <div
                 class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0"
             >
-                <div class="flex items-center gap-3 w-full sm:max-w-xl">
+                <div class="flex items-center gap-3 w-full sm:max-w-xl flex-wrap">
                     <search v-model="searchTerm" />
+
+                    <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                    <button
+                        @click="showDateFilter = !showDateFilter"
+                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                    >
+                        <Icon
+                            icon="solar:calendar-bold"
+                            class="w-5 h-5"
+                        />
+                    </button>
+
+                    <!-- فلتر التاريخ -->
+                    <Transition
+                        enter-active-class="transition duration-200 ease-out"
+                        enter-from-class="opacity-0 scale-95"
+                        enter-to-class="opacity-100 scale-100"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="opacity-100 scale-100"
+                        leave-to-class="opacity-0 scale-95"
+                    >
+                        <div v-if="showDateFilter" class="flex items-center gap-2">
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateFrom"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="من تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <span class="text-gray-600 font-medium">إلى</span>
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateTo"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="إلى تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <button
+                                v-if="dateFrom || dateTo"
+                                @click="clearDateFilter"
+                                class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                title="مسح فلتر التاريخ"
+                            >
+                                <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                مسح
+                            </button>
+                        </div>
+                    </Transition>
 
                     <div class=" dropdown dropdown-start">
                         <div
@@ -280,23 +339,22 @@
             @confirm="handleConfirmation"
             :is-loading="isConfirming"
         />
-
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
+<Transition
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="translate-x-full opacity-0"
+        enter-to-class="translate-x-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="translate-x-0 opacity-100"
+        leave-to-class="translate-x-full opacity-0"
+    >
+        <div
+            v-if="isSuccessAlertVisible"
+            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
+            dir="rtl"
         >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+            {{ successMessage }}
+        </div>
+    </Transition>
     </DefaultLayout>
 </template>
 
@@ -445,7 +503,7 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
@@ -459,6 +517,9 @@ const formatDate = (dateString) => {
 // 5. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const sortKey = ref("requestDate");
 const sortOrder = ref("desc");
 
@@ -470,15 +531,53 @@ const sortShipments = (key, order) => {
 const filteredShipments = computed(() => {
     let list = shipmentsData.value;
     
+    // فلترة حسب البحث النصي
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
-        list = list.filter(
-            (shipment) =>
-                (shipment.shipmentNumber?.toLowerCase() || '').includes(search) ||
-                (shipment.status?.includes(search) || false)
-        );
+        list = list.filter((shipment) => {
+            // التحقق في جميع الحقول
+            const fieldsToSearch = [
+                shipment.shipmentNumber,
+                shipment.status,
+                shipment.requestingDepartment,
+                shipment.requestDate,
+       
+            ];
+            
+            return fieldsToSearch.some(field => 
+                field && field.toString().toLowerCase().includes(search)
+            );
+        });
     }
 
+    // فلترة حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((shipment) => {
+            if (!shipment.requestDate) return false;
+            
+            const shipmentDate = new Date(shipment.requestDate);
+            shipmentDate.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+            
+            let matchesFrom = true;
+            let matchesTo = true;
+            
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = shipmentDate >= fromDate;
+            }
+            
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                matchesTo = shipmentDate <= toDate;
+            }
+            
+            return matchesFrom && matchesTo;
+        });
+    }
+
+    // الفرز
     if (sortKey.value) {
         list.sort((a, b) => {
             let comparison = 0;
@@ -500,6 +599,11 @@ const filteredShipments = computed(() => {
     return list;
 });
 
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
+};
 // ----------------------------------------------------
 // 6. حالة المكونات المنبثقة
 // ----------------------------------------------------
@@ -665,7 +769,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 </style>
 
 <h1>قائمة طلبات التوريد (تقرير طباعة)</h1>
-<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('EN')}</p>
 <p class="results-info">عدد النتائج: ${resultsCount}</p>
 
 <table>

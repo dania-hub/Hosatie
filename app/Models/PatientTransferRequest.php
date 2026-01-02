@@ -25,7 +25,6 @@ class PatientTransferRequest extends Model
 
     protected $casts = [
         'handeled_at' => 'datetime',
-        'rejected_at' => 'datetime',
     ];
 
     public function patient()

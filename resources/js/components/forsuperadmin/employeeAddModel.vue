@@ -343,11 +343,14 @@ watch(() => form.value.role, (newRole) => {
     }
 });
 
-const maxDate = computed(() => {
-    const today = new Date();
-    today.setDate(today.getDate() - 1);
-    return today.toISOString().split('T')[0];
-});
+const dateInput = ref(null);
+const openDatePicker = () => {
+    if (dateInput.value) {
+        dateInput.value.showPicker(); 
+    }
+};
+
+// ...
 </script>
 
 <template>
@@ -361,7 +364,7 @@ const maxDate = computed(() => {
                 
                 <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                        <Icon icon="solar:user-plus-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                        <Icon icon="mingcute:user-add-line" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
                     تسجيل موظف جديد
                 </h2>
@@ -371,7 +374,7 @@ const maxDate = computed(() => {
             </div>
 
             <!-- Body -->
-            <div class="p-8 space-y-8">
+            <div class="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
                     <!-- National ID -->
@@ -383,9 +386,10 @@ const maxDate = computed(() => {
                         <Input
                             id="national-id"
                             v-model="form.nationalId"
-                            placeholder="أدخل الرقم الوطني"
+                            placeholder="XXXXXXXXXXXXXXXX"
+                            maxlength="12"
                             :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.nationalId }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium"
                         />
                         <p v-if="errors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -422,15 +426,19 @@ const maxDate = computed(() => {
                             <select
                                 id="role"
                                 v-model="form.role"
-                                :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.role }"
-                                class="w-full h-10 px-3 rounded-md bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:outline-none appearance-none"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.role 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
                             >
                                 <option value="" disabled selected>اختر الدور الوظيفي</option>
                                 <option v-for="role in getRoleList" :key="role" :value="role">
                                     {{ role }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="errors.role" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -439,21 +447,30 @@ const maxDate = computed(() => {
                     </div>
 
                     <!-- Birth Date -->
-                    <div class="space-y-2">
+                    <div class="space-y-2" dir="rtl">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             تاريخ الميلاد
                         </label>
                         <div class="relative w-full">
-                            <Input
+                            <input
                                 id="birth"
+                                ref="dateInput"
                                 type="date" 
                                 :max="maxDate" 
                                 v-model="form.birth"
-                                :class="{ 'border-red-500 hover:border-red-500': errors.birth, 'border-[#B8D7D9] focus:border-[#4DA1A9] hover:border-[#4DA1A9]': !errors.birth }"
-                                class="h-9 text-right w-full pr-3 appearance-none rounded-2xl bg-white"
+                                :class="[
+                                    'h-9 text-right w-full pl-3 pr-10 appearance-none rounded-2xl bg-white cursor-pointer',
+                                    'border focus:outline-none transition-colors duration-200',
+                                    errors.birth 
+                                        ? 'border-red-500 hover:border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 hover:border-[#4DA1A9] focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
                             />
-                            <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <div 
+                                class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" 
+                                @click="openDatePicker"
+                            >
                                 <Icon 
                                     icon="solar:calendar-linear" 
                                     class="w-5 h-5 transition-colors duration-200"
@@ -477,15 +494,19 @@ const maxDate = computed(() => {
                             <select
                                 id="hospital"
                                 v-model="form.hospital"
-                                :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.hospital }"
-                                class="w-full h-10 px-3 rounded-md bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:outline-none appearance-none"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.hospital 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
                             >
                                 <option value="" disabled selected>اختر المستشفى</option>
                                 <option v-for="hospital in availableHospitals" :key="hospital" :value="hospital">
                                     {{ hospital }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="errors.hospital" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -494,7 +515,7 @@ const maxDate = computed(() => {
                     </div>
 
                     <!-- Department (Conditional) -->
-                    <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 md:col-span-2 animate-in fade-in slide-in-from-top-2">
+                    <div v-if="isDepartmentManagerRole(form.role)" class="space-y-2 animate-in fade-in slide-in-from-top-2">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:buildings-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             اسم القسم
@@ -503,15 +524,19 @@ const maxDate = computed(() => {
                             <select
                                 id="department"
                                 v-model="form.department"
-                                :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.department }"
-                                class="w-full h-10 px-3 rounded-md bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:outline-none appearance-none"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.department 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
                             >
                                 <option value="" disabled selected>اختر القسم</option>
                                 <option v-for="dept in filteredDepartments" :key="dept" :value="dept">
                                     {{ dept }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="errors.department" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -521,35 +546,8 @@ const maxDate = computed(() => {
                         </p>
                     </div>
 
-                    <!-- Messages -->
-                    <div v-if="isDepartmentManagerRole(form.role)" class="md:col-span-2">
-                        <div v-if="props.departmentsWithManager && props.departmentsWithManager.length > 0" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
-                            <Icon icon="solar:info-circle-bold" class="w-6 h-6 text-blue-600 flex-shrink-0" />
-                            <div class="text-sm text-blue-700">
-                                <span class="font-bold block mb-1">ملاحظة:</span>
-                                الأقسام التالية لها مدير بالفعل:
-                                <ul class="mt-1 list-disc list-inside">
-                                    <li v-for="dept in props.departmentsWithManager" :key="dept">{{ dept }}</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div v-else class="bg-green-50 border border-green-100 rounded-xl p-4 flex gap-3">
-                            <Icon icon="solar:check-circle-bold" class="w-6 h-6 text-green-600 flex-shrink-0" />
-                            <p class="text-sm text-green-700 font-medium">جميع الأقسام متاحة لتولي منصب المدير.</p>
-                        </div>
-                    </div>
-
-                    <div v-if="isWarehouseManagerRole(form.role)" class="md:col-span-2">
-                        <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex gap-3">
-                            <Icon icon="solar:shield-warning-bold" class="w-6 h-6 text-yellow-600 flex-shrink-0" />
-                            <p class="text-sm text-yellow-700 font-medium">
-                                <span class="font-bold">ملاحظة:</span> يمكن تعيين مدير مخزن واحد فقط في النظام.
-                            </p>
-                        </div>
-                    </div>
-
                     <!-- Phone -->
-                    <div class="space-y-2">
+                    <div class="space-y-2" dir="rtl">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             رقم الهاتف
@@ -557,13 +555,16 @@ const maxDate = computed(() => {
                         <Input
                             id="phone"
                             v-model="form.phone"
-                            placeholder="0211234567 أو 0921234567"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.phone || phoneExists, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.phone && !phoneExists }"
-                            class="bg-white focus:ring-[#4DA1A9]/20"
+                            placeholder="021XXXXXXX"
+                            maxlength="10"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
+                                (errors.phone || phoneExists) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
                         />
                         <p v-if="errors.phone && form.phone && !phoneExists" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            رقم الهاتف غير صحيح (يجب أن يبدأ بـ 021/092/091/093/094 متبوعاً بـ 7 أرقام)
+                            رقم الهاتف غير صحيح
                         </p>
                         <p v-if="phoneExists && form.phone && !errors.phone" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -590,6 +591,26 @@ const maxDate = computed(() => {
                             البريد الإلكتروني غير صحيح
                         </p>
                     </div>
+
+                    <!-- Messages -->
+                    <div v-if="isDepartmentManagerRole(form.role) || isWarehouseManagerRole(form.role)" class="md:col-span-2">
+                         <div v-if="isDepartmentManagerRole(form.role)" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 mb-3">
+                            <Icon icon="solar:info-circle-bold" class="w-6 h-6 text-blue-600 flex-shrink-0" />
+                            <div class="text-sm text-blue-700">
+                                <span class="font-bold block mb-1">ملاحظة:</span>
+                                {{ props.departmentsWithManager && props.departmentsWithManager.length > 0 ? 'الأقسام التالية لها مدير بالفعل:' : 'جميع الأقسام متاحة لتولي منصب المدير.' }}
+                                <ul v-if="props.departmentsWithManager && props.departmentsWithManager.length > 0" class="mt-1 list-disc list-inside">
+                                    <li v-for="dept in props.departmentsWithManager" :key="dept">{{ dept }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div v-if="isWarehouseManagerRole(form.role)" class="bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex gap-3">
+                            <Icon icon="solar:shield-warning-bold" class="w-6 h-6 text-yellow-600 flex-shrink-0" />
+                            <p class="text-sm text-yellow-700 font-medium">
+                                <span class="font-bold">ملاحظة:</span> يمكن تعيين مدير مخزن واحد فقط في النظام.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -612,7 +633,7 @@ const maxDate = computed(() => {
                     ]"
                 >
                     <Icon icon="solar:check-read-bold" class="w-5 h-5" />
-                    حفظ الموظف
+                    حفظ البيانات
                 </button>
             </div>
         </div>
@@ -625,13 +646,13 @@ const maxDate = computed(() => {
                 <div class="w-16 h-16 bg-[#4DA1A9]/10 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Icon icon="solar:question-circle-bold-duotone" class="w-10 h-10 text-[#4DA1A9]" />
                 </div>
-                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد تسجيل الموظف</h3>
+                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد التسجيل</h3>
                 <p class="text-gray-500 leading-relaxed">
                     هل أنت متأكد من صحة البيانات المدخلة؟
                     <br>
                     <span class="text-sm text-[#4DA1A9]">سيتم إنشاء حساب جديد للموظف</span>
                     <br>
-                    <span class="text-sm font-medium text-gray-600 mt-2 block">
+                    <span v-if="form.hospital" class="text-sm font-medium text-gray-600 mt-2 block">
                         المستشفى: <span class="text-[#2E5077] font-bold">{{ form.hospital }}</span>
                     </span>
                 </p>

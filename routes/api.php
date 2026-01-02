@@ -424,6 +424,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Example Staff Management Routes
         Route::get('staff', [StaffController::class, 'index']); // جلب قائمة الموظفين
         Route::post('staff', [StaffController::class, 'store']); // إنشاء موظف جديد وإرسال رابط التفعيل
+        Route::post('staff/check-unique', [StaffController::class, 'checkUnique']); // التحقق من التكرار
+        Route::put('staff/{id}', [StaffController::class, 'update']); // تحديث بيانات موظف
         Route::patch('staff/{id}/status', [StaffController::class, 'toggleStatus']);
 
         Route::get('drugs', [DrugHospitalAdminController::class, 'index']); // جلب الأدوية من جميع الصيدليات
@@ -431,6 +433,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('categories', [DrugHospitalAdminController::class, 'categories']); // جلب قائمة الفئات
 
         Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);//تعرض الاقسام اللي عندك
+        Route::get('/departments/{id}', [DepartmentHospitalAdminController::class, 'show']);// عرض قسم واحد
         Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);// تنشئي قسم جديد
         Route::put('/departments/{id}', [DepartmentHospitalAdminController::class, 'update']);// تعديل قسم 
         Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);// تفعيل و الغاء تفعيل قسم

@@ -257,13 +257,12 @@ class OrderController extends BaseApiController
             // إنشاء باستخدام DB::insert مع NOW() لضمان الوقت الدقيق
             DB::insert(
                 "INSERT INTO patient_transfer_requests 
-                (patient_id, from_hospital_id, to_hospital_id, requested_by, reason, status, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                (patient_id, from_hospital_id, to_hospital_id, reason, status, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
                 [
                     $user->id,
                     $user->hospital_id,
                     $request->transfer_to_hospital_id,
-                    $user->id,
                     $requestContent,
                     'pending'
                 ]

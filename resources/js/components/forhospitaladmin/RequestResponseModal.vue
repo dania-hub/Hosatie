@@ -9,7 +9,7 @@
         ></div>
 
         <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
             dir="rtl"
             role="dialog"
             aria-modal="true"
@@ -115,22 +115,21 @@
                     </h3>
 
                     <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                        <label class="block mb-4">
-                            <span class="font-bold text-gray-700 mb-2 block">
-                                {{ (requestData?.requestType === 'النقل' || requestData?.type === 'transfer') ? 'ملاحظات (اختياري)' : 'نص الرد' }}
-                            </span>
+                        <!-- حقل الرد/الملاحظات (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
+                        <label v-if="requestData?.type !== 'transfer' && requestData?.requestType !== 'النقل'" class="block mb-4">
+                            <span class="font-bold text-gray-700 mb-2 block">نص الرد</span>
                             <textarea
                                 v-model="responseText"
                                 rows="4"
                                 class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-[#4DA1A9] focus:ring-4 focus:ring-[#4DA1A9]/10 transition-all resize-none text-gray-700"
-                                :placeholder="(requestData?.requestType === 'النقل' || requestData?.type === 'transfer') ? 'أدخل أي ملاحظات (اختياري)...' : 'أدخل ردك على الطلب هنا...'"
+                                placeholder="أدخل ردك على الطلب هنا..."
                                 :disabled="isSubmitting"
-                                :required="!(requestData?.requestType === 'النقل' || requestData?.type === 'transfer')"
+                                required
                             ></textarea>
                         </label>
                         
-                        <!-- حقل الملاحظات (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
-                        <label v-if="requestData?.type !== 'transfer' && requestData?.requestType !== 'النقل'" class="block mt-4">
+                        <!-- حقل الملاحظات الإضافية (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
+                        <!-- <label v-if="requestData?.type !== 'transfer' && requestData?.requestType !== 'النقل'" class="block mt-4">
                             <span class="font-bold text-gray-700 mb-2 block">ملاحظات إضافية (اختياري)</span>
                             <textarea
                                 v-model="additionalNotes"
@@ -139,7 +138,7 @@
                                 placeholder="أي ملاحظات إضافية..."
                                 :disabled="isSubmitting"
                             ></textarea>
-                        </label>
+                        </label> -->
                     </div>
                 </div>
 
@@ -167,8 +166,8 @@
                             </p>
                         </div>
 
-                        <!-- حقل الملاحظات (يظهر فقط عند الرفض) -->
-                        <label class="block">
+                        <!-- حقل الملاحظات (يظهر فقط لطلبات النقل عند الرفض) -->
+                        <!-- <label v-if="requestData?.requestType === 'النقل' || requestData?.type === 'transfer'" class="block">
                             <span class="font-bold text-gray-700 mb-2 block">ملاحظات إضافية (اختياري)</span>
                             <textarea
                                 v-model="additionalNotes"
@@ -177,7 +176,7 @@
                                 placeholder="أي ملاحظات إضافية..."
                                 :disabled="isSubmitting"
                             ></textarea>
-                        </label>
+                        </label> -->
                     </div>
                 </div>
             </div>
@@ -289,7 +288,7 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'

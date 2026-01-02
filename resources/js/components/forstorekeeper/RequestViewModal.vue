@@ -9,7 +9,7 @@
         ></div>
 
         <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
             dir="rtl"
             role="dialog"
             aria-modal="true"
@@ -189,14 +189,7 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
                     </div>
 
-                    <!-- ملاحظة عند تأكيد الاستلام -->
-                    <div v-if="requestDetails.confirmation?.confirmationNotes || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
-                        <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
-                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                            ملاحظة تأكيد الاستلام
-                        </h4>
-                        <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation?.confirmationNotes || requestDetails.confirmationNotes }}</p>
-                    </div>
+                   
 
                     <!-- للتوافق مع الكود القديم -->
                     <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes && !requestDetails.confirmation?.confirmationNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
@@ -246,27 +239,6 @@
                             <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmation?.confirmationNotes || requestDetails.confirmationNotes }}</p>
                         </div>
                         
-                        <!-- الكميات المرسلة والمستلمة -->
-                        <div v-if="requestDetails.confirmation.receivedItems && requestDetails.confirmation.receivedItems.length > 0" class="sm:col-span-2 mt-4">
-                            <span class="text-purple-600 text-sm block mb-2">الكميات المرسلة والمستلمة</span>
-                            <div class="space-y-2">
-                                <div 
-                                    v-for="(receivedItem, idx) in requestDetails.confirmation.receivedItems" 
-                                    :key="idx"
-                                    class="bg-white/50 p-3 rounded-xl border border-purple-100/50 flex justify-between items-center"
-                                >
-                                    <span class="font-medium text-purple-900">{{ receivedItem.name }}</span>
-                                    <div class="flex gap-4">
-                                        <span class="text-sm text-purple-600">
-                                            مرسل: <span class="font-bold">{{ receivedItem.sentQuantity || 0 }}</span> {{ receivedItem.unit }}
-                                        </span>
-                                        <span class="text-sm text-purple-600">
-                                            مستلم: <span class="font-bold">{{ receivedItem.receivedQuantity || 0 }}</span> {{ receivedItem.unit }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -369,12 +341,10 @@ const formatDate = (dateString) => {
         if (isNaN(date.getTime())) {
             return dateString; // إرجاع التاريخ الأصلي إذا كان غير صحيح
         }
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
         });
     } catch {
         return dateString;

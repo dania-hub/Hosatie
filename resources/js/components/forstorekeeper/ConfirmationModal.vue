@@ -301,7 +301,11 @@
                             <button
                                 @click="sendShipment"
                                 class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
-                                :disabled="props.isLoading || isConfirming"
+                                :class="{
+                                    'opacity-50 cursor-not-allowed': isAllItemsZero,
+                                    'hover:bg-[#3a8c94]': !isAllItemsZero
+                                }"
+                                :disabled="props.isLoading || isConfirming || isAllItemsZero"
                             >
                                 <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                                 <Icon v-else icon="solar:plain-bold" class="w-5 h-5" />
@@ -355,6 +359,20 @@ const additionalNotes = ref("");
 const isProcessing = computed(() => {
     const status = props.requestData.status || "";
     return status === "قيد الاستلام" || status === "approved";
+});
+
+// التحقق من أن جميع الأدوية لديها كمية متوفرة أو مرسلة = صفر
+const isAllItemsZero = computed(() => {
+    if (!receivedItems.value || receivedItems.value.length === 0) {
+        return true;
+    }
+    
+    // التحقق من أن جميع الأدوية لديها availableQuantity = 0 أو sentQuantity = 0
+    return receivedItems.value.every(item => {
+        const availableQty = item.availableQuantity || 0;
+        const sentQty = item.sentQuantity || 0;
+        return availableQty === 0 && sentQty === 0;
+    });
 });
 
 // تهيئة receivedItems
@@ -480,7 +498,7 @@ const formatDate = (dateString) => {
     if (!dateString) return "";
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'

@@ -76,10 +76,13 @@
                                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                     <!-- Item Info -->
                                     <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-1">
+                                        <div class="flex items-center gap-2 mb-1 flex-wrap">
                                             <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name }}</h4>
-                                            <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">
-                                                {{ item.dosage }}
+                                            <span v-if="item.strength || item.dosage" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-medium">
+                                                القوة: {{ item.strength || item.dosage }}
+                                            </span>
+                                            <span v-if="item.unit" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-md font-medium">
+                                                الوحدة: {{ item.unit }}
                                             </span>
                                         </div>
                                         
@@ -222,8 +225,8 @@
 
                         <button
                             @click="sendShipment"
-                            class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
-                            :disabled="props.isLoading || isConfirming"
+                            class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#4DA1A9]"
+                            :disabled="props.isLoading || isConfirming || !canSendShipment"
                         >
                             <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                             <Icon v-else icon="solar:plain-bold" class="w-5 h-5" />
@@ -237,7 +240,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { Icon } from "@iconify/vue";
 
 const props = defineProps({
@@ -317,7 +320,7 @@ const formatDate = (dateString) => {
     if (!dateString) return "";
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
@@ -344,6 +347,22 @@ const validateQuantity = (index, maxQuantity) => {
 
     receivedItems.value[index].sentQuantity = Math.floor(value);
 };
+
+// التحقق من إمكانية إرسال الشحنة
+// يتم تعطيل الزر إذا كانت كل الأدوية لديها الكمية المتوفرة = 0 أو الكمية المرسلة = 0
+const canSendShipment = computed(() => {
+    if (!receivedItems.value || receivedItems.value.length === 0) {
+        return false;
+    }
+    
+    // التحقق من وجود دواء واحد على الأقل لديه كمية متوفرة > 0 وكمية مرسلة > 0
+    const hasValidItem = receivedItems.value.some(
+        (item) => 
+            (item.availableQuantity > 0) && (item.sentQuantity > 0)
+    );
+    
+    return hasValidItem;
+});
 
 // بدء عملية الرفض
 const initiateRejection = () => {

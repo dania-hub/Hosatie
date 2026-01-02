@@ -35,32 +35,21 @@ class ComplaintHospitalAdminController extends BaseApiController
                 'user_id' => $user->id
             ]);
 
-            // جلب جميع الشكاوى مع معلومات المريض
-            $allComplaints = Complaint::with('patient')->latest()->get();
-            
-            \Illuminate\Support\Facades\Log::debug('All complaints count', [
-                'total' => $allComplaints->count(),
-                'complaints' => $allComplaints->map(function($c) {
-                    return [
-                        'id' => $c->id,
-                        'patient_id' => $c->patient_id,
-                        'patient_hospital_id' => $c->patient?->hospital_id,
-                        'patient_name' => $c->patient?->full_name
-                    ];
-                })->toArray()
-            ]);
-
-            // فلترة الشكاوى حسب hospital_id للمريض
+            // فلترة الشكاوى: فقط الشكاوى التي patient.hospital_id = hospital_id للمدير
             $complaints = Complaint::with('patient')
+                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
                 ->whereHas('patient', function($query) use ($hospitalId) {
                     $query->where('hospital_id', $hospitalId);
                 })
                 ->latest()
                 ->get();
 
-            // جلب طلبات النقل الصادرة من هذا المستشفى (from_hospital_id = hospital_id)
+            // فلترة طلبات النقل: فقط الطلبات التي patient.hospital_id = hospital_id للمدير
             $transferRequests = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->where('from_hospital_id', $hospitalId)
+                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
+                ->whereHas('patient', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId); // فقط الطلبات للمرضى التابعين لمستشفى المدير
+                })
                 ->latest()
                 ->get();
 
@@ -157,9 +146,12 @@ class ComplaintHospitalAdminController extends BaseApiController
                 ], 'تم جلب تفاصيل الشكوى بنجاح.');
             }
 
-            // إذا لم تكن شكوى، جرب طلب النقل (الصادر من هذا المستشفى)
+            // إذا لم تكن شكوى، جرب طلب النقل للمرضى التابعين لمستشفى المدير
             $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->where('from_hospital_id', $hospitalId)
+                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
+                ->whereHas('patient', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                })
                 ->find($id);
 
             if (!$transferRequest) {
@@ -240,10 +232,12 @@ class ComplaintHospitalAdminController extends BaseApiController
             }
 
             // إذا لم تكن شكوى، جرب طلب النقل (الصادر من هذا المستشفى)
-            // ملاحظة: المستشفى الذي أرسل الطلب لا يمكنه الموافقة عليه - فقط المستشفى المستقبل يمكنه الموافقة
-            // لكن يمكن للمستشفى المرسل إلغاء طلبه إذا كان في حالة pending
+            // جلب طلب النقل للمرضى التابعين لمستشفى المدير
             $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->where('from_hospital_id', $hospitalId)
+                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
+                ->whereHas('patient', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                })
                 ->find($id);
 
             if (!$transferRequest) {
@@ -323,9 +317,12 @@ class ComplaintHospitalAdminController extends BaseApiController
                 ], 'تم رفض الشكوى بنجاح.');
             }
 
-            // إذا لم تكن شكوى، جرب طلب النقل (الصادر من هذا المستشفى)
+            // إذا لم تكن شكوى، جرب طلب النقل للمرضى التابعين لمستشفى المدير
             $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->where('from_hospital_id', $hospitalId)
+                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
+                ->whereHas('patient', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                })
                 ->find($id);
 
             if (!$transferRequest) {

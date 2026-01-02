@@ -71,8 +71,8 @@ const employeeRoles = ref([]);
 // قائمة الأقسام المتاحة (سيتم جلبها من API)
 const availableDepartments = ref([]);
 
-// فلتر الحالة
-const statusFilter = ref("all");
+// فلتر الدور الوظيفي
+const roleFilter = ref("all");
 
 // بيانات الموظفين
 const employees = ref([]);
@@ -360,13 +360,27 @@ const sortEmployees = (key, order) => {
     sortOrder.value = order;
 };
 
+// قائمة الأدوار الوظيفية المتاحة للفلترة
+const availableRoles = computed(() => {
+    const roles = new Set();
+    employees.value.forEach(emp => {
+        const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+        if (roleName) {
+            roles.add(roleName);
+        }
+    });
+    return ['الكل', ...Array.from(roles).sort()];
+});
+
 const filteredEmployees = computed(() => {
     let list = employees.value;
 
-    // فلتر حسب الحالة
-    if (statusFilter.value !== "all") {
-        const isActiveFilter = statusFilter.value === "active";
-        list = list.filter((employee) => employee.isActive === isActiveFilter);
+    // فلتر حسب الدور الوظيفي
+    if (roleFilter.value !== "all" && roleFilter.value !== "الكل") {
+        list = list.filter((employee) => {
+            const roleName = typeof employee.role === 'object' ? employee.role.name : employee.role;
+            return roleName === roleFilter.value;
+        });
     }
 
     // فلتر حسب البحث - تم التحديث للبحث في جميع الحقول
@@ -875,16 +889,35 @@ const printTable = () => {
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
 
-                        <!-- فلتر حالة الحساب -->
-                        <div class="flex items-center gap-2">
-                            <select 
-                                v-model="statusFilter"
-                                class="h-11 px-3 border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] focus:outline-none cursor-pointer"
+                        <!-- فلتر الدور الوظيفي -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center justify-between h-11 px-4 py-2 border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[150px]"
                             >
-                                <option value="all">جميع الحالات</option>
-                                <option value="active">المفعلون فقط</option>
-                                <option value="inactive">المعطلون فقط</option>
-                            </select>
+                                <span>
+                                    {{ roleFilter === 'all' || roleFilter === 'الكل' ? 'جميع الأدوار' : roleFilter }}
+                                </span>
+                                <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
+                            >
+                                <li class="menu-title text-gray-700 font-bold text-sm">حسب الدور الوظيفي:</li>
+                                <li v-for="role in availableRoles" :key="role">
+                                    <a
+                                        @click="roleFilter = role === 'الكل' ? 'all' : role"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                (roleFilter === role) || (role === 'الكل' && roleFilter === 'all'),
+                                        }"
+                                    >
+                                        {{ role }}
+                                    </a>
+                                </li>
+                            </ul>
                         </div>
 
                         <!-- فرز -->

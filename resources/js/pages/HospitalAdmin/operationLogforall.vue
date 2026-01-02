@@ -92,16 +92,33 @@ onMounted(() => {
     fetchOperations();
 });
 
-// قائمة بأنواع العمليات المتاحة للتصفية
-const operationTypes = computed(() => {
-    const types = new Set(operations.value.map(op => op.operationType));
-    return ['الكل', ...Array.from(types)];
-});
+// دالة لتحديد الفئة العامة للعملية
+const getOperationCategory = (operationType) => {
+    if (!operationType) return 'أخرى';
+    
+    const type = String(operationType).toLowerCase();
+    
+    if (type.includes('إضافة') || type.includes('اضافة') || type.includes('add') || type.includes('create')) {
+        return 'إضافة';
+    } else if (type.includes('تعديل') || type.includes('update') || type.includes('edit') || type.includes('modify')) {
+        return 'تعديل';
+    } else if (type.includes('حذف') || type.includes('delete') || type.includes('remove')) {
+        return 'حذف';
+    } else {
+        return 'أخرى';
+    }
+};
+
+// قائمة بالتصنيفات العامة للعمليات
+const operationCategories = ['الكل', 'إضافة', 'تعديل', 'حذف', 'أخرى'];
 
 // ----------------------------------------------------
 // 2. منطق البحث والفرز والتصفية الموحد
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const operationTypeFilter = ref("الكل");
 
 // حالة الفرز الحالية
@@ -136,12 +153,39 @@ const filteredOperations = computed(() => {
                             (op.patientName && op.patientName.toLowerCase().includes(search)) ||
                             op.operationType.includes(search);
 
-        // تصفية حسب نوع العملية
+        // تصفية حسب الفئة العامة للعملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
-                          op.operationType === operationTypeFilter.value;
+                          getOperationCategory(op.operationType) === operationTypeFilter.value;
 
         return searchMatch && typeMatch;
     });
+ // فلترة حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((op) => {
+            if (!op.operationDate) return false;
+            
+            // تحويل تاريخ العملية من تنسيق yyyy/mm/dd إلى Date
+            const operationDate = parseDate(op.operationDate);
+            operationDate.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+            
+            let matchesFrom = true;
+            let matchesTo = true;
+            
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = operationDate >= fromDate;
+            }
+            
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                matchesTo = operationDate <= toDate;
+            }
+            
+            return matchesFrom && matchesTo;
+        });
+    }
 
     // 2. الفرز
     if (sortKey.value) {
@@ -169,7 +213,11 @@ const filteredOperations = computed(() => {
 
     return list;
 });
-
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
+}; 
 // ----------------------------------------------------
 // 3. منطق رسالة النجاح (Success Alert Logic)
 // ----------------------------------------------------
@@ -378,12 +426,70 @@ const getOperationDescription = (op) => {
 <template>
     <DefaultLayout>
         <main class="flex-1 p-4 sm:p-5 pt-3">
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
+            <div  class="flex flex-col sm:flex-row justify-between items-center pt-2 pb-4 mb-4 gap-4  sm:gap-0">
                 
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                    <div class="relative w-full sm:max-w-xs">
                         <search v-model="searchTerm" placeholder="ابحث برقم الملف، اسم الموظف أو اسم المريض" />
-                    </div>
+                         <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                    <button
+                        @click="showDateFilter = !showDateFilter"
+                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                    >
+                        <Icon
+                            icon="solar:calendar-bold"
+                            class="w-5 h-5"
+                        />
+                    </button>
+
+                    <!-- فلتر التاريخ -->
+                    <Transition
+                        enter-active-class="transition duration-200 ease-out"
+                        enter-from-class="opacity-0 scale-95"
+                        enter-to-class="opacity-100 scale-100"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="opacity-100 scale-100"
+                        leave-to-class="opacity-0 scale-95"
+                    >
+                        <div v-if="showDateFilter" class="flex items-center gap-2">
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateFrom"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="من تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <span class="text-gray-600 font-medium">إلى</span>
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateTo"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="إلى تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <button
+                                v-if="dateFrom || dateTo"
+                                @click="clearDateFilter"
+                                class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                title="مسح فلتر التاريخ"
+                            >
+                                <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                مسح
+                            </button>
+                        </div>
+                    </Transition>
+
+                  
                     
                     <div class="dropdown dropdown-start">
                         <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
@@ -395,10 +501,10 @@ const getOperationDescription = (op) => {
                         <ul tabindex="0" class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8]
                             rounded-[35px] w-52 text-right">
                             <li class="menu-title text-gray-700 font-bold text-sm">حسب نوع العملية:</li>
-                            <li v-for="type in operationTypes" :key="type">
-                                <a @click="operationTypeFilter = type"
-                                    :class="{'font-bold text-[#4DA1A9]': operationTypeFilter === type}">
-                                    {{ type }}
+                            <li v-for="category in operationCategories" :key="category">
+                                <a @click="operationTypeFilter = category"
+                                    :class="{'font-bold text-[#4DA1A9]': operationTypeFilter === category}">
+                                    {{ category }}
                                 </a>
                             </li>
                         </ul>

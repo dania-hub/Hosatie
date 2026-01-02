@@ -4,7 +4,7 @@
             <div
                 class="flex flex-col sm:flex-row justify-between items-center pt-2 pb-4 mb-4 gap-3  sm:gap-0"
             >
-                <div class="flex items-center gap-3 w-full sm:max-w-xl flex-wrap">
+                <div class="flex items-center gap-3 w-full sm:max-w-xl ">
                     <search v-model="searchTerm" />
 
                     <!-- زر إظهار/إخفاء فلتر التاريخ -->
@@ -256,19 +256,19 @@
                                             <div class="flex gap-3 justify-center">
                                                 <button 
                                                     @click="openRequestViewModal(shipment)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="معاينة تفاصيل الشحنة">
                                                     <Icon
                                                         icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                                 
                                                 <template v-if="shipment.status === 'مرفوضة' || shipment.status === 'rejected'">
-                                                    <button class="tooltip" data-tip="طلب مرفوض">
+                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
                                                         <Icon
                                                             icon="tabler:circle-x" 
-                                                            class="w-5 h-5 text-red-600"
+                                                            class="w-4 h-4 text-red-600"
                                                         />
                                                     </button>
                                                 </template>
@@ -276,11 +276,11 @@
                                                 <template v-else-if="shipment.status === 'تم الإرسال' || shipment.status === 'fulfilled' || shipment.status === 'تم الإستلام'">
                                                     <button 
                                                         @click="openReviewModal(shipment)"
-                                                        class="tooltip" 
+                                                        class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                         data-tip="مراجعة تفاصيل الشحنة">
                                                         <Icon
                                                             icon="healthicons:yes-outline"
-                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
@@ -289,11 +289,11 @@
                                                     <!-- طلب جديد، يمكن قبوله أو رفضه -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
-                                                        class="tooltip"
+                                                        class="tooltip p-2 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         data-tip="قبول أو رفض الطلب">
                                                         <Icon
                                                             icon="fluent:box-28-regular"
-                                                            class="w-5 h-5 text-orange-500 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-orange-500 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
@@ -302,11 +302,11 @@
                                                     <!-- حالات أخرى (مثل معتمدة مبدئياً) - يمكن مراجعتها فقط -->
                                                     <button
                                                         @click="openRequestViewModal(shipment)" 
-                                                        class="tooltip"
+                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         data-tip="معاينة الطلب">
                                                         <Icon
                                                             icon="famicons:open-outline"
-                                                            class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>

@@ -174,6 +174,9 @@
                                     <th class="content-col">
                                         سبب النقل
                                     </th>
+                                    <th class="status-col">
+                                        الحالة
+                                    </th>
                                     <th class="actions-col text-center">
                                         الإجراءات
                                     </th>
@@ -182,12 +185,12 @@
 
                             <tbody class="text-gray-800">
                                 <tr v-if="isLoading">
-                                    <td colspan="5" class="p-4">
+                                    <td colspan="6" class="p-4">
                                         <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
                                 <tr v-else-if="error">
-                                    <td colspan="5" class="py-12">
+                                    <td colspan="6" class="py-12">
                                         <ErrorState :message="error" :retry="fetchTransferRequests" />
                                     </td>
                                 </tr>
@@ -210,6 +213,16 @@
                                         </td>
                                         <td class="max-w-xs truncate" :title="request.reason || request.transferReason">
                                             {{ truncateContent(request.reason || request.transferReason) }}
+                                        </td>
+                                        <td class="status-col">
+                                            <span
+                                                :class="[
+                                                    'px-3 py-1 rounded-full text-xs font-bold inline-block',
+                                                    getStatusClass(request.status || request.requestStatus)
+                                                ]"
+                                            >
+                                                {{ getStatusText(request.status || request.requestStatus) }}
+                                            </span>
                                         </td>
                                         <td class="actions-col">
                                             <div class="flex gap-3 justify-center">
@@ -257,7 +270,7 @@
                                         </td>
                                     </tr>
                                     <tr v-if="filteredRequests.length === 0">
-                                        <td colspan="5" class="py-12">
+                                        <td colspan="6" class="py-12">
                                             <EmptyState message="لا توجد طلبات نقل متاحة" />
                                         </td>
                                     </tr>
@@ -916,6 +929,11 @@ onMounted(() => {
 .content-col {
     width: 250px;
     min-width: 250px;
+}
+.status-col {
+    width: 150px;
+    min-width: 150px;
+    text-align: center;
 }
 .actions-col {
     width: 150px;

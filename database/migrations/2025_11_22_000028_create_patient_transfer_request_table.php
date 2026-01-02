@@ -12,7 +12,7 @@ class CreatePatientTransferRequestTable extends Migration
             $table->unsignedBigInteger('patient_id');
             $table->unsignedBigInteger('from_hospital_id'); // ✅ بدون FK مباشر
             $table->unsignedBigInteger('to_hospital_id'); // ✅ يبقى FK لأنه user input
-            $table->unsignedBigInteger('requested_by');
+            $table->unsignedBigInteger('requested_by')->nullable();
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('reason');
             $table->unsignedBigInteger('handeled_by')->nullable();

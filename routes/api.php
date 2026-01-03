@@ -584,5 +584,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('reports/activities', [DashboardSuperController::class, 'activitiesReport']);
         
          Route::get('/patients', [PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
+         
+         // Inventory
+         Route::get('/inventory', [App\Http\Controllers\SuperAdmin\InventorySuperController::class, 'index']);
     });
 });

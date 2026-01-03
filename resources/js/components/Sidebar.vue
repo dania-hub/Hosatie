@@ -142,6 +142,7 @@ const links = {
         { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/superAdmin/requests" },
         { name: "المستشفيات", icon: "fa:hospital-o", to: "/superAdmin/hospital" },
         { name: "شركات التوريد", icon: "fa:hospital-o", to: "/superAdmin/Supply" },
+        { name: "مخزون", icon: "ic:outline-inventory-2", to: "/superAdmin/inventory" },
     ],
 
 

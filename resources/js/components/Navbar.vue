@@ -58,6 +58,7 @@ const routeNames = {
     '/superAdmin/employees': 'المدراء و الموردين',
     '/superAdmin/AllemployeesList': 'الموظفين',
     '/superAdmin/requests': 'طلبات التوريد الداخلي',
+    '/superAdmin/inventory': 'مخزون',
     '/superAdmin/hospital': 'المستشفيات',
     '/superAdmin/Supply': 'شركات التوريد',
     // Hospital Admin

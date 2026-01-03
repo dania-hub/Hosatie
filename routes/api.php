@@ -74,6 +74,7 @@ use App\Http\Controllers\SuperAdmin\UserSuperController;
 use App\Http\Controllers\SuperAdmin\SupplierSuperController;
 use App\Http\Controllers\SuperAdmin\DashboardSuperController;
 use App\Http\Controllers\SuperAdmin\PatientSuperController;
+use App\Http\Controllers\SuperAdmin\OperationLogSuperController;
 
 
 
@@ -587,5 +588,11 @@ Route::middleware('auth:sanctum')->group(function () {
          
          // Inventory
          Route::get('/inventory', [App\Http\Controllers\SuperAdmin\InventorySuperController::class, 'index']);
+
+         // Operations Log (Comprehensive)
+         Route::get('/operations', [OperationLogSuperController::class, 'index']);
+
+         // Patient Operations Log (Simple)
+         Route::get('/patient-operations', [App\Http\Controllers\SuperAdmin\PatientOperationLogController::class, 'index']);
     });
 });

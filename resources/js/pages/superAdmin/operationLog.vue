@@ -42,7 +42,7 @@ const fetchOperations = async () => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await api.get('/super-admin/operations');
+        const response = await api.get('/super-admin/patient-operations');
         operations.value = response.data;
     } catch (err) {
         console.error("Failed to fetch operations:", err);
@@ -59,7 +59,7 @@ onMounted(() => {
 
 // قائمة بأنواع العمليات المتاحة للتصفية
 const operationTypes = computed(() => {
-    const types = new Set(operations.value.map(op => op.operationType));
+    const types = new Set(operations.value.map(op => op.operation_type));
     return ['الكل', ...Array.from(types)];
 });
 
@@ -70,7 +70,7 @@ const searchTerm = ref("");
 const operationTypeFilter = ref("الكل");
 
 // حالة الفرز الحالية
-const sortKey = ref('operationDate');
+const sortKey = ref('date');
 const sortOrder = ref('desc');
 
 // دالة تحويل التاريخ من صيغة (yyyy/mm/dd) إلى كائن Date للمقارنة
@@ -96,13 +96,14 @@ const filteredOperations = computed(() => {
     list = list.filter(op => {
         // تصفية حسب نص البحث
         const searchMatch = !search ||
-                            op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            op.operationType.includes(search);
+                            op.file_number.toString().includes(search) ||
+                            (op.full_name && op.full_name.toLowerCase().includes(search)) ||
+                            (op.operation_label && op.operation_label.toLowerCase().includes(search)) ||
+                            (op.operation_body && op.operation_body.toLowerCase().includes(search));
 
         // تصفية حسب نوع العملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
-                          op.operationType === operationTypeFilter.value;
+                          op.operation_type === operationTypeFilter.value;
 
         return searchMatch && typeMatch;
     });
@@ -112,15 +113,15 @@ const filteredOperations = computed(() => {
         list.sort((a, b) => {
             let comparison = 0;
 
-            if (sortKey.value === 'name') {
-                comparison = a.name.localeCompare(b.name, 'ar');
-            } else if (sortKey.value === 'fileNumber') {
-                comparison = a.fileNumber - b.fileNumber;
-            } else if (sortKey.value === 'operationType') {
-                comparison = a.operationType.localeCompare(b.operationType, 'ar');
-            } else if (sortKey.value === 'operationDate') {
-                const dateA = parseDate(a.operationDate);
-                const dateB = parseDate(b.operationDate);
+            if (sortKey.value === 'full_name') {
+                comparison = (a.full_name || '').localeCompare(b.full_name || '', 'ar');
+            } else if (sortKey.value === 'file_number') {
+                comparison = a.file_number - b.file_number;
+            } else if (sortKey.value === 'operation_type') {
+                comparison = (a.operation_type || '').localeCompare(b.operation_type || '', 'ar');
+            } else if (sortKey.value === 'date') {
+                const dateA = parseDate(a.date);
+                const dateB = parseDate(b.date);
                 comparison = dateA.getTime() - dateB.getTime();
             }
 
@@ -295,28 +296,28 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 
                                 <li class="menu-title text-gray-700 font-bold text-sm">حسب تاريخ العملية:</li>
                                 <li>
-                                    <a @click="sortOperations('operationDate', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'desc'}">
+                                    <a @click="sortOperations('date', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'date' && sortOrder === 'desc'}">
                                         الأحدث أولاً (تنازلي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('operationDate', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'asc'}">
+                                    <a @click="sortOperations('date', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'date' && sortOrder === 'asc'}">
                                         الأقدم أولاً (تصاعدي)
                                     </a>
                                 </li>
                                 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الاسم:</li>
                                 <li>
-                                    <a @click="sortOperations('name', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
+                                    <a @click="sortOperations('full_name', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'full_name' && sortOrder === 'asc'}">
                                         الاسم (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('name', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
+                                    <a @click="sortOperations('full_name', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'full_name' && sortOrder === 'desc'}">
                                         الاسم (ي - أ)
                                     </a>
                                 </li>
@@ -375,10 +376,15 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             :key="index"
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            <td class="file-number-col">{{ op.fileNumber }}</td>
-                                            <td class="name-col">{{ op.name }}</td>
-                                            <td class="operation-type-col">{{ op.operationType }}</td>
-                                            <td class="operation-date-col">{{ op.operationDate }}</td>
+                                            <td class="file-number-col">{{ op.file_number }}</td>
+                                            <td class="name-col">{{ op.full_name }}</td>
+                                            <td class="operation-type-col">
+                                                <div class="flex flex-col">
+                                                    <span class="text-[#4DA1A9] font-bold text-base mb-1">{{ op.operation_label }}</span>
+                                                    <span class="text-gray-600 text-sm">{{ op.operation_body }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="operation-date-col">{{ op.date }}</td>
                                         </tr>
                                         <tr v-if="filteredOperations.length === 0">
                                             <td colspan="4" class="py-12">

@@ -583,6 +583,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('reports/requests-monthly', [DashboardSuperController::class, 'requestsMonthlyReport']);
         Route::get('reports/activities', [DashboardSuperController::class, 'activitiesReport']);
         
-         Route::get('/patients', [\App\Http\Controllers\SuperAdmin\PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
+         Route::get('/patients', [PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
     });
 });

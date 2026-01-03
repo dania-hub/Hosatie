@@ -103,9 +103,13 @@ const fetchHospitals = async () => {
 };
 
 // بيانات تجريبية للمستشفيات
-// const getSampleHospitals = () => {
-//   return [ ];
-// };
+const getSampleHospitals = () => {
+  return [
+      { id: 1, name: 'مستشفى طرابلس المركزي', code: 'H001' },
+      { id: 2, name: 'مستشفى الخضراء', code: 'H002' },
+      { id: 3, name: 'مركز طرابلس الطبي', code: 'H003' }
+  ];
+};
 
 // جلب جميع المرضى
 const fetchPatients = async () => {
@@ -116,26 +120,23 @@ const fetchPatients = async () => {
   try {
     const response = await api.get('/super-admin/patients');
     
+    // Check if response.data.data exists (standard Laravel resource/json response)
+    const patientsData = response.data.data || response.data;
+
     // إذا كانت هناك بيانات مستشفيات، ربط اسم المستشفى
-    patients.value = response.data.map(patient => {
-      let hospitalDisplay = patient.hospital || patient.hospitalName || 'غير محدد';
-      
-      // إذا كان لدينا معرف المستشفى، نبحث عن الاسم الكامل
-      if (patient.hospitalId && hospitals.value.length > 0) {
-        const foundHospital = hospitals.value.find(h => h.id === patient.hospitalId);
-        if (foundHospital) {
-          hospitalDisplay = foundHospital.name;
-        }
-      }
+    patients.value = patientsData.map(patient => {
+      // API returns: fileNumber, fullName, nationalId, birthDate, phone, hospitalName
       
       return {
-        ...patient,
-        lastUpdated: new Date(patient.lastUpdated).toISOString(),
-        nameDisplay: patient.name || '',
+        id: patient.fileNumber, // or patient.id if available, but controller maps fileNumber => id
+        fileNumber: patient.fileNumber,
+        nameDisplay: patient.fullName || patient.name || '',
         nationalIdDisplay: patient.nationalId || '',
-        birthDisplay: patient.birth ? formatDateForDisplay(patient.birth) : '',
-        hospitalDisplay: hospitalDisplay,
-        hospitalId: patient.hospitalId || null
+        birthDisplay: patient.birthDate ? formatDateForDisplay(patient.birthDate) : (patient.birth ? formatDateForDisplay(patient.birth) : ''),
+        phone: patient.phone,
+        hospitalDisplay: patient.hospitalName || 'غير محدد',
+        // Keep original fields just in case
+        ...patient
       };
     });
     
@@ -184,7 +185,7 @@ const formatDateForDisplay = (dateString) => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     
-    return date.toLocaleDateString( {
+    return date.toLocaleDateString('en-GB', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
@@ -862,9 +863,9 @@ onMounted(async () => {
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
                                             <td class="file-number-col">{{ patient.fileNumber || 'N/A' }}</td>
-                                            <td class="name-col">{{ patient.name || 'N/A' }}</td>
-                                            <td class="national-id-col">{{ patient.nationalId || 'N/A' }}</td>
-                                            <td class="birth-date-col">{{ formatDateForDisplay(patient.birth) || 'N/A' }}</td>
+                                            <td class="name-col">{{ patient.nameDisplay || patient.fullName || patient.name || 'N/A' }}</td>
+                                            <td class="national-id-col">{{ patient.nationalIdDisplay || patient.nationalId || 'N/A' }}</td>
+                                            <td class="birth-date-col">{{ patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || 'N/A' }}</td>
                                             <td class="phone-col">{{ patient.phone || 'N/A' }}</td>
                                             <td class="hospital-col">
                                                 <div class="flex items-center gap-2">

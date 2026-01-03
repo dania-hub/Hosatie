@@ -73,6 +73,9 @@ const hasData = ref(false); // لتحديد ما إذا كان هناك بيان
 // 5. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const sortKey = ref("quantity");
 const sortOrder = ref("asc");
 
@@ -81,21 +84,79 @@ const sortDrugs = (key, order) => {
   sortOrder.value = order;
 };
 
+// دالة تحويل التاريخ من صيغة مختلفة إلى Date
+const parseDate = (dateString) => {
+  if (!dateString) return null;
+  // محاولة تحويل من YYYY/MM/DD أو YYYY-MM-DD
+  const normalizedDate = dateString.replace(/\//g, "-");
+  const date = new Date(normalizedDate);
+  return isNaN(date.getTime()) ? null : date;
+};
+
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+  dateFrom.value = "";
+  dateTo.value = "";
+};
+
 const filteredDrugss = computed(() => {
   if (!drugsData.value.length) return [];
 
-  // 1. التصفية
+  // 1. التصفية حسب البحث - البحث في جميع الحقول
   let list = drugsData.value;
   if (searchTerm.value) {
     const search = searchTerm.value.toLowerCase();
-    list = list.filter(
-      (drug) =>
-        (drug.drugCode && drug.drugCode.toLowerCase().includes(search)) ||
-        (drug.drugName && drug.drugName.toLowerCase().includes(search))
-    );
+    list = list.filter((drug) => {
+      // إنشاء قائمة بجميع الحقول الممكنة للبحث
+      const searchFields = [
+        drug.drugCode?.toString(),
+        drug.drugName,
+        drug.quantity?.toString(),
+        drug.neededQuantity?.toString(),
+        drug.expiryDate,
+        // البحث في الحقول الإضافية إن وجدت
+        drug.category,
+        drug.manufacturer,
+        drug.batchNumber,
+      ];
+
+      // البحث في جميع الحقول
+      return searchFields.some(
+        (field) => field && field.toString().toLowerCase().includes(search)
+      );
+    });
   }
 
-  // 2. الفرز
+  // 2. فلترة حسب التاريخ
+  if (dateFrom.value || dateTo.value) {
+    list = list.filter((drug) => {
+      if (!drug.expiryDate) return false;
+
+      const drugDate = parseDate(drug.expiryDate);
+      if (!drugDate) return false;
+
+      drugDate.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+
+      let matchesFrom = true;
+      let matchesTo = true;
+
+      if (dateFrom.value) {
+        const fromDate = new Date(dateFrom.value);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesFrom = drugDate >= fromDate;
+      }
+
+      if (dateTo.value) {
+        const toDate = new Date(dateTo.value);
+        toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+        matchesTo = drugDate <= toDate;
+      }
+
+      return matchesFrom && matchesTo;
+    });
+  }
+
+  // 3. الفرز
   if (sortKey.value) {
     list.sort((a, b) => {
       let comparison = 0;
@@ -105,9 +166,11 @@ const filteredDrugss = computed(() => {
       } else if (sortKey.value === "quantity") {
         comparison = (a.quantity || 0) - (b.quantity || 0);
       } else if (sortKey.value === "expiryDate") {
-        const dateA = a.expiryDate ? new Date(a.expiryDate.replace(/\//g, "-")) : new Date();
-        const dateB = b.expiryDate ? new Date(b.expiryDate.replace(/\//g, "-")) : new Date();
-        comparison = dateA.getTime() - dateB.getTime();
+        const dateA = parseDate(a.expiryDate);
+        const dateB = parseDate(b.expiryDate);
+        const timeA = dateA ? dateA.getTime() : 0;
+        const timeB = dateB ? dateB.getTime() : 0;
+        comparison = timeA - timeB;
       }
 
       return sortOrder.value === "asc" ? comparison : -comparison;
@@ -209,29 +272,43 @@ const fetchAllDrugsData = async () => {
 // 7. دالة تحديد لون الصف والخط
 // ----------------------------------------------------
 const getRowColorClass = (quantity, neededQuantity) => {
-  if (!quantity || !neededQuantity) return "bg-white border-gray-300 border";
+  // تحويل القيم إلى أرقام والتأكد من وجودها
+  const qty = Number(quantity);
+  const neededQty = Number(neededQuantity);
   
-  const dangerThreshold = neededQuantity * 0.25; 
-  const warningThreshold = neededQuantity * 0.5;  
-
-  if (quantity < dangerThreshold) {
-    return " bg-red-50/70 border-r-4 border-red-500 ";
-  } else if (quantity < warningThreshold) {
-    return "bg-yellow-50/70 border-r-4 border-yellow-500";
-  } else {
+  // إذا كانت القيم غير صالحة أو غير موجودة
+  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
     return "bg-white border-gray-300 border";
+  }
+  
+  const dangerThreshold = neededQty * 0.25; 
+  const warningThreshold = neededQty * 0.5;  
+
+  if (qty < dangerThreshold) {
+    return "bg-red-50/70 hover:bg-red-100/80 border-r-4 ";
+  } else if (qty < warningThreshold) {
+    return "bg-yellow-50/70 hover:bg-yellow-100/80 border-r-4 ";
+  } else {
+    return "bg-white hover:bg-gray-50 border-gray-300 border";
   }
 };
 
 const getTextColorClass = (quantity, neededQuantity) => {
-  if (!quantity || !neededQuantity) return "text-gray-800";
+  // تحويل القيم إلى أرقام والتأكد من وجودها
+  const qty = Number(quantity);
+  const neededQty = Number(neededQuantity);
   
-  const dangerThreshold = neededQuantity * 0.25;
-  const warningThreshold = neededQuantity * 0.5;
+  // إذا كانت القيم غير صالحة أو غير موجودة
+  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
+    return "text-gray-800";
+  }
+  
+  const dangerThreshold = neededQty * 0.25;
+  const warningThreshold = neededQty * 0.5;
 
-  if (quantity < dangerThreshold) {
+  if (qty < dangerThreshold) {
     return "text-red-700 font-semibold";
-  } else if (quantity < warningThreshold) {
+  } else if (qty < warningThreshold) {
     return "text-yellow-700 font-semibold";
   } else {
     return "text-gray-800";
@@ -422,10 +499,69 @@ onMounted(async () => {
                     <div
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
-                        <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                            <div class="relative w-full sm:max-w-sm">
-                                <search v-model="searchTerm" />
-                            </div>
+                        <div class="flex items-center gap-3 w-full sm:max-w-xl ">
+                            
+                                <search v-model="searchTerm" placeholder="ابحث برمز الدواء، الاسم، الكمية أو تاريخ الانتهاء" />
+                           
+
+                            <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                            <button
+                                @click="showDateFilter = !showDateFilter"
+                                class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                                :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                            >
+                                <Icon
+                                    icon="solar:calendar-bold"
+                                    class="w-5 h-5"
+                                />
+                            </button>
+
+                            <!-- فلتر التاريخ -->
+                            <Transition
+                                enter-active-class="transition duration-200 ease-out"
+                                enter-from-class="opacity-0 scale-95"
+                                enter-to-class="opacity-100 scale-100"
+                                leave-active-class="transition duration-150 ease-in"
+                                leave-from-class="opacity-100 scale-100"
+                                leave-to-class="opacity-0 scale-95"
+                            >
+                                <div v-if="showDateFilter" class="flex items-center gap-2">
+                                    <div class="relative">
+                                        <input
+                                            type="date"
+                                            v-model="dateFrom"
+                                            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                            placeholder="من تاريخ"
+                                        />
+                                        <Icon
+                                            icon="solar:calendar-linear"
+                                            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                        />
+                                    </div>
+                                    <span class="text-gray-600 font-medium">إلى</span>
+                                    <div class="relative">
+                                        <input
+                                            type="date"
+                                            v-model="dateTo"
+                                            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                            placeholder="إلى تاريخ"
+                                        />
+                                        <Icon
+                                            icon="solar:calendar-linear"
+                                            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                        />
+                                    </div>
+                                    <button
+                                        v-if="dateFrom || dateTo"
+                                        @click="clearDateFilter"
+                                        class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                        title="مسح فلتر التاريخ"
+                                    >
+                                        <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                        مسح
+                                    </button>
+                                </div>
+                            </Transition>
 
                             <div class="dropdown dropdown-start">
                                 <div
@@ -606,7 +742,7 @@ onMounted(async () => {
                                             <tr
                                                 v-for="(drug, index) in filteredDrugss"
                                                 :key="drug.id || index"
-                                                class="hover:bg-gray-100 bg-white border-b border-gray-200"
+                                                class="border-b border-gray-200"
                                                 :class="getRowColorClass(drug.quantity, drug.neededQuantity)"
                                             >
                                                 <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
@@ -628,12 +764,12 @@ onMounted(async () => {
                                                     <div class="flex gap-3 justify-center">
                                                         <button
                                                             @click="showDrugDetails(drug)"
-                                                            class="tooltip"
+                                                            class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             data-tip="عرض التفاصيل"
                                                         >
                                                             <Icon
                                                                 icon="tabler:eye"
-                                                                class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                                class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                             />
                                                         </button>
                                                     </div>

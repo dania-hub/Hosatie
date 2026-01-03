@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { Button } from "@/components/ui/button";
 import Input from "@/components/ui/input/Input.vue";
+import axios from "axios";
 
 const props = defineProps({
     isOpen: Boolean,
@@ -36,6 +37,114 @@ const errors = ref({
     department: false,
 });
 
+// رسائل الأخطاء
+const errorMessages = ref({
+    nationalId: "",
+    phone: "",
+    email: "",
+    name: "",
+});
+
+// حالة التحقق من التكرار
+const duplicateErrors = ref({
+    phone: false,
+    email: false,
+    nationalId: false,
+});
+
+let debounceTimeout = null;
+
+// Helper to get headers with token
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    return {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+    };
+};
+
+// التحقق من التكرار
+const checkUniqueness = async () => {
+    // Clear previous timeout
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    
+    // Clear duplicate errors initially
+    duplicateErrors.value = {
+        phone: false,
+        email: false,
+        nationalId: false,
+    };
+
+    // Validation prerequisites for check
+    const phone = form.value.phone?.trim();
+    const email = form.value.email?.trim();
+    const nationalId = form.value.nationalId?.trim();
+    
+    // التحقق من صحة الصيغة أولاً
+    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const nationalIdRegex = /^[12]\d{11}$/;
+    
+    const phoneValid = phone && phoneRegex.test(phone);
+    const emailValid = email && emailRegex.test(email);
+    const nationalIdValid = nationalId && nationalIdRegex.test(nationalId);
+    
+    // إذا لم تكن الصيغة صحيحة، لا نتحقق من التكرار
+    if (!phoneValid && !emailValid && !nationalIdValid) {
+        return;
+    }
+
+    debounceTimeout = setTimeout(async () => {
+        try {
+            const response = await axios.post('/api/admin-hospital/staff/check-unique', {
+                phone: phoneValid ? phone : null,
+                email: emailValid ? email : null,
+                national_id: nationalIdValid ? nationalId : null
+            }, getAuthHeaders());
+
+            if (response.data.success && response.data.data) {
+                const data = response.data.data;
+                if (data.exists) {
+                    if (data.fields.phone && phoneValid) {
+                        duplicateErrors.value.phone = true;
+                        errorMessages.value.phone = data.messages.phone || 'رقم الهاتف موجود بالفعل في النظام';
+                    }
+                    if (data.fields.email && emailValid) {
+                        duplicateErrors.value.email = true;
+                        errorMessages.value.email = data.messages.email || 'البريد الإلكتروني موجود بالفعل في النظام';
+                    }
+                    if (data.fields.national_id && nationalIdValid) {
+                        duplicateErrors.value.nationalId = true;
+                        errorMessages.value.nationalId = data.messages.national_id || 'الرقم الوطني موجود بالفعل في النظام';
+                    }
+                } else {
+                    // إذا لم يكن هناك تكرار، نمسح رسائل التكرار فقط (نحتفظ برسائل الصيغة)
+                    if (phoneValid && !data.fields?.phone) {
+                        if (errorMessages.value.phone.includes('موجود بالفعل')) {
+                            errorMessages.value.phone = "";
+                        }
+                    }
+                    if (emailValid && !data.fields?.email) {
+                        if (errorMessages.value.email.includes('موجود بالفعل')) {
+                            errorMessages.value.email = "";
+                        }
+                    }
+                    if (nationalIdValid && !data.fields?.national_id) {
+                        if (errorMessages.value.nationalId.includes('موجود بالفعل')) {
+                            errorMessages.value.nationalId = "";
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Check unique error", error);
+        }
+    }, 500); // 500ms debounce
+};
+
 // حالة نافذة التأكيد
 const isConfirmationModalOpen = ref(false);
 
@@ -59,37 +168,44 @@ const resetForm = () => {
         role: false,
         department: false
     };
+    errorMessages.value = {
+        nationalId: "",
+        phone: "",
+        email: "",
+        name: "",
+    };
+    duplicateErrors.value = {
+        phone: false,
+        email: false,
+        nationalId: false,
+    };
+    if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = null;
+    }
 };
 
 // إنشاء قائمة الأقسام المتاحة
 const filteredDepartments = computed(() => {
     if (!props.availableDepartments) return [];
-    
-    // نعرض كل الأقسام دائماً، لكن الأقسام التي لديها مدير ستكون معطلة في القائمة المنسدلة
     return props.availableDepartments;
 });
 
 // الحصول على قائمة الأدوار بشكل صحيح
 const getRoleList = computed(() => {
     if (!props.availableRoles) return [];
-    
-    // إذا كانت الأدوار عبارة عن كائنات تحتوي على حقل name
     if (props.availableRoles.length > 0 && typeof props.availableRoles[0] === 'object') {
         return props.availableRoles.map(role => role.name);
     }
-    
-    // إذا كانت الأدوار مجرد نصوص
     return props.availableRoles;
 });
 
 // الحصول على اسم الدور
 const getRoleName = (role) => {
     if (!role) return "";
-    
     if (typeof role === 'object') {
         return role.name || role;
     }
-    
     return role;
 };
 
@@ -99,47 +215,81 @@ const isWarehouseManagerRole = (role) => {
     return roleName === "مدير المخزن";
 };
 
-// التحقق مما إذا كان الدور هو "مدير القسم"
-const isDepartmentManagerRole = (role) => {
-    const roleName = getRoleName(role);
-    return roleName === "مدير القسم";
-};
-
 // التحقق من صحة النموذج
 const validateForm = () => {
     let isValid = true;
     const data = form.value;
 
-    const nationalIdRegex = /^\d{12}$/;
-    errors.value.nationalId = !nationalIdRegex.test(data.nationalId);
-    if (errors.value.nationalId) isValid = false;
+    // التحقق من الرقم الوطني: يبدأ بـ 1 أو 2 ثم سنة الميلاد (4 أرقام) ثم باقي الأرقام (إجمالي 12 رقم)
+    const nationalIdRegex = /^[12]\d{11}$/;
+    const nationalIdValid = nationalIdRegex.test(data.nationalId);
+    errors.value.nationalId = !nationalIdValid;
+    if (!nationalIdValid) {
+        errorMessages.value.nationalId = "الرقم الوطني يجب أن يبدأ بـ 1 أو 2 ثم يتبعه 11 رقم (إجمالي 12 رقم)";
+        isValid = false;
+    } else if (duplicateErrors.value.nationalId) {
+        errors.value.nationalId = true;
+        isValid = false;
+    } else {
+        errorMessages.value.nationalId = "";
+    }
 
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    errors.value.name = !nameRegex.test(data.name.trim());
-    if (errors.value.name) isValid = false;
+    // التحقق من الاسم الرباعي: يجب أن يكون 4 أسماء فما فوق بدون أرقام أو رموز خاصة
+    const nameTrimmed = data.name?.trim() || '';
+    const nameParts = nameTrimmed.split(/\s+/).filter(part => part.length > 0);
+    const hasFourNamesOrMore = nameParts.length >= 4;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    const hasNoNumbersOrSpecialChars = nameRegex.test(nameTrimmed);
+    
+    errors.value.name = !hasFourNamesOrMore || !hasNoNumbersOrSpecialChars;
+    if (!hasFourNamesOrMore && nameTrimmed) {
+        errorMessages.value.name = "يجب إدخال 4 أسماء فما فوق (مفصولة بمسافات)";
+        isValid = false;
+    } else if (!hasNoNumbersOrSpecialChars && nameTrimmed) {
+        errorMessages.value.name = "الاسم لا يجب أن يحتوي على أرقام أو رموز خاصة";
+        isValid = false;
+    } else if (!nameTrimmed) {
+        errorMessages.value.name = "الاسم الرباعي مطلوب";
+        isValid = false;
+    } else {
+        errorMessages.value.name = "";
+    }
 
     errors.value.birth = !data.birth;
     if (errors.value.birth) isValid = false;
 
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
-    errors.value.phone = !phoneRegex.test(data.phone.trim());
-    if (errors.value.phone) isValid = false;
+    // التحقق من رقم الهاتف: يبدأ بـ 021 أو 092 أو 091 أو 093 أو 094 ثم 7 أرقام
+    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+    const phoneValid = phoneRegex.test(data.phone.trim());
+    errors.value.phone = !phoneValid;
+    if (!phoneValid) {
+        errorMessages.value.phone = "رقم الهاتف يجب أن يبدأ بـ 021 أو 092 أو 091 أو 093 أو 094 ثم يتبعه 7 أرقام";
+        isValid = false;
+    } else if (duplicateErrors.value.phone) {
+        errors.value.phone = true;
+        isValid = false;
+    } else {
+        errorMessages.value.phone = "";
+    }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    errors.value.email = !emailRegex.test(data.email.trim());
-    if (errors.value.email) isValid = false;
+    const emailValid = emailRegex.test(data.email.trim());
+    errors.value.email = !emailValid;
+    if (!emailValid) {
+        errorMessages.value.email = "البريد الإلكتروني غير صحيح";
+        isValid = false;
+    } else if (duplicateErrors.value.email) {
+        errors.value.email = true;
+        isValid = false;
+    } else {
+        errorMessages.value.email = "";
+    }
 
-    // التحقق من حقل الدور الوظيفي
     const roleList = getRoleList.value;
     errors.value.role = !data.role || !roleList.includes(data.role);
     if (errors.value.role) isValid = false;
 
-    // لا يوجد حقل قسم في نموذج الإضافة
-    errors.value.department = false;
-
-    // التحقق من وجود مدير مخزن إذا كان الدور هو "مدير المخزن"
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
-        alert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
         isValid = false;
     }
 
@@ -151,26 +301,33 @@ const isFormValid = computed(() => {
     const data = form.value;
     const roleList = getRoleList.value;
     
-    const nationalIdRegex = /^\d{12}$/;
+    // التحقق من الرقم الوطني: يبدأ بـ 1 أو 2 ثم 11 رقم (إجمالي 12 رقم)
+    const nationalIdRegex = /^[12]\d{11}$/;
     if (!nationalIdRegex.test(data.nationalId)) return false;
+    if (duplicateErrors.value.nationalId) return false;
 
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    if (!nameRegex.test(data.name.trim())) return false;
+    // التحقق من الاسم الرباعي: يجب أن يكون 4 أسماء فما فوق بدون أرقام أو رموز خاصة
+    const nameTrimmed = data.name?.trim() || '';
+    const nameParts = nameTrimmed.split(/\s+/).filter(part => part.length > 0);
+    const hasFourNamesOrMore = nameParts.length >= 4;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    const hasNoNumbersOrSpecialChars = nameRegex.test(nameTrimmed);
+    
+    if (!hasFourNamesOrMore || !hasNoNumbersOrSpecialChars || !nameTrimmed) return false;
 
     if (!data.birth) return false;
 
-    const phoneRegex = /^(002189|09|\+2189)[1-6]\d{7}$/;
+    // التحقق من رقم الهاتف: يبدأ بـ 021 أو 092 أو 091 أو 093 أو 094 ثم 7 أرقام
+    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
     if (!phoneRegex.test(data.phone.trim())) return false;
+    if (duplicateErrors.value.phone) return false;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.email.trim())) return false;
+    if (duplicateErrors.value.email) return false;
 
-    // التحقق من حقل الدور الوظيفي
     if (!data.role || !roleList.includes(data.role)) return false;
 
-    // لا يوجد حقل قسم في نموذج الإضافة
-
-    // التحقق من وجود مدير مخزن
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
         return false;
     }
@@ -204,7 +361,7 @@ const confirmRegistration = () => {
         phone: form.value.phone,
         email: form.value.email,
         role: form.value.role,
-        department: null, // لا يوجد قسم في نموذج الإضافة
+        department: null,
     };
     
     emit('save', newEmployee);
@@ -218,28 +375,121 @@ const closeModal = () => {
     emit('close');
 };
 
+// التحقق من الصحة في الوقت الفعلي
+const validateField = (fieldName) => {
+    const data = form.value;
+    
+    if (fieldName === 'name') {
+        const nameTrimmed = data.name?.trim() || '';
+        // التحقق من أن الاسم يحتوي على 4 أسماء فما فوق (مفصولة بمسافات)
+        const nameParts = nameTrimmed.split(/\s+/).filter(part => part.length > 0);
+        const hasFourNamesOrMore = nameParts.length >= 4;
+        
+        // التحقق من عدم وجود أرقام أو رموز خاصة (فقط أحرف عربية وإنجليزية ومسافات)
+        const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+        const hasNoNumbersOrSpecialChars = nameRegex.test(nameTrimmed);
+        
+        errors.value.name = !hasFourNamesOrMore || !hasNoNumbersOrSpecialChars;
+        
+        if (!hasFourNamesOrMore && nameTrimmed) {
+            errorMessages.value.name = "يجب إدخال 4 أسماء فما فوق (مفصولة بمسافات)";
+        } else if (!hasNoNumbersOrSpecialChars && nameTrimmed) {
+            errorMessages.value.name = "الاسم لا يجب أن يحتوي على أرقام أو رموز خاصة";
+        } else if (!nameTrimmed) {
+            errorMessages.value.name = "";
+        } else {
+            errorMessages.value.name = "";
+        }
+    }
+    
+    if (fieldName === 'phone') {
+        const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+        const phoneValid = phoneRegex.test(data.phone?.trim() || '');
+        errors.value.phone = !phoneValid;
+        if (!phoneValid && data.phone) {
+            errorMessages.value.phone = "رقم الهاتف يجب أن يبدأ بـ 021 أو 092 أو 091 أو 093 أو 094 ثم يتبعه 7 أرقام";
+        } else if (!data.phone) {
+            errorMessages.value.phone = "";
+        }
+    }
+    
+    if (fieldName === 'nationalId') {
+        const nationalIdRegex = /^[12]\d{11}$/;
+        const nationalIdValid = nationalIdRegex.test(data.nationalId?.trim() || '');
+        errors.value.nationalId = !nationalIdValid;
+        if (!nationalIdValid && data.nationalId) {
+            errorMessages.value.nationalId = "الرقم الوطني يجب أن يبدأ بـ 1 أو 2 ثم يتبعه 11 رقم (إجمالي 12 رقم)";
+        } else if (!data.nationalId) {
+            errorMessages.value.nationalId = "";
+        }
+    }
+    
+    if (fieldName === 'email') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailValid = emailRegex.test(data.email?.trim() || '');
+        errors.value.email = !emailValid;
+        if (!emailValid && data.email) {
+            errorMessages.value.email = "البريد الإلكتروني غير صحيح";
+        } else if (!data.email) {
+            errorMessages.value.email = "";
+        }
+    }
+};
+
+// مراقبة التغييرات في الحقول للتحقق من التكرار والصحة
+watch([() => form.value.phone, () => form.value.email, () => form.value.nationalId, () => form.value.name], ([phone, email, nationalId, name], [oldPhone, oldEmail, oldNationalId, oldName]) => {
+    if (props.isOpen) {
+        if (phone !== oldPhone) {
+            validateField('phone');
+            checkUniqueness();
+        }
+        if (email !== oldEmail) {
+            validateField('email');
+            checkUniqueness();
+        }
+        if (nationalId !== oldNationalId) {
+            validateField('nationalId');
+            checkUniqueness();
+        }
+        if (name !== oldName) {
+            validateField('name');
+        }
+    }
+});
+
 // إعادة تعيين النموذج عند فتح النافذة
 watch(() => props.isOpen, (newVal) => {
     if (newVal) {
         resetForm();
+    } else {
+        // Clear debounce timeout when modal closes
+        if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = null;
+        }
     }
 });
 
-// لا يوجد حقل قسم في نموذج الإضافة
+const dateInput = ref(null);
+const openDatePicker = () => {
+    if (dateInput.value) {
+        dateInput.value.showPicker(); 
+    }
+};
 </script>
 
 <template>
     <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" @click.self="closeModal">
-        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+        <div class="bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100">
             
             <!-- Header -->
-            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
+            <div class="bg-[#2E5077] px-8 py-5 flex justify-between items-center relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                 <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#4DA1A9]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
                 
                 <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                        <Icon icon="solar:user-plus-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                        <Icon icon="mingcute:user-add-line" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
                     تسجيل موظف جديد
                 </h2>
@@ -249,182 +499,223 @@ watch(() => props.isOpen, (newVal) => {
             </div>
 
             <!-- Body -->
-            <form @submit.prevent="submitForm" class="p-8 space-y-8">
-                
-                <!-- المعلومات الشخصية والوظيفية -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
-                        <Icon icon="solar:user-id-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        المعلومات الشخصية والوظيفية
-                    </h3>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- الرقم الوطني -->
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">الرقم الوطني</label>
-                            <div class="relative">
-                                <Input
-                                    required
-                                    v-model="form.nationalId"
-                                    placeholder="أدخل الرقم الوطني"
-                                    type="text"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.nationalId, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.nationalId }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
-                                />
-                                <Icon v-if="errors.nationalId" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
-                            </div>
-                            <p v-if="errors.nationalId" class="text-sm text-red-500 font-medium">الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم).</p>
-                        </div>
-
-                        <!-- الاسم الرباعي -->
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">الإسم رباعي</label>
-                            <div class="relative">
-                                <Input
-                                    required
-                                    v-model="form.name"
-                                    placeholder="أدخل الإسم الرباعي"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.name, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.name }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
-                                />
-                                <Icon v-if="errors.name" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
-                            </div>
-                            <p v-if="errors.name" class="text-sm text-red-500 font-medium">الرجاء إدخال الاسم الرباعي بشكل صحيح.</p>
-                        </div>
-
-                        <!-- الدور الوظيفي -->
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">الدور الوظيفي</label>
-                            <div class="relative">
-                                <select
-                                    required
-                                    v-model="form.role"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.role, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.role }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all px-4 appearance-none focus:outline-none"
-                                >
-                                    <option value="" disabled selected>اختر الدور الوظيفي</option>
-                                    <option v-for="role in getRoleList" :key="role" :value="role">
-                                        {{ role }}
-                                    </option>
-                                </select>
-                                <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
-                            </div>
-                            <p v-if="errors.role" class="text-sm text-red-500 font-medium">الرجاء اختيار الدور الوظيفي.</p>
-                        </div>
-
-                        <!-- تاريخ الميلاد -->
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">تاريخ الميلاد</label>
-                            <div class="relative">
-                                <Input
-                                    required
-                                    type="date"
-                                    v-model="form.birth"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.birth, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.birth }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
-                                />
-                                <Icon v-if="errors.birth" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
-                            </div>
-                            <p v-if="errors.birth" class="text-sm text-red-500 font-medium">الرجاء تحديد تاريخ الميلاد.</p>
-                        </div>
-
-
-                        <div v-if="isWarehouseManagerRole(form.role)" class="md:col-span-2">
-                            <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex gap-3">
-                                <Icon icon="solar:shield-warning-bold" class="w-6 h-6 text-yellow-600 flex-shrink-0" />
-                                <p class="text-sm text-yellow-700 font-medium">
-                                    <span class="font-bold">ملاحظة:</span> يمكن تعيين مدير مخزن واحد فقط في النظام.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- معلومات الإتصال -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
-                        <Icon icon="solar:phone-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        معلومات الإتصال
-                    </h3>
+            <div class="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">رقم الهاتف</label>
-                            <div class="relative">
-                                <Input
-                                    required
-                                    v-model="form.phone"
-                                    placeholder="أدخل رقم الهاتف"
-                                    type="text"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.phone, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.phone }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
-                                />
-                                <Icon v-if="errors.phone" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
-                            </div>
-                            <p v-if="errors.phone" class="text-sm text-red-500 font-medium">تأكد من إدخال رقم هاتف صحيح.</p>
-                        </div>
+                    <!-- National ID -->
+                    <div class="space-y-2" dir="rtl">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:card-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الرقم الوطني
+                        </label>
+                        <Input
+                            id="national-id"
+                            v-model="form.nationalId"
+                            placeholder="1XXXXXXXXXXX أو 2XXXXXXXXXXX"
+                            maxlength="12"
+                            @input="validateField('nationalId')"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.nationalId || duplicateErrors.nationalId }"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium"
+                        />
+                        <p v-if="errors.nationalId || duplicateErrors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errorMessages.nationalId || "الرقم الوطني يجب أن يبدأ بـ 1 أو 2 ثم يتبعه 11 رقم (إجمالي 12 رقم)" }}
+                        </p>
+                    </div>
 
-                        <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-500">البريد الإلكتروني</label>
-                            <div class="relative">
-                                <Input
-                                    required
-                                    type="email"
-                                    v-model="form.email"
-                                    placeholder="أدخل البريد الإلكتروني"
-                                    :class="{ 'border-red-500 focus:ring-red-500/20': errors.email, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.email }"
-                                    class="h-12 text-right w-full rounded-xl bg-gray-50 border-2 focus:ring-4 transition-all pr-4"
+                    <!-- Name -->
+                    <div class="space-y-2" dir="rtl">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:user-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الإسم رباعي
+                        </label>
+                        <Input
+                            id="name"
+                            v-model="form.name"
+                            placeholder="أدخل الإسم الرباعي (4 أسماء فما فوق)"
+                            @input="validateField('name')"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.name }"
+                            class="bg-white rounded-2xl border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                        />
+                        <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errorMessages.name || "يجب إدخال 4 أسماء فما فوق بدون أرقام أو رموز خاصة" }}
+                        </p>
+                    </div>
+
+                    <!-- Role -->
+                    <div class="space-y-2" dir="rtl">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:user-id-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            الدور الوظيفي
+                        </label>
+                        <div class="relative">
+                            <select
+                                id="role"
+                                v-model="form.role"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.role 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
+                            >
+                                <option value="" disabled selected>اختر الدور الوظيفي</option>
+                                <option v-for="role in getRoleList" :key="role" :value="role">
+                                    {{ role }}
+                                </option>
+                            </select>
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
+                        </div>
+                        <p v-if="errors.role" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            الرجاء اختيار الدور الوظيفي
+                        </p>
+                    </div>
+
+                    <!-- Birth Date -->
+                    <div class="space-y-2" dir="rtl">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            تاريخ الميلاد
+                        </label>
+                        <div class="relative w-full">
+                            <input
+                                id="birth"
+                                ref="dateInput"
+                                type="date" 
+                                v-model="form.birth"
+                                :class="[
+                                    'h-9 text-right w-full pl-3 pr-10 appearance-none rounded-2xl bg-white cursor-pointer',
+                                    'border focus:outline-none transition-colors duration-200',
+                                    errors.birth 
+                                        ? 'border-red-500 hover:border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 hover:border-[#4DA1A9] focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
+                            />
+                            <div 
+                                class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" 
+                                @click="openDatePicker"
+                            >
+                                <Icon 
+                                    icon="solar:calendar-linear" 
+                                    class="w-5 h-5 transition-colors duration-200"
+                                    :class="errors.birth ? 'text-red-500' : 'text-[#79D7BE]'"
                                 />
-                                <Icon v-if="errors.email" icon="solar:danger-circle-bold" class="w-5 h-5 text-red-500 absolute left-3 top-3.5" />
                             </div>
-                            <p v-if="errors.email" class="text-sm text-red-500 font-medium">تأكد من إدخال البريد الإلكتروني صحيح.</p>
+                        </div>
+                        <p v-if="errors.birth" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            تاريخ الميلاد مطلوب
+                        </p>
+                    </div>
+
+                    <!-- Phone -->
+                    <div class="space-y-2" dir="rtl">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            رقم الهاتف
+                        </label>
+                        <Input
+                            id="phone"
+                            v-model="form.phone"
+                            placeholder="021XXXXXXX أو 092XXXXXXX"
+                            @input="validateField('phone')"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
+                                (errors.phone || duplicateErrors.phone) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
+                        />
+                        <p v-if="errors.phone || duplicateErrors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errorMessages.phone || "رقم الهاتف يجب أن يبدأ بـ 021 أو 092 أو 091 أو 093 أو 094 ثم يتبعه 7 أرقام" }}
+                        </p>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="space-y-2" dir="rtl">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:letter-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            البريد الإلكتروني
+                        </label>
+                        <Input
+                            id="email"
+                            type="email"
+                            v-model="form.email"
+                            placeholder="example@domain.com"
+                            @input="validateField('email')"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.email || duplicateErrors.email }"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                        />
+                        <p v-if="errors.email || duplicateErrors.email" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errorMessages.email || "البريد الإلكتروني غير صحيح" }}
+                        </p>
+                    </div>
+
+                    <!-- Messages -->
+                    <div v-if="isWarehouseManagerRole(form.role)" class="md:col-span-2">
+                        <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex gap-3">
+                            <Icon icon="solar:shield-warning-bold" class="w-6 h-6 text-yellow-600 flex-shrink-0" />
+                            <p class="text-sm text-yellow-700 font-medium">
+                                <span class="font-bold">ملاحظة:</span> يمكن تعيين مدير مخزن واحد فقط في النظام.
+                            </p>
                         </div>
                     </div>
                 </div>
-            </form>
+            </div>
 
             <!-- Footer -->
-            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100">
                 <button 
                     @click="closeModal" 
-                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
+                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2"
                 >
                     إلغاء
                 </button>
                 <button 
-                    @click="submitForm"
+                    @click="submitForm" 
                     :disabled="!isFormValid"
-                    class="px-8 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    :class="[
+                        'px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200',
+                        isFormValid 
+                            ? 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-0.5' 
+                            : 'bg-gray-300 cursor-not-allowed shadow-none'
+                    ]"
                 >
-                    <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
-                    حفظ الموظف
+                    <Icon icon="solar:check-read-bold" class="w-5 h-5" />
+                    حفظ البيانات
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- نافذة التأكيد -->
+    <!-- Confirmation Modal -->
     <div v-if="isConfirmationModalOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="closeConfirmationModal">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
             <div class="p-6 text-center space-y-4">
-                <div class="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Icon icon="solar:shield-warning-bold-duotone" class="w-8 h-8 text-yellow-500" />
+                <div class="w-16 h-16 bg-[#4DA1A9]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon icon="solar:question-circle-bold-duotone" class="w-10 h-10 text-[#4DA1A9]" />
                 </div>
-                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد تسجيل الموظف</h3>
+                <h3 class="text-xl font-bold text-[#2E5077]">تأكيد التسجيل</h3>
                 <p class="text-gray-500 leading-relaxed">
                     هل أنت متأكد من رغبتك في إنشاء حساب جديد للموظف <span class="font-bold text-[#2E5077]">"{{ form.name }}"</span>؟
+                    <br>
+                    <span class="text-sm text-[#4DA1A9] mt-2 block">
+                        سيتم إنشاء حساب جديد وحفظ البيانات في النظام
+                    </span>
                 </p>
             </div>
-            <div class="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+            <div class="flex justify-center bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
                 <button 
                     @click="closeConfirmationModal" 
                     class="flex-1 px-4 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                 >
-                    إلغاء
+                    مراجعة
                 </button>
                 <button 
                     @click="confirmRegistration" 
-                    class="flex-1 px-4 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                    class="flex-1 px-4 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-1"
                 >
                     تأكيد التسجيل
                 </button>

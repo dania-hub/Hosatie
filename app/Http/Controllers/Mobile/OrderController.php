@@ -219,6 +219,15 @@ class OrderController extends BaseApiController
     // إنشاء طلب نقل (التعديل الرئيسي هنا)
     private function createTransferRequest($user, $request)
     {
+        // التأكد من أن patient_id ليس null
+        if (!$user->id) {
+            Log::warning('User ID is null', ['user_id' => $user->id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'patient_id مطلوب ولا يمكن أن يكون null لطلبات النقل.'
+            ], 400);
+        }
+
         if (!$user->hospital_id) {
             Log::warning('User has no hospital_id', ['user_id' => $user->id]);
             return response()->json([
@@ -248,13 +257,12 @@ class OrderController extends BaseApiController
             // إنشاء باستخدام DB::insert مع NOW() لضمان الوقت الدقيق
             DB::insert(
                 "INSERT INTO patient_transfer_requests 
-                (patient_id, from_hospital_id, to_hospital_id, requested_by, reason, status, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                (patient_id, from_hospital_id, to_hospital_id, reason, status, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
                 [
                     $user->id,
                     $user->hospital_id,
                     $request->transfer_to_hospital_id,
-                    $user->id,
                     $requestContent,
                     'pending'
                 ]

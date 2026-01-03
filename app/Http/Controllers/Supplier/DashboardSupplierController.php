@@ -153,8 +153,11 @@ class DashboardSupplierController extends BaseApiController
             'reject' => 'رفض',
             'supplier_confirm_external_supply_request' => 'قبول طلب توريد خارجي',
             'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي',
+            'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',
             'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام شحنة خارجية',
+            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
+            'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
         ];
 
         return $types[$action] ?? $action;

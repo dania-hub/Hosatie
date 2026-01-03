@@ -71,8 +71,8 @@ const employeeRoles = ref([]);
 // قائمة الأقسام المتاحة (سيتم جلبها من API)
 const availableDepartments = ref([]);
 
-// فلتر الحالة
-const statusFilter = ref("all");
+// فلتر الدور الوظيفي
+const roleFilter = ref("all");
 
 // بيانات الموظفين
 const employees = ref([]);
@@ -360,31 +360,78 @@ const sortEmployees = (key, order) => {
     sortOrder.value = order;
 };
 
+// قائمة الأدوار الوظيفية المتاحة للفلترة
+const availableRoles = computed(() => {
+    const roles = new Set();
+    employees.value.forEach(emp => {
+        const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+        if (roleName) {
+            roles.add(roleName);
+        }
+    });
+    return ['الكل', ...Array.from(roles).sort()];
+});
+
 const filteredEmployees = computed(() => {
     let list = employees.value;
 
-    // فلتر حسب الحالة
-    if (statusFilter.value !== "all") {
-        const isActiveFilter = statusFilter.value === "active";
-        list = list.filter((employee) => employee.isActive === isActiveFilter);
+    // فلتر حسب الدور الوظيفي
+    if (roleFilter.value !== "all" && roleFilter.value !== "الكل") {
+        list = list.filter((employee) => {
+            const roleName = typeof employee.role === 'object' ? employee.role.name : employee.role;
+            return roleName === roleFilter.value;
+        });
     }
 
-    // فلتر حسب البحث
+    // فلتر حسب البحث - تم التحديث للبحث في جميع الحقول
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
-        list = list.filter(
-            (employee) =>
-                employee.fileNumber?.toString().includes(search) ||
-                employee.name?.toLowerCase().includes(search) ||
-                employee.nationalId?.includes(search) ||
-                employee.birth?.includes(search) ||
-                employee.phone?.includes(search) ||
-                (employee.role && 
-                    (typeof employee.role === 'object' 
-                        ? employee.role.name?.toLowerCase().includes(search)
-                        : employee.role.toLowerCase().includes(search))) ||
-                (employee.department && employee.department.toLowerCase().includes(search))
-        );
+        list = list.filter((employee) => {
+            // إنشاء قائمة بجميع الحقول الممكنة للبحث
+            const searchFields = [
+                // الحقول الأساسية
+                employee.fileNumber?.toString(),
+                employee.name,
+                employee.nationalId,
+                employee.phone,
+                employee.email,
+                
+                // الدور الوظيفي (إذا كان كائن)
+                employee.role ? 
+                    (typeof employee.role === 'object' ? employee.role.name : employee.role) : 
+                    '',
+                
+                // القسم
+                employee.department,
+                
+                // تاريخ الميلاد (بصيغ مختلفة)
+                employee.birth,
+                formatDateForDisplay(employee.birth),
+                
+                // الحالة (نشط/غير نشط)
+                employee.isActive ? "مفعل" : "معطل",
+                employee.isActive ? "نشط" : "غير نشط",
+                employee.isActive ? "active" : "inactive",
+                
+                // معلومات إضافية قد تكون في بيانات الموظف
+                employee.full_name,
+                employee.national_id,
+                employee.birth_date,
+                employee.role_name,
+                employee.department_name,
+                
+                // تحويل جميع الحقول الرقمية إلى نص للبحث
+                employee.age?.toString(),
+                employee.salary?.toString(),
+                employee.id?.toString(),
+                employee.user_id?.toString(),
+            ];
+
+            // البحث في جميع الحقول
+            return searchFields.some(field => 
+                field && field.toString().toLowerCase().includes(search)
+            );
+        });
     }
 
     // الفرز
@@ -427,7 +474,6 @@ const filteredEmployees = computed(() => {
 
     return list;
 });
-
 // ----------------------------------------------------
 // 9. منطق رسالة النجاح
 // ----------------------------------------------------
@@ -620,9 +666,12 @@ const updateEmployee = async (updatedEmployee) => {
             role.name === "مدير المخزن" || role === "مدير المخزن"
         );
         
+        // استخدام id إذا كان fileNumber غير موجود
+        const employeeId = updatedEmployee.fileNumber || updatedEmployee.id;
+        
         if (warehouseManagerRole && updatedEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
             const currentEmployee = employees.value.find(
-                (p) => p.fileNumber === updatedEmployee.fileNumber
+                (p) => (p.fileNumber || p.id) === employeeId
             );
             
             const currentRoleName = currentEmployee ? 
@@ -642,16 +691,17 @@ const updateEmployee = async (updatedEmployee) => {
         
         if (departmentManagerRole && updatedEmployee.role === "مدير القسم") {
             const currentEmployee = employees.value.find(
-                emp => emp.fileNumber === updatedEmployee.fileNumber
+                emp => (emp.fileNumber || emp.id) === employeeId
             );
             
             const existingManager = employees.value.find(
                 emp => {
                     const roleName = typeof emp.role === 'object' ? emp.role.name : emp.role;
+                    const empId = emp.fileNumber || emp.id;
                     return roleName === "مدير القسم" && 
                            emp.department === updatedEmployee.department && 
                            emp.isActive &&
-                           emp.fileNumber !== updatedEmployee.fileNumber;
+                           empId !== employeeId;
                 }
             );
             
@@ -671,9 +721,14 @@ const updateEmployee = async (updatedEmployee) => {
             birth_date: updatedEmployee.birth || null,
         };
 
+        if (!employeeId) {
+            showSuccessAlert("❌ فشل تعديل بيانات الموظف: رقم الموظف غير محدد.");
+            return;
+        }
+        
         // ملاحظة: قد تحتاج إلى إضافة route للتحديث في API
         const response = await api.put(
-            `/admin-hospital/staff/${updatedEmployee.fileNumber}`,
+            `/admin-hospital/staff/${employeeId}`,
             employeeData
         );
 
@@ -681,8 +736,9 @@ const updateEmployee = async (updatedEmployee) => {
         await fetchEmployees();
 
         closeEditModal();
+        const employeeName = updatedEmployee.name || 'الموظف';
         showSuccessAlert(
-            `✅ تم تعديل بيانات الموظف ${updatedEmployee.fileNumber} بنجاح!`
+            `✅ تم تعديل بيانات الموظف ${employeeName} بنجاح!`
         );
     } catch (error) {
         console.error("Error updating employee:", error);
@@ -833,16 +889,35 @@ const printTable = () => {
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
 
-                        <!-- فلتر حالة الحساب -->
-                        <div class="flex items-center gap-2">
-                            <select 
-                                v-model="statusFilter"
-                                class="h-11 px-3 border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] focus:outline-none cursor-pointer"
+                        <!-- فلتر الدور الوظيفي -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center justify-between h-11 px-4 py-2 border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[150px]"
                             >
-                                <option value="all">جميع الحالات</option>
-                                <option value="active">المفعلون فقط</option>
-                                <option value="inactive">المعطلون فقط</option>
-                            </select>
+                                <span>
+                                    {{ roleFilter === 'all' || roleFilter === 'الكل' ? 'جميع الأدوار' : roleFilter }}
+                                </span>
+                                <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
+                            >
+                                <li class="menu-title text-gray-700 font-bold text-sm">حسب الدور الوظيفي:</li>
+                                <li v-for="role in availableRoles" :key="role">
+                                    <a
+                                        @click="roleFilter = role === 'الكل' ? 'all' : role"
+                                        :class="{
+                                            'font-bold text-[#4DA1A9]':
+                                                (roleFilter === role) || (role === 'الكل' && roleFilter === 'all'),
+                                        }"
+                                    >
+                                        {{ role }}
+                                    </a>
+                                </li>
+                            </ul>
                         </div>
 
                         <!-- فرز -->
@@ -1120,30 +1195,30 @@ const printTable = () => {
                                                     <div class="flex gap-3 justify-center items-center">
                                                         <button
                                                             @click="openViewModal(employee)"
-                                                             class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                             class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             title="عرض البيانات"
                                                         >
                                                             <Icon
                                                             icon="tabler:eye-minus"
-                                                            class="w-5 h-5 text-green-600"   />
+                                                            class="w-4 h-4 text-green-600"   />
                                                         </button>
                                                         <button
                                                           
                                                             @click="openEditModal(employee)"
-                                                              class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                              class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             title="تعديل البيانات"
                                                         >
                                                             <Icon
                                                             icon="line-md:pencil"
-                                                            class="w-5 h-5 text-yellow-500"    />
+                                                            class="w-4 h-4 text-yellow-500"    />
                                                         </button>
                                                         <button
                                                             @click="openStatusConfirmationModal(employee)"
                                                             :class="[
-                                                                'p-1 rounded-full transition-colors',
+                                                                'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                                 employee.isActive
-                                                                    ? 'hover:bg-red-100'
-                                                                    : 'hover:bg-green-100',
+                                                                    ? 'bg-red-50 hover:bg-red-100 border-red-200'
+                                                                    : 'bg-green-50 hover:bg-green-100 border-green-200',
                                                             ]"
                                                             :title="getStatusTooltip(employee.isActive)"
                                                            

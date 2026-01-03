@@ -106,15 +106,21 @@ class PatientTransferAdminHospitalController extends BaseApiController
 
             $r->status = $data['status'];
             
-            // لو عندك أعمدة approved_by / rejected_by / rejection_reason يمكنك تفعيلها هنا:
+            // استخدام الأعمدة الصحيحة من قاعدة البيانات
+            $r->handeled_by = $user->id;
+            $r->handeled_at = now();
+            
             if ($data['status'] === 'approved') {
-                $r->approved_by = $user->id;
-                $r->approved_at = now();
                 $r->load('patient');
+                
+                // تحديث hospital_id للمريض إلى المستشفى الجديد
+                if ($r->patient && $r->to_hospital_id) {
+                    $r->patient->hospital_id = $r->to_hospital_id;
+                    $r->patient->save();
+                }
+                
                 $this->notifications->notifyTransferApproved($r->patient, $r);
             } else {
-                $r->rejected_by = $user->id;
-                $r->rejected_at = now();
                 $r->rejection_reason = $data['rejectionReason'] ?? null;
                 $r->load('patient');
                 $this->notifications->notifyTransferRejected($r->patient, $r);

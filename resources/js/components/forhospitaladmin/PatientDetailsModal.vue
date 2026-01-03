@@ -9,7 +9,7 @@
         ></div>
 
         <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
             dir="rtl"
             role="dialog"
             aria-modal="true"
@@ -72,7 +72,7 @@
                         </div>
                         
                         <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">تاريخ الإنشاء</span>
+                            <span class="text-gray-500 font-medium">تاريخ الطلب</span>
                             <span class="font-bold text-[#2E5077]">{{ formatDate(patientData?.createdAt || patientData?.createdDate) || 'غير محدد' }}</span>
                         </div>
                     </div>
@@ -264,12 +264,10 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
         });
     } catch {
         return dateString;

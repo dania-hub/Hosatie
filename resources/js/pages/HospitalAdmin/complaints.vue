@@ -166,13 +166,13 @@
                         <!-- زر معاينة تفاصيل الملف -->
                         <button
                           @click="openPatientModal(patient)"
-                          class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                           data-tip="معاينة تفاصيل الملف"
                           :disabled="isLoadingDetails"
                         >
                           <Icon
-                            icon="tabler:eye"
-                            class="w-5 h-5 text-green-600 hover:text-green-700 transition-colors"
+                            icon="famicons:open-outline"
+                            class="w-4 h-4 text-green-600 hover:text-green-700 transition-colors"
                             :class="{ 'opacity-50': isLoadingDetails }"
                           />
                         </button>
@@ -180,13 +180,13 @@
                         <!-- زر الرد على الطلب -->
                         <button
                           @click="openResponseModal(patient)"
-                          class="tooltip p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
                           data-tip="الرد على الطلب"
                           :disabled="patient.status === 'تمت المراجعة' || isLoadingResponse"
                         >
                           <Icon
-                            icon="tabler:message-reply"
-                            class="w-5 h-5 text-blue-600 hover:text-blue-700 transition-colors"
+                            icon="streamline:mail-send-reply-all-email-message-reply-all-actions-action-arrow"
+                            class="w-4 h-4 text-blue-600 hover:text-blue-700 transition-colors"
                             :class="{
                               'opacity-50 cursor-not-allowed': 
                                 patient.status === 'تمت المراجعة' ||

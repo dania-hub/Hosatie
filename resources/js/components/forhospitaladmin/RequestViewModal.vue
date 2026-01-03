@@ -9,7 +9,7 @@
         ></div>
 
         <div
-            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
+            class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto"
             dir="rtl"
             role="dialog"
             aria-modal="true"
@@ -21,9 +21,9 @@
                 
                 <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
                     <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                        <Icon icon="solar:file-text-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
                     </div>
-                    تفاصيل الشحنة رقم: {{ requestDetails.shipmentNumber || requestDetails.id || '...' }}
+                    تفاصيل طلب التوريد
                 </h2>
                 <button @click="closeModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
                     <Icon icon="mingcute:close-fill" class="w-6 h-6" />
@@ -32,253 +32,224 @@
 
             <div class="p-8 space-y-8">
                 <!-- حالة التحميل -->
-                <div v-if="isLoading" class="text-center py-10">
+                <div v-if="isLoading" class="text-center py-20">
                     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mx-auto"></div>
-                    <p class="text-gray-600 mt-4">جاري تحميل البيانات...</p>
+                    <p class="text-gray-600 mt-4 font-medium">جاري تحميل البيانات...</p>
                 </div>
                 
                 <!-- حالة الخطأ -->
-                <div v-else-if="modalError" class="text-center py-10">
-                    <div class="text-red-600 text-4xl mb-4">⚠️</div>
-                    <p class="text-red-600 font-semibold">{{ modalError }}</p>
+                <div v-else-if="modalError" class="text-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                    <div class="p-4 bg-red-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                        <Icon icon="solar:danger-bold" class="w-10 h-10 text-red-600" />
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">حدث خطأ</h3>
+                    <p class="text-red-600 font-medium">{{ modalError }}</p>
+                    <button @click="fetchRequestDetails" class="mt-6 px-6 py-2 bg-[#2E5077] text-white rounded-xl hover:bg-[#1a3b5e] transition-colors">
+                        إعادة المحاولة
+                    </button>
                 </div>
-                
-                <!-- المحتوى الرئيسي -->
+
                 <template v-else>
-                <!-- بيانات الشحنة الأساسية -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
-                        <Icon icon="solar:info-square-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        بيانات الشحنة الأساسية
-                    </h3>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">رقم الشحنة</span>
-                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestDetails.shipmentNumber || 'غير محدد' }}</span>
-                        </div>
-                        
-                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">تاريخ الإنشاء</span>
-                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.createdAt) || 'غير محدد' }}</span>
-                        </div>
-                        
-                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">الحالة</span>
-                            <span :class="getStatusClass(requestDetails.status)" class="px-3 py-1 rounded-lg text-sm font-bold">
-                                {{ requestDetails.status || 'غير محدد' }}
-                            </span>
-                        </div>
-                        
-                        <div v-if="requestDetails.confirmedAt" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">تاريخ التأكيد</span>
-                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.confirmedAt) }}</span>
+                    <!-- Basic Info -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                            <Icon icon="solar:info-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            البيانات الأساسية
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                                <span class="text-gray-500 font-medium">رقم الشحنة</span>
+                                <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestDetails.shipmentNumber || requestDetails.id || 'غير محدد' }}</span>
+                            </div>
+                            
+                            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                                <span class="text-gray-500 font-medium">تاريخ الطلب</span>
+                                <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.createdAt || requestDetails.date) || 'غير محدد' }}</span>
+                            </div>
+                            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                                <span class="text-gray-500 font-medium">حالة الطلب</span>
+                                <span :class="statusClass" class="px-3 py-1 rounded-lg text-sm font-bold">{{ requestDetails.status || 'جديد' }}</span>
+                            </div>
+                            
+                            <div v-if="requestDetails.confirmedAt" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                                <span class="text-gray-500 font-medium">تاريخ التأكيد</span>
+                                <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.confirmedAt) }}</span>
+                            </div>
+
+                            <div v-if="requestDetails.priority" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center md:col-span-2">
+                                <span class="text-gray-500 font-medium">الأولوية</span>
+                                <span :class="getPriorityClass(requestDetails.priority)" class="px-3 py-1 rounded-lg text-sm font-bold">
+                                    {{ requestDetails.priority }}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- سبب الرفض -->
-                <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
-                    <h3 class="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
-                        <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
-                        سبب الرفض
-                    </h3>
-                    
-                    <p class="text-red-800 font-medium leading-relaxed bg-white/50 p-4 rounded-xl border border-red-100/50 mb-2">
-                        {{ requestDetails.rejectionReason }}
-                    </p>
-                    
-                    <p v-if="requestDetails.rejectedAt" class="text-red-700/80 text-sm flex items-center gap-1">
-                        <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
-                        بتاريخ: {{ formatDate(requestDetails.rejectedAt) }}
-                    </p>
-                </div>
+                    <!-- Items List -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:box-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            الأدوية المطلوبة
+                            <span v-if="hasAnySentOrReceived" class="text-sm font-normal text-gray-400 mr-2">
+                                (مطلوب<span v-if="hasAnySent"> / مرسل</span><span v-if="hasAnyReceived"> / مستلم</span>)
+                            </span>
+                        </h3>
 
-                <!-- الأدوية -->
-                <div v-if="requestDetails.items && requestDetails.items.length > 0" class="space-y-4">
-                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                        <Icon icon="solar:box-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        العناصر المشحونة
-                        <span v-if="isSentStatus" class="mr-2 text-sm text-gray-400 font-normal">
-                            (مطلوب / مُرسل)
-                        </span>
-                    </h3>
-
-                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                        <div class="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-                            <div 
-                                v-for="(item, index) in requestDetails.items" 
-                                :key="index"
-                                class="p-4 hover:bg-gray-50/50 transition-colors"
-                            >
-                                <div class="flex justify-between items-start gap-4">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name || item.drugName }}</h4>
-                                            <span v-if="item.dosage || item.strength" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">
-                                                {{ item.dosage || item.strength }}
+                        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                            <div v-if="requestDetails.items && requestDetails.items.length > 0" class="divide-y divide-gray-50">
+                                <div 
+                                    v-for="(item, index) in requestDetails.items" 
+                                    :key="index"
+                                    class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
+                                >
+                                    <div class="flex-1 w-full md:w-auto">
+                                        <div class="font-bold text-[#2E5077] text-lg">{{ item.name || item.drugName }}</div>
+                                        <div class="flex gap-2 mt-1 flex-wrap">
+                                            <span v-if="item.strength || item.dosage" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-medium">
+                                                القوة: {{ item.strength || item.dosage }}
                                             </span>
-                                        </div>
-                                        
-                                        <div class="flex gap-2 mt-2">
-                                            <span v-if="item.type" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                                                {{ item.type }}
+                                            <span v-if="item.unit" class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-medium">
+                                                الوحدة: {{ item.unit }}
                                             </span>
-                                            <span v-if="item.category" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                                                {{ item.category }}
+                                            <span v-if="item.type || item.form || item.category" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
+                                                {{ item.type || item.form || item.category }}
                                             </span>
                                         </div>
                                     </div>
                                     
-                                    <div class="text-left flex flex-row flex-wrap items-center gap-2 justify-end">
-                                        <!-- الكمية المطلوبة -->
-                                        <div v-if="item.requestedQuantity || item.requested_qty || item.requested" class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                                            <span class="text-gray-500 text-sm font-medium">المطلوب:</span>
-                                            <span class="text-[#4DA1A9] font-bold text-lg">
-                                                {{ item.requestedQuantity || item.requested_qty || item.requested || 0 }} <span class="text-sm font-normal text-gray-500">{{ item.unit || 'وحدة' }}</span>
-                                            </span>
+                                    <div class="flex items-center gap-6 w-full md:w-auto justify-end">
+                                        <div class="text-center">
+                                            <span class="text-xs text-gray-400 block mb-1">مطلوب</span>
+                                            <span class="font-bold text-[#4DA1A9] text-lg">{{ item.requestedQuantity || item.requested_qty || item.requested || 0 }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
                                         </div>
                                         
-                                        <!-- الكمية المعتمدة -->
-                                        <div v-if="item.approved_qty || item.approved" class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-                                            <span class="text-blue-600 text-sm font-medium">المعتمد:</span>
-                                            <span class="text-blue-700 font-bold">
-                                                {{ item.approved_qty || item.approved || 0 }} <span class="text-sm font-normal">{{ item.unit || 'وحدة' }}</span>
-                                            </span>
+                                        <div v-if="hasSentQuantity(item)" class="text-center pl-4 border-r border-gray-100">
+                                            <span class="text-xs text-gray-400 block mb-1">مرسل</span>
+                                            <div class="flex items-center gap-1">
+                                                <span 
+                                                    class="font-bold text-lg"
+                                                    :class="getSentQuantity(item) >= (item.requestedQuantity || item.requested_qty || item.requested || 0) ? 'text-green-600' : 'text-amber-600'"
+                                                >
+                                                    {{ getSentQuantity(item) || 0 }}
+                                                </span>
+                                                <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                                <Icon v-if="getSentQuantity(item) >= (item.requestedQuantity || item.requested_qty || item.requested || 0)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
+                                                <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
+                                            </div>
                                         </div>
                                         
-                                        <!-- الكمية المرسلة/المستلمة -->
-                                        <div v-if="item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity"
-                                            class="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
-                                            :class="{
-                                                'bg-green-50 border-green-100 text-green-700': (item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0) >= (item.approved_qty || item.approved || item.requestedQuantity || item.requested_qty || 0),
-                                                'bg-amber-50 border-amber-100 text-amber-700': (item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0) < (item.approved_qty || item.approved || item.requestedQuantity || item.requested_qty || 0)
-                                            }"
-                                        >
-                                            <span class="text-sm font-medium">مستلم:</span>
-                                            <span class="font-bold">
-                                                {{ item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0 }} <span class="text-sm font-normal">{{ item.unit || 'وحدة' }}</span>
-                                            </span>
-                                            <Icon v-if="(item.fulfilled_qty || item.fulfilled || item.sent || item.receivedQuantity || 0) >= (item.approved_qty || item.approved || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-4 h-4" />
-                                        </div>
-                                        
-                                        <!-- الكمية المتوفرة -->
-                                        <div v-if="item.availableQuantity || item.available_quantity" class="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100">
-                                            <span class="text-purple-600 text-sm font-medium">المتاح:</span>
-                                            <span class="text-purple-700 font-bold">
-                                                {{ item.availableQuantity || item.available_quantity || 0 }} <span class="text-sm font-normal">{{ item.unit || 'وحدة' }}</span>
-                                            </span>
+                                        <div v-if="hasReceivedQuantity(item)" class="text-center pl-4 border-r border-gray-100">
+                                            <span class="text-xs text-gray-400 block mb-1">مستلم</span>
+                                            <div class="flex items-center gap-1">
+                                                <span 
+                                                    class="font-bold text-lg"
+                                                    :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-amber-600'"
+                                                >
+                                                    {{ getReceivedQuantity(item) || 0 }}
+                                                </span>
+                                                <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                                <Icon v-if="getReceivedQuantity(item) >= getSentQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
+                                                <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            <div v-else class="py-8 text-center text-gray-500">
+                                لا توجد أدوية في هذا الطلب.
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- الملاحظات -->
-                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.notes || requestDetails.confirmationNotes" class="space-y-4">
-                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                        <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        الملاحظات
-                    </h3>
-                    
-                    <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
-                    <div v-if="requestDetails.storekeeperNotes" class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-                        <p class="font-bold text-blue-800 mb-2 flex items-center gap-2">
-                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                            ملاحظة مسؤول المخزن:
-                        </p>
-                        <p class="text-blue-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-blue-100/50">
-                            {{ requestDetails.storekeeperNotes }}
+                    <!-- Rejection Reason -->
+                    <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                        <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
+                            سبب الرفض
+                        </h3>
+                        <p class="text-red-800 font-medium leading-relaxed bg-white/50 p-4 rounded-xl border border-red-100/50 mb-2">{{ requestDetails.rejectionReason }}</p>
+                        <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
+                            <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
+                            بتاريخ: {{ formatDate(requestDetails.rejectedAt) }}
                         </p>
                     </div>
 
-                    <!-- ملاحظة Supplier (عند القبول/الإرسال) -->
-                    <div v-if="requestDetails.supplierNotes" class="bg-green-50 border border-green-100 rounded-2xl p-5">
-                        <p class="font-bold text-green-800 mb-2 flex items-center gap-2">
-                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                            ملاحظة المورد:
-                        </p>
-                        <p class="text-green-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-green-100/50">
-                            {{ requestDetails.supplierNotes }}
-                        </p>
-                    </div>
+                    <!-- Notes -->
+                    <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.notes || requestDetails.confirmationNotes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
+                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            الملاحظات
+                        </h3>
 
-                    <!-- للتوافق مع الكود القديم -->
-                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmationNotes" class="bg-green-50 border border-green-100 rounded-2xl p-5">
-                        <p class="font-bold text-green-800 mb-2 flex items-center gap-2">
-                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                            ملاحظة الإرسال:
-                        </p>
-                        <p class="text-green-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-green-100/50">
-                            {{ requestDetails.confirmationNotes }}
-                        </p>
-                    </div>
-
-                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmationNotes" class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-                        <p class="font-bold text-blue-800 mb-2 flex items-center gap-2">
-                            <Icon icon="solar:document-text-bold" class="w-5 h-5" />
-                            ملاحظة الطلب الأصلية:
-                        </p>
-                        <p class="text-blue-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-blue-100/50">
-                            {{ requestDetails.notes }}
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Confirmation Details -->
-                <div v-if="requestDetails.confirmationDetails" class="bg-purple-50 border border-purple-100 rounded-2xl p-6">
-                    <h3 class="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
-                        <Icon icon="solar:user-check-bold-duotone" class="w-6 h-6" />
-                        تفاصيل التأكيد
-                    </h3>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div v-if="requestDetails.confirmationDetails.confirmedAt">
-                            <span class="text-purple-600 text-sm block mb-1">تاريخ التأكيد</span>
-                            <span class="font-bold text-purple-900">{{ formatDate(requestDetails.confirmationDetails.confirmedAt) }}</span>
-                        </div>
-                        
-                        <!-- ملاحظة تأكيد الاستلام من مسؤول المخزن -->
-                        <div v-if="requestDetails.confirmationDetails.confirmationNotes" class="sm:col-span-2 p-4 bg-white/50 rounded-xl border border-purple-100/50">
-                            <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
-                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                                ملاحظة تأكيد الاستلام
+                        <div v-if="requestDetails.storekeeperNotes" class="p-5 bg-blue-50 border border-blue-100 rounded-2xl">
+                            <h4 class="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                                ملاحظة مسؤول المخزن:
                             </h4>
-                            <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.confirmationDetails.confirmationNotes }}</p>
+                            <p class="text-blue-700 text-sm leading-relaxed bg-white/50 p-3 rounded-xl border border-blue-100/50">{{ requestDetails.storekeeperNotes }}</p>
                         </div>
-                        
-                        <div v-if="requestDetails.confirmationDetails.receivedItems && requestDetails.confirmationDetails.receivedItems.length > 0" class="sm:col-span-2">
-                            <span class="text-purple-600 text-sm block mb-2">الكميات المرسلة والمستلمة</span>
-                            <div class="space-y-2">
-                                <div 
-                                    v-for="(receivedItem, idx) in requestDetails.confirmationDetails.receivedItems" 
-                                    :key="idx"
-                                    class="bg-white/50 p-3 rounded-xl border border-purple-100/50 flex justify-between items-center"
-                                >
-                                    <span class="font-medium text-purple-900">{{ receivedItem.name }}</span>
-                                    <div class="flex gap-4">
-                                        <span class="text-sm text-purple-600">
-                                            مرسل: <span class="font-bold">{{ receivedItem.sentQuantity || 0 }}</span> {{ receivedItem.unit }}
-                                        </span>
-                                        <span class="text-sm text-purple-600">
-                                            مستلم: <span class="font-bold">{{ receivedItem.receivedQuantity || 0 }}</span> {{ receivedItem.unit }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+
+                        <div v-if="requestDetails.supplierNotes" class="p-5 bg-green-50 border border-green-100 rounded-2xl">
+                            <h4 class="font-bold text-green-800 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                ملاحظة المورد:
+                            </h4>
+                            <p class="text-green-700 text-sm leading-relaxed bg-white/50 p-3 rounded-xl border border-green-100/50">{{ requestDetails.supplierNotes }}</p>
+                        </div>
+
+                        <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && (requestDetails.confirmationNotes || (requestDetails.confirmation && requestDetails.confirmation.notes))" class="p-5 bg-green-50 border border-green-100 rounded-2xl">
+                            <h4 class="font-bold text-green-800 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                ملاحظة الإرسال
+                            </h4>
+                            <p class="text-green-700 text-sm leading-relaxed bg-white/50 p-3 rounded-xl border border-green-100/50">{{ requestDetails.confirmationNotes || requestDetails.confirmation.notes }}</p>
+                        </div>
+
+                        <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes" class="p-5 bg-blue-50 border border-blue-100 rounded-2xl">
+                            <h4 class="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:document-text-bold" class="w-5 h-5" />
+                                ملاحظة الطلب الأصلية:
+                            </h4>
+                            <p class="text-blue-700 text-sm leading-relaxed bg-white/50 p-3 rounded-xl border border-blue-100/50">{{ requestDetails.notes }}</p>
                         </div>
                     </div>
-                </div>
+                    
+                    <!-- Confirmation Details -->
+                    <div v-if="requestDetails.confirmationDetails || requestDetails.confirmation" class="bg-purple-50 border border-purple-100 rounded-2xl p-6">
+                        <h3 class="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
+                            <Icon icon="solar:user-check-bold-duotone" class="w-6 h-6" />
+                            تفاصيل التأكيد
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div v-if="(requestDetails.confirmationDetails || requestDetails.confirmation)?.confirmedBy">
+                                <span class="text-purple-600 text-sm block mb-1">تم التأكيد بواسطة</span>
+                                <span class="font-bold text-purple-900">{{ (requestDetails.confirmationDetails || requestDetails.confirmation).confirmedBy }}</span>
+                            </div>
+                            <div v-if="(requestDetails.confirmationDetails || requestDetails.confirmation)?.confirmedAt">
+                                <span class="text-purple-600 text-sm block mb-1">تاريخ التأكيد</span>
+                                <span class="font-bold text-purple-900">{{ formatDate((requestDetails.confirmationDetails || requestDetails.confirmation).confirmedAt) }}</span>
+                            </div>
+                            
+                            <div v-if="(requestDetails.confirmationDetails || requestDetails.confirmation)?.confirmationNotes" class="sm:col-span-2 p-4 bg-white/50 rounded-xl border border-purple-100/50">
+                                <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                                    <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                    ملاحظة تأكيد الاستلام
+                                </h4>
+                                <p class="text-purple-800 text-sm leading-relaxed">{{ (requestDetails.confirmationDetails || requestDetails.confirmation).confirmationNotes }}</p>
+                            </div>
+                            
+                         
+                        </div>
+                    </div>
                 </template>
             </div>
 
             <!-- Footer -->
             <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
-                <button
-                    @click="closeModal"
-                    class="px-8 py-3 rounded-xl bg-[#2E5077] text-white font-bold hover:bg-[#1a3b5e] transition-all duration-200 shadow-lg shadow-[#2E5077]/20"
+                <button 
+                    @click="closeModal" 
+                    class="px-8 py-2.5 rounded-xl bg-[#2E5077] text-white font-bold hover:bg-[#1a3b5e] transition-all duration-200 shadow-lg shadow-[#2E5077]/20"
                 >
                     إغلاق
                 </button>
@@ -334,6 +305,7 @@ const props = defineProps({
             supplierNotes: null,
             confirmationDetails: null,
             rejectionReason: null,
+            priority: null
         })
     }
 });
@@ -347,7 +319,6 @@ const modalError = ref(null);
 // دالة لجلب التفاصيل من API
 const fetchRequestDetails = async () => {
     if (!props.requestData.id) {
-        // إذا كانت البيانات موجودة بالفعل في props، استخدمها
         if (props.requestData.items && props.requestData.items.length > 0) {
             requestDetails.value = { ...props.requestData };
             return;
@@ -360,10 +331,8 @@ const fetchRequestDetails = async () => {
     modalError.value = null;
 
     try {
-        // استخدام الـ endpoint الصحيح
         const response = await modalApi.get(`/admin-hospital/shipments/${props.requestData.id}`);
         
-        // التعامل مع بنية الاستجابة المختلفة
         let data = response.data;
         if (data && data.data) {
             data = data.data;
@@ -383,12 +352,10 @@ const fetchRequestDetails = async () => {
             confirmationDetails: data.confirmationDetails || props.requestData.confirmationDetails,
             rejectedAt: data.rejectedAt,
             confirmedAt: data.confirmedAt,
-            requestingDepartment: data.requestingDepartment || data.department || props.requestData.requestingDepartment,
-            department: data.department || data.requestingDepartment || props.requestData.department
+            priority: data.priority || props.requestData.priority
         };
     } catch (err) {
         console.error('Error fetching shipment details:', err);
-        // في حالة الخطأ، استخدم البيانات المرسلة من الصفحة الرئيسية
         if (props.requestData.items && props.requestData.items.length > 0) {
             requestDetails.value = { ...props.requestData };
         } else {
@@ -402,7 +369,6 @@ const fetchRequestDetails = async () => {
 // Watch لتحديث البيانات عند فتح المودال
 watch(() => props.isOpen, (newVal) => {
     if (newVal) {
-        // تحديث البيانات من props أولاً
         requestDetails.value = {
             ...props.requestData,
             rejectionReason: props.requestData.rejectionReason || null,
@@ -412,7 +378,6 @@ watch(() => props.isOpen, (newVal) => {
             supplierNotes: props.requestData.supplierNotes || null
         };
         
-        // إذا كان هناك id، جلب التفاصيل الكاملة من API
         if (props.requestData.id) {
             fetchRequestDetails();
         }
@@ -434,53 +399,104 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString({
             year: 'numeric',
             month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
+            day: '2-digit'
         });
     } catch {
         return dateString;
     }
 };
 
-// دالة لتنسيق فئة الحالة
-const getStatusClass = (status) => {
-    if (!status) return 'bg-gray-100 text-gray-700';
-    
-    const statusLower = status.toLowerCase();
-    
-    if (statusLower.includes('تم الاستلام') || statusLower.includes('delivered') || statusLower.includes('مستلم')) {
-        return 'bg-green-100 text-green-700';
+// دالة لتنسيق فئة الأولوية
+const getPriorityClass = (priority) => {
+    switch (priority) {
+        case 'عالية':
+            return 'bg-red-100 text-red-700';
+        case 'متوسطة':
+            return 'bg-yellow-100 text-yellow-700';
+        case 'منخفضة':
+            return 'bg-blue-100 text-blue-700';
+        default:
+            return 'bg-gray-100 text-gray-700';
     }
-    if (statusLower.includes('مؤكد') || statusLower.includes('confirmed') || statusLower.includes('تم الإرسال')) {
-        return 'bg-blue-100 text-blue-700';
-    }
-    if (statusLower.includes('جديد') || statusLower.includes('قيد الانتظار') || statusLower.includes('pending') || 
-        statusLower.includes('قيد المراجعة') || statusLower.includes('قيد التجهيز') || 
-        statusLower.includes('processing')) {
-        return 'bg-yellow-100 text-yellow-700';
-    }
-    if (statusLower.includes('ملغي') || statusLower.includes('مرفوضة') || statusLower.includes('rejected')) {
-        return 'bg-red-100 text-red-700';
-    }
-    return 'bg-gray-100 text-gray-700';
 };
 
-// تحديد حالة الإرسال
-const isSentStatus = computed(() => {
-    const status = requestDetails.value.status;
-    if (!status) return false;
+// دالة للتحقق من وجود كمية مرسلة
+const hasSentQuantity = (item) => {
+    const sentQty = getSentQuantity(item);
+    return sentQty > 0;
+};
+
+// دالة لاستخراج الكمية المرسلة
+const getSentQuantity = (item) => {
+    if (requestDetails.value.confirmationDetails?.receivedItems) {
+        const sentItem = requestDetails.value.confirmationDetails.receivedItems.find(
+            si => si.id === item.id || si.drugId === item.id
+        );
+        if (sentItem && sentItem.sentQuantity) return sentItem.sentQuantity;
+    }
+    return item.approved_qty || item.approved || item.sent || 0;
+};
+
+// دالة للتحقق من وجود كمية مستلمة
+const hasReceivedQuantity = (item) => {
+    const receivedQty = getReceivedQuantity(item);
+    return receivedQty > 0;
+};
+
+// دالة لاستخراج الكمية المستلمة
+const getReceivedQuantity = (item) => {
+    if (item.receivedQuantity !== null && item.receivedQuantity !== undefined) return item.receivedQuantity;
     
-    const statusLower = status.toLowerCase();
-    return statusLower.includes('تم الإرسال') || 
-           statusLower.includes('sent') || 
-           statusLower.includes('مؤكد') || 
-           statusLower.includes('confirmed') || 
-           statusLower.includes('تم الاستلام') ||
-           statusLower.includes('delivered');
+    if (requestDetails.value.confirmationDetails?.receivedItems) {
+        const receivedItem = requestDetails.value.confirmationDetails.receivedItems.find(
+            ri => ri.id === item.id || ri.drugId === item.id
+        );
+        if (receivedItem && receivedItem.receivedQuantity !== null && receivedItem.receivedQuantity !== undefined) {
+            return receivedItem.receivedQuantity;
+        }
+    }
+    
+    return item.fulfilled_qty || item.fulfilled || item.sent || 0;
+};
+
+// التحقق من وجود أي كمية مرسلة في أي item
+const hasAnySent = computed(() => {
+    if (!requestDetails.value.items || requestDetails.value.items.length === 0) return false;
+    return requestDetails.value.items.some(item => hasSentQuantity(item));
+});
+
+// التحقق من وجود أي كمية مستلمة في أي item
+const hasAnyReceived = computed(() => {
+    if (!requestDetails.value.items || requestDetails.value.items.length === 0) return false;
+    return requestDetails.value.items.some(item => hasReceivedQuantity(item));
+});
+
+// التحقق من وجود أي كمية مرسلة أو مستلمة
+const hasAnySentOrReceived = computed(() => {
+    return hasAnySent.value || hasAnyReceived.value;
+});
+
+// تنسيق فئة الحالة
+const statusClass = computed(() => {
+    const status = requestDetails.value.status;
+    if (!status) return 'bg-gray-200 text-gray-700';
+    
+    if (status.includes('تم الاستلام') || status.includes('مُستلَم') || status === 'تم الإستلام' || status.includes('delivered')) {
+        return 'bg-green-100 text-green-700';
+    }
+    if (status.includes('مؤكد') || status.includes('تم الإرسال') || status.includes('confirmed')) {
+        return 'bg-blue-100 text-blue-700';
+    }
+    if (status.includes('قيد الانتظار') || status.includes('قيد المراجعة') || status.includes('قيد التجهيز') || status.includes('pending') || status.includes('processing')) {
+        return 'bg-yellow-100 text-yellow-700';
+    }
+    if (status.includes('ملغي') || status.includes('مرفوضة') || status.includes('rejected')) {
+        return 'bg-red-100 text-red-700';
+    }
+    return 'bg-gray-200 text-gray-700';
 });
 
 const closeModal = () => {
@@ -491,7 +507,15 @@ const closeModal = () => {
 </script>
 
 <style scoped>
-.shadow-3xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+@media print {
+    .fixed {
+        position: relative;
+    }
+    .bg-black\/50 {
+        background: white;
+    }
+    button {
+        display: none;
+    }
 }
 </style>

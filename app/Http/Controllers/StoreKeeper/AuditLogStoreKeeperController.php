@@ -52,15 +52,30 @@ class AuditLogStoreKeeperController extends BaseApiController
     private function translateAction($action)
     {
         $translations = [
-            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            // عمليات طلبات التوريد الداخلية
             'storekeeper_confirm_internal_request' => 'تأكيد طلب توريد داخلي',
+            'storekeeper_reject_internal_request' => 'رفض طلب توريد داخلي',
             'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية',
-       
+            'pharmacist_create_supply_request' => 'إنشاء طلب توريد داخلي',
+            'department_create_supply_request' => 'إنشاء طلب توريد داخلي',
+            
+            // عمليات طلبات التوريد الخارجية
+            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            'storekeeper_confirm_external_delivery' => 'تأكيد استلام شحنة خارجية',
+            'storekeeper_reject_external_request' => 'رفض طلب توريد خارجي',
+            'supplier_confirm_external_supply_request' => 'قبول طلب توريد خارجي',
+            'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي',
+            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
+            
+            // عمليات عامة
             'إنشاء طلب توريد' => 'إنشاء طلب توريد',
             'استلام شحنة' => 'استلام شحنة',
             'إضافة دواء' => 'إضافة دواء',
             'تعديل دواء' => 'تعديل دواء',
             'حذف دواء' => 'حذف دواء',
+            'create' => 'إنشاء',
+            'update' => 'تعديل',
+            'delete' => 'حذف',
         ];
 
         return $translations[$action] ?? $action;

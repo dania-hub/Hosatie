@@ -1,7 +1,7 @@
 <template>
     <aside
         :class="[
-            'bg-[#2E5077] text-white rounded-l-3xl min-h-screen flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
+            'bg-[#2E5077] text-white rounded-l-3xl h-full flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
             'overflow-y-auto custom-scrollbar-hide',
             isCollapsed ? 'w-20' : 'w-55',
         ]"
@@ -107,7 +107,7 @@ import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import { Link, usePage } from "@inertiajs/vue3"; 
 
-const isCollapsed = ref(false);
+const isCollapsed = ref(localStorage.getItem('sidebar_collapsed') === 'true');
 const page = usePage(); 
 const userRole = ref('');
 
@@ -118,6 +118,7 @@ onMounted(() => {
 
 const toggleSidebar = () => {
     isCollapsed.value = !isCollapsed.value;
+    localStorage.setItem('sidebar_collapsed', isCollapsed.value);
 };
 
 const isCurrent = (href) => {

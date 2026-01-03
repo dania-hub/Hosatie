@@ -114,7 +114,7 @@ class ShipmentSupplierController extends BaseApiController
                 'requester:id,full_name,email,phone',
                 'approver:id,full_name',
                 // `category` is stored as a string on `drug` table in this project.
-                'items.drug:id,name,category',
+                'items.drug:id,name,category,strength,unit,form',
             ])
                 ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
@@ -345,6 +345,8 @@ class ShipmentSupplierController extends BaseApiController
                         'unit' => $item->drug->unit ?? 'وحدة',
                         'dosage' => $item->drug->strength ?? null,
                         'strength' => $item->drug->strength ?? null,
+                        'form' => $item->drug->form ?? null,
+                        'type' => $item->drug->form ?? null,
                     ];
                 }),
                 'createdAt' => $shipment->created_at->format('Y/m/d H:i'),

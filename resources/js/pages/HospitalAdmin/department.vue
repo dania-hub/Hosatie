@@ -320,9 +320,24 @@ const isEditModalOpen = ref(false);
 const isAddModalOpen = ref(false);
 const selectedDepartment = ref({});
 
-const openViewModal = (department) => {
-    selectedDepartment.value = { ...department };
-    isViewModalOpen.value = true;
+const openViewModal = async (department) => {
+    try {
+        // جلب البيانات المحدثة من API لضمان الحصول على أحدث البيانات
+        const response = await api.get(`/admin-hospital/departments/${department.id}`);
+        
+        const responseData = response.data.data || response.data;
+        selectedDepartment.value = {
+            ...responseData,
+            nameDisplay: responseData.name || "",
+            managerNameDisplay: responseData.managerName || "",
+        };
+        isViewModalOpen.value = true;
+    } catch (error) {
+        console.error("Error fetching department details:", error);
+        // في حالة الخطأ، نستخدم البيانات المحلية
+        selectedDepartment.value = { ...department };
+        isViewModalOpen.value = true;
+    }
 };
 
 const closeViewModal = () => {
@@ -551,61 +566,7 @@ const printTable = () => {
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
 
-                        <!-- فلتر الحالة -->
-                        <div class="dropdown dropdown-start">
-                            <div
-                                tabindex="0"
-                                role="button"
-                                class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-23 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
-                            >
-                                <Icon
-                                    icon="mdi:filter"
-                                    class="w-5 h-5 ml-2"
-                                />
-                                فلتر
-                            </div>
-                            <ul
-                                tabindex="0"
-                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
-                            >
-                                <li class="menu-title text-gray-700 font-bold text-sm">
-                                    حسب الحالة:
-                                </li>
-                                <li>
-                                    <a
-                                        @click="statusFilter = 'all'"
-                                        :class="{
-                                            'font-bold text-[#4DA1A9]':
-                                                statusFilter === 'all',
-                                        }"
-                                    >
-                                        الكل
-                                    </a>
-                                </li>
-                                <li>
-                                    <a
-                                        @click="statusFilter = 'active'"
-                                        :class="{
-                                            'font-bold text-[#4DA1A9]':
-                                                statusFilter === 'active',
-                                        }"
-                                    >
-                                        المفعلة فقط
-                                    </a>
-                                </li>
-                                <li>
-                                    <a
-                                        @click="statusFilter = 'inactive'"
-                                        :class="{
-                                            'font-bold text-[#4DA1A9]':
-                                                statusFilter === 'inactive',
-                                        }"
-                                    >
-                                        المعطلة فقط
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
+                      
 
                         <!-- فرز -->
                         <div class="dropdown dropdown-start">
@@ -852,23 +813,23 @@ const printTable = () => {
                                                 <div class="flex gap-3 justify-center items-center">
                                                     <button
                                                         @click="openViewModal(department)"
-                                                        class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                        class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="عرض البيانات"
                                                     >
                                                         <Icon
                                                             icon="tabler:eye-minus"
-                                                            class="w-5 h-5 text-green-600"
+                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
 
                                                     <button
                                                         @click="openEditModal(department)"
-                                                        class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                        class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="تعديل البيانات"
                                                     >
                                                         <Icon
                                                             icon="line-md:pencil"
-                                                            class="w-5 h-5 text-yellow-500"
+                                                            class="w-4 h-4 text-yellow-500"
                                                         />
                                                     </button>
 
@@ -876,22 +837,22 @@ const printTable = () => {
                                                     <button
                                                         @click="openStatusConfirmationModal(department)"
                                                         :class="[
-                                                            'p-1 rounded-full transition-colors',
+                                                            'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                             department.isActive
-                                                                ? 'hover:bg-red-100'
-                                                                : 'hover:bg-green-100',
+                                                                ? 'bg-red-50 hover:bg-red-100 border-red-200'
+                                                                : 'bg-green-50 hover:bg-green-100 border-green-200',
                                                         ]"
                                                         :title="getStatusTooltip(department.isActive)"
                                                     >
                                                         <Icon
                                                             v-if="department.isActive"
                                                             icon="pepicons-pop:power-off"
-                                                            class="w-5 h-5 text-red-600"
+                                                            class="w-4 h-4 text-red-600"
                                                         />
                                                         <Icon
                                                             v-else
                                                             icon="quill:off"
-                                                            class="w-5 h-5 text-green-600"
+                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
                                                 </div>

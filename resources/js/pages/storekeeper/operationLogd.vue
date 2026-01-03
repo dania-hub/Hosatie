@@ -89,6 +89,9 @@ const operationTypes = computed(() => {
 // 2. منطق البحث والفرز والتصفية الموحد
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const operationTypeFilter = ref("الكل");
 
 // حالة الفرز الحالية
@@ -97,10 +100,26 @@ const sortOrder = ref('desc');
 
 // دالة تحويل التاريخ من صيغة (yyyy/mm/dd) إلى كائن Date للمقارنة
 const parseDate = (dateString) => {
-    if (!dateString) return new Date(0);
-    const parts = dateString.split('/');
-    // يتم إنشاء التاريخ بتنسيق (Year, MonthIndex, Day)
-    return new Date(parts[0], parts[1] - 1, parts[2]);
+    if (!dateString) return null;
+    try {
+        // محاولة تحويل الصيغة Y/m/d إلى Date
+        if (dateString.includes('/')) {
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                return new Date(parts[0], parts[1] - 1, parts[2]);
+            }
+        }
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? null : date;
+    } catch {
+        return null;
+    }
+};
+
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
 };
 
 // دالة لضبط معيار الفرز (الحقل والترتيب معًا)
@@ -129,7 +148,37 @@ const filteredOperations = computed(() => {
         return searchMatch && typeMatch;
     });
 
-    // 2. الفرز
+    // 2. فلترة حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((op) => {
+            const operationDate = op.operationDate;
+            if (!operationDate) return false;
+
+            const operationDateObj = parseDate(operationDate);
+            if (!operationDateObj) return false;
+
+            operationDateObj.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+
+            let matchesFrom = true;
+            let matchesTo = true;
+
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = operationDateObj >= fromDate;
+            }
+
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                matchesTo = operationDateObj <= toDate;
+            }
+
+            return matchesFrom && matchesTo;
+        });
+    }
+
+    // 3. الفرز
     if (sortKey.value) {
         list.sort((a, b) => {
             let comparison = 0;
@@ -141,7 +190,7 @@ const filteredOperations = computed(() => {
             } else if (sortKey.value === 'operationDate') {
                 const dateA = parseDate(a.operationDate);
                 const dateB = parseDate(b.operationDate);
-                comparison = dateA.getTime() - dateB.getTime();
+                comparison = (dateA?.getTime() || 0) - (dateB?.getTime() || 0);
             }
 
             // تطبيق الترتيب التصاعدي/التنازلي
@@ -279,6 +328,65 @@ const printTable = () => {
                         <div class="relative w-full sm:max-w-xs">
                             <search v-model="searchTerm" placeholder="ابحث برقم العملية أو نوع العملية أو التاريخ" />
                         </div>
+                        
+                        <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                        <button
+                            @click="showDateFilter = !showDateFilter"
+                            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                        >
+                            <Icon
+                                icon="solar:calendar-bold"
+                                class="w-5 h-5"
+                            />
+                        </button>
+
+                        <!-- فلتر التاريخ -->
+                        <Transition
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="opacity-0 scale-95"
+                            enter-to-class="opacity-100 scale-100"
+                            leave-active-class="transition duration-150 ease-in"
+                            leave-from-class="opacity-100 scale-100"
+                            leave-to-class="opacity-0 scale-95"
+                        >
+                            <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateFrom"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="من تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <span class="text-gray-600 font-medium">إلى</span>
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateTo"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="إلى تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <button
+                                    v-if="dateFrom || dateTo"
+                                    @click="clearDateFilter"
+                                    class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    title="مسح فلتر التاريخ"
+                                >
+                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                    مسح
+                                </button>
+                            </div>
+                        </Transition>
                         
                         <div class="dropdown dropdown-start">
                             <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11

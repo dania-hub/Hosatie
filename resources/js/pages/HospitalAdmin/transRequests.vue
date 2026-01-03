@@ -7,6 +7,65 @@
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
                     <search v-model="searchTerm" />
 
+                    <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                    <button
+                        @click="showDateFilter = !showDateFilter"
+                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                    >
+                        <Icon
+                            icon="solar:calendar-bold"
+                            class="w-5 h-5"
+                        />
+                    </button>
+
+                    <!-- فلتر التاريخ -->
+                    <Transition
+                        enter-active-class="transition duration-200 ease-out"
+                        enter-from-class="opacity-0 scale-95"
+                        enter-to-class="opacity-100 scale-100"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="opacity-100 scale-100"
+                        leave-to-class="opacity-0 scale-95"
+                    >
+                        <div v-if="showDateFilter" class="flex items-center gap-2">
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateFrom"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="من تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <span class="text-gray-600 font-medium">إلى</span>
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateTo"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="إلى تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <button
+                                v-if="dateFrom || dateTo"
+                                @click="clearDateFilter"
+                                class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                title="مسح فلتر التاريخ"
+                            >
+                                <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                مسح
+                            </button>
+                        </div>
+                    </Transition>
+
                     <div class="dropdown dropdown-start">
                         <div
                             tabindex="0"
@@ -174,6 +233,12 @@
                                     <th class="content-col">
                                         سبب النقل
                                     </th>
+                                    <th class="date-col">
+                                        تاريخ الطلب
+                                    </th>
+                                    <th class="status-col">
+                                        الحالة
+                                    </th>
                                     <th class="actions-col text-center">
                                         الإجراءات
                                     </th>
@@ -182,12 +247,12 @@
 
                             <tbody class="text-gray-800">
                                 <tr v-if="isLoading">
-                                    <td colspan="5" class="p-4">
+                                    <td colspan="7" class="p-4">
                                         <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
                                 <tr v-else-if="error">
-                                    <td colspan="5" class="py-12">
+                                    <td colspan="7" class="py-12">
                                         <ErrorState :message="error" :retry="fetchTransferRequests" />
                                     </td>
                                 </tr>
@@ -211,16 +276,29 @@
                                         <td class="max-w-xs truncate" :title="request.reason || request.transferReason">
                                             {{ truncateContent(request.reason || request.transferReason) }}
                                         </td>
+                                        <td class="date-col">
+                                            {{ formatDate(request.createdAt || request.requestDate || request.created_at) }}
+                                        </td>
+                                        <td class="status-col">
+                                            <span
+                                                :class="[
+                                                    'px-3 py-1 rounded-full text-xs font-bold inline-block',
+                                                    getStatusClass(request.status || request.requestStatus)
+                                                ]"
+                                            >
+                                                {{ getStatusText(request.status || request.requestStatus) }}
+                                            </span>
+                                        </td>
                                         <td class="actions-col">
                                             <div class="flex gap-3 justify-center">
                                                 <!-- زر معاينة تفاصيل الطلب -->
                                                 <button 
                                                     @click="openRequestModal(request)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="معاينة تفاصيل الطلب">
                                                     <Icon
                                                         icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                                 
@@ -246,18 +324,18 @@
                                                 <button 
                                                     v-else
                                                     @click="openResponseModal(request)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="الرد على طلب النقل">
                                                     <Icon
-                                                        icon="tabler:message-reply" 
-                                                        class="w-5 h-5 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        icon="streamline:mail-send-reply-all-email-message-reply-all-actions-action-arrow" 
+                                                        class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                             </div>
                                         </td>
                                     </tr>
                                     <tr v-if="filteredRequests.length === 0">
-                                        <td colspan="5" class="py-12">
+                                        <td colspan="7" class="py-12">
                                             <EmptyState message="لا توجد طلبات نقل متاحة" />
                                         </td>
                                     </tr>
@@ -392,6 +470,9 @@ const error = ref(null);
 // 3. البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const sortKey = ref("createdAt");
 const sortOrder = ref("desc");
 
@@ -400,9 +481,27 @@ const sortRequests = (key, order) => {
     sortOrder.value = order;
 };
 
+// دالة تحويل التاريخ من صيغة مختلفة إلى Date
+const parseDate = (dateString) => {
+    if (!dateString) return null;
+    try {
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? null : date;
+    } catch {
+        return null;
+    }
+};
+
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
+};
+
 const filteredRequests = computed(() => {
     let list = transferRequests.value;
     
+    // 1. التصفية حسب البحث
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
@@ -416,6 +515,36 @@ const filteredRequests = computed(() => {
                 (request.reason?.toLowerCase().includes(search) || 
                  request.transferReason?.toLowerCase().includes(search))
         );
+    }
+
+    // 2. فلترة حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((request) => {
+            const requestDate = request.createdAt || request.requestDate || request.created_at;
+            if (!requestDate) return false;
+
+            const requestDateObj = parseDate(requestDate);
+            if (!requestDateObj) return false;
+
+            requestDateObj.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+
+            let matchesFrom = true;
+            let matchesTo = true;
+
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = requestDateObj >= fromDate;
+            }
+
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                matchesTo = requestDateObj <= toDate;
+            }
+
+            return matchesFrom && matchesTo;
+        });
     }
 
     if (sortKey.value) {
@@ -454,7 +583,11 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA');
+        return date.toLocaleDateString( {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
     } catch {
         return dateString;
     }
@@ -797,6 +930,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>اسم المريض</th>
     <th>المستشفى المرسل</th>
     <th>سبب النقل</th>
+    <th>تاريخ الطلب</th>
     <th>الحالة</th>
     </tr>
 </thead>
@@ -815,6 +949,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <td>${request.patient?.name || request.patientName || 'غير محدد'}</td>
     <td>${getHospitalName(request.fromHospital)}</td>
     <td>${request.reason || request.transferReason || 'غير محدد'}</td>
+    <td>${formatDate(request.createdAt || request.requestDate || request.created_at)}</td>
     <td class="${statusClass}">${status}</td>
 </tr>
 `;
@@ -916,6 +1051,15 @@ onMounted(() => {
 .content-col {
     width: 250px;
     min-width: 250px;
+}
+.date-col {
+    width: 140px;
+    min-width: 140px;
+}
+.status-col {
+    width: 150px;
+    min-width: 150px;
+    text-align: center;
 }
 .actions-col {
     width: 150px;

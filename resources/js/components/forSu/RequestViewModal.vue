@@ -67,19 +67,7 @@
                     </div>
                 </div>
 
-                <!-- Rejection Reason -->
-                <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
-                    <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
-                        <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
-                        سبب الرفض
-                    </h3>
-                    <p class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
-                    <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
-                        <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
-                        بتاريخ: {{ formatDate(requestDetails.rejectedAt) }}
-                    </p>
-                </div>
-
+         
                 <!-- Items List -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
@@ -99,12 +87,15 @@
                             >
                                 <div class="flex-1 w-full md:w-auto">
                                     <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
-                                    <div class="flex gap-2 mt-1">
-                                        <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
-                                            {{ item.dosage }}
+                                    <div class="flex gap-2 mt-1 flex-wrap">
+                                        <span v-if="item.strength || item.dosage" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-medium">
+                                            القوة: {{ item.strength || item.dosage }}
                                         </span>
-                                        <span v-if="item.type" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
-                                            {{ item.type }}
+                                        <span v-if="item.unit" class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-medium">
+                                            الوحدة: {{ item.unit }}
+                                        </span>
+                                        <span v-if="item.type || item.form" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
+                                            {{ item.type || item.form }}
                                         </span>
                                     </div>
                                 </div>
@@ -152,6 +143,19 @@
                         </div>
                     </div>
                 </div>
+                       <!-- Rejection Reason -->
+                <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                    <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
+                        <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
+                        سبب الرفض
+                    </h3>
+                    <p class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
+                    <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
+                        <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
+                        بتاريخ: {{ formatDate(requestDetails.rejectedAt) }}
+                    </p>
+                </div>
+
 
                 <!-- Notes -->
                 <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.notes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
@@ -226,27 +230,7 @@
                             <p class="text-purple-800 text-sm leading-relaxed">{{ (requestDetails.confirmation || requestDetails.confirmationDetails)?.confirmationNotes || requestDetails.confirmationNotes }}</p>
                         </div>
                         
-                        <!-- الكميات المرسلة والمستلمة -->
-                        <div v-if="(requestDetails.confirmation || requestDetails.confirmationDetails)?.receivedItems?.length > 0" class="sm:col-span-2">
-                            <span class="text-purple-600 text-sm block mb-2">الكميات المرسلة والمستلمة</span>
-                            <div class="space-y-2">
-                                <div 
-                                    v-for="(receivedItem, idx) in (requestDetails.confirmation || requestDetails.confirmationDetails).receivedItems" 
-                                    :key="idx"
-                                    class="bg-white/50 p-3 rounded-xl border border-purple-100/50 flex justify-between items-center"
-                                >
-                                    <span class="font-medium text-purple-900">{{ receivedItem.name }}</span>
-                                    <div class="flex gap-4">
-                                        <span class="text-sm text-purple-600">
-                                            مرسل: <span class="font-bold">{{ receivedItem.sentQuantity || 0 }}</span> {{ receivedItem.unit }}
-                                        </span>
-                                        <span class="text-sm text-purple-600">
-                                            مستلم: <span class="font-bold">{{ receivedItem.receivedQuantity || 0 }}</span> {{ receivedItem.unit }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    
                     </div>
                 </div>
 
@@ -320,7 +304,7 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA', {
+        return date.toLocaleDateString({
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'

@@ -27,4 +27,10 @@ public function patientUser()
     return $this->belongsTo(User::class, 'record_id');
 }
 
+public function hospital()
+{
+    return $this->belongsTo(Hospital::class);
+}
+
+
 }

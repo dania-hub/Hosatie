@@ -10,6 +10,34 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 
+// ----------------------------------------------------
+// 1. تكوين Axios
+// ----------------------------------------------------
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => Promise.reject(error)
+);
+
 const operations = ref([]);
 const isLoading = ref(false);
 const error = ref(null);
@@ -20,7 +48,7 @@ const fetchOperations = async () => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/super-admin/operations');
         operations.value = response.data;
     } catch (err) {
         console.error("Failed to fetch operations:", err);
@@ -33,8 +61,11 @@ const fetchOperations = async () => {
 // ✅ دالة جلب قائمة المستشفيات
 const fetchHospitals = async () => {
     try {
-        const response = await axios.get('/api/hospitals');
-        availableHospitals.value = response.data;
+        const response = await api.get('/super-admin/hospitals');
+        // The API returns { success: true, data: [...] } or just [...]
+        // HospitalSuperController::index returns sendSuccess($hospitals) which wraps in data
+        const data = response.data.data || response.data;
+        availableHospitals.value = Array.isArray(data) ? data : [];
     } catch (err) {
         console.warn("فشل في تحميل قائمة المستشفيات:", err.message);
         availableHospitals.value = [];
@@ -49,7 +80,7 @@ onMounted(() => {
 
 // قائمة بأنواع العمليات المتاحة للتصفية
 const operationTypes = computed(() => {
-    const types = new Set(operations.value.map(op => op.operationType));
+    const types = new Set(operations.value.map(op => op.operation_type));
     return ['الكل', ...Array.from(types)];
 });
 
@@ -61,7 +92,7 @@ const operationTypeFilter = ref("الكل");
 const hospitalFilter = ref("all"); // ✅ فلتر المستشفى
 
 // حالة الفرز الحالية
-const sortKey = ref('operationDate');
+const sortKey = ref('date');
 const sortOrder = ref('desc');
 
 // دالة تحويل التاريخ من صيغة (yyyy/mm/dd) إلى كائن Date للمقارنة
@@ -69,6 +100,52 @@ const parseDate = (dateString) => {
     if (!dateString) return new Date(0);
     const parts = dateString.split('/');
     return new Date(parts[0], parts[1] - 1, parts[2]);
+};
+
+// ----------------------------------------------------
+// 3. دوال مساعدة لعرض التغييرات
+// ----------------------------------------------------
+const fieldTranslations = {
+    'name': 'الاسم',
+    'full_name': 'الاسم الكامل',
+    'phone': 'رقم الهاتف',
+    'email': 'البريد الإلكتروني',
+    'national_id': 'رقم الهوية',
+    'file_number': 'رقم الملف',
+    'birth_date': 'تاريخ الميلاد',
+    'gender': 'الجنس',
+    'address': 'العنوان',
+    'notes': 'ملاحظات',
+    'status': 'الحالة',
+    'type': 'النوع',
+    'hospital_id': 'معرف المستشفى',
+    'department_id': 'معرف القسم',
+};
+
+const translateField = (field) => {
+    return fieldTranslations[field] || field;
+};
+
+const getChangedFields = (changes) => {
+    if (!changes) return {};
+    const oldVals = changes.old || {};
+    const newVals = changes.new || {};
+    const result = {};
+    
+    const allKeys = new Set([...Object.keys(oldVals), ...Object.keys(newVals)]);
+    
+    allKeys.forEach(key => {
+        if (['updated_at', 'created_at', 'id', 'password', 'remember_token', 'email_verified_at'].includes(key)) return;
+        
+        const oldV = oldVals[key];
+        const newV = newVals[key];
+        
+        // مقارنة القيم (تحويلها لنصوص لتجنب مشاكل الأنواع)
+        if (JSON.stringify(oldV) !== JSON.stringify(newV)) {
+            result[key] = { old: oldV ?? 'فارغ', new: newV ?? 'فارغ' };
+        }
+    });
+    return result;
 };
 
 // دالة لضبط معيار الفرز (الحقل والترتيب معًا)
@@ -85,24 +162,24 @@ const filteredOperations = computed(() => {
     // 1. التصفية حسب البحث
     list = list.filter(op => {
         const searchMatch = !search ||
-                            op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            op.patientName?.toLowerCase().includes(search) ||
-                            op.hospital?.toLowerCase().includes(search) ||
-                            op.operationType.includes(search);
+                            op.file_number.toString().includes(search) ||
+                            op.employee_name.toLowerCase().includes(search) ||
+                            op.patient_name?.toLowerCase().includes(search) ||
+                            op.hospital_name?.toLowerCase().includes(search) ||
+                            op.operation_type.includes(search);
         
         return searchMatch;
     });
 
     // 2. التصفية حسب نوع العملية
     if (operationTypeFilter.value !== 'الكل') {
-        list = list.filter(op => op.operationType === operationTypeFilter.value);
+        list = list.filter(op => op.operation_type === operationTypeFilter.value);
     }
 
     // ✅ 3. التصفية حسب المستشفى
     if (hospitalFilter.value !== 'all') {
         list = list.filter(op => {
-            return op.hospitalId == hospitalFilter.value || op.hospital === hospitalFilter.value;
+            return op.hospital_id == hospitalFilter.value || op.hospital_name === hospitalFilter.value;
         });
     }
 
@@ -111,19 +188,19 @@ const filteredOperations = computed(() => {
         list.sort((a, b) => {
             let comparison = 0;
 
-            if (sortKey.value === 'name') {
-                comparison = a.name.localeCompare(b.name, 'ar');
-            } else if (sortKey.value === 'patientName') {
-                comparison = (a.patientName || '').localeCompare(b.patientName || '', 'ar');
-            } else if (sortKey.value === 'hospital') {
-                comparison = (a.hospital || '').localeCompare(b.hospital || '', 'ar');
-            } else if (sortKey.value === 'fileNumber') {
-                comparison = a.fileNumber - b.fileNumber;
-            } else if (sortKey.value === 'operationType') {
-                comparison = a.operationType.localeCompare(b.operationType, 'ar');
-            } else if (sortKey.value === 'operationDate') {
-                const dateA = parseDate(a.operationDate);
-                const dateB = parseDate(b.operationDate);
+            if (sortKey.value === 'employee_name') {
+                comparison = a.employee_name.localeCompare(b.employee_name, 'ar');
+            } else if (sortKey.value === 'patient_name') {
+                comparison = (a.patient_name || '').localeCompare(b.patient_name || '', 'ar');
+            } else if (sortKey.value === 'hospital_name') {
+                comparison = (a.hospital_name || '').localeCompare(b.hospital_name || '', 'ar');
+            } else if (sortKey.value === 'file_number') {
+                comparison = a.file_number - b.file_number;
+            } else if (sortKey.value === 'operation_type') {
+                comparison = a.operation_type.localeCompare(b.operation_type, 'ar');
+            } else if (sortKey.value === 'date') {
+                const dateA = parseDate(a.date);
+                const dateB = parseDate(b.date);
                 comparison = dateA.getTime() - dateB.getTime();
             }
 
@@ -244,12 +321,12 @@ const printTable = () => {
     filteredOperations.value.forEach(op => {
         tableHtml += `
             <tr>
-                <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
-                <td>${op.patientName || 'غير محدد'}</td>
-                <td>${op.hospital || 'غير محدد'}</td>
-                <td>${op.operationType}</td>
-                <td>${op.operationDate}</td>
+                <td>${op.file_number}</td>
+                <td>${op.employee_name}</td>
+                <td>${op.patient_name || 'غير محدد'}</td>
+                <td>${op.hospital_name || 'غير محدد'}</td>
+                <td>${op.operation_type}</td>
+                <td>${op.date}</td>
             </tr>
         `;
     });
@@ -349,56 +426,56 @@ const printTable = () => {
                                 
                                 <li class="menu-title text-gray-700 font-bold text-sm">حسب تاريخ العملية:</li>
                                 <li>
-                                    <a @click="sortOperations('operationDate', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'desc'}">
+                                    <a @click="sortOperations('date', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'date' && sortOrder === 'desc'}">
                                         الأحدث أولاً
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('operationDate', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationDate' && sortOrder === 'asc'}">
+                                    <a @click="sortOperations('date', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'date' && sortOrder === 'asc'}">
                                         الأقدم أولاً
                                     </a>
                                 </li>
                                 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب اسم الموظف:</li>
                                 <li>
-                                    <a @click="sortOperations('name', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
+                                    <a @click="sortOperations('employee_name', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'employee_name' && sortOrder === 'asc'}">
                                         الاسم (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('name', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
+                                    <a @click="sortOperations('employee_name', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'employee_name' && sortOrder === 'desc'}">
                                         الاسم (ي - أ)
                                     </a>
                                 </li>
                                 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب اسم المريض:</li>
                                 <li>
-                                    <a @click="sortOperations('patientName', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'patientName' && sortOrder === 'asc'}">
+                                    <a @click="sortOperations('patient_name', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'patient_name' && sortOrder === 'asc'}">
                                         اسم المريض (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('patientName', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'patientName' && sortOrder === 'desc'}">
+                                    <a @click="sortOperations('patient_name', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'patient_name' && sortOrder === 'desc'}">
                                         اسم المريض (ي - أ)
                                     </a>
                                 </li>
                                 
                                 <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب المستشفى:</li>
                                 <li>
-                                    <a @click="sortOperations('hospital', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'asc'}">
+                                    <a @click="sortOperations('hospital_name', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital_name' && sortOrder === 'asc'}">
                                         المستشفى (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('hospital', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'desc'}">
+                                    <a @click="sortOperations('hospital_name', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital_name' && sortOrder === 'desc'}">
                                         المستشفى (ي - أ)
                                     </a>
                                 </li>
@@ -459,12 +536,18 @@ const printTable = () => {
                                             :key="index"
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            <td class="file-number-col">{{ op.fileNumber }}</td>
-                                            <td class="name-col">{{ op.name }}</td>
-                                            <td class="patient-name-col">{{ op.patientName || 'غير محدد' }}</td>
-                                            <td class="hospital-col">{{ op.hospital || 'غير محدد' }}</td>
-                                            <td class="operation-type-col">{{ op.operationType }}</td>
-                                            <td class="operation-date-col">{{ op.operationDate }}</td>
+                                            <td class="file-number-col">{{ op.file_number }}</td>
+                                            <td class="name-col">
+                                                <div class="font-medium text-gray-900">{{ op.employee_name }}</div>
+                                                <div class="text-[#4DA1A9] text-sm">{{ op.employee_role }}</div>
+                                            </td>
+                                            <td class="patient-name-col">{{ op.patient_name || 'غير محدد' }}</td>
+                                            <td class="hospital-col">{{ op.hospital_name || 'غير محدد' }}</td>
+                                            <td class="operation-type-col">
+                                                <div class="font-bold text-[#2E5077] mb-1 text-base">{{ op.action_label }}</div>
+                                                <div class="text-sm text-gray-600">{{ op.description }}</div>
+                                            </td>
+                                            <td class="operation-date-col">{{ op.date }}</td>
                                         </tr>
                                         <tr v-if="filteredOperations.length === 0">
                                             <td colspan="6" class="py-12">
@@ -532,8 +615,8 @@ const printTable = () => {
     min-width: 160px;
 }
 .operation-type-col {
-    width: 120px;
-    min-width: 120px;
+    width: 250px;
+    min-width: 250px;
 }
 .operation-date-col {
     width: 120px;

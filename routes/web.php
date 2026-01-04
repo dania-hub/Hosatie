@@ -13,7 +13,7 @@ Route::get('/set-password', function () { return Inertia::render('auth/SetPasswo
 // Profile
 Route::get('/profile', function () { return Inertia::render('profile'); });
 
-// Super Admin
+// Super Admin/hospital-admin
 Route::prefix('superAdmin')->group(function () {
     Route::get('/patients', function () { return Inertia::render('superAdmin/patientListd'); });
     Route::get('/medications', function () { return Inertia::render('superAdmin/medicationsList'); });
@@ -25,6 +25,8 @@ Route::prefix('superAdmin')->group(function () {
     Route::get('/requests', function () { return Inertia::render('superAdmin/Requests'); });
     Route::get('/hospital', function () { return Inertia::render('superAdmin/hospital'); });
     Route::get('/Supply', function () { return Inertia::render('superAdmin/Supply'); });
+    Route::get('/supplier-inventory', function () { return Inertia::render('superAdmin/SupplierInventory'); });
+    Route::get('/inventory', function () { return Inertia::render('superAdmin/Inventory'); });
    
 
 
@@ -32,7 +34,7 @@ Route::prefix('superAdmin')->group(function () {
 
 // Super Admin (alias for super-admin)
 Route::prefix('super-admin')->group(function () {
-    Route::get('/patients', function () { return Inertia::render('HospitalAdmin/patientListd'); });
+    Route::get('/patients', function () { return Inertia::render('superAdmin/patientListd'); });
 });
 
 // Hospital Admin

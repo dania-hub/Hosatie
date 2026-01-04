@@ -73,7 +73,8 @@ use App\Http\Controllers\SuperAdmin\DrugSuperController;
 use App\Http\Controllers\SuperAdmin\UserSuperController;
 use App\Http\Controllers\SuperAdmin\SupplierSuperController;
 use App\Http\Controllers\SuperAdmin\DashboardSuperController;
-
+use App\Http\Controllers\SuperAdmin\PatientSuperController;
+use App\Http\Controllers\SuperAdmin\OperationLogSuperController;
 
 
 
@@ -582,5 +583,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('reports/users', [DashboardSuperController::class, 'usersReport']);
         Route::get('reports/requests-monthly', [DashboardSuperController::class, 'requestsMonthlyReport']);
         Route::get('reports/activities', [DashboardSuperController::class, 'activitiesReport']);
+        
+         Route::get('/patients', [PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
+         
+         // Inventory
+         Route::get('/inventory', [App\Http\Controllers\SuperAdmin\InventorySuperController::class, 'index']);
+
+         // Operations Log (Comprehensive)
+         Route::get('/operations', [OperationLogSuperController::class, 'index']);
+
+         // Patient Operations Log (Simple)
+         Route::get('/patient-operations', [App\Http\Controllers\SuperAdmin\PatientOperationLogController::class, 'index']);
     });
 });

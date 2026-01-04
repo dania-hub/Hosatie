@@ -6,6 +6,7 @@ import axios from "axios";
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 import Navbar from "@/components/Navbar.vue";
 import Sidebar from "@/components/Sidebar.vue";
@@ -81,7 +82,7 @@ const handleRegistrationConfirm = async (registrationData) => {
     // BaseApiController يُرجع البيانات بداخل data
     const responseData = response.data?.data ?? response.data;
     
-    showSuccessAlert(`✅ تم تسجيل الاستلام بنجاح (${responseData?.length || 0} دواء)`);
+    showSuccessAlert(` تم تسجيل الاستلام بنجاح (${responseData?.length || 0} دواء)`);
     
     // إغلاق النافذة
     closeRegistrationModal();
@@ -91,7 +92,7 @@ const handleRegistrationConfirm = async (registrationData) => {
     
   } catch (error) {
     const errorMessage = error.response?.data?.message || 'فشل في تسجيل الاستلام';
-    showErrorAlert(`❌ ${errorMessage}`);
+    showErrorAlert(` ${errorMessage}`);
     console.error("Error handling registration:", error);
   }
 };
@@ -129,8 +130,8 @@ const filteredDrugss = computed(() => {
     const search = searchTerm.value.toLowerCase();
     list = list.filter(
       (drug) =>
-        (drug.drugCode && drug.drugCode.toLowerCase().includes(search)) ||
-        (drug.drugName && drug.drugName.toLowerCase().includes(search))
+        (drug.drugName && drug.drugName.toLowerCase().includes(search)) ||
+        (drug.strength && drug.strength.toLowerCase().includes(search))
     );
   }
 
@@ -172,7 +173,7 @@ const fetchDrugs = async () => {
     drugsData.value = responseData || [];
     hasData.value = (responseData || []).length > 0;
     if (responseData && responseData.length > 0) {
-      showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
+      showSuccessAlert(" تم تحميل قائمة الأدوية بنجاح");
     }
   } catch (err) {
     console.warn("Warning: Could not fetch drugs data from API", err);
@@ -217,10 +218,10 @@ const updateDrug = async (drugId, updatedData) => {
     if (index !== -1) {
       drugsData.value[index] = { ...drugsData.value[index], ...responseData };
     }
-    showSuccessAlert("✅ تم تحديث بيانات الدواء بنجاح");
+    showSuccessAlert(" تم تحديث بيانات الدواء بنجاح");
     return responseData;
   } catch (error) {
-    showErrorAlert("❌ فشل في تحديث بيانات الدواء");
+    showErrorAlert(" فشل في تحديث بيانات الدواء");
     throw error;
   }
 };
@@ -231,9 +232,9 @@ const deleteDrug = async (drugId) => {
     await api.delete(`/supplier/drugs/${drugId}`);
     drugsData.value = drugsData.value.filter(drug => drug.id !== drugId);
     hasData.value = drugsData.value.length > 0;
-    showSuccessAlert("✅ تم حذف الدواء بنجاح");
+    showSuccessAlert(" تم حذف الدواء بنجاح");
   } catch (error) {
-    showErrorAlert("❌ فشل في حذف الدواء");
+    showErrorAlert(" فشل في حذف الدواء");
     throw error;
   }
 };
@@ -246,10 +247,10 @@ const addDrug = async (newDrug) => {
     const responseData = response.data?.data ?? response.data;
     drugsData.value.push(responseData);
     hasData.value = true;
-    showSuccessAlert("✅ تم إضافة الدواء الجديد بنجاح");
+    showSuccessAlert(" تم إضافة الدواء الجديد بنجاح");
     return responseData;
   } catch (error) {
-    showErrorAlert("❌ فشل في إضافة الدواء");
+    showErrorAlert(" فشل في إضافة الدواء");
     throw error;
   }
 };
@@ -260,14 +261,14 @@ const submitSupplyRequest = async (requestData) => {
     const response = await api.post("/supplier/supply-requests", requestData);
     // BaseApiController يُرجع البيانات بداخل data
     const responseData = response.data?.data ?? response.data;
-    showSuccessAlert("✅ تم إرسال طلب التوريد بنجاح");
+    showSuccessAlert(" تم إرسال طلب التوريد بنجاح");
     
     // تحديث كميات الأدوية بعد الطلب
     await fetchDrugs();
     
     return responseData;
   } catch (error) {
-    showErrorAlert("❌ فشل في إرسال طلب التوريد");
+    showErrorAlert(" فشل في إرسال طلب التوريد");
     throw error;
   }
 };
@@ -340,7 +341,7 @@ const printTable = () => {
   const printWindow = window.open("", "_blank", "height=600,width=800");
 
   if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-    showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+    showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
     return;
   }
 
@@ -355,18 +356,18 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .no-data { text-align: center; padding: 40px; color: #666; font-style: italic; }
 </style>
 
-<h1>قائمة الأدوية (تقرير طباعة)</h1>
+<h1>قائمة الأدوية </h1>
 `;
 
   if (resultsCount > 0) {
     tableHtml += `
-<p class="results-info">عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}</p>
+<p class="results-info">عدد النتائج : ${resultsCount}</p>
 
 <table>
 <thead>
  <tr>
- <th>رمز الدواء</th>
  <th>اسم الدواء</th>
+ <th>التركيز</th>
  <th>الكمية المتوفرة</th>
  <th>الكمية المحتاجة</th>
  <th>تاريخ إنتهاء الصلاحية</th>
@@ -378,8 +379,8 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     filteredDrugss.value.forEach((drug) => {
       tableHtml += `
 <tr>
- <td>${drug.drugCode || ''}</td>
  <td>${drug.drugName || ''}</td>
+ <td>${drug.strength || 'غير محدد'}</td>
  <td>${drug.quantity || 0}</td>
  <td>${drug.neededQuantity || 0}</td>
  <td>${drug.expiryDate || ''}</td>
@@ -409,7 +410,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.focus();
     printWindow.print();
     if (resultsCount > 0) {
-      showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+      showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     }
   };
 };
@@ -426,39 +427,27 @@ const retryLoading = async () => {
 // ----------------------------------------------------
 // 10. نظام التنبيهات
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isErrorAlertVisible = ref(false);
-const successMessage = ref("");
-const errorMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
   if (alertTimeout) {
     clearTimeout(alertTimeout);
   }
 
-  successMessage.value = message;
-  isSuccessAlertVisible.value = true;
+  alertMessage.value = message;
+  alertType.value = type;
+  isAlertVisible.value = true;
 
   alertTimeout = setTimeout(() => {
-    isSuccessAlertVisible.value = false;
-    successMessage.value = "";
+    isAlertVisible.value = false;
   }, 4000);
 };
 
-const showErrorAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  errorMessage.value = message;
-  isErrorAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isErrorAlertVisible.value = false;
-    errorMessage.value = "";
-  }, 4000);
-};
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
 
 // ----------------------------------------------------
 // 11. تهيئة البيانات عند تحميل المكون
@@ -648,11 +637,11 @@ onMounted(async () => {
                                         class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                                     >
                                         <tr>
-                                            <th class="drug-code-col">
-                                                رمز الدواء
-                                            </th>
                                             <th class="drug-name-col">
                                                 اسم الدواء
+                                            </th>
+                                            <th class="strength-col">
+                                                التركيز
                                             </th>
                                             <th class="quantity-col">
                                                 الكمية المتوفرة
@@ -698,7 +687,7 @@ onMounted(async () => {
                                                         )
                                                     "
                                                 >
-                                                    {{ drug.drugCode }}
+                                                    {{ drug.drugName }}
                                                 </td>
                                                 <td
                                                     :class="
@@ -708,7 +697,7 @@ onMounted(async () => {
                                                         )
                                                     "
                                                 >
-                                                    {{ drug.drugName }}
+                                                    {{ drug.strength || 'غير محدد' }}
                                                 </td>
                                                 <td
                                                     :class="
@@ -806,26 +795,12 @@ onMounted(async () => {
     @confirm="handleRegistrationConfirm"
     @show-alert="showSuccessAlert"
 />
-        <!-- Alert Notification -->
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div 
-            v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
-            dir="rtl"
-            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#a2c4c6]'"
-        >
-            <div class="flex-1 font-bold text-sm">
-                {{ successMessage }}
-            </div>
-        </div>
-    </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </div>
 </template>
 
@@ -853,7 +828,7 @@ onMounted(async () => {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
 }
-.drug-code-col {
+.strength-col {
     width: 120px;
     min-width: 120px;
 }

@@ -83,23 +83,32 @@ class ShipmentPharmacistController extends BaseApiController
 
     /**
      * GET /api/pharmacist/shipments
-     * عرض الشحنات الواردة لصيدلية المستخدم الحالي فقط.
+     * عرض الشحنات التي طلبها أو استلمها المستخدم الحالي فقط.
      */
     public function index(Request $request)
     {
         $user = $request->user();
         
-        // نفترض أن الصيدلاني مرتبط بصيدلية، أو نجلبه عبر المستشفى
+        // جلب معرفات الشحنات التي استلمها هذا المستخدم من AuditLog
+        $receivedShipmentIds = AuditLog::where('user_id', $user->id)
+            ->where('action', 'pharmacist_confirm_internal_receipt')
+            ->where('table_name', 'internal_supply_request')
+            ->pluck('record_id')
+            ->unique()
+            ->toArray();
+        
+        // بناء الاستعلام: الشحنات التي طلبها المستخدم أو استلمها
         $query = InternalSupplyRequest::with('items.drug')
+            ->where(function($q) use ($user, $receivedShipmentIds) {
+                // الشحنات التي طلبها المستخدم
+                $q->where('requested_by', $user->id);
+                
+                // أو الشحنات التي استلمها المستخدم
+                if (!empty($receivedShipmentIds)) {
+                    $q->orWhereIn('id', $receivedShipmentIds);
+                }
+            })
             ->orderBy('created_at', 'desc');
-
-        // تصفية الشحنات الخاصة بالصيدلية الحالية (إذا كان المستخدم مرتبطاً بصيدلية)
-        if ($user->pharmacy_id) {
-            $query->where('pharmacy_id', $user->pharmacy_id);
-        } elseif ($user->id) {
-            // أو الشحنات التي طلبها هذا المستخدم
-            $query->where('requested_by', $user->id);
-        }
 
         $shipments = $query->get()
             ->map(function ($shipment) {
@@ -140,10 +149,16 @@ class ShipmentPharmacistController extends BaseApiController
             return $this->sendError('الشحنة غير موجودة.', [], 404);
         }
 
-        // التحقق من أن الشحنة تخص صيدلية المستخدم
-        if ($user->pharmacy_id && $shipment->pharmacy_id !== $user->pharmacy_id) {
-            // يمكن تفعيل هذا الشرط للأمان
-            // return $this->sendError('هذه الشحنة لا تخص صيدليتك.', [], 403);
+        // التحقق من أن الشحنة تخص المستخدم (طلبها أو استلمها)
+        $isRequestedByUser = $shipment->requested_by === $user->id;
+        $isReceivedByUser = AuditLog::where('user_id', $user->id)
+            ->where('action', 'pharmacist_confirm_internal_receipt')
+            ->where('table_name', 'internal_supply_request')
+            ->where('record_id', $shipment->id)
+            ->exists();
+        
+        if (!$isRequestedByUser && !$isReceivedByUser) {
+            return $this->sendError('هذه الشحنة لا تخصك. يمكنك فقط عرض الشحنات التي طلبتها أو استلمتها.', [], 403);
         }
 
         // جلب الملاحظات من audit_log

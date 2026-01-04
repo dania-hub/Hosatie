@@ -25,16 +25,48 @@ class DashboardSupplierController extends BaseApiController
 
             $supplierId = $user->supplier_id;
 
+            // استخدام نفس منطق البحث المستخدم في ShipmentSupplierController بالضبط
+            // البحث عن الشحنات المرتبطة بهذا المورد
+            $shipmentsBaseQuery = ExternalSupplyRequest::where(function($query) use ($user) {
+                // البحث عن الطلبات التي لها supplier_id مطابق لـ supplier_id الخاص بالمستخدم المورد
+                $query->where('supplier_id', $user->supplier_id)
+                      // أو البحث عن الطلبات من المستشفيات المرتبطة بنفس المورد
+                      ->orWhereHas('hospital', function($q) use ($user) {
+                          $q->where('supplier_id', $user->supplier_id);
+                      });
+            });
+
+            // حساب الإحصائيات بدقة
+            // إجمالي الشحنات: جميع الشحنات المرتبطة بهذا المورد (pending, approved, fulfilled, rejected)
+            $totalShipments = (clone $shipmentsBaseQuery)->count();
+            
+            // الشحنات قيد الانتظار: الشحنات في حالة pending فقط (في انتظار الموافقة)
+            // نحسب فقط الشحنات التي لها supplier_id مباشر لأن pending عادة لا يكون لها supplier_id من خلال hospital
+            $pendingShipments = ExternalSupplyRequest::where('supplier_id', $user->supplier_id)
+                ->where('status', 'pending')
+                ->count();
+            
+            // تطبيق الفلتر للحالات الأخرى: approved, fulfilled, rejected
+            $shipmentsQuery = (clone $shipmentsBaseQuery)
+                ->whereIn('status', ['approved', 'fulfilled', 'rejected']);
+            
+            // طلبات التوريد الخارجية: إجمالي طلبات التوريد الخارجية التي أنشأها المورد (بجميع الحالات)
+            // هذه هي الطلبات التي requested_by = user.id
+            $approvedShipments = ExternalSupplyRequest::where('requested_by', $user->id)
+                ->count();
+            
+            // الشحنات المكتملة: الشحنات التي تم إرسالها من المورد (fulfilled)
+            $fulfilledShipments = (clone $shipmentsQuery)->where('status', 'fulfilled')->count();
+            
+            // الشحنات المرفوضة: الشحنات التي تم رفضها من المورد (rejected)
+            $rejectedShipments = (clone $shipmentsQuery)->where('status', 'rejected')->count();
+
             $stats = [
-                'totalShipments' => ExternalSupplyRequest::where('supplier_id', $supplierId)->count(),
-                'pendingShipments' => ExternalSupplyRequest::where('supplier_id', $supplierId)
-                    ->where('status', 'pending')->count(),
-                'approvedShipments' => ExternalSupplyRequest::where('supplier_id', $supplierId)
-                    ->where('status', 'approved')->count(),
-                'fulfilledShipments' => ExternalSupplyRequest::where('supplier_id', $supplierId)
-                    ->where('status', 'fulfilled')->count(),
-                'rejectedShipments' => ExternalSupplyRequest::where('supplier_id', $supplierId)
-                    ->where('status', 'rejected')->count(),
+                'totalShipments' => $totalShipments,
+                'pendingShipments' => $pendingShipments,
+                'approvedShipments' => $approvedShipments,
+                'fulfilledShipments' => $fulfilledShipments,
+                'rejectedShipments' => $rejectedShipments,
                 'totalDrugs' => Inventory::where('supplier_id', $supplierId)->count(),
                 'lowStockDrugs' => Inventory::where('supplier_id', $supplierId)
                     ->whereColumn('current_quantity', '<', 'minimum_level')->count(),

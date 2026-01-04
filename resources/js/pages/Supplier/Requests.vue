@@ -359,22 +359,12 @@
             :is-loading="isConfirming"
         />
 
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </DefaultLayout>
 </template>
 
@@ -387,6 +377,7 @@ import axios from "axios";
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 import search from "@/components/search.vue"; 
@@ -431,16 +422,16 @@ api.interceptors.response.use(
         
         if (error.response?.status === 401) {
             // إذا كان خطأ في المصادقة
-            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
             // يمكن إضافة إعادة توجيه لصفحة تسجيل الدخول هنا
         } else if (error.response?.status === 403) {
-            showSuccessAlert('❌ ليس لديك الصلاحية للقيام بهذا الإجراء.');
+            showSuccessAlert(' ليس لديك الصلاحية للقيام بهذا الإجراء.');
         } else if (error.response?.status === 404) {
-            showSuccessAlert('❌ المورد المطلوب غير موجود.');
+            showSuccessAlert(' المورد المطلوب غير موجود.');
         } else if (error.code === 'ECONNABORTED') {
-            showSuccessAlert('❌ انتهت مهلة الاتصال بالخادم.');
+            showSuccessAlert(' انتهت مهلة الاتصال بالخادم.');
         } else if (!error.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         }
         
         return Promise.reject(error);
@@ -720,7 +711,7 @@ const openRequestViewModal = async (shipment) => {
         isRequestViewModalOpen.value = true;
     } catch (err) {
         console.error('Error loading shipment details from API:', err);
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -775,7 +766,7 @@ const openConfirmationModal = async (shipment) => {
         isConfirmationModalOpen.value = true;
     } catch (err) {
         console.error('Error loading shipment details from API:', err);
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -807,9 +798,10 @@ const handleConfirmation = async (confirmationData) => {
             console.log('Reject response:', response);
             
             await fetchShipments(); // إعادة جلب البيانات
-            const message = response.data?.message || response.message || `✅ تم رفض الشحنة رقم ${shipmentNumber} بنجاح`;
-            showSuccessAlert(message);
             closeConfirmationModal();
+            
+            // عرض رسالة نجاح الرفض
+            showSuccessAlert(`تم رفض الشحنة بنجاح - ${shipmentNumber}`);
             
         } else if (confirmationData.items || confirmationData.itemsToSend) {
             // 🟢 معالجة قبول الطلب وإرسال الشحنة
@@ -828,20 +820,18 @@ const handleConfirmation = async (confirmationData) => {
             console.log('Confirm response:', response);
             
             await fetchShipments(); // إعادة جلب البيانات
-            const message = response.data?.message || response.message || `✅ تم تأكيد الشحنة وإرسالها بنجاح!`;
-            showSuccessAlert(message);
             closeConfirmationModal();
+            
+            // عرض رسالة نجاح الإرسال
+            showSuccessAlert(`تم إرسال الشحنة بنجاح - ${shipmentNumber}`);
         } else {
             console.warn('No valid confirmation data:', confirmationData);
-            showSuccessAlert('❌ بيانات غير صحيحة');
         }
         
     } catch (err) {
         console.error('Error in handleConfirmation:', err);
         console.error('Error response:', err.response);
         console.error('Error message:', err.message);
-        const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
-        showSuccessAlert(`❌ فشل في العملية: ${errorMessage}`);
     } finally {
         console.log('Setting isConfirming to false');
         isConfirming.value = false;
@@ -861,7 +851,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -877,8 +867,8 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .print-date { text-align: left; color: #666; font-size: 14px; margin-bottom: 10px; }
 </style>
 
-<h1>قائمة طلبات التوريد (تقرير طباعة)</h1>
-<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+<h1>قائمة طلبات التوريد </h1>
+<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('en')}</p>
 <p class="results-info">عدد النتائج: ${resultsCount}</p>
 
 <table>
@@ -888,20 +878,20 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
-    <th class="center-icon">الإستلام</th> </tr>
+  </tr>
 </thead>
 <tbody>
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '✅' : '❌';
+    
         tableHtml += `
 <tr>
     <td>${shipment.requestingDepartment || 'غير محدد'}</td>
     <td>${shipment.shipmentNumber || 'غير محدد'}</td>
     <td>${formatDate(shipment.requestDate)}</td>
     <td>${shipment.requestStatus || 'غير محدد'}</td>
-    <td class="center-icon">${receivedIcon}</td>
+
 </tr>
 `;
     });
@@ -920,30 +910,35 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     }; 
 };
 
 // ----------------------------------------------------
 // 9. نظام التنبيهات
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
 
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+// للتوافق مع الطلبات القديمة
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
 
 // ----------------------------------------------------
 // 10. دورة الحياة

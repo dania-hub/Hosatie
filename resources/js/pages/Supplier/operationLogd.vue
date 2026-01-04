@@ -6,6 +6,7 @@ import axios from 'axios';
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
@@ -90,7 +91,7 @@ const fetchOperations = async () => {
         });
         
         if (operations.value.length > 0) {
-            showSuccessAlert("✅ تم تحميل سجل العمليات بنجاح.");
+            showSuccessAlert(" تم تحميل سجل العمليات بنجاح.");
         }
     } catch (err) {
         // Axios يلتقط أخطاء الاتصال والخادم
@@ -106,10 +107,13 @@ onMounted(() => {
     fetchOperations();
 });
 
-// قائمة بأنواع العمليات المتاحة للتصفية
+// قائمة بأنواع العمليات الأساسية للتصفية
+const basicOperationTypes = ['الكل', 'قبول',   'تأكيد', 'رفض', 'إنشاء'];
+
+// قائمة بأنواع العمليات المتاحة للتصفية (العمليات الأساسية فقط)
 const operationTypes = computed(() => {
-    const types = new Set(operations.value.map(op => op.operationType));
-    return ['الكل', ...Array.from(types)];
+    // استخدام الأنواع الأساسية فقط
+    return basicOperationTypes;
 });
 
 // ----------------------------------------------------
@@ -170,9 +174,9 @@ const filteredOperations = computed(() => {
                             (op.operationType && op.operationType.toLowerCase().includes(search)) ||
                             (op.shipmentNumber && op.shipmentNumber.toLowerCase().includes(search));
 
-        // تصفية حسب نوع العملية
+        // تصفية حسب نوع العملية (يتحقق من أن نوع العملية يبدأ بالنوع المحدد)
         const typeMatch = operationTypeFilter.value === 'الكل' ||
-                          op.operationType === operationTypeFilter.value;
+                          (op.operationType && op.operationType.startsWith(operationTypeFilter.value));
 
         return searchMatch && typeMatch;
     });
@@ -231,25 +235,29 @@ const filteredOperations = computed(() => {
 });
 
 // ----------------------------------------------------
-// 3. منطق رسالة النجاح (Success Alert Logic)
+// 3. نظام التنبيهات
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
     
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
     
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
 
 
 // ----------------------------------------------------
@@ -261,7 +269,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -300,17 +308,17 @@ const printTable = () => {
             }
         </style>
 
-        <h1>سجل العمليات (تقرير طباعة)</h1>
+        <h1>سجل العمليات </h1>
         
         <p class="results-info">
-            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
+            عدد النتائج : ${resultsCount}
         </p>
         
         <table>
             <thead>
                 <tr>
                     <th>رقم الملف</th>
-                    <th>الإسم الرباعي</th>
+                 
                     <th>نوع العملية</th>
                     <th>تاريخ العملية</th>
                 </tr>
@@ -322,7 +330,7 @@ const printTable = () => {
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
+             
                 <td>${op.operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
@@ -343,7 +351,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
@@ -363,7 +371,7 @@ const printTable = () => {
                         <!-- زر إظهار/إخفاء فلتر التاريخ -->
                         <button
                             @click="showDateFilter = !showDateFilter"
-                            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                            class="h-11 w-23 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
                             :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                         >
                             <Icon
@@ -547,22 +555,12 @@ const printTable = () => {
             </main>
         </DefaultLayout>
 
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div 
-            v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-            dir="rtl"
-        >
-            {{ successMessage }}
-        </div>
-    </Transition>
+    <Toast
+        :show="isAlertVisible"
+        :message="alertMessage"
+        :type="alertType"
+        @close="isAlertVisible = false"
+    />
 
 </template>
 
@@ -582,19 +580,17 @@ const printTable = () => {
     background-color: #3a8c94;
 }
 
-/* 15. تنسيقات عرض أعمدة الجدول الجديدة والمعدلة */
-/* تم حذف تنسيق .actions-col */
-.file-number-col {
+/* 15. تنسيقات عرض أعمدة الجدول الجديدة والمعدلة */.file-number-col {
     width: 90px;
     min-width: 90px;
 }
 .operation-type-col {
-    width: 120px;
-    min-width: 120px;
+    width: 160px;
+    min-width: 160px;
 }
 .operation-date-col {
-    width: 120px;
-    min-width: 120px;
+    width: 70px;
+    min-width: 70px;
 }
 .name-col {
     width: 170px;

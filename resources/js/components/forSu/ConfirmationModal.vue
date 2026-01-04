@@ -385,19 +385,17 @@ const confirmRejection = () => {
         return;
     }
 
-    if (confirm("هل أنت متأكد من رفض هذا الطلب؟ سيتم إلغاء الطلب بالكامل.")) {
-        isConfirming.value = true;
-        
-        const rejectionData = {
-            id: props.requestData.id,
-            shipmentNumber: props.requestData.shipmentNumber,
-            rejectionReason: rejectionNote.value.trim(),
-            timestamp: new Date().toISOString()
-        };
+    isConfirming.value = true;
+    
+    const rejectionData = {
+        id: props.requestData.id,
+        shipmentNumber: props.requestData.shipmentNumber,
+        rejectionReason: rejectionNote.value.trim(),
+        timestamp: new Date().toISOString()
+    };
 
-        emit("reject", rejectionData);
-        // لا نعيد تعيين isConfirming هنا، سيتم إعادة تعيينه في handleConfirmation
-    }
+    emit("reject", rejectionData);
+    // لا نعيد تعيين isConfirming هنا، سيتم إعادة تعيينه في handleConfirmation
 };
 
 // إرسال الشحنة
@@ -412,15 +410,13 @@ const sendShipment = async () => {
     );
     
     if (hasInvalidQuantity) {
-        alert("يرجى التأكد من إدخال كميات صحيحة لجميع الأصناف، وأنها لا تتجاوز الكمية المتوفرة.");
+        // التحقق من صحة الكميات - إرجاع بدون alert
         return;
     }
     
     const hasItemsToSend = receivedItems.value.some(item => item.sentQuantity > 0);
     if (receivedItems.value.length > 0 && !hasItemsToSend) {
-        if (!confirm("لم تحدد أي كمية للإرسال. هل تريد إرسال شحنة فارغة؟ (يمكنك رفض الطلب بدلاً من ذلك).")) {
-            return;
-        }
+        // لا توجد كمية للإرسال - يمكن المتابعة بدون تأكيد
     }
 
     isConfirming.value = true;
@@ -453,7 +449,6 @@ const sendShipment = async () => {
         // لا نعيد تعيين isConfirming هنا، سيتم إعادة تعيينه في handleConfirmation
     } catch (error) {
         console.error("Error preparing shipment data:", error);
-        alert("حدث خطأ أثناء تحضير بيانات الشحنة.");
         isConfirming.value = false; // إعادة تعيين في حالة الخطأ
     }
 };

@@ -12,6 +12,7 @@ import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. تهيئة axios مع base URL الخاص بالصيدلي
@@ -71,6 +72,9 @@ const error = ref(null);
 // 5. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const sortKey = ref("quantity");
 const sortOrder = ref("asc");
 
@@ -79,12 +83,86 @@ const sortDrugs = (key, order) => {
   sortOrder.value = order;
 };
 
+// دالة تحويل التاريخ من صيغة (yyyy/mm/dd) إلى كائن Date للمقارنة
+const parseDate = (dateString) => {
+  if (!dateString) return null;
+  try {
+    // محاولة تحويل الصيغة Y/m/d إلى Date
+    if (dateString.includes('/')) {
+      const parts = dateString.split('/');
+      if (parts.length === 3) {
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+    }
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? null : date;
+  } catch {
+    return null;
+  }
+};
+
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+  dateFrom.value = "";
+  dateTo.value = "";
+};
+
 const filteredDrugss = computed(() => {
   if (!drugsData.value.length) return [];
 
-  // هنا يتم فقط الفرز على البيانات القادمة من الخادم
   let list = [...drugsData.value];
+  const search = searchTerm.value ? searchTerm.value.toLowerCase() : '';
 
+  // 1. البحث في جميع الحقول
+  if (search) {
+    list = list.filter(drug => {
+      // إنشاء نص شامل يحتوي على جميع المعلومات
+      const drugNameStr = (drug.drugName || drug.name || '').toLowerCase();
+      const genericNameStr = (drug.genericName || '').toLowerCase();
+      const strengthStr = (drug.strength || '').toLowerCase();
+      const quantityStr = (drug.quantity || 0).toString();
+      const neededQuantityStr = (drug.neededQuantity || 0).toString();
+      const expiryDateStr = (drug.expiryDate || '').toString();
+      const categoryStr = (drug.category || '').toLowerCase();
+      const statusStr = (drug.status || '').toLowerCase();
+      
+      const fullText = `${drugNameStr} ${genericNameStr} ${strengthStr} ${quantityStr} ${neededQuantityStr} ${expiryDateStr} ${categoryStr} ${statusStr}`.trim();
+      
+      return fullText.includes(search);
+    });
+  }
+
+  // 2. فلترة حسب التاريخ (تاريخ انتهاء الصلاحية)
+  if (dateFrom.value || dateTo.value) {
+    list = list.filter((drug) => {
+      const expiryDate = drug.expiryDate;
+      if (!expiryDate) return false;
+
+      const expiryDateObj = parseDate(expiryDate);
+      if (!expiryDateObj) return false;
+
+      expiryDateObj.setHours(0, 0, 0, 0);
+
+      let matchesFrom = true;
+      let matchesTo = true;
+
+      if (dateFrom.value) {
+        const fromDate = new Date(dateFrom.value);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesFrom = expiryDateObj >= fromDate;
+      }
+
+      if (dateTo.value) {
+        const toDate = new Date(dateTo.value);
+        toDate.setHours(23, 59, 59, 999);
+        matchesTo = expiryDateObj <= toDate;
+      }
+
+      return matchesFrom && matchesTo;
+    });
+  }
+
+  // 3. الفرز
   if (sortKey.value) {
     list.sort((a, b) => {
       let comparison = 0;
@@ -110,7 +188,7 @@ const filteredDrugss = computed(() => {
   return list;
 });
 
-// استدعاء البحث من الـ API عند تغيير نص البحث
+// استدعاء البحث من الـ API عند تغيير نص البحث (البحث المحلي يتم في filteredDrugss)
 watch(
   () => searchTerm.value,
   async (val) => {
@@ -120,16 +198,21 @@ watch(
       return;
     }
 
+    // البحث المحلي يتم في computed filteredDrugss
+    // يمكن أيضاً استخدام API للبحث إذا لزم الأمر
     try {
       // GET /api/pharmacist/drugs/search?search=...
       const response = await api.get("/drugs/search", {
         params: { search: val }
       });
       const data = response.data?.data ?? response.data;
-      drugsData.value = Array.isArray(data) ? data : [];
-      hasData.value = drugsData.value.length > 0;
+      if (Array.isArray(data) && data.length > 0) {
+        drugsData.value = data;
+        hasData.value = true;
+      }
     } catch (error) {
-      console.warn("Warning: Could not search drugs via API", error);
+      // في حالة الخطأ، نستخدم البحث المحلي
+      console.warn("Warning: Could not search drugs via API, using local search", error);
     }
   }
 );
@@ -218,9 +301,9 @@ const updateDrug = async (drugId, updatedData) => {
     // بعد التحديث، نعيد تحميل القائمة لضمان تزامن البيانات
     await fetchDrugs();
 
-    showSuccessAlert("✅ تم تحديث بيانات الدواء بنجاح");
+    showSuccessAlert(" تم تحديث بيانات الدواء بنجاح");
   } catch (error) {
-    showErrorAlert("❌ فشل في تحديث بيانات الدواء");
+    showErrorAlert(" فشل في تحديث بيانات الدواء");
     throw error;
   }
 };
@@ -234,9 +317,9 @@ const deleteDrug = async (drugId) => {
     // إعادة تحميل القائمة بعد الحذف
     await fetchDrugs();
 
-    showSuccessAlert("✅ تم حذف الدواء بنجاح");
+    showSuccessAlert(" تم حذف الدواء بنجاح");
   } catch (error) {
-    showErrorAlert("❌ فشل في حذف الدواء");
+    showErrorAlert(" فشل في حذف الدواء");
     throw error;
   }
 };
@@ -251,9 +334,9 @@ const addDrug = async (newDrug) => {
     await fetchDrugs();
     hasData.value = drugsData.value.length > 0;
 
-    showSuccessAlert("✅ تم إضافة الدواء الجديد بنجاح");
+    showSuccessAlert(" تم إضافة الدواء الجديد بنجاح");
   } catch (error) {
-    showErrorAlert("❌ فشل في إضافة الدواء");
+    showErrorAlert(" فشل في إضافة الدواء");
     throw error;
   }
 };
@@ -283,7 +366,7 @@ const submitSupplyRequest = async (requestData) => {
     const responseData = response.data?.data ?? response.data;
     const requestNumber = responseData?.requestNumber || 'N/A';
 
-    showSuccessAlert(`✅ تم إرسال طلب التوريد رقم ${requestNumber} بنجاح`);
+    showSuccessAlert(` تم إرسال طلب التوريد رقم ${requestNumber} بنجاح`);
     
     // تحديث كميات الأدوية بعد الطلب
     await fetchDrugs();
@@ -292,7 +375,7 @@ const submitSupplyRequest = async (requestData) => {
   } catch (error) {
     console.error("Error submitting supply request:", error);
     const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ غير متوقع';
-    showErrorAlert(`❌ فشل في إرسال طلب التوريد: ${errorMessage}`);
+    showErrorAlert(` فشل في إرسال طلب التوريد: ${errorMessage}`);
     throw error;
   }
 };
@@ -364,7 +447,7 @@ const printTable = () => {
   const printWindow = window.open("", "_blank", "height=600,width=800");
 
   if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-    showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+    showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
     return;
   }
 
@@ -379,12 +462,12 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .no-data { text-align: center; padding: 40px; color: #666; font-style: italic; }
 </style>
 
-<h1>قائمة الأدوية (تقرير طباعة)</h1>
+<h1>قائمة الأدوية </h1>
 `;
 
   if (resultsCount > 0) {
     tableHtml += `
-<p class="results-info">عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}</p>
+<p class="results-info">عدد النتائج : ${resultsCount}</p>
 
 <table>
 <thead>
@@ -443,7 +526,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.focus();
     printWindow.print();
     if (resultsCount > 0) {
-      showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+      showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     }
   };
 };
@@ -458,41 +541,31 @@ const retryLoading = async () => {
 };
 
 // ----------------------------------------------------
-// 10. نظام التنبيهات
+// 10. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isErrorAlertVisible = ref(false);
-const successMessage = ref("");
-const errorMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
   if (alertTimeout) {
     clearTimeout(alertTimeout);
   }
 
-  successMessage.value = message;
-  isSuccessAlertVisible.value = true;
+  alertMessage.value = message;
+  alertType.value = type;
+  isAlertVisible.value = true;
 
   alertTimeout = setTimeout(() => {
-    isSuccessAlertVisible.value = false;
-    successMessage.value = "";
+    isAlertVisible.value = false;
   }, 4000);
 };
 
-const showErrorAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  errorMessage.value = message;
-  isErrorAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isErrorAlertVisible.value = false;
-    errorMessage.value = "";
-  }, 4000);
-};
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 11. تهيئة البيانات عند تحميل المكون
@@ -520,9 +593,68 @@ onMounted(async () => {
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
                         <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                            <div class="relative w-full sm:max-w-sm">
-                                <search v-model="searchTerm" />
-                            </div>
+                            
+                                <search v-model="searchTerm" placeholder="ابحث في جميع الحقول (اسم الدواء، الاسم العلمي، التركيز، الكمية، تاريخ الانتهاء...)" />
+                           
+                            
+                            <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                            <button
+                                @click="showDateFilter = !showDateFilter"
+                                class="h-11 w-12 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                                :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                            >
+                                <Icon
+                                    icon="solar:calendar-bold"
+                                    class="w-5 h-5"
+                                />
+                            </button>
+
+                            <!-- فلتر التاريخ -->
+                            <Transition
+                                enter-active-class="transition duration-200 ease-out"
+                                enter-from-class="opacity-0 scale-95"
+                                enter-to-class="opacity-100 scale-100"
+                                leave-active-class="transition duration-150 ease-in"
+                                leave-from-class="opacity-100 scale-100"
+                                leave-to-class="opacity-0 scale-95"
+                            >
+                                <div v-if="showDateFilter" class="flex items-center gap-2">
+                                    <div class="relative">
+                                        <input
+                                            type="date"
+                                            v-model="dateFrom"
+                                            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                            placeholder="من تاريخ"
+                                        />
+                                        <Icon
+                                            icon="solar:calendar-linear"
+                                            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                        />
+                                    </div>
+                                    <span class="text-gray-600 font-medium">إلى</span>
+                                    <div class="relative">
+                                        <input
+                                            type="date"
+                                            v-model="dateTo"
+                                            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                            placeholder="إلى تاريخ"
+                                        />
+                                        <Icon
+                                            icon="solar:calendar-linear"
+                                            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                        />
+                                    </div>
+                                    <button
+                                        v-if="dateFrom || dateTo"
+                                        @click="clearDateFilter"
+                                        class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                        title="مسح فلتر التاريخ"
+                                    >
+                                        <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                        مسح
+                                    </button>
+                                </div>
+                            </Transition>
 
                             <div class="dropdown dropdown-start">
                                 <div
@@ -840,7 +972,7 @@ onMounted(async () => {
                                                 <div
                                                     class="flex gap-3 justify-center"
                                                 >
-                                                    <button
+                                                    <button class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         @click="
                                                             showDrugDetails(drug)
                                                         "
@@ -848,7 +980,7 @@ onMounted(async () => {
                                                         <Icon
                                                             icon="tabler:eye-minus"
                                                             :class="[
-                                                                'w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-700',
+                                                                'w-4 h-4 cursor-pointer hover:scale-110 transition-transform text-green-600',
                                                             ]"
                                                         />
                                                     </button>
@@ -890,41 +1022,12 @@ onMounted(async () => {
             @show-alert="showSuccessAlert"
         />
 
-        <!-- تنبيه النجاح -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
-
-        <!-- تنبيه الخطأ -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isErrorAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-red-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ errorMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </div>
 </template>
 

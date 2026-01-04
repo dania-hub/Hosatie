@@ -9,6 +9,7 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import DrugPreviewModal from "@/components/forpharmacist/DrugPreviewModal.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. تهيئة axios مع base URL الخاص بمدير المخزن
@@ -448,41 +449,31 @@ const retryLoading = async () => {
 };
 
 // ----------------------------------------------------
-// 10. نظام التنبيهات
+// 10. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isErrorAlertVisible = ref(false);
-const successMessage = ref("");
-const errorMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
   if (alertTimeout) {
     clearTimeout(alertTimeout);
   }
 
-  successMessage.value = message;
-  isSuccessAlertVisible.value = true;
+  alertMessage.value = message;
+  alertType.value = type;
+  isAlertVisible.value = true;
 
   alertTimeout = setTimeout(() => {
-    isSuccessAlertVisible.value = false;
-    successMessage.value = "";
+    isAlertVisible.value = false;
   }, 4000);
 };
 
-const showErrorAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  errorMessage.value = message;
-  isErrorAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isErrorAlertVisible.value = false;
-    errorMessage.value = "";
-  }, 4000);
-};
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 11. تهيئة البيانات عند تحميل المكون
@@ -888,41 +879,12 @@ onMounted(async () => {
             @show-alert="showSuccessAlert"
         />
 
-        <!-- تنبيه النجاح -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
-
-        <!-- تنبيه الخطأ -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isErrorAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-red-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ errorMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </div>
 </template>
 

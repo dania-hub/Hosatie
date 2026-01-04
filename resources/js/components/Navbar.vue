@@ -273,8 +273,7 @@ const confirmLogout = async () => {
         // التحقق من وجود token
         const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
         if (!token) {
-            alert("❌ لم يتم العثور على رمز المصادقة. سيتم إعادة التوجيه إلى صفحة تسجيل الدخول.");
-            window.location.href = '/login';
+            window.location.href = '/';
             return;
         }
 

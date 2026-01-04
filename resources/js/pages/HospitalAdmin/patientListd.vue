@@ -216,9 +216,29 @@ const updatePatientMedications = async (patientId, medications) => {
 const fetchDispensationHistory = async (patientId) => {
   try {
     const response = await api.get(`/admin-hospital/patients/${patientId}/dispensation-history`);
-    // The interceptor returns response.data, so response is already the data object
-    const data = response?.data || response || [];
-    return Array.isArray(data) ? data : [];
+    const data = response.data?.data ?? response.data ?? response;
+    
+    const dispensations = data?.dispensations || [];
+    
+    // تحويل هيكلة الـ API إلى ما يحتاجه `DispensationModal`
+    const historyItems = [];
+    
+    dispensations.forEach((disp) => {
+      const dateString = disp.date
+        ? new Date(disp.date).toLocaleDateString("ar-SA")
+        : disp.date;
+      
+      (disp.items || []).forEach((item) => {
+        historyItems.push({
+          drugName: item.drugName,
+          quantity: item.quantity,
+          date: dateString,
+          assignedBy: disp.pharmacistName,
+        });
+      });
+    });
+    
+    return historyItems;
   } catch (err) {
     console.error('فشل جلب سجل الصرف:', err);
     throw err;

@@ -193,7 +193,7 @@ const links = {
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/Supplier/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/Supplier/operations" },
         { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/Supplier/requests" },
-        { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/Supplier/supply-requests" },
+        { name: "طلبات التوريد الخارجية", icon: "icon-park-outline:buy", to: "/Supplier/supply-requests" },
      
     ]
     

@@ -118,13 +118,13 @@ onMounted(() => {
                     الشحنات
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- إجمالي الشحنات -->
+                    <!-- طلبات التوريد الداخلية -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#2E5077]/10 rounded-xl">
                                 <Icon icon="solar:delivery-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الشحنات</p>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">طلبات التوريد الداخلية</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.shipments.total }}</p>
                     </div>
@@ -140,13 +140,13 @@ onMounted(() => {
                         <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.shipments.pending }}</p>
                     </div>
 
-                    <!-- معتمدة -->
+                    <!-- طلبات التوريد الخارجية -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
                                 <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">معتمدة</p>
+                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">طلبات التوريد الخارجية</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.shipments.approved }}</p>
                     </div>

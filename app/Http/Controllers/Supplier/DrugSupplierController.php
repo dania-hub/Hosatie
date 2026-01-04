@@ -30,8 +30,8 @@ class DrugSupplierController extends BaseApiController
                 ->map(function ($inventory) {
                     return [
                         'id' => $inventory->drug->id,
-                        'drugCode' => $inventory->drug->code,
                         'drugName' => $inventory->drug->name,
+                        'strength' => $inventory->drug->strength ?? 'غير محدد',
                         'quantity' => $inventory->current_quantity,
                         'neededQuantity' => $inventory->minimum_level,
                         'expiryDate' => $inventory->drug->expiry_date ?? 'غير محدد',

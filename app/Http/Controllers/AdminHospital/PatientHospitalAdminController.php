@@ -90,7 +90,7 @@ class PatientHospitalAdminController extends BaseApiController
                     // البحث عن الوصفة المرتبطة بهذا الدواء
                     $prescription = $prescriptions->firstWhere('id', $pd->prescription_id);
                     $drug = $pd->drug;
-                    $monthlyQty = (int)($pd->monthly_quantity ?? 0);
+                    $currentMonthlyQty = (int)($pd->monthly_quantity ?? 0);
                     
                     // تحديد وحدة القياس من بيانات الدواء
                     // التأكد من أن drug محمّل بشكل صحيح
@@ -129,6 +129,7 @@ class PatientHospitalAdminController extends BaseApiController
                     // آخر عملية صرف لهذا الدواء
                     $lastDispense = Dispensing::where('patient_id', $u->id)
                         ->where('drug_id', $pd->drug_id)
+                        ->where('reverted', false) // استبعاد السجلات الملغاة
                         ->latest('created_at')
                         ->first();
                     
@@ -145,8 +146,13 @@ class PatientHospitalAdminController extends BaseApiController
                     
                     $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $u->id)
                         ->where('drug_id', $pd->drug_id)
+                        ->where('reverted', false) // استبعاد السجلات الملغاة
                         ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
                         ->sum('quantity_dispensed');
+                    
+                    // حساب الكمية الشهرية الأصلية (الكمية الحالية + المصروفة هذا الشهر)
+                    // لأن monthly_quantity يتم خصمه عند الصرف، نحتاج لإعادة حساب القيمة الأصلية
+                    $monthlyQty = $currentMonthlyQty + $totalDispensedThisMonth;
                     
                     // حساب الكمية المتبقية
                     $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
@@ -337,33 +343,65 @@ class PatientHospitalAdminController extends BaseApiController
             ->where('hospital_id', $hospitalId)
             ->findOrFail($id);
 
-        $history = Dispensing::with('drug', 'pharmacist', 'pharmacy')
+        // جلب جميع سجلات الصرف للمريض بغض النظر عن المستشفى
+        // هذا يضمن عرض سجل الصرف الكامل للمرضى المنقولين
+        $dispensations = Dispensing::with(['drug', 'pharmacist', 'pharmacy'])
             ->where('patient_id', $patient->id)
             ->where('reverted', false) // استبعاد السجلات الملغاة
-            ->latest('dispense_month')
-            ->get()
-            ->map(function ($d) {
-                // تحديد تاريخ الصرف (أولوية: created_at > dispense_month)
-                $dispenseDate = null;
-                if ($d->created_at) {
-                    $dispenseDate = Carbon::parse($d->created_at)->format('Y/m/d');
-                } elseif ($d->dispense_month) {
-                    $dispenseDate = Carbon::parse($d->dispense_month)->format('Y/m/d');
-                }
-                
-                return [
-                    'id'          => $d->id,
-                    'drugName'    => $d->drug?->name ?? 'دواء غير معروف',
-                    'quantity'    => $d->quantity_dispensed ?? 0,
-                    'quantity_dispensed' => $d->quantity_dispensed ?? 0,
-                    'dispensedAt' => $dispenseDate,
-                    'pharmacy'    => $d->pharmacy?->name ?? null,
-                    'pharmacist'  => $d->pharmacist?->full_name ?? 'غير معروف',
-                    'reverted'    => (bool) $d->reverted,
-                    'revertedAt'  => $d->reverted_at ? Carbon::parse($d->reverted_at)->format('Y/m/d') : null,
-                ];
-            });
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        return response()->json($history);
+        $formattedHistory = $dispensations->map(function ($d) {
+            // تحديد تاريخ الصرف (أولوية: created_at > dispense_month)
+            $dispenseDate = null;
+            if ($d->created_at) {
+                $dispenseDate = Carbon::parse($d->created_at)->format('Y/m/d');
+            } elseif ($d->dispense_month) {
+                $dispenseDate = Carbon::parse($d->dispense_month)->format('Y/m/d');
+            }
+            
+            // تحديد وحدة القياس
+            $unit = 'حبة'; // القيمة الافتراضية
+            if ($d->drug && !empty($d->drug->unit)) {
+                $drugUnit = strtolower(trim($d->drug->unit));
+                
+                // تحويل الوحدات الشائعة إلى التنسيق المطلوب
+                if (in_array($drugUnit, ['قرص', 'حبة', 'tablet', 'capsule', 'pill', 'tab', 'cap'])) {
+                    $unit = 'حبة';
+                } elseif (in_array($drugUnit, ['مل', 'ml', 'milliliter', 'millilitre', 'ملل', 'ملليلتر'])) {
+                    $unit = 'مل';
+                } elseif (in_array($drugUnit, ['أمبول', 'ampoule', 'ampule', 'vial', 'حقنة', 'amp'])) {
+                    $unit = 'أمبول';
+                } elseif (in_array($drugUnit, ['جرام', 'gram', 'gm', 'g', 'غرام'])) {
+                    $unit = 'جرام';
+                } else {
+                    $unit = $d->drug->unit;
+                }
+            }
+            
+            return [
+                'id' => $d->id,
+                'date' => $dispenseDate ?? ($d->created_at ? Carbon::parse($d->created_at)->format('Y/m/d') : 'غير محدد'),
+                'pharmacistName' => $d->pharmacist ? ($d->pharmacist->full_name ?? $d->pharmacist->name) : 'غير معروف',
+                'pharmacyName' => $d->pharmacy ? ($d->pharmacy->name ?? 'غير محدد') : null,
+                'totalItems' => 1,
+                'items' => [
+                    [
+                        'drugName' => $d->drug ? $d->drug->name : 'غير معروف', 
+                        'quantity' => $d->quantity_dispensed ?? 0,
+                        'unit' => $unit
+                    ]
+                ]
+            ];
+        });
+
+        return response()->json([
+            'patientInfo' => [
+                'fileNumber' => $patient->id,
+                'name' => $patient->full_name ?? $patient->name,
+                'nationalId' => $patient->national_id
+            ],
+            'dispensations' => $formattedHistory
+        ]);
     }
 }

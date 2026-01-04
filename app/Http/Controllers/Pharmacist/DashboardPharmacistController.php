@@ -97,9 +97,9 @@ class DashboardPharmacistController extends BaseApiController
             }
             
             return [
-                'fileNumber' => 'REQ-' . $request->id,
+                'fileNumber' => 'SHP-' . $request->id,
                 'name' => "طلب توريد ({$itemCount} عنصر)",
-                'operationType' => 'إنشاء طلب توريد',
+                'operationType' => 'إنشاء طلب توريد داخلي',
                 'operationDate' => Carbon::parse($createdAt)->format('Y/m/d'),
                 'operationDateTime' => Carbon::parse($createdAt)->format('Y/m/d H:i'),
                 'details' => "طلب توريد يحتوي على {$itemCount} عنصر",
@@ -110,22 +110,18 @@ class DashboardPharmacistController extends BaseApiController
         $operations = $operations->merge($supplyRequestOperations);
 
         // 3. جلب جميع العمليات من AuditLog للصيدلي
-        // نستخدم orWhere بشكل منفصل لضمان التقاط جميع السجلات
+        // نستثني إنشاء طلبات التوريد لأننا جلبناها مباشرة من InternalSupplyRequest لتجنب التكرار
         $auditLogs = AuditLog::where('user_id', $user->id)
             ->where(function($query) {
-                // طلبات التوريد
+                // استلام الشحنات (نستثني إنشاء الطلبات)
                 $query->where(function($q) {
                     $q->where('table_name', 'internal_supply_request')
-                      ->orWhere('action', 'إنشاء طلب توريد')
-                      ->orWhere('action', 'like', '%طلب%')
-                      ->orWhere('action', 'like', '%توريد%');
-                })
-                // استلام الشحنات
-                ->orWhere(function($q) {
-                    $q->where('action', 'pharmacist_confirm_internal_receipt')
-                      ->orWhere('action', 'استلام شحنة')
-                      ->orWhere('action', 'like', '%استلام%')
-                      ->orWhere('action', 'like', '%confirm%');
+                      ->where(function($subQ) {
+                          $subQ->where('action', 'pharmacist_confirm_internal_receipt')
+                               ->orWhere('action', 'استلام شحنة')
+                               ->orWhere('action', 'like', '%استلام%')
+                               ->orWhere('action', 'like', '%confirm%');
+                      });
                 })
                 // إسناد الأدوية
                 ->orWhere('table_name', 'prescription_drug')
@@ -160,7 +156,7 @@ class DashboardPharmacistController extends BaseApiController
                 $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
                 $requestId = $newValues['request_id'] ?? $log->record_id ?? null;
                 
-                $operationData['fileNumber'] = $requestId ? 'REQ-' . $requestId : 'N/A';
+                $operationData['fileNumber'] = $requestId ? 'SHP-' . $requestId : 'N/A';
                 
                 // تحديد نوع العملية
                 if ($log->action === 'إنشاء طلب توريد' || 
@@ -168,7 +164,7 @@ class DashboardPharmacistController extends BaseApiController
                     ($isSupplyRequest && !$actionContainsReceive)) {
                     $itemCount = $newValues['item_count'] ?? 0;
                     $operationData['name'] = "طلب توريد ({$itemCount} عنصر)";
-                    $operationData['operationType'] = 'إنشاء طلب توريد';
+                    $operationData['operationType'] = 'إنشاء طلب توريد داخلي';
                 } elseif ($log->action === 'pharmacist_confirm_internal_receipt' || 
                           $log->action === 'استلام شحنة' ||
                           $actionContainsReceive) {
@@ -365,7 +361,7 @@ class DashboardPharmacistController extends BaseApiController
     private function translateAction($action)
     {
         $translations = [
-            'إنشاء طلب توريد' => 'إنشاء طلب توريد',
+            'إنشاء طلب توريد' => 'إنشاء طلب توريد داخلي',
             'pharmacist_confirm_internal_receipt' => 'استلام شحنة',
             'استلام شحنة' => 'استلام شحنة',
             'إضافة دواء' => 'إسناد دواء للمريض',
@@ -392,8 +388,10 @@ class DashboardPharmacistController extends BaseApiController
         $user = $request->user();
         $pharmacyId = $this->getPharmacistPharmacyId($user);
 
-        // 1. عمليات الصرف اليوم (في هذه الصيدلية)
-        $dispensingToday = Dispensing::whereDate('created_at', Carbon::today());
+        // 1. عمليات الصرف اليوم (في هذه الصيدلية) - استثناء العمليات التي تم التراجع عنها
+        $dispensingToday = Dispensing::where('pharmacist_id', $user->id)
+            ->where('reverted', false)
+            ->whereDate('created_at', Carbon::today());
         if ($pharmacyId) {
             $dispensingToday->where('pharmacy_id', $pharmacyId);
         }
@@ -414,8 +412,10 @@ class DashboardPharmacistController extends BaseApiController
         $criticalStockCount = $criticalStockQuery->count();
 
 
-        // 3. المرضى الذين تم خدمتهم هذا الأسبوع (في هذه الصيدلية)
-        $patientsWeekQuery = Dispensing::whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+        // 3. المرضى الذين تم خدمتهم هذا الأسبوع (في هذه الصيدلية) - استثناء العمليات التي تم التراجع عنها
+        $patientsWeekQuery = Dispensing::where('pharmacist_id', $user->id)
+            ->where('reverted', false)
+            ->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
         
         if ($pharmacyId) {
             $patientsWeekQuery->where('pharmacy_id', $pharmacyId);
@@ -423,8 +423,9 @@ class DashboardPharmacistController extends BaseApiController
         
         $patientsWeekCount = $patientsWeekQuery->distinct('patient_id')->count('patient_id');
 
-        // 4. عدد طلبات التوريد (التي أنشأها الصيدلي)
-        $supplyRequestsQuery = InternalSupplyRequest::where('requested_by', $user->id);
+        // 4. عدد طلبات التوريد (التي أنشأها الصيدلي) - استثناء الطلبات الملغاة
+        $supplyRequestsQuery = InternalSupplyRequest::where('requested_by', $user->id)
+            ->where('status', '!=', 'cancelled');
         
         if ($pharmacyId) {
             $supplyRequestsQuery->where('pharmacy_id', $pharmacyId);
@@ -432,15 +433,28 @@ class DashboardPharmacistController extends BaseApiController
         
         $supplyRequestsCount = $supplyRequestsQuery->count();
 
-        // 5. عدد عمليات استلام طلبات التوريد (الطلبات التي تم استلامها - status = 'fulfilled')
-        $receivedRequestsQuery = InternalSupplyRequest::where('requested_by', $user->id)
-            ->where('status', 'fulfilled');
+        // 5. عدد عمليات استلام طلبات التوريد (التي استلمها هذا الصيدلي فعلياً)
+        // نبحث في AuditLog عن السجلات التي تؤكد أن هذا الصيدلي استلم الشحنة
+        $receivedRequestIds = AuditLog::where('user_id', $user->id)
+            ->where('action', 'pharmacist_confirm_internal_receipt')
+            ->where('table_name', 'internal_supply_request')
+            ->pluck('record_id')
+            ->unique()
+            ->toArray();
         
-        if ($pharmacyId) {
-            $receivedRequestsQuery->where('pharmacy_id', $pharmacyId);
+        if (empty($receivedRequestIds)) {
+            $receivedRequestsCount = 0;
+        } else {
+            // التحقق من أن الشحنة تخص صيدلية الصيدلي وأنها مستلمة فعلياً
+            $receivedRequestsQuery = InternalSupplyRequest::whereIn('id', $receivedRequestIds)
+                ->where('status', 'fulfilled');
+            
+            if ($pharmacyId) {
+                $receivedRequestsQuery->where('pharmacy_id', $pharmacyId);
+            }
+            
+            $receivedRequestsCount = $receivedRequestsQuery->count();
         }
-        
-        $receivedRequestsCount = $receivedRequestsQuery->count();
 
         $data = [
             'totalRegistered' => $dispensingTodayCount,

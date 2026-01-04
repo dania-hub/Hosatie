@@ -6,6 +6,10 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // تهيئة axios مع interceptor لإضافة التوكن تلقائياً
 const api = axios.create({
@@ -67,6 +71,9 @@ const operationTypes = computed(() => {
 // 2. منطق البحث والفرز والتصفية الموحد
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const operationTypeFilter = ref("الكل");
 
 // حالة الفرز الحالية
@@ -75,10 +82,26 @@ const sortOrder = ref('desc');
 
 // دالة تحويل التاريخ من صيغة (yyyy/mm/dd) إلى كائن Date للمقارنة
 const parseDate = (dateString) => {
-    if (!dateString) return new Date(0);
-    const parts = dateString.split('/');
-    // يتم إنشاء التاريخ بتنسيق (Year, MonthIndex, Day)
-    return new Date(parts[0], parts[1] - 1, parts[2]);
+    if (!dateString) return null;
+    try {
+        // محاولة تحويل الصيغة Y/m/d إلى Date
+        if (dateString.includes('/')) {
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                return new Date(parts[0], parts[1] - 1, parts[2]);
+            }
+        }
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? null : date;
+    } catch {
+        return null;
+    }
+};
+
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
 };
 
 // دالة لضبط معيار الفرز (الحقل والترتيب معًا)
@@ -94,11 +117,19 @@ const filteredOperations = computed(() => {
 
     // 1. التصفية (البحث ونص نوع العملية ورقم الملف)
     list = list.filter(op => {
-        // تصفية حسب نص البحث
-        const searchMatch = !search ||
-                            op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            op.operationType.includes(search);
+        // تصفية حسب نص البحث - البحث في جميع الحقول
+        const fileNumberStr = op.fileNumber ? op.fileNumber.toString().toLowerCase() : '';
+        const nameStr = op.name ? op.name.toLowerCase() : '';
+        const operationTypeStr = op.operationType ? op.operationType.toLowerCase() : '';
+        const operationDateStr = op.operationDate ? op.operationDate.toString() : '';
+        const drugNameStr = op.drugName ? op.drugName.toLowerCase() : '';
+        const quantityStr = op.quantity ? op.quantity.toString() : '';
+        const detailsStr = op.details ? op.details.toLowerCase() : '';
+        
+        // إنشاء نص شامل يحتوي على جميع المعلومات المعروضة
+        const fullText = `${fileNumberStr} ${nameStr} ${operationTypeStr} ${operationDateStr} ${drugNameStr} ${quantityStr} ${detailsStr}`.trim();
+        
+        const searchMatch = !search || fullText.includes(search);
 
         // تصفية حسب نوع العملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
@@ -107,15 +138,49 @@ const filteredOperations = computed(() => {
         return searchMatch && typeMatch;
     });
 
-    // 2. الفرز
+    // 2. فلترة حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((op) => {
+            const operationDate = op.operationDate;
+            if (!operationDate) return false;
+
+            const operationDateObj = parseDate(operationDate);
+            if (!operationDateObj) return false;
+
+            operationDateObj.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+
+            let matchesFrom = true;
+            let matchesTo = true;
+
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = operationDateObj >= fromDate;
+            }
+
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                matchesTo = operationDateObj <= toDate;
+            }
+
+            return matchesFrom && matchesTo;
+        });
+    }
+
+    // 3. الفرز
     if (sortKey.value) {
         list.sort((a, b) => {
             let comparison = 0;
 
             if (sortKey.value === 'name') {
-                comparison = a.name.localeCompare(b.name, 'ar');
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                comparison = nameA.localeCompare(nameB, 'ar');
             } else if (sortKey.value === 'fileNumber') {
-                comparison = a.fileNumber - b.fileNumber;
+                const fileNumA = typeof a.fileNumber === 'number' ? a.fileNumber : 0;
+                const fileNumB = typeof b.fileNumber === 'number' ? b.fileNumber : 0;
+                comparison = fileNumA - fileNumB;
             } else if (sortKey.value === 'operationType') {
                 comparison = a.operationType.localeCompare(b.operationType, 'ar');
             } else if (sortKey.value === 'operationDate') {
@@ -133,25 +198,31 @@ const filteredOperations = computed(() => {
 });
 
 // ----------------------------------------------------
-// 3. منطق رسالة النجاح (Success Alert Logic)
+// 3. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
     
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
     
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 
 // ----------------------------------------------------
@@ -163,7 +234,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -202,10 +273,10 @@ const printTable = () => {
             }
         </style>
 
-        <h1>سجل العمليات (تقرير طباعة)</h1>
+        <h1>سجل العمليات</h1>
         
         <p class="results-info">
-            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
+            عدد النتائج : ${resultsCount}
         </p>
         
         <table>
@@ -222,14 +293,37 @@ const printTable = () => {
 
     filteredOperations.value.forEach(op => {
         let operationType = op.operationType;
+        
+        // إضافة رقم الطلب/الشحنة بجانب نوع العملية
+        if (op.fileNumber && op.fileNumber.toString().startsWith('SHP-')) {
+            operationType = `${op.operationType} (${op.fileNumber})`;
+        }
+        
         if (op.drugName && op.quantity) {
-            operationType = `${op.operationType} - الدواء: ${op.drugName} (الكمية: ${op.quantity})`;
+            operationType = `${operationType} - الدواء: ${op.drugName} (الكمية: ${op.quantity})`;
+        }
+        
+        // معالجة عرض رقم الملف
+        let fileNumberDisplay = op.fileNumber;
+        if (!fileNumberDisplay || fileNumberDisplay === 'N/A' || fileNumberDisplay === '-') {
+            fileNumberDisplay = '-';
+        }
+        
+        // معالجة عرض الاسم
+        let nameDisplay = op.name;
+        if (!nameDisplay || nameDisplay === '-' || nameDisplay === 'غير محدد') {
+            // إذا كان الاسم يحتوي على "طلب توريد" أو "استلام شحنة"، نعرضه كما هو
+            if (nameDisplay && (nameDisplay.includes('طلب توريد') || nameDisplay.includes('استلام شحنة'))) {
+                // نعرضه كما هو
+            } else {
+                nameDisplay = '-';
+            }
         }
         
         tableHtml += `
             <tr>
-                <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
+                <td>${fileNumberDisplay}</td>
+                <td>${nameDisplay}</td>
                 <td>${operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
@@ -250,7 +344,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
@@ -266,8 +360,67 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم الملف، الاسم، نوع العملية، التاريخ، الدواء...)" />
                         </div>
+                        
+                        <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                        <button
+                            @click="showDateFilter = !showDateFilter"
+                            class="h-11 w-23 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                        >
+                            <Icon
+                                icon="solar:calendar-bold"
+                                class="w-5 h-5"
+                            />
+                        </button>
+
+                        <!-- فلتر التاريخ -->
+                        <Transition
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="opacity-0 scale-95"
+                            enter-to-class="opacity-100 scale-100"
+                            leave-active-class="transition duration-150 ease-in"
+                            leave-from-class="opacity-100 scale-100"
+                            leave-to-class="opacity-0 scale-95"
+                        >
+                            <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateFrom"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="من تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <span class="text-gray-600 font-medium">إلى</span>
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateTo"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="إلى تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <button
+                                    v-if="dateFrom || dateTo"
+                                    @click="clearDateFilter"
+                                    class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    title="مسح فلتر التاريخ"
+                                >
+                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                    مسح
+                                </button>
+                            </div>
+                        </Transition>
                         
                         <div class="dropdown dropdown-start">
                             <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
@@ -380,10 +533,26 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             :key="index"
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            <td class="file-number-col">{{ op.fileNumber }}</td>
-                                            <td class="name-col">{{ op.name }}</td>
+                                            <td class="file-number-col">
+                                                <span v-if="op.fileNumber && op.fileNumber !== 'N/A' && op.fileNumber !== '-' && !op.fileNumber.toString().startsWith('SHP-')">
+                                                    {{ op.fileNumber }}
+                                                </span>
+                                                <span v-else class="text-gray-400 italic">-</span>
+                                            </td>
+                                            <td class="name-col">
+                                                <span v-if="op.name && op.name !== '-' && op.name !== 'غير محدد' && !op.name.includes('طلب توريد') && !op.name.includes('استلام شحنة')">
+                                                    {{ op.name }}
+                                                </span>
+                                                <span v-else class="text-gray-400 italic">-</span>
+                                            </td>
                                             <td class="operation-type-col">
-                                                <div class="font-semibold">{{ op.operationType }}</div>
+                                                <div class="font-semibold">
+                                                    {{ op.operationType }}
+                                                    <span v-if="op.fileNumber && op.fileNumber.toString().startsWith('SHP-')" 
+                                                          class=" font-normal text-sm mr-2">
+                                                        ({{ op.fileNumber }})
+                                                    </span>
+                                                </div>
                                                 <div v-if="op.drugName && op.quantity" class="text-sm text-gray-600 mt-1">
                                                     الدواء: {{ op.drugName }} - الكمية: {{ op.quantity }}
                                                 </div>
@@ -404,23 +573,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
             </main>
         </DefaultLayout>
 
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div 
-            v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-            dir="rtl"
-        >
-            {{ successMessage }}
-        </div>
-    </Transition>
-
+    <Toast
+        :show="isAlertVisible"
+        :message="alertMessage"
+        :type="alertType"
+        @close="isAlertVisible = false"
+    />
 </template>
 
 <style>

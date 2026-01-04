@@ -134,7 +134,7 @@ class PatientPharmacistController extends BaseApiController
             foreach ($activePrescription->drugs as $drug) {
                 $pivot = $drug->pivot;
 
-                $monthlyQty = (int)($pivot->monthly_quantity ?? 0);
+                $currentMonthlyQty = (int)($pivot->monthly_quantity ?? 0);
                 $dailyQty = (float)($pivot->daily_quantity ?? 0);
                 $unit = $this->getDrugUnit($drug);
 
@@ -218,6 +218,10 @@ class PatientPharmacistController extends BaseApiController
                     ->where('reverted', false) // استبعاد السجلات الملغاة
                     ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
                     ->sum('quantity_dispensed');
+                
+                // حساب الكمية الشهرية الأصلية (الكمية الحالية + المصروفة هذا الشهر)
+                // لأن monthly_quantity يتم خصمه عند الصرف، نحتاج لإعادة حساب القيمة الأصلية
+                $monthlyQty = $currentMonthlyQty + $totalDispensedThisMonth;
                 
                 // حساب الكمية المتبقية
                 $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
@@ -461,56 +465,31 @@ class PatientPharmacistController extends BaseApiController
                 $inventoryChanges[count($inventoryChanges) - 1]['original_monthly_quantity'] = $originalMonthlyQuantity;
                 $inventoryChanges[count($inventoryChanges) - 1]['monthly_quantity_to_restore'] = $item['quantity'];
 
-                // هـ. إنشاء أو تحديث سجل الصرف
-                // إذا كان هناك سجل موجود لنفس الدواء في نفس الشهر، نضيف الكمية الجديدة
+                // هـ. إنشاء سجل صرف جديد (كل عملية صرف = سجل منفصل)
+                // يتم إنشاء سجل جديد لكل عملية صرف حتى لو كان نفس الدواء في نفس الشهر
+                // هذا يسمح بعرض تفاصيل كل عملية صرف بشكل منفصل في سجل الصرف
                 $dispenseMonth = Carbon::now()->startOfMonth()->format('Y-m-d');
                 
-                $existingDispensing = Dispensing::where('prescription_id', $prescription->id)
-                    ->where('drug_id', $drug->id)
-                    ->where('dispense_month', $dispenseMonth)
-                    ->first();
+                // إنشاء سجل جديد لكل عملية صرف
+                $dispensing = Dispensing::create([
+                    'prescription_id' => $prescription->id,
+                    'patient_id' => $patient->id,
+                    'drug_id' => $drug->id,
+                    'pharmacist_id' => $pharmacist->id,
+                    'pharmacy_id' => $pharmacyId,
+                    'dispense_month' => $dispenseMonth,
+                    'quantity_dispensed' => $item['quantity'],
+                ]);
                 
-                if ($existingDispensing) {
-                    // حفظ الكمية الأصلية للتراجع
-                    $originalDispensedQuantity = $existingDispensing->quantity_dispensed;
-                    
-                    // تحديث الكمية المصروفة بإضافة الكمية الجديدة
-                    $existingDispensing->quantity_dispensed += $item['quantity'];
-                    $existingDispensing->pharmacist_id = $pharmacist->id;
-                    $existingDispensing->pharmacy_id = $pharmacyId;
-                    $existingDispensing->save();
-                    
-                    // حفظ معلومات السجل المحدث للتراجع
-                    $dispensationsCreated[] = [
-                        'dispensing_id' => $existingDispensing->id,
-                        'drug_id' => $drug->id,
-                        'drug_name' => $item['drugName'],
-                        'quantity' => $item['quantity'],
-                        'original_quantity' => $originalDispensedQuantity,
-                        'is_new' => false,
-                    ];
-                } else {
-                    // إنشاء سجل جديد
-                    $dispensing = Dispensing::create([
-                        'prescription_id' => $prescription->id,
-                        'patient_id' => $patient->id,
-                        'drug_id' => $drug->id,
-                        'pharmacist_id' => $pharmacist->id,
-                        'pharmacy_id' => $pharmacyId,
-                        'dispense_month' => $dispenseMonth,
-                        'quantity_dispensed' => $item['quantity'],
-                    ]);
-                    
-                    // حفظ معلومات السجل الجديد للتراجع
-                    $dispensationsCreated[] = [
-                        'dispensing_id' => $dispensing->id,
-                        'drug_id' => $drug->id,
-                        'drug_name' => $item['drugName'],
-                        'quantity' => $item['quantity'],
-                        'original_quantity' => 0,
-                        'is_new' => true,
-                    ];
-                }
+                // حفظ معلومات السجل الجديد للتراجع
+                $dispensationsCreated[] = [
+                    'dispensing_id' => $dispensing->id,
+                    'drug_id' => $drug->id,
+                    'drug_name' => $item['drugName'],
+                    'quantity' => $item['quantity'],
+                    'original_quantity' => 0,
+                    'is_new' => true,
+                ];
             }
 
             DB::commit();

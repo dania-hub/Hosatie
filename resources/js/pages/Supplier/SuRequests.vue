@@ -352,22 +352,12 @@
             :is-loading="isConfirming"
         />
 
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </DefaultLayout>
 </template>
 
@@ -379,6 +369,7 @@ import axios from "axios"; // استيراد axios
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
@@ -553,7 +544,7 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA');
+        return date.toLocaleDateString('en');
     } catch {
         return dateString;
     }
@@ -712,14 +703,14 @@ const handleSupplyConfirm = async (data) => {
         // BaseApiController يُرجع البيانات بداخل data
         const responseData = response.data?.data ?? response.data;
         
-        showSuccessAlert(`✅ تم إنشاء طلب التوريد بنجاح!`);
+        showSuccessAlert(` تم إنشاء طلب التوريد بنجاح!`);
         closeSupplyRequestModal();
         
         await fetchShipments();
         
     } catch (err) {
         const errorMessage = err.response?.data?.message || err.message || 'فشل في إنشاء طلب التوريد';
-        showSuccessAlert(`❌ ${errorMessage}`);
+        showSuccessAlert(` ${errorMessage}`);
         console.error('Error creating supply request:', err);
     } finally {
         isSubmittingSupply.value = false;
@@ -856,7 +847,7 @@ const handleConfirmation = async (confirmationData) => {
         // التحقق من أن الطلب معتمد قبل تأكيد الاستلام
         const shipment = shipmentsData.value.find(s => s.id === shipmentId);
         if (shipment && shipment.requestStatus !== 'جديد' && shipment.statusOriginal !== 'approved') {
-            showSuccessAlert(`❌ لا يمكن تأكيد الاستلام. يجب أن يكون الطلب معتمداً من المدير العام أولاً.`);
+            showSuccessAlert(` لا يمكن تأكيد الاستلام. يجب أن يكون الطلب معتمداً من المدير العام أولاً.`);
             closeConfirmationModal();
             return;
         }
@@ -873,13 +864,13 @@ const handleConfirmation = async (confirmationData) => {
             shipmentsData.value[shipmentIndex].received = true;
         }
         
-        showSuccessAlert(`✅ تم تأكيد استلام الشحنة بنجاح!`);
+        showSuccessAlert(` تم تأكيد استلام الشحنة بنجاح!`);
         closeConfirmationModal();
         await fetchShipments();
         
     } catch (err) {
         const errorMessage = err.response?.data?.message || err.message || 'فشل في تأكيد الاستلام';
-        showSuccessAlert(`❌ ${errorMessage}`);
+        showSuccessAlert(` ${errorMessage}`);
         console.error('Error confirming shipment:', err);
     } finally {
         isConfirming.value = false;
@@ -903,7 +894,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -918,9 +909,9 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .center-icon { text-align: center; }
 </style>
 
-<h1>قائمة طلبات التوريد (تقرير طباعة)</h1>
+<h1>قائمة طلبات التوريد </h1>
 
-<p class="results-info">عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}</p>
+<p class="results-info">عدد النتائج : ${resultsCount}</p>
 
 <table>
 <thead>
@@ -928,19 +919,19 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
-    <th class="center-icon">الإستلام</th> </tr>
+   </tr>
 </thead>
 <tbody>
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '✅' : '❌';
+        const receivedIcon = shipment.received ? '' : '';
         tableHtml += `
 <tr>
     <td>${shipment.shipmentNumber}</td>
     <td>${formatDate(shipment.requestDate)}</td>
     <td>${shipment.requestStatus}</td>
-    <td class="center-icon">${receivedIcon}</td>
+ 
 </tr>
 `;
     });
@@ -950,7 +941,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 </table>
 `;
 
-    printWindow.document.write("<html><head><title>طباعة قائمة طلبات التوريد</title>");
+    printWindow.document.write("<html><head><title> قائمة طلبات التوريد</title>");
     printWindow.document.write("</head><body>");
     printWindow.document.write(tableHtml);
     printWindow.document.write("</body></html>");
@@ -959,30 +950,35 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
 // ----------------------------------------------------
 // 9. نظام التنبيهات
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
 
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+// للتوافق مع الطلبات القديمة
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
 
 // ----------------------------------------------------
 // 10. دورة الحياة

@@ -112,9 +112,16 @@
                                             class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                                         >
                                             <div class="flex justify-between items-center">
-                                                <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
-                                                <span v-if="getDrugUnit(drug)" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
-                                                    {{ getDrugUnit(drug) }}
+                                                <div class="flex flex-col gap-1">
+                                                    <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
+                                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                                        <span v-if="drug.strength">
+                                                            تركيز: {{ drug.strength }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <span v-if="drug.unit || getDrugUnit(drug)" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
+                                                    {{ drug.unit || getDrugUnit(drug) }}
                                                 </span>
                                             </div>
                                         </li>
@@ -196,7 +203,12 @@
                                         {{ index + 1 }}
                                     </div>
                                     <div>
-                                        <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
+                                        <p class="font-bold text-[#2E5077]">
+                                            {{ item.name }}
+                                            <span v-if="item.strength" class="text-xs font-normal text-gray-500 mr-2">
+                                                ({{ item.strength }})
+                                            </span>
+                                        </p>
                                         <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }}</p>
                                     </div>
                                 </div>
@@ -312,6 +324,7 @@ const handleInput = () => {
     if (searchTermDrug.value !== selectedDrugName.value) {
         selectedDrugName.value = "";
         selectedDrugType.value = "";
+        selectedDrugData.value = null;
         dailyQuantity.value = null;
         hasInteractedWithQuantity.value = false;
     }
@@ -378,6 +391,9 @@ const filterDrugs = () => {
 
 // ✅ الحصول على وحدة الدواء
 const getDrugUnit = (drug) => {
+    // استخدام حقل unit من البيانات إذا كان متوفراً
+    if (drug.unit) return drug.unit;
+    // استخدام type كبديل
     if (drug.type === 'Tablet' || drug.type === 'Capsule') return 'حبة/قرص';
     if (drug.type === 'Liquid' || drug.type === 'Syrup') return 'مل';
     if (drug.type === 'Injection') return 'أمبول';
@@ -385,7 +401,14 @@ const getDrugUnit = (drug) => {
     return 'وحدة';
 };
 
+const selectedDrugData = ref(null);
+
 const quantityUnit = computed(() => {
+    // استخدام حقل unit من البيانات المختارة إذا كان متوفراً
+    if (selectedDrugData.value?.unit) {
+        return selectedDrugData.value.unit;
+    }
+    // استخدام type كبديل
     if (selectedDrugType.value === "Tablet" || selectedDrugType.value === "Capsule") return "حبة/قرص";
     if (selectedDrugType.value === "Liquid" || selectedDrugType.value === "Syrup") return "مل";
     if (selectedDrugType.value === "Injection") return "أمبول";
@@ -453,6 +476,7 @@ const clearForm = () => {
     searchTermDrug.value = "";
     selectedDrugName.value = "";
     selectedDrugType.value = "";
+    selectedDrugData.value = null;
     dailyQuantity.value = null;
     dailyDosageList.value = [];
     filteredDrugs.value = [];
@@ -480,6 +504,9 @@ const selectDrug = (drug) => {
         return dName.toLowerCase() === drugName.toLowerCase();
     });
     
+    // حفظ بيانات الدواء المختار
+    selectedDrugData.value = fullDrugData || drug;
+    
     const newDrugType = fullDrugData ? (fullDrugData.type || 'Tablet') : 'Tablet';
     selectedDrugType.value = newDrugType;
 
@@ -496,6 +523,7 @@ const selectDrug = (drug) => {
 const clearSelectedDrug = () => {
     selectedDrugName.value = "";
     selectedDrugType.value = "";
+    selectedDrugData.value = null;
     dailyQuantity.value = null;
     hasInteractedWithQuantity.value = false;
     searchTermDrug.value = "";
@@ -533,7 +561,7 @@ const showAllDrugsOnFocus = () => {
 
 const addNewDrug = () => {
     if (isCurrentDrugValid.value) {
-        const drugInfo = props.allDrugsData.find(d => {
+        const drugInfo = selectedDrugData.value || props.allDrugsData.find(d => {
             const dName = d.name || d.drugName || '';
             return dName.toLowerCase() === selectedDrugName.value.toLowerCase();
         });
@@ -541,6 +569,7 @@ const addNewDrug = () => {
         dailyDosageList.value.push({
             drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
+            strength: drugInfo?.strength || null,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
             type: selectedDrugType.value,
@@ -552,6 +581,7 @@ const addNewDrug = () => {
         selectedCategory.value = "";
         selectedDrugName.value = "";
         selectedDrugType.value = "";
+        selectedDrugData.value = null;
         dailyQuantity.value = null;
         hasInteractedWithQuantity.value = false;
         filteredDrugs.value = [];
@@ -568,7 +598,7 @@ const removeItem = (index) => {
 
 const confirmAddition = () => {
     if (isCurrentDrugValid.value) {
-        const drugInfo = props.allDrugsData.find(d => {
+        const drugInfo = selectedDrugData.value || props.allDrugsData.find(d => {
             const dName = d.name || d.drugName || '';
             return dName.toLowerCase() === selectedDrugName.value.toLowerCase();
         });
@@ -576,6 +606,7 @@ const confirmAddition = () => {
         dailyDosageList.value.push({
             drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
+            strength: drugInfo?.strength || null,
             quantity: dailyQuantity.value,
             unit: quantityUnit.value,
             type: selectedDrugType.value,
@@ -585,6 +616,7 @@ const confirmAddition = () => {
         selectedCategory.value = "";
         selectedDrugName.value = "";
         selectedDrugType.value = "";
+        selectedDrugData.value = null;
         dailyQuantity.value = null;
         hasInteractedWithQuantity.value = false;
     }

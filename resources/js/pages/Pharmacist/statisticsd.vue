@@ -2,7 +2,9 @@
 import { ref, onMounted } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
-import DefaultLayout from "@/components/DefaultLayout.vue"; 
+import DefaultLayout from "@/components/DefaultLayout.vue";
+import LoadingState from "@/components/Shared/LoadingState.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue"; 
 
 // ----------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
@@ -84,8 +86,7 @@ onMounted(() => {
 <DefaultLayout>
     <main class="flex-1 p-4 sm:p-8 pt-20 sm:pt-5 min-h-screen">
         <!-- حالة التحميل -->
-        <!-- حالة التحميل -->
-        <LoadingState v-if="stats.isLoading" message="جاري تحميل الإحصائيات..." />
+        <LoadingState v-if="stats.isLoading" title="جاري تحميل الإحصائيات..." />
 
         <!-- حالة الخطأ -->
         <ErrorState v-else-if="stats.error" :message="stats.error" :retry="fetchStats" />

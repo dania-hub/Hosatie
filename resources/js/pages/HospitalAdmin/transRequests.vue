@@ -596,6 +596,9 @@ const getStatusText = (status) => {
     if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
         return 'تم القبول';
     }
+    if (statusLower === 'preapproved' || statusLower.includes('الموافقة الأولية')) {
+        return 'تمت الموافقة الأولية';
+    }
     if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
         return 'مرفوض';
     }
@@ -613,6 +616,9 @@ const getStatusIcon = (status) => {
     
     if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
         return 'solar:check-circle-bold';
+    }
+    if (statusLower === 'preapproved' || statusLower.includes('الموافقة الأولية')) {
+        return 'solar:check-circle-bold-duotone';
     }
     if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
         return 'solar:close-circle-bold';
@@ -632,6 +638,9 @@ const getStatusIconClass = (status) => {
     if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
         return 'text-green-600';
     }
+    if (statusLower === 'preapproved' || statusLower.includes('الموافقة الأولية')) {
+        return 'text-blue-600';
+    }
     if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
         return 'text-red-600';
     }
@@ -650,6 +659,9 @@ const getStatusClass = (status) => {
     if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
         return 'bg-green-100 text-green-700';
     }
+    if (statusLower === 'preapproved' || statusLower.includes('الموافقة الأولية')) {
+        return 'bg-blue-100 text-blue-700';
+    }
     if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
         return 'bg-red-100 text-red-700';
     }
@@ -665,7 +677,11 @@ const canRespondToRequest = (request) => {
     if (!status) return true;
     
     const statusLower = String(status).toLowerCase();
-    return statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد');
+    return statusLower === 'pending' || 
+           statusLower === 'preapproved' || 
+           statusLower.includes('مراجعة') || 
+           statusLower.includes('قيد') ||
+           statusLower.includes('الموافقة الأولية');
 };
 
 const isApproved = (request) => {

@@ -10,25 +10,77 @@ import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
 
+// إعداد axios مع base URL و interceptor للتوكن
+const api = axios.create({
+    baseURL: '/api',
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
+
+// إضافة interceptor لإضافة التوكن تلقائياً
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// إضافة interceptor للتعامل مع الأخطاء
+api.interceptors.response.use(
+    (response) => response.data, // إرجاع البيانات مباشرة
+    (error) => {
+        console.error('API Error:', error.response?.data || error.message);
+        if (error.response?.status === 401) {
+            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+        } else if (error.response?.status === 403) {
+            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+        } else if (!error.response) {
+            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+        }
+        return Promise.reject(error);
+    }
+);
 
 const operations = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
 
 // دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
-// دالة جلب البيانات من نقطة النهاية (باستخدام Axios)
 const fetchOperations = async () => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await axios.get('/api/operations');
+        const response = await api.get('/hospitaladmin/operations');
         
-        operations.value = response.data; // 👈 تحديث البيانات المجلوبة
+        // التأكد من أن response هو array
+        if (Array.isArray(response)) {
+            operations.value = response;
+        } else if (response && Array.isArray(response.data)) {
+            operations.value = response.data;
+        } else {
+            operations.value = [];
+            console.warn('Unexpected response format:', response);
+        }
+        
+        if (operations.value.length === 0) {
+            console.log('No operations found');
+        }
         
     } catch (err) {
         // Axios يلتقط أخطاء الاتصال والخادم
         console.error("Failed to fetch operations:", err);
+        console.error("Error response:", err.response);
         error.value = err.response?.data?.message || err.message || "فشل في تحميل البيانات.";
+        operations.value = []; // تعيين قائمة فارغة في حالة الخطأ
         showSuccessAlert("❌ " + error.value);
     } finally {
         isLoading.value = false;
@@ -80,8 +132,7 @@ const filteredOperations = computed(() => {
         // تصفية حسب نص البحث
         const searchMatch = !search ||
                             op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            op.operationType.includes(search);
+                            op.operationType.toLowerCase().includes(search);
 
         // تصفية حسب نوع العملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
@@ -95,9 +146,7 @@ const filteredOperations = computed(() => {
         list.sort((a, b) => {
             let comparison = 0;
 
-            if (sortKey.value === 'name') {
-                comparison = a.name.localeCompare(b.name, 'ar');
-            } else if (sortKey.value === 'fileNumber') {
+            if (sortKey.value === 'fileNumber') {
                 comparison = a.fileNumber - b.fileNumber;
             } else if (sortKey.value === 'operationType') {
                 comparison = a.operationType.localeCompare(b.operationType, 'ar');
@@ -194,8 +243,7 @@ const printTable = () => {
         <table>
             <thead>
                 <tr>
-                    <th>رقم الملف</th>
-                    <th>الإسم الرباعي</th>
+                    <th>رقم العملية</th>
                     <th>نوع العملية</th>
                     <th>تاريخ العملية</th>
                 </tr>
@@ -207,7 +255,6 @@ const printTable = () => {
         tableHtml += `
             <tr>
                 <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
                 <td>${op.operationType}</td>
                 <td>${op.operationDate}</td>
             </tr>
@@ -244,7 +291,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم العملية أو نوع العملية" />
                         </div>
                         
                         <div class="dropdown dropdown-start">
@@ -290,17 +337,17 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                     </a>
                                 </li>
                                 
-                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الاسم:</li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب نوع العملية:</li>
                                 <li>
-                                    <a @click="sortOperations('name', 'asc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}">
-                                        الاسم (أ - ي)
+                                    <a @click="sortOperations('operationType', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationType' && sortOrder === 'asc'}">
+                                        نوع العملية (أ - ي)
                                     </a>
                                 </li>
                                 <li>
-                                    <a @click="sortOperations('name', 'desc')"
-                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}">
-                                        الاسم (ي - أ)
+                                    <a @click="sortOperations('operationType', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'operationType' && sortOrder === 'desc'}">
+                                        نوع العملية (ي - أ)
                                     </a>
                                 </li>
                             </ul>
@@ -334,8 +381,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                             <table dir="rtl" class="table w-full text-right min-w-[700px] border-collapse">
                                 <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
                                     <tr>
-                                        <th class="file-number-col">رقم الملف</th>
-                                        <th class="name-col">الإسم الرباعي</th>
+                                        <th class="file-number-col">رقم العملية</th>
                                         <th class="operation-type-col">نوع العملية</th>
                                         <th class="operation-date-col">تاريخ العملية</th>
                                         </tr>
@@ -343,12 +389,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 
                                 <tbody>
                                     <tr v-if="isLoading">
-                                        <td colspan="4" class="p-4">
+                                        <td colspan="3" class="p-4">
                                             <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
                                     <tr v-else-if="error">
-                                        <td colspan="4" class="py-12">
+                                        <td colspan="3" class="py-12">
                                             <ErrorState :message="error" :retry="fetchOperations" />
                                         </td>
                                     </tr>
@@ -359,13 +405,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
                                             <td class="file-number-col">{{ op.fileNumber }}</td>
-                                            <td class="name-col">{{ op.name }}</td>
                                             <td class="operation-type-col">{{ op.operationType }}</td>
                                             <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
                                         <tr v-if="filteredOperations.length === 0">
-                                            <td colspan="4" class="py-12">
+                                            <td colspan="3" class="py-12">
                                                 <EmptyState message="لا توجد عمليات مطابقة لمعايير البحث" />
                                             </td>
                                         </tr>

@@ -115,6 +115,25 @@ class DepartmentHospitalAdminController extends BaseApiController
 
             $dep->load('head');
 
+            // تسجيل العملية في audit_log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'إضافة قسم',
+                    'table_name' => 'departments',
+                    'record_id' => $dep->id,
+                    'new_values' => json_encode([
+                        'name' => $dep->name,
+                        'head_user_id' => $dep->head_user_id,
+                        'status' => $dep->status,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for department creation', ['error' => $e->getMessage()]);
+            }
+
             return $this->sendSuccess([
                 'id'          => $dep->id,
                 'name'        => $dep->name,
@@ -162,9 +181,39 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'status'       => isset($data['isActive']) ? ($data['isActive'] ? 'active' : 'inactive') : $dep->status,
             ]);
 
+            $oldStatus = $dep->getOriginal('status');
             $dep->load('head');
 
-            $action = isset($data['isActive']) && $data['isActive'] !== ($dep->getOriginal('status') === 'active') 
+            // تسجيل العملية في audit_log
+            try {
+                $logAction = 'تعديل قسم';
+                if (isset($data['isActive']) && $data['isActive'] !== ($oldStatus === 'active')) {
+                    $logAction = $data['isActive'] ? 'تفعيل قسم' : 'تعطيل قسم';
+                }
+                
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => $logAction,
+                    'table_name' => 'departments',
+                    'record_id' => $dep->id,
+                    'old_values' => json_encode([
+                        'name' => $dep->getOriginal('name'),
+                        'status' => $oldStatus,
+                        'head_user_id' => $dep->getOriginal('head_user_id'),
+                    ]),
+                    'new_values' => json_encode([
+                        'name' => $dep->name,
+                        'status' => $dep->status,
+                        'head_user_id' => $dep->head_user_id,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for department update', ['error' => $e->getMessage()]);
+            }
+
+            $action = isset($data['isActive']) && $data['isActive'] !== ($oldStatus === 'active') 
                 ? ($data['isActive'] ? ' وتم تفعيله' : ' وتم تعطيله') 
                 : '';
 
@@ -246,8 +295,28 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'isActive' => 'required|boolean',
             ]);
 
+            $oldStatus = $department->status;
             $department->status = $data['isActive'] ? 'active' : 'inactive';
             $department->save();
+
+            // تسجيل العملية في audit_log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => $data['isActive'] ? 'تفعيل قسم' : 'تعطيل قسم',
+                    'table_name' => 'departments',
+                    'record_id' => $department->id,
+                    'old_values' => json_encode(['status' => $oldStatus]),
+                    'new_values' => json_encode([
+                        'status' => $department->status,
+                        'name' => $department->name,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for department toggle status', ['error' => $e->getMessage()]);
+            }
 
             $action = $data['isActive'] ? 'تفعيل' : 'تعطيل';
             return $this->sendSuccess([

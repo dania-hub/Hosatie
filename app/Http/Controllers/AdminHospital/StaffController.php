@@ -236,6 +236,26 @@ class StaffController extends BaseApiController
 
             DB::commit();
 
+            // تسجيل العملية في audit_log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $currentUser->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'إضافة موظف',
+                    'table_name' => 'users',
+                    'record_id' => $user->id,
+                    'new_values' => json_encode([
+                        'full_name' => $user->full_name,
+                        'email' => $user->email,
+                        'type' => $user->type,
+                        'phone' => $user->phone,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for staff creation', ['error' => $e->getMessage()]);
+            }
+
             return $this->sendSuccess([
                 'id' => $user->id,
                 'name' => $user->full_name,
@@ -315,6 +335,26 @@ class StaffController extends BaseApiController
 
             DB::commit();
 
+            // تسجيل العملية في audit_log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $currentUser->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'تعديل موظف',
+                    'table_name' => 'users',
+                    'record_id' => $staff->id,
+                    'new_values' => json_encode([
+                        'full_name' => $staff->full_name,
+                        'email' => $staff->email,
+                        'type' => $staff->type,
+                        'phone' => $staff->phone,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for staff update', ['error' => $e->getMessage()]);
+            }
+
             return $this->sendSuccess([
                 'id' => $staff->id,
                 'name' => $staff->full_name,
@@ -365,9 +405,32 @@ class StaffController extends BaseApiController
                 ->whereIn('type', ['doctor', 'pharmacist', 'warehouse_manager', 'department_head', 'data_entry'])
                 ->findOrFail($id);
 
+            // حفظ الحالة القديمة لتسجيلها
+            $oldStatus = $staff->status;
+            
             // تحديث الحالة
             $staff->status = $validated['isActive'] ? 'active' : 'inactive';
             $staff->save();
+
+            // تسجيل العملية في audit_log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $currentUser->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => $validated['isActive'] ? 'تفعيل موظف' : 'تعطيل موظف',
+                    'table_name' => 'users',
+                    'record_id' => $staff->id,
+                    'old_values' => json_encode(['status' => $oldStatus]),
+                    'new_values' => json_encode([
+                        'status' => $staff->status,
+                        'full_name' => $staff->full_name,
+                        'type' => $staff->type,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for staff toggle status', ['error' => $e->getMessage()]);
+            }
 
             return $this->sendSuccess([
                 'id' => $staff->id,

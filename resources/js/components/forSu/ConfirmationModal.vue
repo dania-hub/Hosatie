@@ -169,14 +169,26 @@
                 <div v-if="!showRejectionNote" class="space-y-2">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        ملاحظات إضافية <span class="text-sm font-normal text-gray-400">(اختياري)</span>
+                        ملاحظات الإرسال 
+                        <span v-if="hasZeroQuantityItem" class="text-sm font-normal text-red-600">(إلزامي)</span>
+                        <span v-else class="text-sm font-normal text-gray-400">(اختياري)</span>
                     </h3>
                     <textarea
                         v-model="additionalNotes"
-                        placeholder="أضف أي ملاحظات حول الشحنة..."
+                        :placeholder="hasZeroQuantityItem ? 'يجب إضافة ملاحظات عند وجود عنصر بكمية مرسلة = 0...' : 'أضف أي ملاحظات حول الشحنة...'"
                         rows="2"
-                        class="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all resize-none"
+                        class="w-full p-4 bg-white border rounded-xl text-gray-700 focus:ring-2 transition-all resize-none"
+                        :class="{
+                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': hasZeroQuantityItem && notesError,
+                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': hasZeroQuantityItem && !notesError,
+                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !hasZeroQuantityItem
+                        }"
+                        @input="notesError = false"
                     ></textarea>
+                    <div v-if="hasZeroQuantityItem && notesError" class="text-red-600 text-sm flex items-center gap-1 font-medium">
+                        <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
+                        يجب إضافة ملاحظات الإرسال عند وجود عنصر بكمية مرسلة = 0
+                    </div>
                 </div>
             </div>
 
@@ -274,6 +286,7 @@ const showRejectionNote = ref(false);
 const rejectionNote = ref("");
 const rejectionError = ref(false);
 const additionalNotes = ref("");
+const notesError = ref(false);
 
 // تهيئة receivedItems
 watch(
@@ -364,6 +377,19 @@ const canSendShipment = computed(() => {
     return hasValidItem;
 });
 
+// التحقق من وجود عنصر واحد على الأقل بكمية مرسلة = 0
+const hasZeroQuantityItem = computed(() => {
+    if (!receivedItems.value || receivedItems.value.length === 0) {
+        return false;
+    }
+    
+    // التحقق من وجود عنصر واحد على الأقل بكمية مرسلة = 0
+    return receivedItems.value.some(item => {
+        const sentQty = item.sentQuantity || 0;
+        return sentQty === 0;
+    });
+});
+
 // بدء عملية الرفض
 const initiateRejection = () => {
     showRejectionNote.value = true;
@@ -411,6 +437,12 @@ const sendShipment = async () => {
     
     if (hasInvalidQuantity) {
         // التحقق من صحة الكميات - إرجاع بدون alert
+        return;
+    }
+    
+    // التحقق من ملاحظات الإرسال إذا كان هناك عنصر بكمية مرسلة = 0
+    if (hasZeroQuantityItem.value && !additionalNotes.value.trim()) {
+        notesError.value = true;
         return;
     }
     

@@ -35,20 +35,39 @@ class ComplaintHospitalAdminController extends BaseApiController
                 'user_id' => $user->id
             ]);
 
-            // فلترة الشكاوى: فقط الشكاوى التي patient.hospital_id = hospital_id للمدير
+            // جلب جميع الشكاوى مع معلومات المريض
+            $allComplaints = Complaint::with('patient')->latest()->get();
+            
+            \Illuminate\Support\Facades\Log::debug('All complaints count', [
+                'total' => $allComplaints->count(),
+                'complaints' => $allComplaints->map(function($c) {
+                    return [
+                        'id' => $c->id,
+                        'patient_id' => $c->patient_id,
+                        'patient_hospital_id' => $c->patient?->hospital_id,
+                        'patient_name' => $c->patient?->full_name
+                    ];
+                })->toArray()
+            ]);
+
+            // فلترة الشكاوى حسب hospital_id للمريض
             $complaints = Complaint::with('patient')
-                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
                 ->whereHas('patient', function($query) use ($hospitalId) {
                     $query->where('hospital_id', $hospitalId);
                 })
                 ->latest()
                 ->get();
 
-            // فلترة طلبات النقل: فقط الطلبات التي patient.hospital_id = hospital_id للمدير
+            // جلب طلبات النقل:
+            // 1. الصادرة من هذا المستشفى (from_hospital_id = hospital_id) - للموافقة الأولية
+            // 2. الموجهة إلى هذا المستشفى في حالة preapproved (to_hospital_id = hospital_id AND status = preapproved) - للموافقة النهائية
             $transferRequests = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
-                ->whereHas('patient', function($query) use ($hospitalId) {
-                    $query->where('hospital_id', $hospitalId); // فقط الطلبات للمرضى التابعين لمستشفى المدير
+                ->where(function($query) use ($hospitalId) {
+                    $query->where('from_hospital_id', $hospitalId) // الصادرة من المستشفى
+                          ->orWhere(function($q) use ($hospitalId) {
+                              $q->where('to_hospital_id', $hospitalId) // الموجهة للمستشفى
+                                ->where('status', 'preapproved'); // في حالة preapproved
+                          });
                 })
                 ->latest()
                 ->get();
@@ -146,11 +165,15 @@ class ComplaintHospitalAdminController extends BaseApiController
                 ], 'تم جلب تفاصيل الشكوى بنجاح.');
             }
 
-            // إذا لم تكن شكوى، جرب طلب النقل للمرضى التابعين لمستشفى المدير
+            // إذا لم تكن شكوى، جرب طلب النقل
+            // الصادر من هذا المستشفى أو الموجه إليه في حالة preapproved
             $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
-                ->whereHas('patient', function($query) use ($hospitalId) {
-                    $query->where('hospital_id', $hospitalId);
+                ->where(function($query) use ($hospitalId) {
+                    $query->where('from_hospital_id', $hospitalId) // الصادر من المستشفى
+                          ->orWhere(function($q) use ($hospitalId) {
+                              $q->where('to_hospital_id', $hospitalId) // الموجه للمستشفى
+                                ->where('status', 'preapproved'); // في حالة preapproved
+                          });
                 })
                 ->find($id);
 
@@ -221,6 +244,25 @@ class ComplaintHospitalAdminController extends BaseApiController
                     'replied_at'    => Carbon::now(),
                 ]);
 
+                // تسجيل العملية في audit_log
+                try {
+                    \App\Models\AuditLog::create([
+                        'user_id' => $user->id,
+                        'hospital_id' => $hospitalId,
+                        'action' => 'الرد على شكوى',
+                        'table_name' => 'complaints',
+                        'record_id' => $complaint->id,
+                        'new_values' => json_encode([
+                            'reply_message' => $request->response,
+                            'status' => 'تمت المراجعة',
+                            'patient_id' => $complaint->patient_id,
+                        ]),
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to create audit log for complaint reply', ['error' => $e->getMessage()]);
+                }
+
                 $complaint->load('patient');
                 $this->notifications->notifyComplaintReplied($complaint->patient, $complaint);
 
@@ -231,41 +273,60 @@ class ComplaintHospitalAdminController extends BaseApiController
                 ], 'تم إرسال الرد بنجاح.');
             }
 
-            // إذا لم تكن شكوى، جرب طلب النقل (الصادر من هذا المستشفى)
-            // جلب طلب النقل للمرضى التابعين لمستشفى المدير
+            // إذا لم تكن شكوى، جرب طلب النقل
+            // المستشفى الحالي (الذي فيه المريض الآن) يوافق أولياً
             $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
+                ->whereNotNull('patient_id')
                 ->whereHas('patient', function($query) use ($hospitalId) {
-                    $query->where('hospital_id', $hospitalId);
+                    $query->where('hospital_id', $hospitalId); // المريض حالياً في المستشفى الحالي
                 })
+                ->where('status', 'pending') // فقط الطلبات في حالة pending
                 ->find($id);
 
-            if (!$transferRequest) {
-                return $this->sendError('الطلب غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+            if ($transferRequest) {
+                // الموافقة الأولية من المستشفى الحالي - الحالة تصبح preapproved
+                $transferRequest->status = 'preapproved';
+                $transferRequest->handeled_by = $user->id; // تعبئة handeled_by برمز المستخدم الذي قبل الطلب
+                $transferRequest->handeled_at = Carbon::now();
+                // المريض لا يزال في المستشفى الحالي - سيتم نقله لاحقاً من قبل المستشفى المستقبل
+                $transferRequest->save();
+                
+                $transferRequest->load('patient');
+
+                return $this->sendSuccess([
+                    'id' => $transferRequest->id,
+                    'status' => $this->translateTransferStatus($transferRequest->status),
+                    'handeledAt' => $transferRequest->handeled_at?->toIso8601String(),
+                ], 'تم قبول طلب النقل. سيتم نقل المريض بعد موافقة المستشفى المستقبل.');
             }
 
-            // المستشفى المرسل لا يمكنه الموافقة على طلبه - فقط المستشفى المستقبل يمكنه ذلك
-            // يمكن للمستشفى المرسل فقط إلغاء طلبه إذا كان في حالة pending
-            if ($transferRequest->status !== 'pending') {
-                return $this->sendError('لا يمكن تعديل هذا الطلب لأنه تم معالجته مسبقاً.', [], 400);
+            // إذا لم نجد طلب نقل للمستشفى الحالي، جرب البحث في المستشفى المستقبل
+            // المستشفى المستقبل يوافق نهائياً (بعد الموافقة الأولية preapproved)
+            $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
+                ->where('to_hospital_id', $hospitalId) // المستشفى المستقبل
+                ->where('status', 'preapproved') // فقط الطلبات التي تمت الموافقة الأولية عليها (preapproved)
+                ->find($id);
+            
+            if ($transferRequest) {
+                // نقل المريض إلى المستشفى الجديد وتغيير الحالة إلى approved
+                $transferRequest->status = 'approved';
+                $transferRequest->load('patient');
+                if ($transferRequest->patient && $transferRequest->to_hospital_id) {
+                    $transferRequest->patient->hospital_id = $transferRequest->to_hospital_id;
+                    $transferRequest->patient->save();
+                }
+                $transferRequest->save();
+                
+                $this->notifications->notifyTransferApproved($transferRequest->patient, $transferRequest);
+                
+                return $this->sendSuccess([
+                    'id' => $transferRequest->id,
+                    'status' => $this->translateTransferStatus($transferRequest->status),
+                    'handeledAt' => $transferRequest->handeled_at?->toIso8601String(),
+                ], 'تم قبول طلب النقل ونقل المريض بنجاح.');
             }
 
-            // إلغاء الطلب (لأن المستشفى المرسل لا يمكنه الموافقة على طلبه)
-            $transferRequest->update([
-                'status' => 'rejected',
-                'rejected_by' => $user->id,
-                'rejected_at' => Carbon::now(),
-                'rejection_reason' => $request->response ?? 'تم إلغاء الطلب من المستشفى المرسل',
-            ]);
-
-            $transferRequest->load('patient');
-            $this->notifications->notifyTransferRejected($transferRequest->patient, $transferRequest);
-
-            return $this->sendSuccess([
-                'id' => $transferRequest->id,
-                'status' => $this->translateTransferStatus($transferRequest->status),
-                'rejectedAt' => $transferRequest->rejected_at?->toIso8601String(),
-            ], 'تم إلغاء طلب النقل بنجاح.');
+            return $this->sendError('الطلب غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
         } catch (\Exception $e) {
@@ -317,12 +378,9 @@ class ComplaintHospitalAdminController extends BaseApiController
                 ], 'تم رفض الشكوى بنجاح.');
             }
 
-            // إذا لم تكن شكوى، جرب طلب النقل للمرضى التابعين لمستشفى المدير
+            // إذا لم تكن شكوى، جرب طلب النقل (الصادر من هذا المستشفى)
             $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])
-                ->whereNotNull('patient_id') // التأكد من أن patient_id ليس null
-                ->whereHas('patient', function($query) use ($hospitalId) {
-                    $query->where('hospital_id', $hospitalId);
-                })
+                ->where('from_hospital_id', $hospitalId)
                 ->find($id);
 
             if (!$transferRequest) {
@@ -362,6 +420,7 @@ class ComplaintHospitalAdminController extends BaseApiController
     {
         return match ($status) {
             'approved' => 'تم الرد',
+            'preapproved' => 'تمت الموافقة الأولية',
             'pending'  => 'قيد المراجعة',
             'rejected' => 'مرفوض',
             default    => $status ?? 'غير محدد',

@@ -104,6 +104,11 @@ class PatientTransferAdminHospitalController extends BaseApiController
                 return $this->sendError('طلب النقل غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
             }
 
+            // التحقق من أن الطلب في حالة preapproved (للموافقة النهائية)
+            if ($r->status !== 'preapproved') {
+                return $this->sendError('لا يمكن تعديل هذا الطلب. يجب أن يكون الطلب في حالة الموافقة الأولية.', [], 400);
+            }
+
             $r->status = $data['status'];
             
             // استخدام الأعمدة الصحيحة من قاعدة البيانات
@@ -152,6 +157,7 @@ class PatientTransferAdminHospitalController extends BaseApiController
     {
         return match ($status) {
             'approved' => 'تم الرد',
+            'preapproved' => 'تمت الموافقة الأولية',
             'pending'  => 'قيد المراجعة',
             'rejected' => 'مرفوض',
             default    => $status ?? 'غير محدد',

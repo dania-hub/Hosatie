@@ -30,6 +30,7 @@ use App\Http\Controllers\AdminHospital\PatientHospitalAdminController;
 use App\Http\Controllers\AdminHospital\ExternalShipmentAdminHospitalController;
 use App\Http\Controllers\AdminHospital\StatsAdminHospitalController;
 use App\Http\Controllers\AdminHospital\PatientTransferAdminHospitalController;
+use App\Http\Controllers\AdminHospital\AuditLogHospitalAdminController;
 
 // --- Doctor Dashboard Controllers ---
 use App\Http\Controllers\Doctor\DashboardDoctorController;
@@ -472,6 +473,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('transfer-requests', [PatientTransferAdminHospitalController::class, 'index']);//قائمة طلبات نقل المرضى
 
         Route::put('transfer-requests/{id}/status', [PatientTransferAdminHospitalController::class, 'updateStatus']);//تحديث حالة طلب نقل المريض
+    });
+
+    // --------------------------------------------------------------------
+    // Hospital Admin Operations (مشابه لـ storekeeper/operations)
+    // --------------------------------------------------------------------
+    Route::prefix('hospitaladmin')->group(function () {
+        Route::get('operations', [AuditLogHospitalAdminController::class, 'index']);//سجل عمليات مدير المستشفى
     });
 
     // ========================================================================

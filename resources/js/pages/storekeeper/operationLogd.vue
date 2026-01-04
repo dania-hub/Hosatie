@@ -42,11 +42,11 @@ api.interceptors.response.use(
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
         if (error.response?.status === 401) {
-            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
         } else if (error.response?.status === 403) {
-            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+            showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
         } else if (!error.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         }
         return Promise.reject(error);
     }
@@ -79,11 +79,8 @@ onMounted(() => {
     fetchOperations();
 });
 
-// قائمة بأنواع العمليات المتاحة للتصفية
-const operationTypes = computed(() => {
-    const types = new Set(operations.value.map(op => op.operationType));
-    return ['الكل', ...Array.from(types)];
-});
+// قائمة بأنواع العمليات المتاحة للتصفية (قائمة ثابتة)
+const operationTypes = ['الكل', 'إنشاء', 'تأكيد', 'رفض'];
 
 // ----------------------------------------------------
 // 2. منطق البحث والفرز والتصفية الموحد
@@ -142,8 +139,13 @@ const filteredOperations = computed(() => {
                             op.operationDate.includes(search);
 
         // تصفية حسب نوع العملية
-        const typeMatch = operationTypeFilter.value === 'الكل' ||
-                          op.operationType === operationTypeFilter.value;
+        let typeMatch = true;
+        if (operationTypeFilter.value !== 'الكل') {
+            // التحقق من أن نوع العملية يحتوي على القيمة المختارة
+            // لأن القيم في البيانات مثل "إنشاء طلب توريد داخلي" أو "تأكيد طلب توريد داخلي"
+            // والقائمة تحتوي على "إنشاء" و "تأكيد" و "رفض"
+            typeMatch = (op.operationType || '').includes(operationTypeFilter.value);
+        }
 
         return searchMatch && typeMatch;
     });
@@ -232,7 +234,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -312,7 +314,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 
@@ -332,7 +334,7 @@ const printTable = () => {
                         <!-- زر إظهار/إخفاء فلتر التاريخ -->
                         <button
                             @click="showDateFilter = !showDateFilter"
-                            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                            class="h-11 w-23 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
                             :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                         >
                             <Icon
@@ -524,7 +526,7 @@ const printTable = () => {
                                 </tbody>
                             </table>
                             <div v-if="!isLoading && filteredOperations.length === 0 && searchTerm === '' && operationTypeFilter === 'الكل'" class="p-6 text-center text-gray-500 text-lg">
-                                ⚠️ لا توجد بيانات  لعرضها.
+                                 لا توجد بيانات  لعرضها.
                             </div>
                         </div>
                     </div>

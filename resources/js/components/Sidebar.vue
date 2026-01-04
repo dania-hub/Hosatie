@@ -154,11 +154,11 @@ const links = {
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/admin/operations" },
         { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/admin/all-operations" },
         { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/admin/employees" },
-        { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/admin/requests" },
+        { name: "طلبات التوريد الخارجية", icon: "carbon:request-quote", to: "/admin/requests" },
         { name: "الاقسام", icon: "mingcute:department-fill", to: "/admin/departments" },
+        { name: "طلبات المرضى", icon: "fluent:person-feedback-24-regular", to: "/admin/complaints" },
+        { name: "طلبات النقل الخارجية", icon: "mdi:transfer", to: "/admin/transfer-requests" },
     
-        { name: "طلبات النقل", icon: "mdi:transfer", to: "/admin/transfer-requests" },
-        { name: "الشكاوي", icon: "fluent:person-feedback-24-regular", to: "/admin/complaints" },
     ],
     pharmacist: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/pharmacist/statistics" },

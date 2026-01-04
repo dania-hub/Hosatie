@@ -8,6 +8,7 @@ use App\Models\InternalSupplyRequest;
 use App\Models\InternalSupplyRequestItem;
 use App\Models\Pharmacy;
 use App\Models\AuditLog;
+use App\Models\Department;
 use Illuminate\Support\Facades\DB;
 
 class SupplyRequestControllerDepartmentAdmin extends BaseApiController
@@ -73,6 +74,27 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
 
             DB::commit();
 
+            // تحديد اسم القسم وقت إنشاء الطلب (لتجنب تغييره عند تغيير قسم المستخدم لاحقاً)
+            $departmentName = 'غير محدد';
+            if ($user->type === 'department_admin' || $user->type === 'department_head') {
+                // أولاً: البحث عن القسم الذي يكون head_user_id = user->id
+                $department = Department::where('head_user_id', $user->id)->first();
+                if ($department) {
+                    $departmentName = $department->name;
+                } 
+                // ثانياً: محاولة جلب القسم من department_id
+                elseif ($user->department_id) {
+                    $department = Department::find($user->department_id);
+                    if ($department) {
+                        $departmentName = $department->name;
+                    }
+                }
+                // ثالثاً: محاولة جلب القسم من العلاقة
+                elseif ($user->department) {
+                    $departmentName = $user->department->name;
+                }
+            }
+
             // تسجيل العملية في audit_log (بعد commit الناجح)
             try {
                 AuditLog::create([
@@ -87,6 +109,8 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                         'pharmacy_id' => $pharmacyId,
                         'item_count' => count($request->items),
                         'notes' => $request->notes ?? null, // ملاحظة department عند إنشاء الطلب
+                        'department_name' => $departmentName, // اسم القسم وقت إنشاء الطلب (يُستخدم لتجنب تغييره لاحقاً)
+                        'department_id' => $user->department_id ?? null, // حفظ department_id أيضاً للرجوع إليه
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

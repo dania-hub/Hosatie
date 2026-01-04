@@ -425,23 +425,23 @@ api.interceptors.response.use(
             // إذا كان خطأ في المصادقة
             const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
             if (!token) {
-                showSuccessAlert('❌ لم يتم العثور على رمز المصادقة. يرجى تسجيل الدخول مرة أخرى.');
+                showSuccessAlert(' لم يتم العثور على رمز المصادقة. يرجى تسجيل الدخول مرة أخرى.');
             } else {
-                showSuccessAlert('❌ انتهت جلسة العمل أو رمز المصادقة غير صحيح. يرجى تسجيل الدخول مرة أخرى.');
+                showSuccessAlert(' انتهت جلسة العمل أو رمز المصادقة غير صحيح. يرجى تسجيل الدخول مرة أخرى.');
             }
             // يمكن إضافة إعادة توجيه لصفحة تسجيل الدخول هنا
         } else if (error.response?.status === 403) {
-            showSuccessAlert('❌ ليس لديك الصلاحية للقيام بهذا الإجراء.');
+            showSuccessAlert(' ليس لديك الصلاحية للقيام بهذا الإجراء.');
         } else if (error.response?.status === 404) {
-            showSuccessAlert('❌ المورد المطلوب غير موجود.');
+            showSuccessAlert(' المورد المطلوب غير موجود.');
         } else if (error.code === 'ECONNABORTED') {
-            showSuccessAlert('❌ انتهت مهلة الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
+            showSuccessAlert(' انتهت مهلة الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
         } else if (!error.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         } else {
             // معالجة أخطاء أخرى
             const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ غير معروف';
-            showSuccessAlert(`❌ ${errorMessage}`);
+            showSuccessAlert(` ${errorMessage}`);
         }
         
         return Promise.reject(error);
@@ -761,7 +761,7 @@ const openRequestViewModal = async (shipment) => {
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
         console.error('Error loading shipment details:', err);
     }
 };
@@ -781,7 +781,7 @@ const closeRequestViewModal = () => {
 const openConfirmationModal = async (shipment) => {
     // التحقق من حالة الطلب - منع التعديل إذا كان في حالة "قيد الاستلام"
     if (shipment.requestStatus === 'قيد الاستلام' || shipment.requestStatus === 'approved') {
-        showSuccessAlert('⚠️ هذا الطلب قيد الاستلام ولا يمكن تعديله');
+        showSuccessAlert(' هذا الطلب قيد الاستلام ولا يمكن تعديله');
         return;
     }
     
@@ -792,7 +792,7 @@ const openConfirmationModal = async (shipment) => {
         // التحقق مرة أخرى من حالة الطلب بعد جلب البيانات
         const currentStatus = response.status || shipment.requestStatus;
         if (currentStatus === 'قيد الاستلام' || currentStatus === 'approved') {
-            showSuccessAlert('⚠️ هذا الطلب قيد الاستلام ولا يمكن تعديله');
+            showSuccessAlert(' هذا الطلب قيد الاستلام ولا يمكن تعديله');
             return;
         }
         
@@ -827,10 +827,10 @@ const openConfirmationModal = async (shipment) => {
             }),
             notes: response.notes || ''
         };
-        console.log('✅ Final selectedShipmentForConfirmation:', selectedShipmentForConfirmation.value);
+        console.log(' Final selectedShipmentForConfirmation:', selectedShipmentForConfirmation.value);
         isConfirmationModalOpen.value = true;
     } catch (err) {
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
         console.error('Error loading shipment details:', err);
     }
 };
@@ -868,7 +868,7 @@ const handleConfirmation = async (confirmationData) => {
                 shipmentsData.value[shipmentIndex].details.rejectionReason = confirmationData.rejectionReason;
             }
             
-            showSuccessAlert(`✅ تم رفض الشحنة رقم ${shipmentNumber} بنجاح`);
+            showSuccessAlert(` تم رفض الشحنة رقم ${shipmentNumber} بنجاح`);
             
         } else if (confirmationData.itemsToSend) {
             // 🟢 معالجة إرسال الشحنة
@@ -918,7 +918,7 @@ const handleConfirmation = async (confirmationData) => {
             }
             
             const totalSent = itemsToUpdate.reduce((sum, item) => sum + (item.sentQuantity || 0), 0);
-            showSuccessAlert(`✅ تم تأكيد تجهيز الشحنة رقم ${shipmentNumber} بنجاح! (${totalSent} وحدة)`);
+            showSuccessAlert(` تم تأكيد تجهيز الشحنة رقم ${shipmentNumber} بنجاح! (${totalSent} وحدة)`);
         }
         
         closeConfirmationModal();
@@ -927,20 +927,20 @@ const handleConfirmation = async (confirmationData) => {
         console.error('Error in handleConfirmation:', err);
         
         if (err.code === 'ECONNABORTED') {
-            showSuccessAlert('❌ انتهت مهلة الاتصال. العملية تستغرق وقتاً طويلاً. يرجى التحقق من حالة الطلب.');
+            showSuccessAlert(' انتهت مهلة الاتصال. العملية تستغرق وقتاً طويلاً. يرجى التحقق من حالة الطلب.');
         } else if (err.response?.status === 404) {
-            showSuccessAlert(`❌ الشحنة غير موجودة أو تم حذفها`);
+            showSuccessAlert(` الشحنة غير موجودة أو تم حذفها`);
         } else if (err.response?.status === 400) {
-            showSuccessAlert(`❌ بيانات غير صالحة: ${err.response.data?.message || ''}`);
+            showSuccessAlert(` بيانات غير صالحة: ${err.response.data?.message || ''}`);
         } else if (err.response?.status === 409) {
-            showSuccessAlert(`❌ تعارض في البيانات: ${err.response.data?.message || ''}`);
+            showSuccessAlert(` تعارض في البيانات: ${err.response.data?.message || ''}`);
         } else if (err.response?.status === 500) {
-            showSuccessAlert(`❌ خطأ في الخادم: ${err.response.data?.message || 'يرجى المحاولة مرة أخرى'}`);
+            showSuccessAlert(` خطأ في الخادم: ${err.response.data?.message || 'يرجى المحاولة مرة أخرى'}`);
         } else if (!err.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         } else {
             const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
-            showSuccessAlert(`❌ فشل في العملية: ${errorMessage}`);
+            showSuccessAlert(` فشل في العملية: ${errorMessage}`);
         }
     } finally {
         isConfirming.value = false;
@@ -994,7 +994,7 @@ const openReviewModal = async (shipment) => {
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
         console.error('Error loading shipment details:', err);
     }
 };
@@ -1008,7 +1008,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -1041,7 +1041,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '✅' : '❌';
+        const receivedIcon = shipment.received ? '' : '';
         tableHtml += `
 <tr>
     <td>${shipment.requestingDepartment || 'غير محدد'}</td>
@@ -1067,7 +1067,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     }; 
 };
 

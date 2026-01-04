@@ -105,7 +105,27 @@ class InternalSupplyRequestController extends BaseApiController
             // إعادة تحميل العلاقات للتأكد من أنها محملة
             $req->loadMissing(['requester.department', 'pharmacy']);
             
-            if ($req->requester) {
+            // أولاً: محاولة جلب اسم القسم/الصيدلية من audit_log (القسم/الصيدلية وقت إنشاء الطلب)
+            $creationLog = AuditLog::where('table_name', 'internal_supply_request')
+                ->where('record_id', $req->id)
+                ->whereIn('action', ['department_create_supply_request', 'pharmacist_create_supply_request', 'إنشاء طلب توريد'])
+                ->orderBy('created_at', 'asc')
+                ->first();
+            
+            if ($creationLog && $creationLog->new_values) {
+                $newValues = json_decode($creationLog->new_values, true);
+                // إذا كان الطلب من department، استخدم department_name
+                if (isset($newValues['department_name']) && !empty($newValues['department_name'])) {
+                    $requestingDepartmentName = $newValues['department_name'];
+                }
+                // إذا كان الطلب من pharmacist، استخدم pharmacy_name
+                elseif (isset($newValues['pharmacy_name']) && !empty($newValues['pharmacy_name'])) {
+                    $requestingDepartmentName = $newValues['pharmacy_name'];
+                }
+            }
+            
+            // إذا لم نجد اسم القسم في audit_log، نستخدم الطريقة القديمة (للتوافق مع الطلبات القديمة)
+            if ($requestingDepartmentName === 'غير محدد' && $req->requester) {
                 // إذا كان الطلب من department_head أو department_admin، نعرض اسم القسم
                 if (in_array($req->requester->type, ['department_head', 'department_admin'])) {
                     // أولاً: البحث عن القسم الذي يكون head_user_id = requester->id (الأولوية للـ department_head)
@@ -235,7 +255,27 @@ class InternalSupplyRequestController extends BaseApiController
         // تحديد اسم الجهة الطالبة حسب نوع المستخدم
         $requestingDepartmentName = 'غير محدد';
         
-        if ($req->requester) {
+        // أولاً: محاولة جلب اسم القسم/الصيدلية من audit_log (القسم/الصيدلية وقت إنشاء الطلب)
+        $creationLog = AuditLog::where('table_name', 'internal_supply_request')
+            ->where('record_id', $req->id)
+            ->whereIn('action', ['department_create_supply_request', 'pharmacist_create_supply_request', 'إنشاء طلب توريد'])
+            ->orderBy('created_at', 'asc')
+            ->first();
+        
+        if ($creationLog && $creationLog->new_values) {
+            $newValues = json_decode($creationLog->new_values, true);
+            // إذا كان الطلب من department، استخدم department_name
+            if (isset($newValues['department_name']) && !empty($newValues['department_name'])) {
+                $requestingDepartmentName = $newValues['department_name'];
+            }
+            // إذا كان الطلب من pharmacist، استخدم pharmacy_name
+            elseif (isset($newValues['pharmacy_name']) && !empty($newValues['pharmacy_name'])) {
+                $requestingDepartmentName = $newValues['pharmacy_name'];
+            }
+        }
+        
+        // إذا لم نجد اسم القسم في audit_log، نستخدم الطريقة القديمة (للتوافق مع الطلبات القديمة)
+        if ($requestingDepartmentName === 'غير محدد' && $req->requester) {
             // إذا كان الطلب من department_head أو department_admin، نعرض اسم القسم
             if (in_array($req->requester->type, ['department_head', 'department_admin'])) {
                 // أولاً: البحث عن القسم الذي يكون head_user_id = requester->id (الأولوية للـ department_head)

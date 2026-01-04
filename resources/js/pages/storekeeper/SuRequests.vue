@@ -7,6 +7,65 @@
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
                     <search v-model="searchTerm" />
 
+                    <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                    <button
+                        @click="showDateFilter = !showDateFilter"
+                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                    >
+                        <Icon
+                            icon="solar:calendar-bold"
+                            class="w-5 h-5"
+                        />
+                    </button>
+
+                    <!-- فلتر التاريخ -->
+                    <Transition
+                        enter-active-class="transition duration-200 ease-out"
+                        enter-from-class="opacity-0 scale-95"
+                        enter-to-class="opacity-100 scale-100"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="opacity-100 scale-100"
+                        leave-to-class="opacity-0 scale-95"
+                    >
+                        <div v-if="showDateFilter" class="flex items-center gap-2">
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateFrom"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="من تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <span class="text-gray-600 font-medium">إلى</span>
+                            <div class="relative">
+                                <input
+                                    type="date"
+                                    v-model="dateTo"
+                                    class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                    placeholder="إلى تاريخ"
+                                />
+                                <Icon
+                                    icon="solar:calendar-linear"
+                                    class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                />
+                            </div>
+                            <button
+                                v-if="dateFrom || dateTo"
+                                @click="clearDateFilter"
+                                class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                title="مسح فلتر التاريخ"
+                            >
+                                <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                مسح
+                            </button>
+                        </div>
+                    </Transition>
+
                     <div class="dropdown dropdown-start">
                         <div
                             tabindex="0"
@@ -188,9 +247,10 @@
                                                 'text-green-600 font-semibold':
                                                     shipment.requestStatus === 'تم الإستلام' ||
                                                     shipment.requestStatus === 'تم الاستلام',
-                                                'text-yellow-600 font-semibold':
+                                                'text-blue-500 font-semibold':
                                                     shipment.requestStatus === 'قيد الاستلام' ||
-                                                    shipment.requestStatus === 'تمت الموافقة عليه جزئياً' ||
+                                                    shipment.requestStatus === 'تمت الموافقة عليه جزئياً' ,
+                                                    'text-yellow-600 font-semibold':
                                                     shipment.requestStatus === 'قيد الانتظار',
                                             }"
                                         >
@@ -201,20 +261,20 @@
                                                 <!-- زر معاينة تفاصيل الشحنة - يظهر دائماً -->
                                                 <button 
                                                     @click="openRequestViewModal(shipment)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="معاينة تفاصيل الشحنة">
                                                     <Icon
                                                         icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                                 
                                                 <!-- زر الإجراء الثاني يختلف حسب الحالة -->
                                                 <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض'">
-                                                    <button class="tooltip" data-tip="طلب مرفوض">
+                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
                                                         <Icon
                                                             icon="tabler:circle-x" 
-                                                            class="w-5 h-5 text-red-600"
+                                                            class="w-4 h-4 text-red-600"
                                                         />
                                                     </button>
                                                 </template>
@@ -223,11 +283,11 @@
                                                     <!-- إذا كانت قيد الاستلام (أرسلها Supplier)، تظهر زر تأكيد الاستلام -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
-                                                        class="tooltip"
+                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         data-tip="تأكيد استلام الشحنة">
                                                         <Icon
                                                             icon="tabler:truck-delivery"
-                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
@@ -236,21 +296,21 @@
                                                     <!-- إذا كانت تم الاستلام، تظهر علامة الصح -->
                                                     <button 
                                                         @click="openReviewModal(shipment)"
-                                                        class="tooltip" 
+                                                        class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                         data-tip="تم الاستلام">
                                                         <Icon
                                                             icon="healthicons:yes-outline"
-                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
                                                 
                                                 <template v-else>
                                                     <!-- في انتظار الموافقة من HospitalAdmin أو Supplier -->
-                                                    <button class="tooltip" data-tip="في انتظار الموافقة">
+                                                    <button class="tooltip p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="في انتظار الموافقة">
                                                         <Icon
                                                             icon="solar:clock-circle-bold"
-                                                            class="w-5 h-5 text-yellow-600"
+                                                            class="w-4 h-4 text-yellow-600"
                                                         />
                                                     </button>
                                                 </template>
@@ -392,11 +452,11 @@ api.interceptors.response.use(
       } else {
         console.error('No token found. Please login again.');
       }
-      showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+      showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
     } else if (error.response?.status === 403) {
-      showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+      showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
     } else if (!error.response) {
-      showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+      showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
     }
     return Promise.reject(error);
   }
@@ -481,22 +541,22 @@ const fetchShipments = async () => {
             if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
                 // إذا كانت الاستجابة من sendSuccess
                 data = response.data.data;
-                console.log('✅ Using data from sendSuccess response, count:', data.length);
+                console.log(' Using data from sendSuccess response, count:', data.length);
             } else if (response.data.data && Array.isArray(response.data.data)) {
                 // إذا كانت البيانات في response.data.data
                 data = response.data.data;
-                console.log('✅ Using nested array from response.data.data, count:', data.length);
+                console.log(' Using nested array from response.data.data, count:', data.length);
             } else if (Array.isArray(response.data)) {
                 // إذا كانت البيانات مصفوفة مباشرة
                 data = response.data;
-                console.log('✅ Using direct array from response.data, count:', data.length);
+                console.log(' Using direct array from response.data, count:', data.length);
             } else {
-                console.warn('⚠️ Unknown response structure:', response.data);
-                console.warn('⚠️ Response keys:', Object.keys(response.data));
+                console.warn(' Unknown response structure:', response.data);
+                console.warn(' Response keys:', Object.keys(response.data));
                 // محاولة استخراج البيانات بأي طريقة ممكنة
                 if (response.data.data) {
                     data = Array.isArray(response.data.data) ? response.data.data : [];
-                    console.log('⚠️ Extracted data (may be empty):', data.length);
+                    console.log(' Extracted data (may be empty):', data.length);
                 }
             }
         }
@@ -573,10 +633,10 @@ const fetchShipments = async () => {
         if (shipmentsData.value.length === 0) {
             console.log('لا توجد بيانات متاحة');
         } else {
-            console.log('✅ تم جلب', shipmentsData.value.length, 'طلب توريد بنجاح');
+            console.log(' تم جلب', shipmentsData.value.length, 'طلب توريد بنجاح');
         }
     } catch (err) {
-        console.error('❌ Error fetching supply requests:', err);
+        console.error(' Error fetching supply requests:', err);
         console.error('Error details:', {
             message: err.message,
             response: err.response?.data,
@@ -607,10 +667,10 @@ const fetchCategories = async () => {
             id: cat.id || cat.name,
             name: cat.name || cat.id
         }));
-        console.log(`✅ تم تحميل ${categories.value.length} تصنيف بنجاح`);
+        console.log(` تم تحميل ${categories.value.length} تصنيف بنجاح`);
     } catch (err) {
         console.error('Error fetching categories:', err);
-        showSuccessAlert('❌ فشل في تحميل التصنيفات.');
+        showSuccessAlert(' فشل في تحميل التصنيفات.');
         categories.value = [];
     }
 };
@@ -650,10 +710,10 @@ const fetchDrugs = async () => {
             };
         });
         
-        console.log(`✅ تم تحميل ${allDrugsData.value.length} دواء بنجاح`);
+        console.log(` تم تحميل ${allDrugsData.value.length} دواء بنجاح`);
     } catch (err) {
         console.error('Error fetching drugs:', err);
-        showSuccessAlert('❌ فشل في تحميل الأدوية.');
+        showSuccessAlert(' فشل في تحميل الأدوية.');
         allDrugsData.value = [];
     }
 };
@@ -675,6 +735,9 @@ const formatDate = (dateString) => {
 // 5. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const sortKey = ref("requestDate");
 const sortOrder = ref("desc");
 
@@ -683,30 +746,86 @@ const sortShipments = (key, order) => {
     sortOrder.value = order;
 };
 
+// دالة تحويل التاريخ من صيغة مختلفة إلى Date
+const parseDate = (dateString) => {
+    if (!dateString) return null;
+    try {
+        // محاولة تحويل الصيغة Y/m/d إلى Date
+        if (dateString.includes('/')) {
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                return new Date(parts[0], parts[1] - 1, parts[2]);
+            }
+        }
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? null : date;
+    } catch {
+        return null;
+    }
+};
+
+// دالة لمسح فلتر التاريخ
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
+};
+
 const filteredShipments = computed(() => {
     let list = shipmentsData.value;
     
+    // 1. التصفية حسب البحث
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
             (shipment) =>
-                shipment.shipmentNumber.toLowerCase().includes(search) ||
-                shipment.requestStatus.includes(search)
+                (shipment.shipmentNumber?.toLowerCase() || '').includes(search) ||
+                (shipment.requestStatus?.includes(search) || false)
         );
     }
 
+    // 2. فلترة حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((shipment) => {
+            const requestDate = shipment.requestDate;
+            if (!requestDate) return false;
+
+            const requestDateObj = parseDate(requestDate);
+            if (!requestDateObj) return false;
+
+            requestDateObj.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+
+            let matchesFrom = true;
+            let matchesTo = true;
+
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = requestDateObj >= fromDate;
+            }
+
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                matchesTo = requestDateObj <= toDate;
+            }
+
+            return matchesFrom && matchesTo;
+        });
+    }
+
+    // 3. الفرز
     if (sortKey.value) {
         list.sort((a, b) => {
             let comparison = 0;
 
             if (sortKey.value === "shipmentNumber") {
-                comparison = a.shipmentNumber.localeCompare(b.shipmentNumber);
+                comparison = (a.shipmentNumber || '').localeCompare(b.shipmentNumber || '');
             } else if (sortKey.value === "requestDate") {
-                const dateA = new Date(a.requestDate);
-                const dateB = new Date(b.requestDate);
+                const dateA = new Date(a.requestDate || 0);
+                const dateB = new Date(b.requestDate || 0);
                 comparison = dateA.getTime() - dateB.getTime();
             } else if (sortKey.value === "requestStatus") {
-                comparison = a.requestStatus.localeCompare(b.requestStatus, "ar");
+                comparison = (a.requestStatus || '').localeCompare(b.requestStatus || '', "ar");
             }
 
             return sortOrder.value === "asc" ? comparison : -comparison;
@@ -783,14 +902,14 @@ const handleSupplyConfirm = async (data) => {
         const response = await endpoints.supplyRequests.create(requestData);
         
         const requestNumber = response.data?.requestNumber || response.requestNumber || `EXT-${response.data?.id || response.id}`;
-        showSuccessAlert(`✅ تم إنشاء طلب التوريد رقم ${requestNumber} بنجاح!`);
+        showSuccessAlert(` تم إنشاء طلب التوريد رقم ${requestNumber} بنجاح!`);
         closeSupplyRequestModal();
         
         await fetchShipments();
         
     } catch (err) {
         const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير متوقع';
-        showSuccessAlert(`❌ فشل في إنشاء طلب التوريد: ${errorMessage}`);
+        showSuccessAlert(` فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
@@ -914,7 +1033,7 @@ const handleConfirmation = async (confirmationData) => {
         // إعادة جلب البيانات
         await fetchShipments();
         
-        const message = response.data?.message || response.message || '✅ تم تأكيد استلام الشحنة بنجاح!';
+        const message = response.data?.message || response.message || ' تم تأكيد استلام الشحنة بنجاح!';
         showSuccessAlert(message);
         closeConfirmationModal();
         
@@ -922,7 +1041,7 @@ const handleConfirmation = async (confirmationData) => {
         console.error('Error confirming delivery:', err);
         console.error('Error response:', err.response);
         const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
-        showSuccessAlert(`❌ فشل في تأكيد الاستلام: ${errorMessage}`);
+        showSuccessAlert(` فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
@@ -1035,7 +1154,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -1066,7 +1185,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '✅' : '❌';
+        const receivedIcon = shipment.received ? '' : '';
         tableHtml += `
 <tr>
     <td>${shipment.shipmentNumber}</td>
@@ -1091,7 +1210,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 

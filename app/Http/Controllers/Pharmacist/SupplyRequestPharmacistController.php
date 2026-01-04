@@ -66,6 +66,15 @@ class SupplyRequestPharmacistController extends BaseApiController
 
             DB::commit();
 
+            // تحديد اسم الصيدلية وقت إنشاء الطلب (لتجنب تغييره عند تغيير صيدلية المستخدم لاحقاً)
+            $pharmacyName = 'غير محدد';
+            if ($pharmacyId) {
+                $pharmacy = Pharmacy::find($pharmacyId);
+                if ($pharmacy) {
+                    $pharmacyName = $pharmacy->name;
+                }
+            }
+
             // تسجيل العملية في AuditLog مع الملاحظة
             try {
                 AuditLog::create([
@@ -78,6 +87,7 @@ class SupplyRequestPharmacistController extends BaseApiController
                     'new_values' => json_encode([
                         'request_id' => $supplyRequest->id,
                         'pharmacy_id' => $pharmacyId,
+                        'pharmacy_name' => $pharmacyName, // اسم الصيدلية وقت إنشاء الطلب
                         'item_count' => count($request->items),
                         'notes' => $request->notes ?? null, // ملاحظة pharmacist عند إنشاء الطلب
                     ]),

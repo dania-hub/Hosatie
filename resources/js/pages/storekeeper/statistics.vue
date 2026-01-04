@@ -60,11 +60,11 @@ api.interceptors.response.use(
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
         if (error.response?.status === 401) {
-            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
         } else if (error.response?.status === 403) {
-            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+            showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
         } else if (!error.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         }
         return Promise.reject(error);
     }

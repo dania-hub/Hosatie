@@ -84,17 +84,18 @@ class ShipmentDepartmentAdminController extends BaseApiController
         
         // جلب الطلبات المرتبطة بالمستشفى أو التي طلبها المستخدم الحالي
         $query = InternalSupplyRequest::with(['items.drug', 'requester'])
-            ->where(function($q) use ($user) {
-                // الطلبات التي طلبها المستخدم الحالي
-                $q->where('requested_by', $user->id);
+            // ->where(function($q) use ($user) {
+            //     // الطلبات التي طلبها المستخدم الحالي
+            //     $q->where('requested_by', $user->id);
                 
-                // أو الطلبات المرتبطة بصيدلية في نفس المستشفى
-                if ($user->hospital_id) {
-                    $q->orWhereHas('pharmacy', function($pharmacyQuery) use ($user) {
-                        $pharmacyQuery->where('hospital_id', $user->hospital_id);
-                    });
-                }
-            })
+            //     // أو الطلبات المرتبطة بصيدلية في نفس المستشفى
+            //     if ($user->hospital_id) {
+            //         $q->orWhereHas('pharmacy', function($pharmacyQuery) use ($user) {
+            //             $pharmacyQuery->where('hospital_id', $user->hospital_id);
+            //         });
+            //     }
+            // })
+            ->where('requested_by', $user->id)
             ->orderBy('created_at', 'desc');
 
         $shipments = $query->get()->map(function ($shipment) {

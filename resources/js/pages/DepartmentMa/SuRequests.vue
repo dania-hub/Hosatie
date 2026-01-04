@@ -189,7 +189,7 @@
                                                 'text-green-600 font-semibold':
                                                     shipment.requestStatus ===
                                                     'تم الإستلام',
-                                                'text-yellow-600 font-semibold':
+                                                'text-blue-500 font-semibold':
                                                     shipment.requestStatus ===
                                                     'قيد الاستلام',
                                             }"
@@ -201,17 +201,17 @@
                                                 <!-- زر معاينة تفاصيل الشحنة - يظهر دائماً -->
                                                 <button 
                                                     @click="openRequestViewModal(shipment)"
-                                                    class="tooltip" 
+                                                    class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="معاينة تفاصيل الشحنة">
                                                     <Icon
                                                         icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                                 
                                                 <!-- زر الإجراء الثاني يختلف حسب الحالة -->
                                                 <template v-if="shipment.requestStatus === 'مرفوضة'">
-                                                    <button class="tooltip" data-tip="طلب مرفوض">
+                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
                                                         <Icon
                                                             icon="tabler:circle-x" 
                                                             class="w-5 h-5 text-red-600"
@@ -221,10 +221,10 @@
                                                 
                                                 <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
                                                     <!-- علامة الصح عندما تكون الحالة "تم الإستلام" -->
-                                                    <button class="tooltip" data-tip="تم الإستلام">
+                                                    <button class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="تم الإستلام">
                                                         <Icon
                                                             icon="solar:check-circle-bold"
-                                                            class="w-5 h-5 text-green-600"
+                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
                                                 </template>
@@ -233,21 +233,21 @@
                                                     <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
-                                                        class="tooltip"
+                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         data-tip="تأكيد الإستلام">
                                                         <Icon
                                                             icon="tabler:truck-delivery"
-                                                            class="w-5 h-5 text-red-500 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
                                                 
                                                 <template v-else>
                                                     <!-- زر في انتظار القبول للحالات الأخرى (مثل "قيد الانتظار") -->
-                                                    <button class="tooltip" data-tip="في انتظار القبول">
+                                                    <button class="tooltip p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="في انتظار القبول">
                                                         <Icon
                                                             icon="solar:clock-circle-bold-duotone"
-                                                            class="w-5 h-5 text-gray-400"
+                                                            class="w-4 h-4 text-gray-400"
                                                         />
                                                     </button>
                                                 </template>
@@ -483,7 +483,10 @@ const fetchDrugs = async () => {
             name: drug.name,
             categoryId: drug.categoryId,
             dosage: drug.dosage || drug.strength,
-            type: drug.type || 'Tablet'
+            strength: drug.strength,
+            type: drug.type || 'Tablet',
+            unit: drug.unit || 'قرص',
+            category: drug.category
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);

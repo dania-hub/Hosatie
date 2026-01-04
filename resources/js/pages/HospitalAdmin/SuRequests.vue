@@ -248,23 +248,12 @@
             @close="closeRequestViewModal"
         />
 
-        <!-- تنبيه النجاح -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </DefaultLayout>
 </template>
 
@@ -280,6 +269,7 @@ import RequestViewModal from "@/components/fordepartment/RequestViewModal.vue";
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات axios
@@ -558,25 +548,31 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 };
 
 // ----------------------------------------------------
-// 8. نظام التنبيهات
+// 8. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
 
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 9. دورة الحياة

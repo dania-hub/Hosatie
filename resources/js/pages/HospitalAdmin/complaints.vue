@@ -228,35 +228,12 @@
       :is-loading="isLoadingResponse"
     />
 
-    <!-- تنبيه النجاح/الخطأ -->
-    <Transition
-      enter-active-class="transition duration-300 ease-out transform"
-      enter-from-class="translate-x-full opacity-0"
-      enter-to-class="translate-x-0 opacity-100"
-      leave-active-class="transition duration-200 ease-in transform"
-      leave-from-class="translate-x-0 opacity-100"
-      leave-to-class="translate-x-full opacity-0"
-    >
-      <div
-        v-if="isSuccessAlertVisible"
-        :class="{
-          'bg-green-500': alertType === 'success',
-          'bg-red-500': alertType === 'error',
-          'bg-yellow-500': alertType === 'warning',
-          'bg-blue-500': alertType === 'info'
-        }"
-        class="fixed top-4 right-4 z-[1000] p-4 text-right text-white rounded-lg shadow-xl max-w-sm transition-all duration-300"
-        dir="rtl"
-      >
-        <div class="flex items-center">
-          <Icon 
-            :icon="alertType === 'error' ? 'tabler:x' : alertType === 'warning' ? 'tabler:alert-triangle' : alertType === 'info' ? 'tabler:info-circle' : 'tabler:check'" 
-            class="w-5 h-5 ml-2" 
-          />
-          <span>{{ successMessage }}</span>
-        </div>
-      </div>
-    </Transition>
+    <Toast
+      :show="isAlertVisible"
+      :message="alertMessage"
+      :type="alertType"
+      @close="isAlertVisible = false"
+    />
   </DefaultLayout>
 </template>
 
@@ -273,6 +250,7 @@ import RequestResponseModal from '@/components/forhospitaladmin/RequestResponseM
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -823,28 +801,31 @@ const printTable = () => {
 };
 
 // ----------------------------------------------------
-// 9. التنبيهات
+// 9. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref('');
-const alertType = ref('success');
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message, type = 'success') => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
+const showAlert = (message, type = "success") => {
+    if (alertTimeout) {
+        clearTimeout(alertTimeout);
+    }
 
-  successMessage.value = message;
-  alertType.value = type;
-  isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
-  alertTimeout = setTimeout(() => {
-    isSuccessAlertVisible.value = false;
-    successMessage.value = '';
-    alertType.value = 'success';
-  }, 4000);
+    alertTimeout = setTimeout(() => {
+        isAlertVisible.value = false;
+    }, 4000);
 };
+
+const showSuccessAlert = (message, type = "success") => showAlert(message, type);
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 10. دورة الحياة

@@ -107,35 +107,106 @@ const fetchDepartments = async () => {
     }
 };
 
-// جلب بيانات الموظفين (مدراء الأقسام فقط)
+// جلب بيانات الموظفين (مدراء الأقسام والأطباء)
 const fetchEmployees = async () => {
     loadingEmployees.value = true;
     employeesError.value = null;
     
     try {
-        const response = await api.get('/admin-hospital/employees');
+        // جلب مدراء الأقسام والأطباء بشكل متوازي
+        const [managersResponse, staffResponse] = await Promise.all([
+            api.get('/admin-hospital/employees'), // مدراء الأقسام
+            api.get('/admin-hospital/staff')     // جميع الموظفين (لجلب الأطباء)
+        ]);
         
-        // التحقق من بنية الاستجابة
-        let data = [];
-        if (response.data) {
-            if (Array.isArray(response.data)) {
-                data = response.data;
-            } else if (response.data.data && Array.isArray(response.data.data)) {
-                data = response.data.data;
-            } else if (response.data.success && Array.isArray(response.data.data)) {
-                data = response.data.data;
+        // معالجة بيانات مدراء الأقسام
+        let managersData = [];
+        if (managersResponse.data) {
+            if (Array.isArray(managersResponse.data)) {
+                managersData = managersResponse.data;
+            } else if (managersResponse.data.data && Array.isArray(managersResponse.data.data)) {
+                managersData = managersResponse.data.data;
+            } else if (managersResponse.data.success && Array.isArray(managersResponse.data.data)) {
+                managersData = managersResponse.data.data;
             }
         }
         
+        // معالجة بيانات الموظفين (لجلب الأطباء)
+        let staffData = [];
+        if (staffResponse.data) {
+            if (Array.isArray(staffResponse.data)) {
+                staffData = staffResponse.data;
+            } else if (staffResponse.data.data && Array.isArray(staffResponse.data.data)) {
+                staffData = staffResponse.data.data;
+            } else if (staffResponse.data.success && Array.isArray(staffResponse.data.data)) {
+                staffData = staffResponse.data.data;
+            }
+        }
+        
+        console.log('Raw staff data from API:', staffData);
+        console.log('Sample staff item:', staffData[0]);
+        
+        // فلترة الأطباء فقط من قائمة الموظفين
+        const doctorsData = staffData.filter(emp => {
+            // التحقق من أن النوع هو 'doctor' أو 'طبيب'
+            const role = emp.role || emp.type || '';
+            const isDoctor = role === 'doctor' || role === 'طبيب';
+            
+            // تسجيل للتشخيص
+            if (isDoctor) {
+                console.log('Doctor found:', {
+                    id: emp.id || emp.fileNumber,
+                    name: emp.name || emp.fullName || emp.full_name,
+                    role: role,
+                    type: emp.type,
+                    isActive: emp.isActive,
+                    status: emp.status,
+                    hasName: !!(emp.name || emp.fullName || emp.full_name),
+                    hasEmail: !!emp.email
+                });
+            } else {
+                // تسجيل الموظفين الآخرين للتشخيص
+                console.log('Non-doctor employee:', {
+                    id: emp.id || emp.fileNumber,
+                    name: emp.name || emp.fullName || emp.full_name,
+                    role: role,
+                    type: emp.type
+                });
+            }
+            
+            return isDoctor;
+        });
+        
+        console.log('Total staff data:', staffData.length);
+        console.log('Doctors found:', doctorsData.length);
+        console.log('Managers found:', managersData.length);
+        
+        // دمج مدراء الأقسام والأطباء
+        const allEmployees = [...managersData, ...doctorsData];
+        
+        // إزالة التكرارات بناءً على id
+        const uniqueEmployees = allEmployees.filter((emp, index, self) =>
+            index === self.findIndex(e => (e.id || e.fileNumber) === (emp.id || emp.fileNumber))
+        );
+        
+        console.log('Total unique employees after merge:', uniqueEmployees.length);
+        
         // تحويل البيانات إلى الشكل المطلوب
-        availableEmployees.value = data.map(emp => ({
-            id: emp.id,
-            fileNumber: emp.id,
-            name: emp.fullName || emp.name,
-            full_name: emp.fullName || emp.name,
-            nameDisplay: emp.fullName || emp.name,
-            isActive: emp.isActive !== undefined ? emp.isActive : true,
+        availableEmployees.value = uniqueEmployees.map(emp => ({
+            id: emp.id || emp.fileNumber,
+            fileNumber: emp.id || emp.fileNumber,
+            name: emp.fullName || emp.name || emp.full_name,
+            full_name: emp.fullName || emp.name || emp.full_name,
+            nameDisplay: emp.fullName || emp.name || emp.full_name,
+            isActive: emp.isActive !== undefined ? emp.isActive : (emp.status === 'active'),
         }));
+        
+        console.log('Final availableEmployees:', availableEmployees.value.length);
+        console.log('Available employees details:', availableEmployees.value.map(emp => ({
+            id: emp.id,
+            name: emp.name,
+            isActive: emp.isActive
+        })));
     } catch (err) {
         console.error("Error fetching employees:", err);
         availableEmployees.value = [];
@@ -171,9 +242,27 @@ const isEmployeeManager = (employeeId) => {
 
 // الحصول على قائمة الموظفين المتاحين لإدارة الأقسام
 const availableManagers = computed(() => {
-    return availableEmployees.value.filter(emp => 
-        emp.isActive && !isEmployeeManager(emp.id || emp.fileNumber)
-    );
+    const filtered = availableEmployees.value.filter(emp => {
+        const isActive = emp.isActive;
+        const isAlreadyManager = isEmployeeManager(emp.id || emp.fileNumber);
+        const shouldInclude = isActive && !isAlreadyManager;
+        
+        // تسجيل للتشخيص
+        if (!shouldInclude && (emp.name || emp.full_name)) {
+            console.log('Employee excluded from availableManagers:', {
+                id: emp.id,
+                name: emp.name || emp.full_name,
+                isActive: isActive,
+                isAlreadyManager: isAlreadyManager,
+                reason: !isActive ? 'غير نشط' : (isAlreadyManager ? 'مدير قسم آخر' : 'غير معروف')
+            });
+        }
+        
+        return shouldInclude;
+    });
+    
+    console.log('Available managers count:', filtered.length);
+    return filtered;
 });
 
 // ----------------------------------------------------

@@ -74,29 +74,73 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
 
             DB::commit();
 
-            // تحديد اسم القسم وقت إنشاء الطلب (لتجنب تغييره عند تغيير قسم المستخدم لاحقاً)
+            // تحديد اسم القسم و department_id وقت إنشاء الطلب (لتجنب تغييره عند تغيير قسم المستخدم لاحقاً)
             $departmentName = 'غير محدد';
+            $departmentId = null;
             if ($user->type === 'department_admin' || $user->type === 'department_head') {
                 // أولاً: البحث عن القسم الذي يكون head_user_id = user->id
-                $department = Department::where('head_user_id', $user->id)->first();
+                $department = Department::where('head_user_id', $user->id)
+                    ->where('hospital_id', $user->hospital_id)
+                    ->first();
                 if ($department) {
                     $departmentName = $department->name;
+                    $departmentId = $department->id;
+                    \Log::info('Department found via head_user_id', [
+                        'user_id' => $user->id,
+                        'department_id' => $departmentId,
+                        'department_name' => $departmentName,
+                    ]);
                 } 
                 // ثانياً: محاولة جلب القسم من department_id
                 elseif ($user->department_id) {
-                    $department = Department::find($user->department_id);
+                    $department = Department::where('hospital_id', $user->hospital_id)
+                        ->find($user->department_id);
                     if ($department) {
                         $departmentName = $department->name;
+                        $departmentId = $department->id;
+                        \Log::info('Department found via user->department_id', [
+                            'user_id' => $user->id,
+                            'department_id' => $departmentId,
+                            'department_name' => $departmentName,
+                        ]);
                     }
                 }
                 // ثالثاً: محاولة جلب القسم من العلاقة
                 elseif ($user->department) {
                     $departmentName = $user->department->name;
+                    $departmentId = $user->department->id;
+                    \Log::info('Department found via user->department relationship', [
+                        'user_id' => $user->id,
+                        'department_id' => $departmentId,
+                        'department_name' => $departmentName,
+                    ]);
+                } else {
+                    \Log::warning('No department found for user', [
+                        'user_id' => $user->id,
+                        'user_type' => $user->type,
+                        'user->department_id' => $user->department_id ?? null,
+                    ]);
                 }
             }
 
             // تسجيل العملية في audit_log (بعد commit الناجح)
             try {
+                $newValuesData = [
+                    'request_id' => $supplyRequest->id,
+                    'pharmacy_id' => $pharmacyId,
+                    'item_count' => count($request->items),
+                    'notes' => $request->notes ?? null, // ملاحظة department عند إنشاء الطلب
+                    'department_name' => $departmentName, // اسم القسم وقت إنشاء الطلب (يُستخدم لتجنب تغييره لاحقاً)
+                    'department_id' => $departmentId, // حفظ department_id من القسم الذي يديره المستخدم
+                ];
+                
+                \Log::info('Creating audit log for supply request', [
+                    'request_id' => $supplyRequest->id,
+                    'user_id' => $user->id,
+                    'department_id' => $departmentId,
+                    'new_values' => $newValuesData,
+                ]);
+                
                 AuditLog::create([
                     'user_id' => $user->id,
                     'hospital_id' => $user->hospital_id,
@@ -104,15 +148,13 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                     'table_name' => 'internal_supply_request',
                     'record_id' => $supplyRequest->id,
                     'old_values' => null,
-                    'new_values' => json_encode([
-                        'request_id' => $supplyRequest->id,
-                        'pharmacy_id' => $pharmacyId,
-                        'item_count' => count($request->items),
-                        'notes' => $request->notes ?? null, // ملاحظة department عند إنشاء الطلب
-                        'department_name' => $departmentName, // اسم القسم وقت إنشاء الطلب (يُستخدم لتجنب تغييره لاحقاً)
-                        'department_id' => $user->department_id ?? null, // حفظ department_id أيضاً للرجوع إليه
-                    ]),
+                    'new_values' => json_encode($newValuesData),
                     'ip_address' => $request->ip(),
+                ]);
+                
+                \Log::info('Audit log created successfully', [
+                    'request_id' => $supplyRequest->id,
+                    'department_id' => $departmentId,
                 ]);
             } catch (\Exception $e) {
                 // في حالة فشل الـ logging، نستمر (لا نريد أن نفشل العملية بسبب الـ logging)

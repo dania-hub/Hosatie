@@ -106,6 +106,22 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'managerId' => 'nullable|exists:users,id',
             ]);
 
+            // إذا تم تعيين مدير قسم، تغيير type من doctor إلى department_head
+            if (!empty($data['managerId'])) {
+                $manager = User::where('hospital_id', $hospitalId)
+                    ->find($data['managerId']);
+                
+                if ($manager && $manager->type === 'doctor') {
+                    $manager->type = 'department_head';
+                    $manager->save();
+                    
+                    Log::info('Changed user type from doctor to department_head', [
+                        'user_id' => $manager->id,
+                        'department_id' => null, // سيتم تعيينه بعد إنشاء القسم
+                    ]);
+                }
+            }
+
             $dep = Department::create([
                 'hospital_id'  => $hospitalId,
                 'name'         => $data['name'],
@@ -175,9 +191,47 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'isActive'  => 'nullable|boolean',
             ]);
 
+            $oldManagerId = $dep->head_user_id;
+            $newManagerId = $data['managerId'] ?? null;
+
+            // إذا تم تغيير المدير أو إزالته
+            if ($oldManagerId !== $newManagerId) {
+                // إذا كان هناك مدير سابق، إرجاع type إلى doctor
+                if ($oldManagerId) {
+                    $oldManager = User::where('hospital_id', $hospitalId)
+                        ->find($oldManagerId);
+                    
+                    if ($oldManager && $oldManager->type === 'department_head') {
+                        $oldManager->type = 'doctor';
+                        $oldManager->save();
+                        
+                        Log::info('Changed user type from department_head to doctor', [
+                            'user_id' => $oldManager->id,
+                            'department_id' => $dep->id,
+                        ]);
+                    }
+                }
+
+                // إذا تم تعيين مدير جديد، تغيير type من doctor إلى department_head
+                if ($newManagerId) {
+                    $newManager = User::where('hospital_id', $hospitalId)
+                        ->find($newManagerId);
+                    
+                    if ($newManager && $newManager->type === 'doctor') {
+                        $newManager->type = 'department_head';
+                        $newManager->save();
+                        
+                        Log::info('Changed user type from doctor to department_head', [
+                            'user_id' => $newManager->id,
+                            'department_id' => $dep->id,
+                        ]);
+                    }
+                }
+            }
+
             $dep->update([
                 'name'         => $data['name'],
-                'head_user_id' => $data['managerId'] ?? null,
+                'head_user_id' => $newManagerId,
                 'status'       => isset($data['isActive']) ? ($data['isActive'] ? 'active' : 'inactive') : $dep->status,
             ]);
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\InternalSupplyRequest;
 use App\Models\AuditLog;
+use App\Models\Department;
 use Carbon\Carbon;
 use App\Models\User;
 use App\Models\Notification;
@@ -82,21 +83,104 @@ class ShipmentDepartmentAdminController extends BaseApiController
     {
         $user = $request->user();
         
-        // جلب الطلبات المرتبطة بالمستشفى أو التي طلبها المستخدم الحالي
-        $query = InternalSupplyRequest::with(['items.drug', 'requester'])
-            // ->where(function($q) use ($user) {
-            //     // الطلبات التي طلبها المستخدم الحالي
-            //     $q->where('requested_by', $user->id);
+        // البحث عن القسم الذي يديره المستخدم الحالي
+        $currentDepartment = null;
+        if ($user->type === 'department_head' || $user->type === 'department_admin') {
+            // البحث عن القسم الذي يكون head_user_id = user->id
+            $currentDepartment = Department::where('head_user_id', $user->id)
+                ->where('hospital_id', $user->hospital_id)
+                ->first();
+        }
+        
+        \Log::info('Department Admin Shipments - User Info', [
+            'user_id' => $user->id,
+            'user_type' => $user->type,
+            'department_found' => $currentDepartment ? $currentDepartment->id : null,
+            'department_name' => $currentDepartment ? $currentDepartment->name : null,
+        ]);
+        
+        // إذا لم يتم العثور على قسم، نستخدم الطريقة القديمة (الطلبات التي طلبها المستخدم الحالي فقط)
+        if (!$currentDepartment) {
+            \Log::info('No department found, using user-based query', ['user_id' => $user->id]);
+            $query = InternalSupplyRequest::with(['items.drug', 'requester'])
+                ->where('requested_by', $user->id)
+                ->orderBy('created_at', 'desc');
+        } else {
+            // البحث عن جميع الطلبات المرتبطة بنفس القسم
+            // نستخدم نهجاً يعتمد على جلب جميع المستخدمين الذين كانوا مديرين لهذا القسم
+            $departmentId = $currentDepartment->id;
+            
+            // البحث عن جميع المستخدمين الذين كانوا مديرين لهذا القسم
+            $departmentManagerIds = [];
+            
+            // 1. إضافة المدير الحالي
+            $departmentManagerIds[] = $user->id;
+            
+            // 2. جلب جميع المستخدمين الذين كانوا مديرين لهذا القسم من audit_log
+            $departmentLogs = AuditLog::where('table_name', 'departments')
+                ->where('record_id', $departmentId)
+                ->where(function($q) {
+                    $q->where('action', 'إضافة قسم')
+                      ->orWhere('action', 'تعديل قسم')
+                      ->orWhere('action', 'تعديل بيانات القسم')
+                      ->orWhere('action', 'store')
+                      ->orWhere('action', 'update');
+                })
+                ->get();
+            
+            foreach ($departmentLogs as $log) {
+                $newValues = json_decode($log->new_values, true);
+                if ($newValues && isset($newValues['head_user_id']) && $newValues['head_user_id']) {
+                    $departmentManagerIds[] = $newValues['head_user_id'];
+                }
+                if ($newValues && isset($newValues['managerId']) && $newValues['managerId']) {
+                    $departmentManagerIds[] = $newValues['managerId'];
+                }
+                $oldValues = json_decode($log->old_values, true);
+                if ($oldValues && isset($oldValues['head_user_id']) && $oldValues['head_user_id']) {
+                    $departmentManagerIds[] = $oldValues['head_user_id'];
+                }
+                if ($oldValues && isset($oldValues['managerId']) && $oldValues['managerId']) {
+                    $departmentManagerIds[] = $oldValues['managerId'];
+                }
+            }
+            
+            // 3. جلب جميع المستخدمين الذين كانوا مديرين لهذا القسم من جدول departments (للحصول على المدير الحالي أيضاً)
+            $currentManager = Department::where('id', $departmentId)
+                ->where('hospital_id', $user->hospital_id)
+                ->value('head_user_id');
+            if ($currentManager) {
+                $departmentManagerIds[] = $currentManager;
+            }
+            
+            // إزالة التكرارات والقيم الفارغة
+            $departmentManagerIds = array_filter(array_unique($departmentManagerIds));
+            
+            \Log::info('Department managers found', [
+                'department_id' => $departmentId,
+                'manager_ids' => $departmentManagerIds,
+                'count' => count($departmentManagerIds),
+            ]);
+            
+            // جلب جميع الطلبات التي أنشأها أي من هؤلاء المديرين
+            if (!empty($departmentManagerIds)) {
+                $query = InternalSupplyRequest::with(['items.drug', 'requester'])
+                    ->whereIn('requested_by', $departmentManagerIds)
+                    ->orderBy('created_at', 'desc');
                 
-            //     // أو الطلبات المرتبطة بصيدلية في نفس المستشفى
-            //     if ($user->hospital_id) {
-            //         $q->orWhereHas('pharmacy', function($pharmacyQuery) use ($user) {
-            //             $pharmacyQuery->where('hospital_id', $user->hospital_id);
-            //         });
-            //     }
-            // })
-            ->where('requested_by', $user->id)
-            ->orderBy('created_at', 'desc');
+                \Log::info('Query built for department requests', [
+                    'department_id' => $departmentId,
+                    'manager_ids' => $departmentManagerIds,
+                    'query_ready' => true,
+                ]);
+            } else {
+                // إذا لم نجد أي مديرين، نرجع قائمة فارغة
+                \Log::warning('No managers found for department', ['department_id' => $departmentId]);
+                $query = InternalSupplyRequest::with(['items.drug', 'requester'])
+                    ->where('id', 0) // استعلام فارغ
+                    ->orderBy('created_at', 'desc');
+            }
+        }
 
         $shipments = $query->get()->map(function ($shipment) {
             return [
@@ -144,13 +228,48 @@ class ShipmentDepartmentAdminController extends BaseApiController
      * GET /api/department-admin/shipments/{id}
      * Show details of one shipment
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $user = $request->user();
         $shipment = InternalSupplyRequest::with(['items.drug', 'requester', 'pharmacy'])
             ->find($id);
 
         if (!$shipment) {
             return $this->sendError('الشحنة غير موجودة.', [], 404);
+        }
+
+        // التحقق من أن المستخدم الحالي لديه صلاحية لعرض الطلب (ينتمي لنفس القسم)
+        $currentDepartment = null;
+        if ($user->type === 'department_head' || $user->type === 'department_admin') {
+            $currentDepartment = Department::where('head_user_id', $user->id)
+                ->where('hospital_id', $user->hospital_id)
+                ->first();
+        }
+
+        if ($currentDepartment) {
+            // التحقق من أن الطلب ينتمي لنفس القسم
+            $requestDepartmentId = null;
+            $auditLog = AuditLog::where('table_name', 'internal_supply_request')
+                ->where('record_id', $shipment->id)
+                ->where('action', 'department_create_supply_request')
+                ->first();
+            
+            if ($auditLog) {
+                $newValues = json_decode($auditLog->new_values, true);
+                if ($newValues && isset($newValues['department_id'])) {
+                    $requestDepartmentId = $newValues['department_id'];
+                }
+            }
+
+            // إذا كان الطلب لا ينتمي لنفس القسم، نرفض الوصول
+            if ($requestDepartmentId && $requestDepartmentId != $currentDepartment->id) {
+                return $this->sendError('ليس لديك صلاحية لعرض هذه الشحنة.', [], 403);
+            }
+        } else {
+            // إذا لم يكن المستخدم مدير قسم، نتحقق من أنه هو من أنشأ الطلب
+            if ($shipment->requested_by != $user->id) {
+                return $this->sendError('ليس لديك صلاحية لعرض هذه الشحنة.', [], 403);
+            }
         }
 
         // جلب الملاحظات من audit_log
@@ -220,6 +339,40 @@ class ShipmentDepartmentAdminController extends BaseApiController
         
         if ($shipment->status === 'fulfilled') {
             return $this->sendError('تم استلام هذه الشحنة مسبقاً.', [], 400);
+        }
+
+        // التحقق من أن المستخدم الحالي لديه صلاحية لتأكيد الطلب (ينتمي لنفس القسم)
+        $currentDepartment = null;
+        if ($user->type === 'department_head' || $user->type === 'department_admin') {
+            $currentDepartment = Department::where('head_user_id', $user->id)
+                ->where('hospital_id', $user->hospital_id)
+                ->first();
+        }
+
+        if ($currentDepartment) {
+            // التحقق من أن الطلب ينتمي لنفس القسم
+            $requestDepartmentId = null;
+            $auditLog = AuditLog::where('table_name', 'internal_supply_request')
+                ->where('record_id', $shipment->id)
+                ->where('action', 'department_create_supply_request')
+                ->first();
+            
+            if ($auditLog) {
+                $newValues = json_decode($auditLog->new_values, true);
+                if ($newValues && isset($newValues['department_id'])) {
+                    $requestDepartmentId = $newValues['department_id'];
+                }
+            }
+
+            // إذا كان الطلب لا ينتمي لنفس القسم، نرفض الوصول
+            if ($requestDepartmentId && $requestDepartmentId != $currentDepartment->id) {
+                return $this->sendError('ليس لديك صلاحية لتأكيد هذه الشحنة.', [], 403);
+            }
+        } else {
+            // إذا لم يكن المستخدم مدير قسم، نتحقق من أنه هو من أنشأ الطلب
+            if ($shipment->requested_by != $user->id) {
+                return $this->sendError('ليس لديك صلاحية لتأكيد هذه الشحنة.', [], 403);
+            }
         }
         
         // تحديث حالة الطلب إلى fulfilled

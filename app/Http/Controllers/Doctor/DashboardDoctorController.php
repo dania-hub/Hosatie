@@ -190,14 +190,23 @@ class DashboardDoctorController extends BaseApiController
      * - إضافة دواء للمريض (من AuditLog - prescription_drug)
      * - تعديل دواء للمريض (من AuditLog - prescription_drug)
      * - حذف دواء من المريض (من AuditLog - prescription_drug)
+     * - إنشاء طلبات توريد (من AuditLog - internal_supply_request) عندما كان مدير قسم
      */
     public function operations(Request $request)
     {
         $doctorId = $request->user()->id;
         
-        // جلب جميع عمليات الطبيب من AuditLog (خاصة بعمليات الأدوية)
+        // جلب جميع عمليات المستخدم من AuditLog
+        // 1. عمليات الأدوية (prescription_drug)
+        // 2. عمليات إنشاء طلبات التوريد (internal_supply_request) عندما كان مدير قسم
         $logs = AuditLog::where('user_id', $doctorId)
-            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+            ->where(function($query) {
+                $query->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+                      ->orWhere(function($q) {
+                          $q->where('table_name', 'internal_supply_request')
+                            ->where('action', 'department_create_supply_request');
+                      });
+            })
             ->orderBy('created_at', 'desc')
             ->take(100)
             ->get()
@@ -212,6 +221,23 @@ class DashboardDoctorController extends BaseApiController
                 $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
                 $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
                 
+                // معالجة عمليات إنشاء طلبات التوريد (عندما كان مدير قسم)
+                if ($log->table_name === 'internal_supply_request' && $log->action === 'department_create_supply_request') {
+                    $operationData['operationType'] = 'إنشاء طلب توريد';
+                    $operationData['fileNumber'] = 'REQ-' . ($log->record_id ?? 'N/A');
+                    $operationData['name'] = $newValues['department_name'] ?? 'قسم غير محدد';
+                    
+                    // إضافة معلومات إضافية عن الطلب
+                    if ($newValues && isset($newValues['item_count'])) {
+                        $operationData['details'] = "إنشاء طلب توريد يحتوي على {$newValues['item_count']} عنصر";
+                    } else {
+                        $operationData['details'] = 'إنشاء طلب توريد';
+                    }
+                    
+                    return $operationData;
+                }
+                
+                // معالجة عمليات الأدوية (prescription_drug)
                 // محاولة جلب معلومات الدواء والمريض
                 $drugName = null;
                 $quantity = null;
@@ -306,6 +332,11 @@ class DashboardDoctorController extends BaseApiController
             })
             ->filter(function ($operation) {
                 // التأكد من وجود البيانات الأساسية
+                // للعمليات العادية (prescription_drug): يجب أن يكون هناك fileNumber و name
+                // لعمليات إنشاء الطلبات (internal_supply_request): يجب أن يكون هناك fileNumber على الأقل
+                if (isset($operation['operationType']) && $operation['operationType'] === 'إنشاء طلب توريد') {
+                    return isset($operation['fileNumber']);
+                }
                 return isset($operation['fileNumber']) && isset($operation['name']);
             })
             ->values()
@@ -327,6 +358,8 @@ class DashboardDoctorController extends BaseApiController
             'update' => 'تعديل دواء للمريض',
             'delete' => 'حذف دواء من المريض',
             'assign' => 'إضافة دواء للمريض',
+            'department_create_supply_request' => 'إنشاء طلب توريد',
+            'إنشاء طلب توريد' => 'إنشاء طلب توريد',
         ];
 
         return $translations[$action] ?? $action;

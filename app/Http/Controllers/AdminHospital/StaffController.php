@@ -155,9 +155,38 @@ class StaffController extends BaseApiController
 
             DB::beginTransaction();
 
-            // 2. Create User (Inactive, No Password yet)
+            // 2. إذا كان الموظف مدير مخزن، التحقق من عدم وجود مدير مخزن نشط آخر للمستشفى
+            $warehouse = null;
+            if ($validated['role'] === 'warehouse_manager') {
+                $existingWarehouseManager = User::where('hospital_id', $hospitalId)
+                    ->where('type', 'warehouse_manager')
+                    ->where('status', 'active') // التحقق فقط من المديرين النشطين
+                    ->first();
+                
+                if ($existingWarehouseManager) {
+                    DB::rollBack();
+                    Log::warning('Active warehouse manager already exists for hospital', [
+                        'hospital_id' => $hospitalId,
+                        'existing_manager_id' => $existingWarehouseManager->id
+                    ]);
+                    return $this->sendError('يوجد مدير مخزن نشط بالفعل لهذا المستشفى. لا يمكن إضافة أكثر من مدير مخزن نشط واحد لكل مستشفى.', [], 400);
+                }
+
+                // البحث عن المستودع المرتبط بنفس hospital_id
+                $warehouse = \App\Models\Warehouse::where('hospital_id', $hospitalId)->first();
+                
+                if (!$warehouse) {
+                    DB::rollBack();
+                    Log::warning('Warehouse not found for hospital', [
+                        'hospital_id' => $hospitalId
+                    ]);
+                    return $this->sendError('لم يتم العثور على مستودع لهذا المستشفى. يرجى إنشاء مستودع أولاً.', [], 404);
+                }
+            }
+
+            // 3. Create User (Inactive, No Password yet)
             // ملاحظة: department_id لا يوجد في جدول users، العلاقة تتم من خلال head_user_id في جدول departments
-            $user = User::create([
+            $userData = [
                 'full_name'   => $validated['full_name'],
                 'email'       => $validated['email'],
                 'type'        => $validated['role'],
@@ -168,9 +197,16 @@ class StaffController extends BaseApiController
                 'status'      => 'pending_activation',
                 'password'    => '', // Empty for now
                 'created_by'  => $currentUser->id,
-            ]);
+            ];
 
-            // 3. إذا كان الموظف مدير قسم وتم اختيار قسم، تحديث القسم
+            // إذا كان مدير مخزن، إضافة warehouse_id
+            if ($validated['role'] === 'warehouse_manager' && $warehouse) {
+                $userData['warehouse_id'] = $warehouse->id;
+            }
+
+            $user = User::create($userData);
+
+            // 4. إذا كان الموظف مدير قسم وتم اختيار قسم، تحديث القسم
             if ($validated['role'] === 'department_head' && isset($validated['department_id']) && $validated['department_id'] !== null) {
                 try {
                     $departmentId = (int)$validated['department_id'];
@@ -311,6 +347,40 @@ class StaffController extends BaseApiController
 
             DB::beginTransaction();
 
+            // إذا تم تغيير النوع إلى warehouse_manager، التحقق من عدم وجود مدير مخزن نشط آخر
+            $warehouse = null;
+            if (isset($validated['role']) && $validated['role'] === 'warehouse_manager') {
+                // التحقق فقط إذا كان النوع يتغير من نوع آخر إلى warehouse_manager
+                if ($staff->type !== 'warehouse_manager') {
+                    $existingWarehouseManager = User::where('hospital_id', $hospitalId)
+                        ->where('type', 'warehouse_manager')
+                        ->where('status', 'active') // التحقق فقط من المديرين النشطين
+                        ->where('id', '!=', $id) // استثناء المستخدم الحالي
+                        ->first();
+                    
+                    if ($existingWarehouseManager) {
+                        DB::rollBack();
+                        Log::warning('Active warehouse manager already exists for hospital', [
+                            'hospital_id' => $hospitalId,
+                            'existing_manager_id' => $existingWarehouseManager->id,
+                            'updating_user_id' => $id
+                        ]);
+                        return $this->sendError('يوجد مدير مخزن نشط بالفعل لهذا المستشفى. لا يمكن إضافة أكثر من مدير مخزن نشط واحد لكل مستشفى.', [], 400);
+                    }
+                }
+
+                // البحث عن المستودع المرتبط بنفس hospital_id
+                $warehouse = \App\Models\Warehouse::where('hospital_id', $hospitalId)->first();
+                
+                if (!$warehouse) {
+                    DB::rollBack();
+                    Log::warning('Warehouse not found for hospital', [
+                        'hospital_id' => $hospitalId
+                    ]);
+                    return $this->sendError('لم يتم العثور على مستودع لهذا المستشفى. يرجى إنشاء مستودع أولاً.', [], 404);
+                }
+            }
+
             // تحديث بيانات الموظف
             if (isset($validated['full_name'])) {
                 $staff->full_name = $validated['full_name'];
@@ -320,6 +390,14 @@ class StaffController extends BaseApiController
             }
             if (isset($validated['role'])) {
                 $staff->type = $validated['role'];
+                
+                // إذا تم تغيير النوع إلى warehouse_manager، تعيين warehouse_id
+                if ($validated['role'] === 'warehouse_manager' && $warehouse) {
+                    $staff->warehouse_id = $warehouse->id;
+                } elseif ($validated['role'] !== 'warehouse_manager') {
+                    // إذا تم تغيير النوع من warehouse_manager إلى نوع آخر، إزالة warehouse_id
+                    $staff->warehouse_id = null;
+                }
             }
             if (isset($validated['phone'])) {
                 $staff->phone = $validated['phone'];
@@ -407,6 +485,24 @@ class StaffController extends BaseApiController
 
             // حفظ الحالة القديمة لتسجيلها
             $oldStatus = $staff->status;
+            
+            // إذا كان الموظف مدير مخزن ويتم تفعيله، التحقق من عدم وجود مدير مخزن نشط آخر
+            if ($staff->type === 'warehouse_manager' && $validated['isActive'] && $oldStatus !== 'active') {
+                $existingActiveWarehouseManager = User::where('hospital_id', $hospitalId)
+                    ->where('type', 'warehouse_manager')
+                    ->where('status', 'active')
+                    ->where('id', '!=', $id) // استثناء المستخدم الحالي
+                    ->first();
+                
+                if ($existingActiveWarehouseManager) {
+                    Log::warning('Cannot activate warehouse manager: another active manager exists', [
+                        'hospital_id' => $hospitalId,
+                        'existing_manager_id' => $existingActiveWarehouseManager->id,
+                        'attempting_to_activate_id' => $id
+                    ]);
+                    return $this->sendError('يوجد مدير مخزن نشط بالفعل لهذا المستشفى. لا يمكن تفعيل أكثر من مدير مخزن واحد في نفس الوقت.', [], 400);
+                }
+            }
             
             // تحديث الحالة
             $staff->status = $validated['isActive'] ? 'active' : 'inactive';

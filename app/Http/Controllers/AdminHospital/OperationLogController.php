@@ -13,7 +13,18 @@ class OperationLogController extends BaseApiController
 {
     public function index(Request $request)
     {
-        $logs = AuditLog::latest()->get();
+        // جلب السجلات مع استبعاد العمليات التي قام بها مدير المستشفى
+        // نستخدم whereHas للفلترة في قاعدة البيانات مباشرة لتحسين الأداء
+        $logs = AuditLog::where(function ($query) {
+            // إما لا يوجد user_id (سجلات قديمة)
+            $query->whereNull('user_id')
+                // أو يوجد user_id لكن user غير موجود (تم حذفه)
+                ->orWhereDoesntHave('user')
+                // أو يوجد user لكنه ليس hospital_admin
+                ->orWhereHas('user', function ($q) {
+                    $q->where('type', '!=', 'hospital_admin');
+                });
+        })->latest()->get();
 
         $data = $logs->map(function ($log) {
             $user = User::find($log->user_id);

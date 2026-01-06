@@ -127,12 +127,13 @@ const filteredOperations = computed(() => {
     let list = operations.value;
     const search = searchTerm.value ? searchTerm.value.toLowerCase() : '';
 
-    // 1. التصفية (البحث ونص نوع العملية ورقم الملف)
+    // 1. التصفية (البحث ونص نوع العملية ورقم الملف واسم الموظف/المريض)
     list = list.filter(op => {
         // تصفية حسب نص البحث
         const searchMatch = !search ||
                             op.fileNumber.toString().includes(search) ||
-                            op.operationType.toLowerCase().includes(search);
+                            op.operationType.toLowerCase().includes(search) ||
+                            (op.targetName && op.targetName.toLowerCase().includes(search));
 
         // تصفية حسب نوع العملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
@@ -150,6 +151,8 @@ const filteredOperations = computed(() => {
                 comparison = a.fileNumber - b.fileNumber;
             } else if (sortKey.value === 'operationType') {
                 comparison = a.operationType.localeCompare(b.operationType, 'ar');
+            } else if (sortKey.value === 'targetName') {
+                comparison = (a.targetName || '').localeCompare((b.targetName || ''), 'ar');
             } else if (sortKey.value === 'operationDate') {
                 const dateA = parseDate(a.operationDate);
                 const dateB = parseDate(b.operationDate);
@@ -245,6 +248,7 @@ const printTable = () => {
                 <tr>
                     <th>رقم العملية</th>
                     <th>نوع العملية</th>
+                    <th>اسم</th>
                     <th>تاريخ العملية</th>
                 </tr>
             </thead>
@@ -256,6 +260,7 @@ const printTable = () => {
             <tr>
                 <td>${op.fileNumber}</td>
                 <td>${op.operationType}</td>
+                <td>${op.targetName || '-'}</td>
                 <td>${op.operationDate}</td>
             </tr>
         `;
@@ -350,6 +355,20 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                         نوع العملية (ي - أ)
                                     </a>
                                 </li>
+
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الاسم:</li>
+                                <li>
+                                    <a @click="sortOperations('targetName', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'targetName' && sortOrder === 'asc'}">
+                                        الاسم (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a @click="sortOperations('targetName', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'targetName' && sortOrder === 'desc'}">
+                                        الاسم (ي - أ)
+                                    </a>
+                                </li>
                             </ul>
                             
                         </div>
@@ -382,6 +401,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
                                     <tr>
                                         <th class="file-number-col">رقم العملية</th>
+                                         <th class="target-name-col">اسم</th>
                                         <th class="operation-type-col">نوع العملية</th>
                                         <th class="operation-date-col">تاريخ العملية</th>
                                         </tr>
@@ -389,12 +409,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 
                                 <tbody>
                                     <tr v-if="isLoading">
-                                        <td colspan="3" class="p-4">
+                                        <td colspan="4" class="p-4">
                                             <TableSkeleton :rows="5" />
                                         </td>
                                     </tr>
                                     <tr v-else-if="error">
-                                        <td colspan="3" class="py-12">
+                                        <td colspan="4" class="py-12">
                                             <ErrorState :message="error" :retry="fetchOperations" />
                                         </td>
                                     </tr>
@@ -405,12 +425,14 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
                                             <td class="file-number-col">{{ op.fileNumber }}</td>
+                                            <td class="target-name-col">{{ op.targetName || '-' }}</td>
                                             <td class="operation-type-col">{{ op.operationType }}</td>
+                                            
                                             <td class="operation-date-col">{{ op.operationDate }}</td>
 
                                         </tr>
                                         <tr v-if="filteredOperations.length === 0">
-                                            <td colspan="3" class="py-12">
+                                            <td colspan="4" class="py-12">
                                                 <EmptyState message="لا توجد عمليات مطابقة لمعايير البحث" />
                                             </td>
                                         </tr>
@@ -467,15 +489,19 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
     min-width: 90px;
 }
 .operation-type-col {
-    width: 120px;
-    min-width: 120px;
+    width: 200px;
+    min-width: 190px;
 }
 .operation-date-col {
     width: 120px;
     min-width: 120px;
 }
-.name-col {
+.target-name-col {
     width: 170px;
     min-width: 150px;
+}
+.name-col {
+    width: 90px;
+    min-width: 90px;
 }
 </style>

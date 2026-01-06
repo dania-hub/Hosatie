@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use App\Http\Controllers\Controller;
 use App\Models\Complaint;
 use App\Models\PatientTransferRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -80,13 +81,16 @@ class ComplaintHospitalAdminController extends BaseApiController
 
             // دمج الشكاوى
             $mappedComplaints = $complaints->map(function ($c) {
+                // ترجمة حالة "تمت المراجعة" إلى "تم الرد" للشكاوى
+                $status = $c->status === 'تمت المراجعة' ? 'تم الرد' : $c->status;
+                
                 return [
                     'id'          => $c->id,
                     'fileNumber'  => 'FILE-' . $c->patient_id,
                     'patientName' => $c->patient?->full_name ?? 'غير معروف',
                     'requestType' => 'شكوى',
                     'content'     => $c->message,
-                    'status'      => $c->status,
+                    'status'      => $status,
                     'createdAt'   => $c->created_at?->toIso8601String(),
                     'type'        => 'complaint', // للتمييز بين الشكاوى وطلبات النقل
                 ];
@@ -151,16 +155,39 @@ class ComplaintHospitalAdminController extends BaseApiController
                 ->find($id);
 
             if ($complaint) {
+                // ترجمة حالة "تمت المراجعة" إلى "تم الرد" للشكاوى
+                $status = $complaint->status === 'تمت المراجعة' ? 'تم الرد' : $complaint->status;
+                
+                // في جدول الشكاوى، reply_message يحتوي على الرد أو سبب الرفض
+                // عند الرد: يتم استدعاء respond() و response مطلوب، ويتم حفظه في reply_message
+                // عند الرفض: يتم استدعاء reject() و rejectionReason مطلوب، ويتم حفظه في reply_message
+                // كلاهما يحفظ في reply_message والحالة تصبح "تمت المراجعة"
+                // للتمييز: سنستخدم reply_message لكلاهما
+                // سنعرض response إذا كانت الحالة "تم الرد" وكان هناك reply_message (يعتبر رد)
+                // سنعرض rejectionReason إذا كان هناك reply_message ولكن الحالة ليست "تم الرد" (يعتبر سبب رفض)
+                // لكن في الكود الحالي، عند الرفض أيضاً تصبح الحالة "تمت المراجعة"
+                // لذا سنعرض reply_message كـ response إذا كانت الحالة "تم الرد"
+                // وسنعرض rejectionReason إذا كان هناك reply_message ولكن response غير موجود (يعني تم الرفض)
+                
+                // التحقق: إذا كانت الحالة "تم الرد" وكان هناك reply_message، فهو رد
+                // إذا كان هناك reply_message ولكن الحالة ليست "تم الرد"، فهو سبب رفض
+                // لكن في الكود الحالي، كلاهما يصبح "تم الرد"
+                // لذا سنعرض reply_message كـ response دائماً إذا كانت الحالة "تم الرد"
+                // وسنعرض rejectionReason فقط إذا كان هناك reply_message ولكن response غير موجود
+                
                 return $this->sendSuccess([
                     'id'          => $complaint->id,
                     'fileNumber'  => 'FILE-' . $complaint->patient_id,
                     'patientName' => $complaint->patient?->full_name ?? 'غير معروف',
                     'requestType' => 'شكوى',
                     'content'     => $complaint->message,
-                    'status'      => $complaint->status,
+                    'status'      => $status,
                     'reply'       => $complaint->reply_message,
+                    'response'    => $status === 'تم الرد' && $complaint->reply_message ? $complaint->reply_message : null, // الرد عند الحالة "تم الرد"
+                    'rejectionReason' => $status === 'تم الرد' && $complaint->reply_message ? null : ($complaint->reply_message ?? null), // سبب الرفض إذا لم يكن response
                     'createdAt'   => $complaint->created_at?->toIso8601String(),
                     'repliedAt'   => $complaint->replied_at?->toIso8601String(),
+                    'respondedAt' => $complaint->replied_at?->toIso8601String(),
                     'type'        => 'complaint',
                 ], 'تم جلب تفاصيل الشكوى بنجاح.');
             }
@@ -195,6 +222,7 @@ class ComplaintHospitalAdminController extends BaseApiController
                 'toHospitalName' => $transferRequest->toHospital?->name ?? 'غير محدد',
                 'fromHospitalName' => $transferRequest->fromHospital?->name ?? 'غير محدد',
                 'patientId'   => $transferRequest->patient_id,
+                'rejectionReason' => $transferRequest->rejection_reason ?? null,
             ], 'تم جلب تفاصيل طلب النقل بنجاح.');
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Get Request Details Error: ' . $e->getMessage(), ['exception' => $e]);
@@ -286,7 +314,19 @@ class ComplaintHospitalAdminController extends BaseApiController
             if ($transferRequest) {
                 // الموافقة الأولية من المستشفى الحالي - الحالة تصبح preapproved
                 $transferRequest->status = 'preapproved';
-                $transferRequest->handeled_by = $user->id; // تعبئة handeled_by برمز المستخدم الذي قبل الطلب
+                
+                // جلب ID المدير الأول من نفس المستشفى
+                $firstManager = User::where('type', 'hospital_admin')
+                    ->where('hospital_id', $hospitalId)
+                    ->where('status', 'active')
+                    ->orderBy('id', 'asc')
+                    ->first();
+                
+                if ($firstManager) {
+                    // وضع ID المدير الأول في requested_by عند الموافقة المبدئية
+                    $transferRequest->requested_by = $firstManager->id;
+                }
+                
                 $transferRequest->handeled_at = Carbon::now();
                 // المريض لا يزال في المستشفى الحالي - سيتم نقله لاحقاً من قبل المستشفى المستقبل
                 $transferRequest->save();
@@ -310,6 +350,30 @@ class ComplaintHospitalAdminController extends BaseApiController
             if ($transferRequest) {
                 // نقل المريض إلى المستشفى الجديد وتغيير الحالة إلى approved
                 $transferRequest->status = 'approved';
+                
+                // جلب ID المدير الثاني من المستشفى المستقبل
+                $secondManager = User::where('type', 'hospital_admin')
+                    ->where('hospital_id', $hospitalId) // المستشفى المستقبل
+                    ->where('status', 'active')
+                    ->orderBy('id', 'asc')
+                    ->skip(1) // تخطي المدير الأول
+                    ->first();
+                
+                // إذا لم يوجد مدير ثاني، نستخدم أول مدير متاح
+                if (!$secondManager) {
+                    $secondManager = User::where('type', 'hospital_admin')
+                        ->where('hospital_id', $hospitalId)
+                        ->where('status', 'active')
+                        ->orderBy('id', 'asc')
+                        ->first();
+                }
+                
+                if ($secondManager) {
+                    // وضع ID المدير الثاني في handeled_by عند الموافقة النهائية
+                    $transferRequest->handeled_by = $secondManager->id;
+                }
+                
+                $transferRequest->handeled_at = Carbon::now();
                 $transferRequest->load('patient');
                 if ($transferRequest->patient && $transferRequest->to_hospital_id) {
                     $transferRequest->patient->hospital_id = $transferRequest->to_hospital_id;
@@ -419,7 +483,7 @@ class ComplaintHospitalAdminController extends BaseApiController
     private function translateTransferStatus(?string $status): string
     {
         return match ($status) {
-            'approved' => 'تم الرد',
+            'approved' => 'تم القبول',
             'preapproved' => 'تمت الموافقة الأولية',
             'pending'  => 'قيد المراجعة',
             'rejected' => 'مرفوض',

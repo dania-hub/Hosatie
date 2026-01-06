@@ -138,21 +138,21 @@
                     </div>
                 </div>
 
-                <!-- الرد -->
-                <div v-if="patientData?.response" class="bg-green-50 border border-green-100 rounded-2xl p-6">
+                <!-- الرد (للشكاوى التي تم الرد عليها) -->
+                <div v-if="(patientData?.requestType === 'شكوى' || patientData?.type === 'complaint') && patientData?.status === 'تم الرد' && (patientData?.response || patientData?.reply)" class="bg-green-50 border border-green-100 rounded-2xl p-6">
                     <h3 class="text-lg font-bold text-green-700 mb-4 flex items-center gap-2">
                         <Icon icon="solar:chat-round-check-bold-duotone" class="w-6 h-6" />
                         الرد
                     </h3>
                     
                     <p class="text-green-800 font-medium leading-relaxed bg-white/50 p-4 rounded-xl border border-green-100/50 mb-4">
-                        {{ patientData.response }}
+                        {{ patientData.response || patientData.reply }}
                     </p>
                     
                     <div class="flex flex-wrap gap-4 text-sm text-green-700/80">
-                        <span v-if="patientData?.respondedAt" class="flex items-center gap-1">
+                        <span v-if="patientData?.respondedAt || patientData?.repliedAt" class="flex items-center gap-1">
                             <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
-                            {{ formatDate(patientData.respondedAt) }}
+                            {{ formatDate(patientData.respondedAt || patientData.repliedAt) }}
                         </span>
                         <span v-if="patientData?.respondedBy" class="flex items-center gap-1">
                             <Icon icon="solar:user-id-bold" class="w-4 h-4" />
@@ -161,8 +161,8 @@
                     </div>
                 </div>
 
-                <!-- سبب الرفض -->
-                <div v-if="patientData?.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                <!-- سبب الرفض (لطلبات النقل المرفوضة) -->
+                <div v-if="(patientData?.requestType === 'النقل' || patientData?.type === 'transfer') && patientData?.status === 'مرفوض' && patientData?.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
                     <h3 class="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
                         <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                         سبب الرفض
@@ -176,6 +176,29 @@
                         <span v-if="patientData?.rejectedAt" class="flex items-center gap-1">
                             <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
                             {{ formatDate(patientData.rejectedAt) }}
+                        </span>
+                        <span v-if="patientData?.rejectedBy" class="flex items-center gap-1">
+                            <Icon icon="solar:user-id-bold" class="w-4 h-4" />
+                            {{ patientData.rejectedBy }}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- سبب الرفض (للشكاوى المرفوضة) - يظهر فقط إذا لم يكن هناك response -->
+                <div v-if="(patientData?.requestType === 'شكوى' || patientData?.type === 'complaint') && !patientData?.response && (patientData?.rejectionReason || patientData?.reply)" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                    <h3 class="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
+                        <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
+                        سبب الرفض
+                    </h3>
+                    
+                    <p class="text-red-800 font-medium leading-relaxed bg-white/50 p-4 rounded-xl border border-red-100/50 mb-4">
+                        {{ patientData.rejectionReason || patientData.reply }}
+                    </p>
+                    
+                    <div class="flex flex-wrap gap-4 text-sm text-red-700/80">
+                        <span v-if="patientData?.rejectedAt || patientData?.repliedAt" class="flex items-center gap-1">
+                            <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
+                            {{ formatDate(patientData.rejectedAt || patientData.repliedAt) }}
                         </span>
                         <span v-if="patientData?.rejectedBy" class="flex items-center gap-1">
                             <Icon icon="solar:user-id-bold" class="w-4 h-4" />

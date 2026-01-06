@@ -305,30 +305,38 @@
                                                 <!-- عرض علامة الحالة أو زر الرد -->
                                                 <template v-if="!canRespondToRequest(request)">
                                                     <!-- عرض علامة صح عند القبول -->
-                                                    <Icon
+                                                    <div
                                                         v-if="isApproved(request)"
-                                                        :icon="getStatusIcon(request.status || request.requestStatus)"
-                                                        :class="getStatusIconClass(request.status || request.requestStatus)"
-                                                        class="w-6 h-6"
-                                                    />
+                                                        class="tooltip p-2 rounded-lg bg-green-50 border border-green-200"
+                                                        data-tip="تم قبول طلب النقل"
+                                                    >
+                                                        <Icon
+                                                            icon="solar:check-circle-bold"
+                                                            class="w-5 h-5 text-green-600"
+                                                        />
+                                                    </div>
                                                     <!-- عرض علامة خطأ عند الرفض -->
-                                                    <Icon
+                                                    <div
                                                         v-else-if="isRejected(request)"
-                                                        :icon="getStatusIcon(request.status || request.requestStatus)"
-                                                        :class="getStatusIconClass(request.status || request.requestStatus)"
-                                                        class="w-6 h-6"
-                                                    />
+                                                        class="tooltip p-2 rounded-lg bg-red-50 border border-red-200"
+                                                        data-tip="تم رفض طلب النقل"
+                                                    >
+                                                        <Icon
+                                                            icon="solar:close-circle-bold"
+                                                            class="w-5 h-5 text-red-600"
+                                                        />
+                                                    </div>
                                                 </template>
                                                 
                                                 <!-- زر الرد على الطلب (فقط عند قيد المراجعة) -->
                                                 <button 
                                                     v-else
                                                     @click="openResponseModal(request)"
-                                                    class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" 
+                                                    class="tooltip p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95" 
                                                     data-tip="الرد على طلب النقل">
                                                     <Icon
                                                         icon="streamline:mail-send-reply-all-email-message-reply-all-actions-action-arrow" 
-                                                        class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        class="w-4 h-4 text-yellow-600 cursor-pointer hover:scale-110 transition-transform"
                                                     />
                                                 </button>
                                             </div>
@@ -652,24 +660,18 @@ const getStatusIconClass = (status) => {
 };
 
 const getStatusClass = (status) => {
-    if (!status) return 'bg-gray-100 text-gray-700';
+    if (!status) return 'text-gray-600 font-semibold';
     
-    const statusLower = String(status).toLowerCase();
+    const statusText = getStatusText(status);
     
-    if (statusLower === 'approved' || statusLower.includes('قبول') || statusLower.includes('رد')) {
-        return 'bg-green-100 text-green-700';
-    }
-    if (statusLower === 'preapproved' || statusLower.includes('الموافقة الأولية')) {
-        return 'bg-blue-100 text-blue-700';
-    }
-    if (statusLower === 'rejected' || statusLower.includes('رفض') || statusLower.includes('مرفوض')) {
-        return 'bg-red-100 text-red-700';
-    }
-    if (statusLower === 'pending' || statusLower.includes('مراجعة') || statusLower.includes('قيد')) {
-        return 'bg-yellow-100 text-yellow-700';
-    }
+    const statusClasses = {
+        'تم القبول': 'text-green-600 font-semibold',
+        'تم الرد': 'text-green-600 font-semibold',
+        'قيد المراجعة': 'text-yellow-600 font-semibold',
+        'مرفوض': 'text-red-600 font-semibold',
+    };
     
-    return 'bg-gray-100 text-gray-700';
+    return statusClasses[statusText] || 'text-gray-600 font-semibold';
 };
 
 const canRespondToRequest = (request) => {

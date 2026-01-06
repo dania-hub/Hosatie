@@ -7,6 +7,65 @@
         <div class="flex items-center gap-3 w-full sm:max-w-xl">
           <search v-model="searchTerm" placeholder="ابحث باسم المريض أو رقم الملف..." />
 
+          <!-- زر إظهار/إخفاء فلتر التاريخ -->
+          <button
+            @click="showDateFilter = !showDateFilter"
+            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+          >
+            <Icon
+              icon="solar:calendar-bold"
+              class="w-5 h-5"
+            />
+          </button>
+
+          <!-- فلتر التاريخ -->
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-95"
+          >
+            <div v-if="showDateFilter" class="flex items-center gap-2">
+              <div class="relative">
+                <input
+                  type="date"
+                  v-model="dateFrom"
+                  class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                  placeholder="من تاريخ"
+                />
+                <Icon
+                  icon="solar:calendar-linear"
+                  class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
+              </div>
+              <span class="text-gray-600 font-medium">إلى</span>
+              <div class="relative">
+                <input
+                  type="date"
+                  v-model="dateTo"
+                  class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                  placeholder="إلى تاريخ"
+                />
+                <Icon
+                  icon="solar:calendar-linear"
+                  class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
+              </div>
+              <button
+                v-if="dateFrom || dateTo"
+                @click="clearDateFilter"
+                class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                title="مسح فلتر التاريخ"
+              >
+                <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                مسح
+              </button>
+            </div>
+          </Transition>
+
           <!-- قائمة الفرز -->
           <div class="dropdown dropdown-start">
             <div
@@ -118,18 +177,19 @@
                   <th class="request-type-col">نوع الطلب</th>
                   <th class="content-col">المحتوى</th>
                   <th class="status-col">الحالة</th>
+                  <th class="date-col">تاريخ الطلب</th>
                   <th class="actions-col text-center">الإجراءات</th>
                 </tr>
               </thead>
 
               <tbody class="text-gray-800">
                 <tr v-if="isLoading">
-                    <td colspan="6" class="p-4">
+                    <td colspan="7" class="p-4">
                         <TableSkeleton :rows="5" />
                     </td>
                 </tr>
                 <tr v-else-if="error">
-                    <td colspan="6" class="py-12">
+                    <td colspan="7" class="py-12">
                         <ErrorState :message="error" :retry="fetchPatients" />
                     </td>
                 </tr>
@@ -162,6 +222,9 @@
                       </span>
                     </td>
                     <td class="py-4">
+                      {{ formatDate(patient.createdAt) || 'غير محدد' }}
+                    </td>
+                    <td class="py-4">
                       <div class="flex gap-3 justify-center">
                         <!-- زر معاينة تفاصيل الملف -->
                         <button
@@ -177,18 +240,46 @@
                           />
                         </button>
 
-                        <!-- زر الرد على الطلب -->
+                        <!-- عرض علامة صح للشكاوى التي تم الرد عليها -->
+                        <div v-if="patient.requestType === 'شكوى' && patient.status === 'تم الرد'" 
+                             class="tooltip p-2 rounded-lg bg-green-50 border border-green-200"
+                             data-tip="تم الرد على الشكوى">
+                          <Icon
+                            icon="solar:check-circle-bold"
+                            class="w-5 h-5 text-green-600"
+                          />
+                        </div>
+                        <!-- عرض علامة صح/خطأ لطلبات النقل المقبولة/المرفوضة -->
+                        <div v-else-if="patient.requestType === 'النقل' && (patient.status === 'تم القبول' || patient.status === 'تم الرد')" 
+                             class="tooltip p-2 rounded-lg bg-green-50 border border-green-200"
+                             data-tip="تم قبول طلب النقل">
+                          <Icon
+                            icon="solar:check-circle-bold"
+                            class="w-5 h-5 text-green-600"
+                          />
+                        </div>
+                        <div v-else-if="patient.requestType === 'النقل' && patient.status === 'مرفوض'" 
+                             class="tooltip p-2 rounded-lg bg-red-50 border border-red-200"
+                             data-tip="تم رفض طلب النقل">
+                          <Icon
+                            icon="solar:close-circle-bold"
+                            class="w-5 h-5 text-red-600"
+                          />
+                        </div>
+                        <!-- زر الرد على الطلب (للشكاوى وطلبات النقل المعلقة) -->
                         <button
+                          v-else
                           @click="openResponseModal(patient)"
-                          class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                          class="tooltip p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                           data-tip="الرد على الطلب"
-                          :disabled="patient.status === 'تمت المراجعة' || isLoadingResponse"
+                          :disabled="patient.status === 'تم الرد' || patient.status === 'تمت المراجعة' || isLoadingResponse"
                         >
                           <Icon
                             icon="streamline:mail-send-reply-all-email-message-reply-all-actions-action-arrow"
-                            class="w-4 h-4 text-blue-600 hover:text-blue-700 transition-colors"
+                            class="w-4 h-4 text-yellow-600 hover:text-yellow-700 transition-colors"
                             :class="{
                               'opacity-50 cursor-not-allowed': 
+                                patient.status === 'تم الرد' ||
                                 patient.status === 'تمت المراجعة' ||
                                 isLoadingResponse
                             }"
@@ -198,7 +289,7 @@
                     </td>
                   </tr>
                   <tr v-if="filteredPatients.length === 0">
-                    <td colspan="6" class="py-12">
+                    <td colspan="7" class="py-12">
                         <EmptyState message="لا توجد شكاوى متاحة" icon="tabler:inbox-off" />
                     </td>
                   </tr>
@@ -319,10 +410,18 @@ const error = ref(null);
 const searchTerm = ref('');
 const sortKey = ref('createdAt');
 const sortOrder = ref('desc');
+const dateFrom = ref('');
+const dateTo = ref('');
 
 const sortPatients = (key, order) => {
   sortKey.value = key;
   sortOrder.value = order;
+};
+
+// دوال فلترة التاريخ
+const clearDateFilter = () => {
+  dateFrom.value = '';
+  dateTo.value = '';
 };
 
 const filteredPatients = computed(() => {
@@ -381,13 +480,10 @@ const formatDate = (dateString) => {
   if (!dateString) return 'غير محدد';
   try {
     const date = new Date(dateString);
-    return date.toLocaleDateString('ar-SA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   } catch {
     return dateString;
   }
@@ -418,14 +514,11 @@ const getStatusClass = (status) => {
   if (!status) return 'bg-gray-100 text-gray-700';
   
   const statusClasses = {
-    'تمت المراجعة': 'bg-green-100 text-green-700',
-    'قيد المراجعة': 'bg-yellow-100 text-yellow-700',
-    'مقبول': 'bg-green-100 text-green-700',
-    'معلق': 'bg-yellow-100 text-yellow-700',
-    'مرفوض': 'bg-red-100 text-red-700',
-    'ملغى': 'bg-red-100 text-red-700',
-    'مكتمل': 'bg-blue-100 text-blue-700',
-    'جديد': 'bg-gray-100 text-gray-700'
+    'تم القبول': 'text-green-600 font-semibold',
+    'تم الرد': 'text-green-600 font-semibold',
+    'قيد المراجعة': 'text-yellow-600 font-semibold',
+
+    'مرفوض': 'text-red-600 font-semibold',
   };
 
   return statusClasses[status] || 'bg-gray-100 text-gray-700';
@@ -586,7 +679,7 @@ const handleRequestResponse = async (responseData) => {
       const responseData_result = result.data?.data || result.data || result;
       patientsData.value[complaintIndex] = {
         ...patientsData.value[complaintIndex],
-        status: 'تمت المراجعة',
+        status: 'تم الرد',
         reply: responseData.response,
         repliedAt: new Date().toISOString()
       };
@@ -603,16 +696,23 @@ const handleRequestResponse = async (responseData) => {
     showSuccessAlert('❌ ' + errorMsg, 'error');
   } finally {
     isLoadingResponse.value = false;
+    // إعادة تعيين isSubmitting في المودال (سيتم إعادة تعيينه تلقائياً عند إغلاق المودال)
   }
 };
 
 const handleRequestRejection = async (responseData) => {
+  // التحقق من نوع الطلب - لا يمكن رفض الشكاوى
+  if (selectedPatient.value?.requestType === 'شكوى' || selectedPatient.value?.type === 'complaint') {
+    showSuccessAlert('⚠️ لا يمكن رفض الشكاوى. يمكنك فقط الرد عليها.', 'warning');
+    return;
+  }
+  
   isLoadingResponse.value = true;
   
   try {
     const complaintId = selectedPatient.value.id;
     
-    // إرسال سبب الرفض إلى API
+    // إرسال سبب الرفض إلى API (لطلبات النقل فقط)
     const apiData = {
       rejectionReason: responseData.rejectionReason,
       notes: responseData.notes || null,
@@ -625,7 +725,7 @@ const handleRequestRejection = async (responseData) => {
     if (complaintIndex !== -1) {
       patientsData.value[complaintIndex] = {
         ...patientsData.value[complaintIndex],
-        status: 'تمت المراجعة',
+        status: 'مرفوض',
         reply: responseData.rejectionReason,
         repliedAt: new Date().toISOString()
       };
@@ -634,11 +734,11 @@ const handleRequestRejection = async (responseData) => {
     // إعادة جلب البيانات للتأكد من التحديث
     await fetchPatients();
     
-    const successMessage = result.data?.message || '✅ تم رفض الشكوى بنجاح';
+    const successMessage = result.data?.message || '✅ تم رفض الطلب بنجاح';
     showSuccessAlert(successMessage);
     closeResponseModal();
   } catch (err) {
-    const errorMsg = err.response?.data?.message || err.message || '❌ فشل في رفض الشكوى';
+    const errorMsg = err.response?.data?.message || err.message || '❌ فشل في رفض الطلب';
     showSuccessAlert('❌ ' + errorMsg, 'error');
   } finally {
     isLoadingResponse.value = false;
@@ -650,154 +750,84 @@ const handleRequestRejection = async (responseData) => {
 // ----------------------------------------------------
 const printTable = () => {
   if (filteredPatients.value.length === 0) {
-    showSuccessAlert('⚠️ لا توجد بيانات للطباعة', 'warning');
+    showErrorAlert("لا توجد بيانات للطباعة");
     return;
   }
-  
-  const printWindow = window.open('', '_blank', 'height=600,width=800');
-  
-  if (!printWindow) {
-    showSuccessAlert('❌ فشل في فتح نافذة الطباعة. يرجى السماح بالنوافذ المنبثقة', 'error');
-    return;
-  }
-  
-  const printDate = new Date().toLocaleDateString('ar-SA');
+
   const resultsCount = filteredPatients.value.length;
+  const printWindow = window.open("", "_blank", "height=600,width=800");
+
+  if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
+    showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+    return;
+  }
   
   let tableHtml = `
-    <!DOCTYPE html>
-    <html dir="rtl">
-    <head>
-      <meta charset="UTF-8">
-      <title>تقرير ملفات المرضى</title>
-      <style>
-        body {
-          font-family: 'Arial', sans-serif;
-          direction: rtl;
-          padding: 20px;
-          line-height: 1.6;
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-          border-bottom: 2px solid #4DA1A9;
-          padding-bottom: 15px;
-        }
-        h1 {
-          color: #2E5077;
-          margin: 0;
-        }
-        .print-info {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 20px;
-          font-size: 14px;
-          color: #666;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 15px;
-          font-size: 12px;
-        }
-        th {
-          background-color: #9aced2;
-          color: #000;
-          padding: 10px;
-          border: 1px solid #ccc;
-          text-align: right;
-          font-weight: bold;
-        }
-        td {
-          padding: 8px;
-          border: 1px solid #ccc;
-          text-align: right;
-        }
-        tr:nth-child(even) {
-          background-color: #f9f9f9;
-        }
-        .status-completed { color: green; font-weight: bold; }
-        .status-pending { color: orange; font-weight: bold; }
-        .status-rejected { color: red; font-weight: bold; }
-        .footer {
-          margin-top: 30px;
-          padding-top: 15px;
-          border-top: 1px solid #ddd;
-          font-size: 12px;
-          color: #666;
-          text-align: left;
-        }
-        @media print {
-          body { padding: 10px; }
-          .no-print { display: none; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>تقرير ملفات المرضى</h1>
-      </div>
-      
-      <div class="print-info">
-        <div>تاريخ الطباعة: ${printDate}</div>
-        <div>عدد السجلات: ${resultsCount}</div>
-      </div>
-      
-      <table>
-        <thead>
-          <tr>
-            <th>رقم الملف</th>
-            <th>اسم المريض</th>
-            <th>نوع الطلب</th>
-            <th>المحتوى</th>
-            <th>الحالة</th>
-            <th>التاريخ</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-  
+<style>
+body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
+th { background-color: #f2f2f2; font-weight: bold; }
+h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
+.results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
+.status-approved { color: green; font-weight: bold; }
+.status-pending { color: orange; font-weight: bold; }
+.status-rejected { color: red; font-weight: bold; }
+</style>
+
+<h1>الشكاوى والطلبات - تقرير طباعة</h1>
+<p class="results-info">عدد النتائج: ${resultsCount}</p>
+<table>
+<thead>
+    <tr>
+    <th>رقم الملف</th>
+    <th>اسم المريض</th>
+    <th>نوع الطلب</th>
+    <th>المحتوى</th>
+    <th>الحالة</th>
+    <th>تاريخ الطلب</th>
+    </tr>
+</thead>
+<tbody>
+`;
+
   filteredPatients.value.forEach((patient) => {
-    const statusClass = patient.status === 'تمت المراجعة' ? 'status-completed' : 
-                       'status-pending';
+    const status = patient.status || 'غير محدد';
+    const statusClass = status.includes('مرفوض') ? 'status-rejected' :
+                      status.includes('قبول') || status.includes('رد') ? 'status-approved' : 
+                      'status-pending';
     
     tableHtml += `
-      <tr>
-        <td>${patient.fileNumber || '-'}</td>
-        <td>${patient.patientName || '-'}</td>
-        <td>${patient.requestType || '-'}</td>
-        <td>${patient.content ? patient.content.substring(0, 100) + (patient.content.length > 100 ? '...' : '') : '-'}</td>
-        <td class="${statusClass}">${patient.status || '-'}</td>
-        <td>${formatDate(patient.createdAt)}</td>
-      </tr>
-    `;
+<tr>
+    <td>${patient.fileNumber || '-'}</td>
+    <td>${patient.patientName || '-'}</td>
+    <td>${patient.requestType || '-'}</td>
+    <td>${patient.content ? patient.content.substring(0, 100) + (patient.content.length > 100 ? '...' : '') : '-'}</td>
+    <td class="${statusClass}">${status}</td>
+    <td>${formatDate(patient.createdAt)}</td>
+</tr>
+`;
   });
-  
+
   tableHtml += `
-        </tbody>
-      </table>
-      
-      <div class="footer">
-        <p>تم إنشاء التقرير تلقائياً من نظام إدارة المستشفى</p>
-      </div>
-      
-      <div class="no-print" style="margin-top: 20px; text-align: center;">
-        <button onclick="window.print()" style="padding: 10px 20px; background: #4DA1A9; color: white; border: none; border-radius: 5px; cursor: pointer;">
-          طباعة التقرير
-        </button>
-        <button onclick="window.close()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-          إغلاق
-        </button>
-      </div>
-    </body>
-    </html>
-  `;
-  
-  printWindow.document.open();
+</tbody>
+</table>
+<p style="margin-top: 20px; color: #666; font-size: 12px; text-align: left;">
+تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}
+</p>
+`;
+
+  printWindow.document.write("<html><head><title>طباعة الشكاوى والطلبات</title>");
+  printWindow.document.write("</head><body>");
   printWindow.document.write(tableHtml);
+  printWindow.document.write("</body></html>");
   printWindow.document.close();
-  
-  showSuccessAlert('✅ تم تجهيز التقرير للطباعة');
+
+  printWindow.onload = () => {
+    printWindow.focus();
+    printWindow.print();
+    showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+  };
 };
 
 // ----------------------------------------------------
@@ -883,6 +913,11 @@ onMounted(() => {
 .status-col {
   width: 120px;
   min-width: 120px;
+}
+
+.date-col {
+  width: 140px;
+  min-width: 140px;
 }
 
 .actions-col {

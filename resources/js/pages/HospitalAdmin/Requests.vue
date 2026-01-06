@@ -403,11 +403,11 @@ api.interceptors.response.use(
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
         if (error.response?.status === 401) {
-            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
         } else if (error.response?.status === 403) {
-            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+            showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
         } else if (!error.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         }
         return Promise.reject(error);
     }
@@ -644,7 +644,7 @@ const openRequestViewModal = async (shipment) => {
         isRequestViewModalOpen.value = true;
     } catch (err) {
         console.error('Error fetching shipment details:', err);
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -676,7 +676,7 @@ const openConfirmationModal = async (shipment) => {
         isConfirmationModalOpen.value = true;
     } catch (err) {
         console.error('Error fetching shipment details:', err);
-        showSuccessAlert('❌ فشل في تحميل تفاصيل الشحنة');
+        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -705,7 +705,7 @@ const handleConfirmation = async (confirmationData) => {
             });
             
             await fetchShipments(); // إعادة جلب البيانات
-            const message = response.data?.message || response.message || `✅ تم رفض الطلب بنجاح. لن يتم إرساله للمورد.`;
+            const message = response.data?.message || response.message || ` تم رفض الطلب بنجاح. لن يتم إرساله للمورد.`;
             showSuccessAlert(message);
             
         } else if (confirmationData.items || confirmationData.itemsToSend) {
@@ -716,7 +716,7 @@ const handleConfirmation = async (confirmationData) => {
             });
             
             await fetchShipments(); // إعادة جلب البيانات
-            const message = response.data?.message || response.message || `✅ تم قبول الطلب بنجاح. سيتم إرساله للمورد للموافقة النهائية.`;
+            const message = response.data?.message || response.message || ` تم قبول الطلب بنجاح. سيتم إرساله للمورد للموافقة النهائية.`;
             showSuccessAlert(message);
         }
         
@@ -725,7 +725,7 @@ const handleConfirmation = async (confirmationData) => {
     } catch (err) {
         console.error('Error in handleConfirmation:', err);
         const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
-        showSuccessAlert(`❌ فشل في العملية: ${errorMessage}`);
+        showSuccessAlert(` فشل في العملية: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
@@ -744,7 +744,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -770,19 +770,18 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
-    <th class="center-icon">الإستلام</th> </tr>
+ </tr>
 </thead>
 <tbody>
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '✅' : '❌';
+
         tableHtml += `
 <tr>
     <td>${shipment.shipmentNumber || 'غير محدد'}</td>
     <td>${formatDate(shipment.requestDate)}</td>
-    <td>${shipment.status || 'غير محدد'}</td>
-    <td class="center-icon">${receivedIcon}</td>
+
 </tr>
 `;
     });
@@ -801,7 +800,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     }; 
 };
 

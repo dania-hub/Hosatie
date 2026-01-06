@@ -81,7 +81,7 @@
                         <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                         سبب الرفض
                     </h3>
-                    <p v-if="requestDetails.rejectionReason && requestDetails.rejectionReason.trim() !== ''" class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
+                    <p v-if="hasRejectionReason" class="text-red-800 font-medium leading-relaxed">{{ requestDetails.rejectionReason }}</p>
                     <p v-else class="text-red-600 font-medium leading-relaxed italic">لم يتم تحديد سبب الرفض</p>
                     <p v-if="requestDetails.rejectedAt" class="text-red-600 text-sm mt-3 flex items-center gap-1">
                         <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
@@ -180,11 +180,11 @@
                         <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
                     </div>
 
-                    <!-- ملاحظة عند الإرسال من storekeeper -->
+                    <!-- ملاحظة من المورد (Supplier) -->
                     <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
-                            من مدير المخزن
+                            من المورد
                         </h4>
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
                     </div>
@@ -295,15 +295,6 @@ const requestDetails = ref({ ...props.requestData });
 // Watch لتحديث البيانات
 watch(() => props.requestData, (newVal) => {
     if (newVal) {
-        console.log('📋 RequestViewModal - Updating data:', {
-            rejectionReason: newVal.rejectionReason,
-            rejectedAt: newVal.rejectedAt,
-            notes: newVal.notes,
-            storekeeperNotes: newVal.storekeeperNotes,
-            supplierNotes: newVal.supplierNotes,
-            status: newVal.status,
-            fullData: newVal
-        });
         // التأكد من نسخ جميع البيانات بشكل صحيح
         requestDetails.value = {
             ...newVal,
@@ -319,16 +310,6 @@ watch(() => props.requestData, (newVal) => {
             confirmationNotes: newVal.confirmationNotes || (newVal.confirmation?.confirmationNotes) || null,
             confirmationNotesSource: newVal.confirmationNotesSource || null
         };
-        console.log('📋 RequestViewModal - Updated requestDetails:', {
-            rejectionReason: requestDetails.value.rejectionReason,
-            rejectedAt: requestDetails.value.rejectedAt,
-            notes: requestDetails.value.notes,
-            storekeeperNotes: requestDetails.value.storekeeperNotes,
-            supplierNotes: requestDetails.value.supplierNotes,
-            hasRejectionReason: !!requestDetails.value.rejectionReason,
-            rejectionReasonType: typeof requestDetails.value.rejectionReason,
-            rejectionReasonLength: requestDetails.value.rejectionReason ? requestDetails.value.rejectionReason.length : 0
-        });
     }
 }, { immediate: true, deep: true });
 
@@ -523,6 +504,12 @@ const isRejectedStatus = computed(() => {
         status === 'rejected' ||
         status.includes('ملغي')
     );
+});
+
+// التحقق من وجود سبب الرفض
+const hasRejectionReason = computed(() => {
+    const reason = requestDetails.value.rejectionReason;
+    return reason && typeof reason === 'string' && reason.trim() !== '';
 });
 
 // تنسيق فئة الحالة

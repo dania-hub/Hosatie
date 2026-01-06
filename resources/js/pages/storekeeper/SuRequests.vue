@@ -520,78 +520,46 @@ const fetchAllData = async () => {
 
 const fetchShipments = async () => {
     try {
-        console.log('Fetching supply requests from:', '/storekeeper/supply-requests');
         const response = await endpoints.supplyRequests.getAll();
         
-        console.log('Raw API Response:', response);
-        console.log('Response.data:', response.data);
-        console.log('Response structure:', {
-            hasData: !!response.data,
-            isArray: Array.isArray(response.data),
-            hasNestedData: !!(response.data?.data),
-            hasSuccess: !!(response.data?.success),
-            dataType: typeof response.data,
-            dataKeys: response.data ? Object.keys(response.data) : []
-        });
-        
-        // التحقق من بنية الاستجابة (نفس الطريقة المستخدمة في transRequests.vue)
+        // التحقق من بنية الاستجابة
         let data = [];
         if (response.data) {
-            // sendSuccess يرجع: { success: true, message: "...", data: [...] }
             if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
-                // إذا كانت الاستجابة من sendSuccess
                 data = response.data.data;
-                console.log(' Using data from sendSuccess response, count:', data.length);
             } else if (response.data.data && Array.isArray(response.data.data)) {
-                // إذا كانت البيانات في response.data.data
                 data = response.data.data;
-                console.log(' Using nested array from response.data.data, count:', data.length);
             } else if (Array.isArray(response.data)) {
-                // إذا كانت البيانات مصفوفة مباشرة
                 data = response.data;
-                console.log(' Using direct array from response.data, count:', data.length);
             } else {
-                console.warn(' Unknown response structure:', response.data);
-                console.warn(' Response keys:', Object.keys(response.data));
-                // محاولة استخراج البيانات بأي طريقة ممكنة
                 if (response.data.data) {
                     data = Array.isArray(response.data.data) ? response.data.data : [];
-                    console.log(' Extracted data (may be empty):', data.length);
                 }
             }
         }
         
-        console.log('Final data array:', data);
-        console.log('Final data count:', data.length);
-        console.log('First item (if exists):', data[0]);
-        
-        // طباعة بيانات الطلبات المرفوضة للتأكد من وجود rejectionReason
-        const rejectedShipments = data.filter(s => s.status === 'rejected' || s.requestStatus === 'مرفوضة' || s.requestStatus === 'مرفوض');
-        if (rejectedShipments.length > 0) {
-            console.log('🔴 Rejected shipments:', rejectedShipments.map(s => ({
-                id: s.id,
-                status: s.status,
-                requestStatus: s.requestStatus,
-                rejectionReason: s.rejectionReason,
-                rejectedAt: s.rejectedAt,
-                fullData: s // إضافة البيانات الكاملة للتحقق
-            })));
-        }
-        
         shipmentsData.value = data.map(shipment => {
-            // طباعة معلومات rejectionReason للطلبات المرفوضة
-            if (shipment.status === 'rejected' || shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض') {
-                console.log('🔴 Mapping rejected shipment:', {
-                    id: shipment.id,
-                    status: shipment.status,
-                    requestStatus: shipment.requestStatus,
-                    rejectionReason: shipment.rejectionReason,
-                    rejectedAt: shipment.rejectedAt,
-                    hasRejectionReason: !!shipment.rejectionReason,
-                    rejectionReasonType: typeof shipment.rejectionReason,
-                    fullShipment: shipment
-                });
-            }
+            // استخراج rejectionReason بشكل صحيح (معالجة القيم الفارغة والـ null)
+            const rejectionReason = (shipment.rejectionReason && typeof shipment.rejectionReason === 'string' && shipment.rejectionReason.trim() !== '') 
+                ? shipment.rejectionReason.trim() 
+                : null;
+            
+            // استخراج الملاحظات بشكل صحيح
+            // أولوية: storekeeperNotes > notes (للتوافق مع البيانات القديمة)
+            const storekeeperNotes = (shipment.storekeeperNotes && typeof shipment.storekeeperNotes === 'string' && shipment.storekeeperNotes.trim() !== '') 
+                ? shipment.storekeeperNotes.trim() 
+                : ((shipment.notes && typeof shipment.notes === 'string' && shipment.notes.trim() !== '') 
+                    ? shipment.notes.trim() 
+                    : null);
+            
+            const supplierNotes = (shipment.supplierNotes && typeof shipment.supplierNotes === 'string' && shipment.supplierNotes.trim() !== '') 
+                ? shipment.supplierNotes.trim() 
+                : null;
+            
+            // استخراج confirmationNotes
+            const confirmationNotes = (shipment.confirmationDetails?.confirmationNotes && typeof shipment.confirmationDetails.confirmationNotes === 'string' && shipment.confirmationDetails.confirmationNotes.trim() !== '') 
+                ? shipment.confirmationDetails.confirmationNotes.trim() 
+                : null;
             
             return {
                 id: shipment.id,
@@ -600,8 +568,12 @@ const fetchShipments = async () => {
                 requestStatus: shipment.requestStatus || shipment.status,
                 received: shipment.requestStatus === 'تم الإستلام' || shipment.status === 'fulfilled',
                 // إضافة rejectionReason على مستوى shipment أيضاً (بالإضافة إلى details)
-                rejectionReason: shipment.rejectionReason || null,
+                rejectionReason: rejectionReason,
                 rejectedAt: shipment.rejectedAt || null,
+                // التأكد من حفظ الملاحظات بشكل صحيح
+                storekeeperNotes: storekeeperNotes || null,
+                supplierNotes: supplierNotes || null,
+                notes: shipment.notes || storekeeperNotes || '',
                 details: {
                     id: shipment.id,
                     date: shipment.requestDate || shipment.requestDateFull || shipment.createdAt,
@@ -614,27 +586,22 @@ const fetchShipments = async () => {
                         quantity: item.quantity || item.requested || item.requested_qty || 0,
                         unit: item.unit || 'وحدة'
                     })),
-                    notes: shipment.notes || '',
-                    storekeeperNotes: shipment.storekeeperNotes || null,
-                    supplierNotes: shipment.supplierNotes || null,
-                    rejectionReason: shipment.rejectionReason || null,
+                    notes: shipment.notes || storekeeperNotes || '',
+                    storekeeperNotes: storekeeperNotes || null,
+                    supplierNotes: supplierNotes || null,
+                    rejectionReason: rejectionReason,
                     rejectedAt: shipment.rejectedAt || null,
                     department: shipment.requestingDepartment || shipment.department?.name || shipment.department,
                     ...(shipment.confirmationDetails && {
                         confirmationDetails: {
                             ...shipment.confirmationDetails,
-                            confirmationNotes: shipment.confirmationDetails.confirmationNotes || null
+                            confirmationNotes: confirmationNotes
                         }
                     })
                 }
             };
         });
         
-        if (shipmentsData.value.length === 0) {
-            console.log('لا توجد بيانات متاحة');
-        } else {
-            console.log(' تم جلب', shipmentsData.value.length, 'طلب توريد بنجاح');
-        }
     } catch (err) {
         console.error(' Error fetching supply requests:', err);
         console.error('Error details:', {
@@ -667,7 +634,6 @@ const fetchCategories = async () => {
             id: cat.id || cat.name,
             name: cat.name || cat.id
         }));
-        console.log(` تم تحميل ${categories.value.length} تصنيف بنجاح`);
     } catch (err) {
         console.error('Error fetching categories:', err);
         showSuccessAlert(' فشل في تحميل التصنيفات.');
@@ -710,7 +676,6 @@ const fetchDrugs = async () => {
             };
         });
         
-        console.log(` تم تحميل ${allDrugsData.value.length} دواء بنجاح`);
     } catch (err) {
         console.error('Error fetching drugs:', err);
         showSuccessAlert(' فشل في تحميل الأدوية.');
@@ -916,41 +881,53 @@ const handleSupplyConfirm = async (data) => {
 };
 
 const openRequestViewModal = (shipment) => {
-    console.log('📋 Opening modal for shipment:', {
-        shipmentId: shipment.id,
-        shipmentStatus: shipment.requestStatus,
-        shipmentRejectionReason: shipment.rejectionReason,
-        detailsRejectionReason: shipment.details?.rejectionReason,
-        fullShipment: shipment
-    });
     
     // إعداد البيانات للعرض في الـ modal
-    // محاولة جلب rejectionReason من عدة مصادر
-    const rejectionReason = shipment.details?.rejectionReason || 
-                           shipment.rejectionReason || 
-                           null;
+    // محاولة جلب rejectionReason من عدة مصادر مع معالجة القيم الفارغة
+    const rejectionReason = (shipment.details?.rejectionReason && typeof shipment.details.rejectionReason === 'string' && shipment.details.rejectionReason.trim() !== '') 
+        ? shipment.details.rejectionReason.trim() 
+        : ((shipment.rejectionReason && typeof shipment.rejectionReason === 'string' && shipment.rejectionReason.trim() !== '') 
+            ? shipment.rejectionReason.trim() 
+            : null);
     
-    const rejectedAt = shipment.details?.rejectedAt || 
-                      shipment.rejectedAt || 
-                      null;
+    const rejectedAt = shipment.details?.rejectedAt || shipment.rejectedAt || null;
+    
+    // استخراج الملاحظات بشكل صحيح
+    // أولوية: storekeeperNotes > notes (للتوافق مع البيانات القديمة)
+    const storekeeperNotes = (shipment.details?.storekeeperNotes && typeof shipment.details.storekeeperNotes === 'string' && shipment.details.storekeeperNotes.trim() !== '') 
+        ? shipment.details.storekeeperNotes.trim() 
+        : ((shipment.storekeeperNotes && typeof shipment.storekeeperNotes === 'string' && shipment.storekeeperNotes.trim() !== '') 
+            ? shipment.storekeeperNotes.trim() 
+            : ((shipment.details?.notes && typeof shipment.details.notes === 'string' && shipment.details.notes.trim() !== '') 
+                ? shipment.details.notes.trim() 
+                : ((shipment.notes && typeof shipment.notes === 'string' && shipment.notes.trim() !== '') 
+                    ? shipment.notes.trim() 
+                    : null)));
+    
+    const supplierNotes = (shipment.details?.supplierNotes && typeof shipment.details.supplierNotes === 'string' && shipment.details.supplierNotes.trim() !== '') 
+        ? shipment.details.supplierNotes.trim() 
+        : ((shipment.supplierNotes && typeof shipment.supplierNotes === 'string' && shipment.supplierNotes.trim() !== '') 
+            ? shipment.supplierNotes.trim() 
+            : null);
+    
+    // استخراج confirmationNotes
+    const confirmationDetails = shipment.details?.confirmationDetails || shipment.confirmationDetails || null;
+    const confirmationNotes = (confirmationDetails?.confirmationNotes && typeof confirmationDetails.confirmationNotes === 'string' && confirmationDetails.confirmationNotes.trim() !== '') 
+        ? confirmationDetails.confirmationNotes.trim() 
+        : null;
     
     selectedRequestDetails.value = {
         ...shipment.details,
         rejectionReason: rejectionReason,
         rejectedAt: rejectedAt,
-        notes: shipment.details?.notes || '',
-        storekeeperNotes: shipment.details?.storekeeperNotes || shipment.storekeeperNotes || null,
-        supplierNotes: shipment.details?.supplierNotes || shipment.supplierNotes || null,
-        confirmation: shipment.details?.confirmationDetails || shipment.confirmationDetails || null
+        notes: shipment.details?.notes || shipment.notes || storekeeperNotes || '',
+        storekeeperNotes: storekeeperNotes,
+        supplierNotes: supplierNotes,
+        confirmation: confirmationDetails ? {
+            ...confirmationDetails,
+            confirmationNotes: confirmationNotes
+        } : null
     };
-    
-    // التأكد من أن confirmation يحتوي على confirmationNotes
-    if (selectedRequestDetails.value.confirmation && !selectedRequestDetails.value.confirmation.confirmationNotes) {
-        // محاولة جلب confirmationNotes من shipment مباشرة
-        if (shipment.confirmationDetails?.confirmationNotes) {
-            selectedRequestDetails.value.confirmation.confirmationNotes = shipment.confirmationDetails.confirmationNotes;
-        }
-    }
     
     // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
     if (selectedRequestDetails.value.confirmation?.receivedItems) {
@@ -967,19 +944,6 @@ const openRequestViewModal = (shipment) => {
             return item;
         });
     }
-    
-    console.log('📋 Storekeeper - Opening RequestViewModal with data:', {
-        storekeeperNotes: selectedRequestDetails.value.storekeeperNotes,
-        supplierNotes: selectedRequestDetails.value.supplierNotes,
-        confirmationNotes: selectedRequestDetails.value.confirmation?.confirmationNotes,
-        confirmation: selectedRequestDetails.value.confirmation,
-        rejectionReason: selectedRequestDetails.value.rejectionReason,
-        rejectedAt: selectedRequestDetails.value.rejectedAt,
-        hasRejectionReason: !!selectedRequestDetails.value.rejectionReason,
-        rejectionReasonType: typeof selectedRequestDetails.value.rejectionReason,
-        rejectionReasonLength: selectedRequestDetails.value.rejectionReason ? selectedRequestDetails.value.rejectionReason.length : 0,
-        fullSelectedRequestDetails: selectedRequestDetails.value
-    });
     
     isRequestViewModalOpen.value = true;
 };
@@ -1024,11 +988,7 @@ const handleConfirmation = async (confirmationData) => {
             notes: confirmationData.notes || ''
         };
         
-        console.log('Confirming delivery with data:', requestData);
-        
         const response = await endpoints.supplyRequests.confirmDelivery(shipmentId, requestData);
-        
-        console.log('Confirm delivery response:', response);
         
         // إعادة جلب البيانات
         await fetchShipments();
@@ -1066,27 +1026,49 @@ const openReviewModal = async (shipment) => {
         
         const updatedShipment = data.find(s => s.id === shipment.id) || shipment;
         
+        // استخراج البيانات بشكل صحيح مع معالجة القيم الفارغة
+        const rejectionReason = (updatedShipment.rejectionReason && typeof updatedShipment.rejectionReason === 'string' && updatedShipment.rejectionReason.trim() !== '') 
+            ? updatedShipment.rejectionReason.trim() 
+            : ((shipment.details?.rejectionReason && typeof shipment.details.rejectionReason === 'string' && shipment.details.rejectionReason.trim() !== '') 
+                ? shipment.details.rejectionReason.trim() 
+                : null);
+        
+        const storekeeperNotes = (updatedShipment.storekeeperNotes && typeof updatedShipment.storekeeperNotes === 'string' && updatedShipment.storekeeperNotes.trim() !== '') 
+            ? updatedShipment.storekeeperNotes.trim() 
+            : ((shipment.details?.storekeeperNotes && typeof shipment.details.storekeeperNotes === 'string' && shipment.details.storekeeperNotes.trim() !== '') 
+                ? shipment.details.storekeeperNotes.trim() 
+                : ((shipment.storekeeperNotes && typeof shipment.storekeeperNotes === 'string' && shipment.storekeeperNotes.trim() !== '') 
+                    ? shipment.storekeeperNotes.trim() 
+                    : null));
+        
+        const supplierNotes = (updatedShipment.supplierNotes && typeof updatedShipment.supplierNotes === 'string' && updatedShipment.supplierNotes.trim() !== '') 
+            ? updatedShipment.supplierNotes.trim() 
+            : ((shipment.details?.supplierNotes && typeof shipment.details.supplierNotes === 'string' && shipment.details.supplierNotes.trim() !== '') 
+                ? shipment.details.supplierNotes.trim() 
+                : ((shipment.supplierNotes && typeof shipment.supplierNotes === 'string' && shipment.supplierNotes.trim() !== '') 
+                    ? shipment.supplierNotes.trim() 
+                    : null));
+        
+        const confirmationDetails = updatedShipment.confirmationDetails || shipment.details?.confirmationDetails || shipment.confirmationDetails || null;
+        const confirmationNotes = (confirmationDetails?.confirmationNotes && typeof confirmationDetails.confirmationNotes === 'string' && confirmationDetails.confirmationNotes.trim() !== '') 
+            ? confirmationDetails.confirmationNotes.trim() 
+            : null;
+        
         selectedRequestDetails.value = {
             id: updatedShipment.id || shipment.id,
-            date: updatedShipment.requestDateFull || updatedShipment.requestDate || shipment.details.date,
-            status: updatedShipment.requestStatus || shipment.requestStatus || shipment.details.status,
-            items: updatedShipment.items || shipment.details.items || [],
-            notes: updatedShipment.notes || shipment.details.notes || '',
-            storekeeperNotes: updatedShipment.storekeeperNotes || shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
-            supplierNotes: updatedShipment.supplierNotes || shipment.details.supplierNotes || shipment.supplierNotes || null,
-            rejectionReason: updatedShipment.rejectionReason || shipment.details.rejectionReason || null,
-            rejectedAt: updatedShipment.rejectedAt || shipment.details.rejectedAt || null,
-            confirmation: updatedShipment.confirmationDetails || shipment.details.confirmationDetails || shipment.confirmationDetails || null
+            date: updatedShipment.requestDateFull || updatedShipment.requestDate || shipment.details?.date,
+            status: updatedShipment.requestStatus || shipment.requestStatus || shipment.details?.status,
+            items: updatedShipment.items || shipment.details?.items || [],
+            notes: updatedShipment.notes || shipment.details?.notes || '',
+            storekeeperNotes: storekeeperNotes,
+            supplierNotes: supplierNotes,
+            rejectionReason: rejectionReason,
+            rejectedAt: updatedShipment.rejectedAt || shipment.details?.rejectedAt || null,
+            confirmation: confirmationDetails ? {
+                ...confirmationDetails,
+                confirmationNotes: confirmationNotes
+            } : null
         };
-        
-        // التأكد من أن confirmation يحتوي على confirmationNotes
-        if (selectedRequestDetails.value.confirmation && !selectedRequestDetails.value.confirmation.confirmationNotes) {
-            if (updatedShipment.confirmationDetails?.confirmationNotes) {
-                selectedRequestDetails.value.confirmation.confirmationNotes = updatedShipment.confirmationDetails.confirmationNotes;
-            } else if (shipment.confirmationDetails?.confirmationNotes) {
-                selectedRequestDetails.value.confirmation.confirmationNotes = shipment.confirmationDetails.confirmationNotes;
-            }
-        }
         
         // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
         if (selectedRequestDetails.value.confirmation?.receivedItems) {
@@ -1108,22 +1090,39 @@ const openReviewModal = async (shipment) => {
     } catch (err) {
         console.error('Error loading shipment details:', err);
         // في حالة الخطأ، نستخدم البيانات المحلية
+        const rejectionReason = (shipment.details?.rejectionReason && typeof shipment.details.rejectionReason === 'string' && shipment.details.rejectionReason.trim() !== '') 
+            ? shipment.details.rejectionReason.trim() 
+            : null;
+        
+        const storekeeperNotes = (shipment.details?.storekeeperNotes && typeof shipment.details.storekeeperNotes === 'string' && shipment.details.storekeeperNotes.trim() !== '') 
+            ? shipment.details.storekeeperNotes.trim() 
+            : ((shipment.storekeeperNotes && typeof shipment.storekeeperNotes === 'string' && shipment.storekeeperNotes.trim() !== '') 
+                ? shipment.storekeeperNotes.trim() 
+                : null);
+        
+        const supplierNotes = (shipment.details?.supplierNotes && typeof shipment.details.supplierNotes === 'string' && shipment.details.supplierNotes.trim() !== '') 
+            ? shipment.details.supplierNotes.trim() 
+            : ((shipment.supplierNotes && typeof shipment.supplierNotes === 'string' && shipment.supplierNotes.trim() !== '') 
+                ? shipment.supplierNotes.trim() 
+                : null);
+        
+        const confirmationDetails = shipment.details?.confirmationDetails || shipment.confirmationDetails || null;
+        const confirmationNotes = (confirmationDetails?.confirmationNotes && typeof confirmationDetails.confirmationNotes === 'string' && confirmationDetails.confirmationNotes.trim() !== '') 
+            ? confirmationDetails.confirmationNotes.trim() 
+            : null;
+        
         selectedRequestDetails.value = {
             ...shipment.details,
-            rejectionReason: shipment.details.rejectionReason || null,
-            rejectedAt: shipment.details.rejectedAt || null,
-            notes: shipment.details.notes || '',
-            storekeeperNotes: shipment.details.storekeeperNotes || shipment.storekeeperNotes || null,
-            supplierNotes: shipment.details.supplierNotes || shipment.supplierNotes || null,
-            confirmation: shipment.details.confirmationDetails || shipment.confirmationDetails || null
+            rejectionReason: rejectionReason,
+            rejectedAt: shipment.details?.rejectedAt || null,
+            notes: shipment.details?.notes || '',
+            storekeeperNotes: storekeeperNotes,
+            supplierNotes: supplierNotes,
+            confirmation: confirmationDetails ? {
+                ...confirmationDetails,
+                confirmationNotes: confirmationNotes
+            } : null
         };
-        
-        // التأكد من أن confirmation يحتوي على confirmationNotes
-        if (selectedRequestDetails.value.confirmation && !selectedRequestDetails.value.confirmation.confirmationNotes) {
-            if (shipment.confirmationDetails?.confirmationNotes) {
-                selectedRequestDetails.value.confirmation.confirmationNotes = shipment.confirmationDetails.confirmationNotes;
-            }
-        }
         
         // إضافة receivedQuantity إلى items إذا كان موجوداً في confirmation
         if (selectedRequestDetails.value.confirmation?.receivedItems) {

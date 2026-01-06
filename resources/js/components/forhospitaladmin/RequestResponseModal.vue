@@ -120,12 +120,22 @@
                             <span class="font-bold text-gray-700 mb-2 block">نص الرد</span>
                             <textarea
                                 v-model="responseText"
+                                @input="responseError = ''"
                                 rows="4"
-                                class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-[#4DA1A9] focus:ring-4 focus:ring-[#4DA1A9]/10 transition-all resize-none text-gray-700"
+                                :class="[
+                                    'w-full p-4 border-2 rounded-xl focus:ring-4 transition-all resize-none text-gray-700',
+                                    responseError 
+                                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/10'
+                                ]"
                                 placeholder="أدخل ردك على الطلب هنا..."
                                 :disabled="isSubmitting"
                                 required
                             ></textarea>
+                            <p v-if="responseError" class="text-sm text-red-600 mt-2 font-medium flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
+                                {{ responseError }}
+                            </p>
                         </label>
                         
                         <!-- حقل الملاحظات الإضافية (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
@@ -212,7 +222,9 @@
                     </template>
 
                     <template v-else>
+                        <!-- زر الرفض (يظهر فقط لطلبات النقل وليس للشكاوى) -->
                         <button
+                            v-if="requestData?.requestType === 'النقل' || requestData?.type === 'transfer'"
                             @click="initiateRejection"
                             class="px-6 py-2.5 rounded-xl text-red-500 bg-red-50 border border-red-100 font-medium hover:bg-red-100 transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
                             :disabled="isLoading || isSubmitting"
@@ -270,6 +282,7 @@ const additionalNotes = ref('');
 const isSubmitting = ref(false);
 const showRejectionNote = ref(false);
 const rejectionError = ref('');
+const responseError = ref('');
 
 // إعادة تعيين الحقول عند فتح المودال
 watch(() => props.isOpen, (newVal) => {
@@ -280,6 +293,7 @@ watch(() => props.isOpen, (newVal) => {
         isSubmitting.value = false;
         showRejectionNote.value = false;
         rejectionError.value = '';
+        responseError.value = '';
     }
 });
 
@@ -366,13 +380,16 @@ const submitResponse = async () => {
     
     // التحقق من الرد فقط للشكاوى (ليس لطلبات النقل)
     if (!isTransferRequest) {
+        // إعادة تعيين رسالة الخطأ
+        responseError.value = '';
+        
         if (!responseText.value.trim()) {
-            alert('يرجى كتابة الرد قبل الإرسال');
+            responseError.value = 'يرجى كتابة الرد قبل الإرسال';
             return;
         }
 
         if (responseText.value.trim().length < 5) {
-            alert('يرجى كتابة رد مفصل أكثر');
+            responseError.value = 'يرجى كتابة رد مفصل أكثر';
             return;
         }
     }

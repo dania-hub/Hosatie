@@ -199,22 +199,63 @@ class ExternalSupplyRequestController extends BaseApiController
             ];
         });
 
+        // تحويل Collection إلى array لإمكانية التعديل بالمرجع
+        $data = $data->toArray();
+
         // جلب الملاحظات من audit_log لكل طلب
         foreach ($data as &$requestData) {
             $reqId = $requestData['id'];
             
             // جلب ملاحظة storekeeper (الملاحظة الأصلية عند الإنشاء)
+            // البحث في جميع audit_logs لهذا الطلب، وليس فقط create_external_supply_request
             $storekeeperNotes = null;
+            
+            // أولاً: البحث عن audit_log مع action محدد
             $storekeeperNotesAuditLog = AuditLog::where('table_name', 'external_supply_request')
                 ->where('record_id', $reqId)
                 ->where('action', 'create_external_supply_request')
                 ->orderBy('created_at', 'asc')
                 ->first();
             
+            // إذا لم نجد audit_log مع action محدد، نبحث في جميع audit_logs
+            if (!$storekeeperNotesAuditLog) {
+                $storekeeperNotesAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                    ->where('record_id', $reqId)
+                    ->where(function($query) {
+                        $query->where('action', 'like', '%create%')
+                              ->orWhere('action', 'like', '%external%')
+                              ->orWhere('action', 'like', '%supply%');
+                    })
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+            }
+            
+            // إذا لم نجد بعد، نبحث في جميع audit_logs لهذا الطلب
+            if (!$storekeeperNotesAuditLog) {
+                $storekeeperNotesAuditLog = AuditLog::where('table_name', 'external_supply_request')
+                    ->where('record_id', $reqId)
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+            }
+            
             if ($storekeeperNotesAuditLog && $storekeeperNotesAuditLog->new_values) {
                 $newValues = json_decode($storekeeperNotesAuditLog->new_values, true);
-                if (isset($newValues['notes']) && !empty($newValues['notes'])) {
-                    $storekeeperNotes = $newValues['notes'];
+                
+                // التحقق من أن json_decode نجح وأن notes موجودة وليست فارغة
+                if ($newValues !== null && (is_array($newValues) || is_object($newValues))) {
+                    if (isset($newValues['notes'])) {
+                        // معالجة notes سواء كانت string أو أي نوع آخر
+                        $notesValue = $newValues['notes'];
+                        if (is_string($notesValue)) {
+                            $trimmedNotes = trim($notesValue);
+                            if ($trimmedNotes !== '') {
+                                $storekeeperNotes = $trimmedNotes;
+                            }
+                        } elseif (is_scalar($notesValue) && $notesValue !== null && $notesValue !== '') {
+                            // في حالة كانت notes رقم أو نوع آخر، نحولها إلى string
+                            $storekeeperNotes = trim((string) $notesValue);
+                        }
+                    }
                 }
             }
             
@@ -228,8 +269,11 @@ class ExternalSupplyRequestController extends BaseApiController
             
             if ($supplierNotesAuditLog && $supplierNotesAuditLog->new_values) {
                 $newValues = json_decode($supplierNotesAuditLog->new_values, true);
-                if (isset($newValues['notes']) && !empty($newValues['notes'])) {
-                    $supplierNotes = $newValues['notes'];
+                // التحقق من أن json_decode نجح وأن notes موجودة وليست فارغة
+                if ($newValues !== null && (is_array($newValues) || is_object($newValues))) {
+                    if (isset($newValues['notes']) && is_string($newValues['notes']) && trim($newValues['notes']) !== '') {
+                        $supplierNotes = trim($newValues['notes']);
+                    }
                 }
             }
             
@@ -244,10 +288,13 @@ class ExternalSupplyRequestController extends BaseApiController
                 
                 if ($confirmationAuditLog && $confirmationAuditLog->new_values) {
                     $newValues = json_decode($confirmationAuditLog->new_values, true);
-                    if (isset($newValues['confirmationNotes']) && !empty($newValues['confirmationNotes'])) {
-                        $confirmationNotes = $newValues['confirmationNotes'];
-                        // إضافة الملاحظة إلى confirmationDetails
-                        $requestData['confirmationDetails']['confirmationNotes'] = $confirmationNotes;
+                    // التحقق من أن json_decode نجح وأن confirmationNotes موجودة وليست فارغة
+                    if ($newValues !== null && (is_array($newValues) || is_object($newValues))) {
+                        if (isset($newValues['confirmationNotes']) && is_string($newValues['confirmationNotes']) && trim($newValues['confirmationNotes']) !== '') {
+                            $confirmationNotes = trim($newValues['confirmationNotes']);
+                            // إضافة الملاحظة إلى confirmationDetails
+                            $requestData['confirmationDetails']['confirmationNotes'] = $confirmationNotes;
+                        }
                     }
                 }
             }
@@ -308,10 +355,15 @@ class ExternalSupplyRequestController extends BaseApiController
                 }
             }
             
-            $requestData['storekeeperNotes'] = $storekeeperNotes;
-            $requestData['supplierNotes'] = $supplierNotes;
-            $requestData['rejectionReason'] = $rejectionReason;
-            $requestData['rejectedAt'] = $rejectedAt;
+            // التأكد من أن البيانات يتم إضافتها بشكل صحيح
+            $requestData['storekeeperNotes'] = $storekeeperNotes ?: null;
+            $requestData['supplierNotes'] = $supplierNotes ?: null;
+            $requestData['rejectionReason'] = $rejectionReason ?: null;
+            $requestData['rejectedAt'] = $rejectedAt ?: null;
+            // إضافة notes من storekeeperNotes للتوافق مع الكود القديم
+            // إذا كانت storekeeperNotes موجودة، نستخدمها، وإلا نستخدم notes الأصلية من البيانات
+            $requestData['notes'] = $storekeeperNotes ?: ($requestData['notes'] ?? '');
+            
         }
 
         return response()->json($data);

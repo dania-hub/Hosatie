@@ -41,7 +41,7 @@ const userName = computed(() => {
 // 💡 لإضافة أدوار جديدة: أضف نوع المستخدم في المصفوفة allowedTypes
 const canShowNotifications = computed(() => {
     const userType = userData.value.type || page.props.auth?.user?.type || '';
-    const allowedTypes = ['supplier_admin', 'warehouse_manager', 'department_head', 'department_admin', 'pharmacist']; // 👈 أضف الأدوار هنا
+    const allowedTypes = ['supplier_admin', 'warehouse_manager', 'department_head', 'department_admin', 'pharmacist','hospital_admin','super_admin']; // 👈 أضف الأدوار هنا
     return allowedTypes.includes(userType);
 });
 
@@ -369,9 +369,10 @@ const getNotificationColor = (type) => {
 };
 </script>
 <template>
-  <header
-    class="navbar bg-white z-[50] border-b border-primary/10 top-0 z-10 shadow-sm px-4 lg:px-8 py-4 flex justify-between items-center"
-  >
+  <div v-bind="$attrs">
+    <header
+      class="navbar bg-white z-[50] border-b border-primary/10 top-0 z-10 shadow-sm px-4 lg:px-8 py-4 flex justify-between items-center"
+    >
     <div class="flex items-center gap-4">
       <label for="my-drawer" class="btn btn-ghost lg:hidden p-0">
         <Icon icon="ic:baseline-menu" class="w-6 h-6 text-[#2E5077]" />
@@ -518,5 +519,6 @@ const getNotificationColor = (type) => {
         </button>
       </div>
     </div>
+  </div>
   </div>
 </template>

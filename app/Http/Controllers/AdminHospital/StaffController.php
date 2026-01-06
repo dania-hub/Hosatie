@@ -4,6 +4,7 @@ namespace App\Http\Controllers\AdminHospital;
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\User;
+use App\Models\Pharmacy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -184,7 +185,31 @@ class StaffController extends BaseApiController
                 }
             }
 
-            // 3. Create User (Inactive, No Password yet)
+            // 3. إذا كان الموظف صيدلي، البحث عن الصيدلية الرئيسية للمستشفى
+            $pharmacy = null;
+            if ($validated['role'] === 'pharmacist') {
+                // البحث عن الصيدلية الرئيسية (التي تحتوي على "الرئيسية" في الاسم)
+                $pharmacy = Pharmacy::where('hospital_id', $hospitalId)
+                    ->where('name', 'LIKE', '%الرئيسية%')
+                    ->first();
+                
+                // إذا لم يتم العثور على صيدلية رئيسية، جلب أول صيدلية نشطة للمستشفى
+                if (!$pharmacy) {
+                    $pharmacy = Pharmacy::where('hospital_id', $hospitalId)
+                        ->where('status', 'active')
+                        ->first();
+                }
+                
+                if (!$pharmacy) {
+                    DB::rollBack();
+                    Log::warning('Pharmacy not found for hospital', [
+                        'hospital_id' => $hospitalId
+                    ]);
+                    return $this->sendError('لم يتم العثور على صيدلية لهذا المستشفى. يرجى إنشاء صيدلية أولاً.', [], 404);
+                }
+            }
+
+            // 4. Create User (Inactive, No Password yet)
             // ملاحظة: department_id لا يوجد في جدول users، العلاقة تتم من خلال head_user_id في جدول departments
             $userData = [
                 'full_name'   => $validated['full_name'],
@@ -204,9 +229,14 @@ class StaffController extends BaseApiController
                 $userData['warehouse_id'] = $warehouse->id;
             }
 
+            // إذا كان صيدلي، إضافة pharmacy_id
+            if ($validated['role'] === 'pharmacist' && $pharmacy) {
+                $userData['pharmacy_id'] = $pharmacy->id;
+            }
+
             $user = User::create($userData);
 
-            // 4. إذا كان الموظف مدير قسم وتم اختيار قسم، تحديث القسم
+            // 5. إذا كان الموظف مدير قسم وتم اختيار قسم، تحديث القسم
             if ($validated['role'] === 'department_head' && isset($validated['department_id']) && $validated['department_id'] !== null) {
                 try {
                     $departmentId = (int)$validated['department_id'];
@@ -252,14 +282,14 @@ class StaffController extends BaseApiController
                 }
             }
 
-            // 4. Generate Secure Token
+            // 6. Generate Secure Token
             $token = Str::random(60);
 
-            // 5. Store Token in Cache
+            // 7. Store Token in Cache
             $key = 'activation_token_' . $user->email;
             \Illuminate\Support\Facades\Cache::put($key, $token, 86400); // 24 hours
             
-            // 6. Send Email (مع معالجة الأخطاء)
+            // 8. Send Email (مع معالجة الأخطاء)
             try {
                 Mail::to($user->email)->send(new StaffActivationMail($token, $user->email, $user->full_name));
             } catch (\Exception $mailException) {
@@ -381,6 +411,30 @@ class StaffController extends BaseApiController
                 }
             }
 
+            // إذا تم تغيير النوع إلى pharmacist، البحث عن الصيدلية الرئيسية للمستشفى
+            $pharmacy = null;
+            if (isset($validated['role']) && $validated['role'] === 'pharmacist') {
+                // البحث عن الصيدلية الرئيسية (التي تحتوي على "الرئيسية" في الاسم)
+                $pharmacy = Pharmacy::where('hospital_id', $hospitalId)
+                    ->where('name', 'LIKE', '%الرئيسية%')
+                    ->first();
+                
+                // إذا لم يتم العثور على صيدلية رئيسية، جلب أول صيدلية نشطة للمستشفى
+                if (!$pharmacy) {
+                    $pharmacy = Pharmacy::where('hospital_id', $hospitalId)
+                        ->where('status', 'active')
+                        ->first();
+                }
+                
+                if (!$pharmacy) {
+                    DB::rollBack();
+                    Log::warning('Pharmacy not found for hospital', [
+                        'hospital_id' => $hospitalId
+                    ]);
+                    return $this->sendError('لم يتم العثور على صيدلية لهذا المستشفى. يرجى إنشاء صيدلية أولاً.', [], 404);
+                }
+            }
+
             // تحديث بيانات الموظف
             if (isset($validated['full_name'])) {
                 $staff->full_name = $validated['full_name'];
@@ -397,6 +451,14 @@ class StaffController extends BaseApiController
                 } elseif ($validated['role'] !== 'warehouse_manager') {
                     // إذا تم تغيير النوع من warehouse_manager إلى نوع آخر، إزالة warehouse_id
                     $staff->warehouse_id = null;
+                }
+
+                // إذا تم تغيير النوع إلى pharmacist، تعيين pharmacy_id
+                if ($validated['role'] === 'pharmacist' && $pharmacy) {
+                    $staff->pharmacy_id = $pharmacy->id;
+                } elseif ($validated['role'] !== 'pharmacist') {
+                    // إذا تم تغيير النوع من pharmacist إلى نوع آخر، إزالة pharmacy_id
+                    $staff->pharmacy_id = null;
                 }
             }
             if (isset($validated['phone'])) {

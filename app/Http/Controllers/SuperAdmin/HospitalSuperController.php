@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use App\Models\Hospital;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Models\Pharmacy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -142,10 +143,17 @@ class HospitalSuperController extends BaseApiController
                 'status' => 'active',
             ]);
 
-            // إنشاء المخزن الرئيسي تلقائياً
+            // إنشاء مستودع الأدوية الرئيسي تلقائياً
             Warehouse::create([
                 'hospital_id' => $hospital->id,
-                'name' => 'المخزن الرئيسي',
+                'name' => 'مستودع الأدوية الرئيسي ل ' . $hospital->name,
+                'status' => 'active',
+            ]);
+
+            // إنشاء الصيدلية الرئيسية تلقائياً
+            Pharmacy::create([
+                'hospital_id' => $hospital->id,
+                'name' => 'صيدلية ' . $hospital->name . ' الرئيسية',
                 'status' => 'active',
             ]);
 

@@ -7,6 +7,13 @@ use Illuminate\Http\Request;
 use App\Models\Drug;
 use App\Models\Inventory;
 use App\Models\Pharmacy;
+use App\Models\Prescription;
+use App\Models\PrescriptionDrug;
+use App\Models\Dispensing;
+use App\Models\InternalSupplyRequest;
+use App\Models\InternalSupplyRequestItem;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -106,55 +113,177 @@ class DrugHospitalAdminController extends BaseApiController
             
             $inventories = $inventoriesQuery->with(['pharmacy', 'warehouse', 'drug'])->get()->groupBy('drug_id');
             
-            // جلب الأدوية فقط التي لها مخزون في الصيدليات أو المستودعات التابعة للمستشفى
+            // جلب الأدوية التي لها مخزون في الصيدليات أو المستودعات التابعة للمستشفى
             $drugIds = $inventories->keys()->toArray();
             
-            if (empty($drugIds)) {
+            // جلب طلبات التوريد الداخلية من نفس المستشفى والتي حالتها "جديد" فقط (لحساب الكمية المحتاجة للمستودع)
+            $internalRequests = InternalSupplyRequest::where('status', 'pending')
+                ->whereHas('pharmacy', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                })
+                ->with(['items.drug'])
+                ->get();
+
+            // جمع جميع الأدوية من الطلبات مع الكميات المطلوبة للمستودع
+            $warehouseRequestItems = collect();
+            foreach ($internalRequests as $request) {
+                foreach ($request->items as $item) {
+                    if ($item->drug) {
+                        $qty = (int)($item->requested_qty ?? 0);
+                        if ($qty > 0) {
+                            $warehouseRequestItems->push([
+                                'drug_id' => $item->drug_id,
+                                'requested_qty' => $qty,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // تجميع الأدوية حسب drug_id وحساب المجموع المطلوب من جميع الطلبات للمستودع
+            $warehouseDrugsRequestedQuantities = $warehouseRequestItems
+                ->groupBy('drug_id')
+                ->map(function ($items, $drugId) {
+                    return [
+                        'drug_id' => $drugId,
+                        'total_requested_qty' => $items->sum('requested_qty')
+                    ];
+                });
+            
+            // جلب الأدوية غير المسجلة التي لديها كمية محتاجة
+            // 1. الأدوية الموصوفة للمرضى (لحساب الكمية المحتاجة للصيدلية)
+            $activePrescriptions = Prescription::where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->whereHas('patient', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId)
+                          ->where('type', 'patient');
+                })
+                ->with('drugs')
+                ->get();
+
+            $prescriptionDrugIds = collect();
+            foreach ($activePrescriptions as $prescription) {
+                foreach ($prescription->drugs as $drug) {
+                    $prescriptionDrugIds->push($drug->id);
+                }
+            }
+            $prescriptionDrugIds = $prescriptionDrugIds->unique()->toArray();
+
+            // 2. الأدوية المطلوبة في الطلبات الداخلية (لحساب الكمية المحتاجة للمستودع)
+            $warehouseRequestDrugIds = $warehouseDrugsRequestedQuantities->keys()->toArray();
+
+            // دمج جميع معرفات الأدوية (المسجلة وغير المسجلة)
+            $allDrugIds = array_unique(array_merge($drugIds, $prescriptionDrugIds, $warehouseRequestDrugIds));
+            
+            if (empty($allDrugIds)) {
                 return $this->sendSuccess([], 'لا توجد أدوية في مخزون المستشفى حالياً.');
             }
             
-            $drugs = Drug::whereIn('id', $drugIds)->orderBy('name')->get();
-            
-            // تسجيل للمساعدة في التصحيح
-            $allInventories = $inventoriesQuery->get();
-            Log::debug('Inventory Data', [
-                'pharmacy_ids' => $pharmacyIds,
-                'warehouse_ids' => $warehouseIds,
-                'total_inventories' => $allInventories->count(),
-                'drugs_with_inventory' => $inventories->keys()->toArray(),
-                'all_inventories_by_drug' => $allInventories->groupBy('drug_id')->map(function($items, $drugId) {
-                    return [
-                        'drug_id' => $drugId,
-                        'total_quantity' => $items->sum('current_quantity'),
-                        'items' => $items->map(function($inv) {
-                            return [
-                                'id' => $inv->id,
-                                'pharmacy_id' => $inv->pharmacy_id,
-                                'warehouse_id' => $inv->warehouse_id,
-                                'pharmacy_name' => $inv->pharmacy?->name,
-                                'warehouse_name' => $inv->warehouse?->name,
-                                'quantity' => $inv->current_quantity,
-                                'minimum_level' => $inv->minimum_level,
-                            ];
-                        })->toArray(),
-                    ];
-                })->toArray(),
-            ]);
+            $drugs = Drug::whereIn('id', $allDrugIds)->orderBy('name')->get();
 
-            // تجميع البيانات: لكل دواء، نجمع الكميات من جميع الصيدليات
-            $result = $drugs->map(function ($drug) use ($inventories) {
+            // دالة مساعدة لحساب الكمية المحتاجة للصيدلية بناءً على المرضى المستحقين
+            $calculatePharmacyNeededQuantity = function($drugId, $availablePharmacyQuantity, $hospitalId) {
+                // جلب جميع الوصفات النشطة التي تحتوي على هذا الدواء
+                $activePrescriptions = Prescription::where('hospital_id', $hospitalId)
+                    ->where('status', 'active')
+                    ->whereHas('patient', function($query) use ($hospitalId) {
+                        $query->where('hospital_id', $hospitalId)
+                              ->where('type', 'patient');
+                    })
+                    ->whereHas('drugs', function($query) use ($drugId) {
+                        $query->where('drugs.id', $drugId);
+                    })
+                    ->with(['drugs' => function($query) use ($drugId) {
+                        $query->where('drugs.id', $drugId);
+                    }])
+                    ->get();
+
+                $totalNeededQuantity = 0;
+                $startOfMonth = Carbon::now()->startOfMonth();
+                $endOfMonth = Carbon::now()->endOfMonth();
+
+                foreach ($activePrescriptions as $prescription) {
+                    foreach ($prescription->drugs as $drug) {
+                        if ($drug->id != $drugId) continue;
+
+                        // حساب الكمية الشهرية المطلوبة
+                        $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                        if ($monthlyQty === 0 && isset($drug->pivot->daily_quantity)) {
+                            $monthlyQty = (int)($drug->pivot->daily_quantity ?? 0) * 30;
+                        }
+
+                        if ($monthlyQty > 0) {
+                            // حساب الكمية المصروفة في الشهر الحالي
+                            $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $prescription->patient_id)
+                                ->where('drug_id', $drugId)
+                                ->where('reverted', false)
+                                ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                                ->sum('quantity_dispensed');
+
+                            // حساب الكمية المتبقية (الكمية المطلوبة - المصروفة)
+                            $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
+                            
+                            // إذا كان الدواء متوفراً والكمية > 0، نضيف الكمية المتبقية
+                            if ($availablePharmacyQuantity > 0 && $remainingQuantity > 0) {
+                                $totalNeededQuantity += $remainingQuantity;
+                            } elseif ($availablePharmacyQuantity <= 0) {
+                                // إذا لم يكن الدواء متوفراً، نضيف الكمية المتبقية كاملة
+                                $totalNeededQuantity += $remainingQuantity;
+                            }
+                        }
+                    }
+                }
+
+                // الكمية المحتاجة = مجموع الكميات المتبقية من المرضى المستحقين - الكمية المتوفرة
+                // إذا كانت النتيجة <= 0، تصبح 0
+                $neededQuantity = max(0, $totalNeededQuantity - $availablePharmacyQuantity);
+                
+                return $neededQuantity;
+            };
+
+            // تجميع البيانات: لكل دواء، نجمع الكميات من جميع الصيدليات والمستودعات بشكل منفصل
+            $result = $drugs->map(function ($drug) use ($inventories, $hospitalId, $warehouseDrugsRequestedQuantities, $calculatePharmacyNeededQuantity) {
                 $drugInventories = $inventories->get($drug->id, collect());
                 
-                // حساب الكمية الإجمالية من جميع الصيدليات (باستخدام reduce للتأكد من الدقة)
-                $totalQuantity = $drugInventories->reduce(function ($carry, $inventory) {
-                    return $carry + (int)($inventory->current_quantity ?? 0);
-                }, 0);
+                // حساب الكمية الإجمالية من جميع الصيدليات
+                $pharmacyQuantity = $drugInventories
+                    ->filter(function($inv) {
+                        return $inv->pharmacy_id !== null && $inv->warehouse_id === null;
+                    })
+                    ->reduce(function ($carry, $inventory) {
+                        return $carry + (int)($inventory->current_quantity ?? 0);
+                    }, 0);
                 
-                // حساب الحد الأدنى الإجمالي (نجمع جميع القيم)
-                $totalMinimumLevel = $drugInventories->reduce(function ($carry, $inventory) {
-                    $minLevel = (int)($inventory->minimum_level ?? 0);
-                    return $carry + $minLevel;
-                }, 0);
+                // حساب الكمية الإجمالية من جميع المستودعات
+                $warehouseQuantity = $drugInventories
+                    ->filter(function($inv) {
+                        return $inv->warehouse_id !== null && $inv->pharmacy_id === null;
+                    })
+                    ->reduce(function ($carry, $inventory) {
+                        return $carry + (int)($inventory->current_quantity ?? 0);
+                    }, 0);
+                
+                // حساب الكمية الإجمالية (للتوافق مع الكود القديم)
+                $totalQuantity = $pharmacyQuantity + $warehouseQuantity;
+                
+                // حساب الكمية المحتاجة للصيدلية من الوصفات النشطة
+                $pharmacyNeededQuantity = 0;
+                if ($hospitalId) {
+                    $pharmacyNeededQuantity = $calculatePharmacyNeededQuantity(
+                        $drug->id,
+                        $pharmacyQuantity,
+                        $hospitalId
+                    );
+                }
+                
+                // حساب الكمية المحتاجة للمستودع من الطلبات الداخلية
+                $warehouseNeededQuantity = 0;
+                if ($warehouseDrugsRequestedQuantities->has($drug->id)) {
+                    $totalRequestedQty = $warehouseDrugsRequestedQuantities->get($drug->id)['total_requested_qty'];
+                    // الكمية المحتاجة = مجموع الكميات المطلوبة من الطلبات - الكمية المتوفرة
+                    // إذا كانت النتيجة <= 0، تصبح 0
+                    $warehouseNeededQuantity = max(0, $totalRequestedQty - $warehouseQuantity);
+                }
                 
                 // معلومات الصيدليات والمستودعات التي تحتوي على هذا الدواء
                 $pharmaciesInfo = $drugInventories->map(function ($inventory) {
@@ -174,26 +303,6 @@ class DrugHospitalAdminController extends BaseApiController
                     ];
                 })->values();
 
-                // تسجيل للمساعدة في التصحيح
-                if ($drugInventories->isNotEmpty()) {
-                    Log::debug('Drug aggregation', [
-                        'drug_id' => $drug->id,
-                        'drug_name' => $drug->name,
-                        'inventories_count' => $drugInventories->count(),
-                        'inventories_raw' => $drugInventories->map(function($inv) {
-                            return [
-                                'id' => $inv->id,
-                                'pharmacy_id' => $inv->pharmacy_id,
-                                'current_quantity' => $inv->current_quantity,
-                                'minimum_level' => $inv->minimum_level,
-                            ];
-                        })->toArray(),
-                        'total_quantity' => $totalQuantity,
-                        'pharmacies_count' => $pharmaciesInfo->count(),
-                        'pharmacies_details' => $pharmaciesInfo->toArray(),
-                    ]);
-                }
-
                 return [
                     'id' => $drugInventories->first()?->id ?? null, // ID أول مخزون إن وجد
                     'drugCode' => $drug->id,
@@ -209,8 +318,12 @@ class DrugHospitalAdminController extends BaseApiController
                     'manufacturer' => $drug->manufacturer,
                     'country' => $drug->country,
                     'utilizationType' => $drug->utilization_type,
-                    'quantity' => $totalQuantity, // الكمية الإجمالية من جميع الصيدليات
-                    'neededQuantity' => $totalMinimumLevel, // الحد الأدنى المطلوب (مجموع من جميع الصيدليات والمستودعات)
+                    'quantity' => $totalQuantity, // الكمية الإجمالية (للتوافق مع الكود القديم)
+                    'pharmacyQuantity' => $pharmacyQuantity, // الكمية المتوفرة في الصيدليات
+                    'warehouseQuantity' => $warehouseQuantity, // الكمية المتوفرة في المستودعات
+                    'neededQuantity' => $pharmacyNeededQuantity + $warehouseNeededQuantity, // الكمية المحتاجة الإجمالية (للتوافق مع الكود القديم)
+                    'pharmacyNeededQuantity' => $pharmacyNeededQuantity, // الكمية المحتاجة للصيدليات
+                    'warehouseNeededQuantity' => $warehouseNeededQuantity, // الكمية المحتاجة للمستودعات
                     'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
                     'description' => $drug->description ?? '',
                     'type' => $drug->form ?? 'Tablet',
@@ -219,8 +332,8 @@ class DrugHospitalAdminController extends BaseApiController
                 ];
             })
             ->filter(function($drug) {
-                // استبعاد الأدوية التي ليس لها مخزون (quantity = 0)
-                return $drug['quantity'] > 0;
+                // عرض الأدوية التي لديها مخزون أو كمية محتاجة
+                return $drug['quantity'] > 0 || $drug['pharmacyNeededQuantity'] > 0 || $drug['warehouseNeededQuantity'] > 0;
             })
             ->values(); // إعادة فهرسة المصفوفة
 

@@ -13,6 +13,10 @@ import PatientViewModal from "@/components/patientDoctor/PatientViewModal.vue";
 import AddMedicationModal from "@/components/patientDoctor/AddMedicationModal.vue";
 import DispensationModal from "@/components/patientDoctor/DispensationModal.vue";
 import DefaultLayout from "@/components/DefaultLayout.vue";
+import Toast from "@/components/Shared/Toast.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. تكوين Axios
@@ -95,28 +99,28 @@ const fetchPatients = async (search = '') => {
     
     if (err.response?.status === 401) {
       errorMessage.value = "انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.";
-      showSuccessAlert("انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.");
+      showErrorAlert("انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.");
     } else if (err.response?.status === 403) {
       errorMessage.value = "ليس لديك صلاحية لعرض قائمة المرضى.";
-      showSuccessAlert("ليس لديك صلاحية لعرض قائمة المرضى.");
+      showWarningAlert("ليس لديك صلاحية لعرض قائمة المرضى.");
     } else if (err.response?.status === 404) {
       errorMessage.value = "لم يتم العثور على بيانات المرضى.";
-      showSuccessAlert("لم يتم العثور على بيانات المرضى.");
+      showWarningAlert("لم يتم العثور على بيانات المرضى.");
     } else if (err.response?.status === 422) {
       errorMessage.value = "بيانات البحث غير صالحة.";
-      showSuccessAlert("بيانات البحث غير صالحة.");
+      showErrorAlert("بيانات البحث غير صالحة.");
     } else if (err.response?.status === 500) {
       errorMessage.value = "حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.";
-      showSuccessAlert("حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.");
+      showErrorAlert("حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.");
     } else if (err.code === 'NETWORK_ERROR' || !err.response) {
       errorMessage.value = "فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.";
-      showSuccessAlert("فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
+      showErrorAlert("فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
     } else if (errorData?.message) {
       errorMessage.value = errorData.message;
-      showSuccessAlert(` ${errorData.message}`);
+      showErrorAlert(` ${errorData.message}`);
     } else {
       errorMessage.value = 'حدث خطأ غير متوقع في جلب بيانات المرضى.';
-      showSuccessAlert("حدث خطأ غير متوقع في جلب بيانات المرضى.");
+      showErrorAlert("حدث خطأ غير متوقع في جلب بيانات المرضى.");
     }
   } finally {
     isLoading.value = false;
@@ -176,13 +180,13 @@ const fetchPatientDetails = async (patientId) => {
     const errorData = err.response?.data;
     
     if (err.response?.status === 404) {
-      showSuccessAlert(" المريض غير موجود أو تم حذفه.");
+      showWarningAlert(" المريض غير موجود أو تم حذفه.");
     } else if (err.response?.status === 403) {
-      showSuccessAlert("ليس لديك صلاحية لعرض بيانات هذا المريض.");
+      showWarningAlert("ليس لديك صلاحية لعرض بيانات هذا المريض.");
     } else if (errorData?.message) {
-      showSuccessAlert(` ${errorData.message}`);
+      showErrorAlert(` ${errorData.message}`);
     } else {
-      showSuccessAlert("حدث خطأ في تحميل بيانات المريض.");
+      showErrorAlert("حدث خطأ في تحميل بيانات المريض.");
     }
     
     // لا نعرض خطأ، نرجع بيانات افتراضية
@@ -295,11 +299,11 @@ const fetchDispensationHistory = async (patientId) => {
     const errorData = err.response?.data;
     
     if (err.response?.status === 404) {
-      showSuccessAlert(" لا يوجد سجل صرف لهذا المريض.");
+      showWarningAlert(" لا يوجد سجل صرف لهذا المريض.");
     } else if (errorData?.message) {
-      showSuccessAlert(` ${errorData.message}`);
+      showErrorAlert(` ${errorData.message}`);
     } else {
-      showSuccessAlert(" حدث خطأ في جلب سجل الصرف.");
+      showErrorAlert(" حدث خطأ في جلب سجل الصرف.");
     }
     
     // في حالة الخطأ، نرجع مصفوفة فارغة
@@ -467,25 +471,31 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 5. منطق الرسائل التنبيهية - تم التحديث
+// 5. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
 
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 6. حالة الـ Modals
@@ -646,20 +656,20 @@ const addMedicationToPatient = async (medicationsData) => {
       const errorData = apiError.response?.data;
       
       if (apiError.response?.status === 422) {
-        showSuccessAlert("بيانات الأدوية غير صالحة. يرجى التحقق من المعلومات المدخلة.");
+        showErrorAlert("بيانات الأدوية غير صالحة. يرجى التحقق من المعلومات المدخلة.");
       } else if (apiError.response?.status === 404) {
-        showSuccessAlert("المريض غير موجود أو تم حذفه.");
+        showWarningAlert("المريض غير موجود أو تم حذفه.");
       } else if (apiError.response?.status === 403) {
-        showSuccessAlert("ليس لديك صلاحية لإضافة أدوية لهذا المريض.");
+        showWarningAlert("ليس لديك صلاحية لإضافة أدوية لهذا المريض.");
       } else if (errorData?.message) {
-        showSuccessAlert(` ${errorData.message}`);
+        showErrorAlert(` ${errorData.message}`);
       } else {
-        showSuccessAlert("حدث خطأ في إضافة الأدوية. الرجاء المحاولة مرة أخرى.");
+        showErrorAlert("حدث خطأ في إضافة الأدوية. الرجاء المحاولة مرة أخرى.");
       }
     }
   } catch (err) {
     console.error('خطأ في إضافة الأدوية:', err);
-    showSuccessAlert(" حدث خطأ في إضافة الأدوية. الرجاء المحاولة مرة أخرى.");
+    showErrorAlert(" حدث خطأ في إضافة الأدوية. الرجاء المحاولة مرة أخرى.");
   }
 };
 
@@ -671,7 +681,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const pivotId = medication.pivot_id || medication.id;
 
     if (!pivotId) {
-      showSuccessAlert("لا يمكن تحديد معرف الدواء للتعديل.");
+      showWarningAlert("لا يمكن تحديد معرف الدواء للتعديل.");
       return;
     }
 
@@ -679,7 +689,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const monthlyQuantity = Math.round(newDosage * 30);
 
     if (monthlyQuantity <= 0) {
-      showSuccessAlert("الكمية الشهرية يجب أن تكون أكبر من الصفر.");
+      showErrorAlert("الكمية الشهرية يجب أن تكون أكبر من الصفر.");
       return;
     }
 
@@ -707,11 +717,11 @@ const handleEditMedication = async (medIndex, newDosage) => {
       showSuccessAlert(`تم تعديل الجرعة الدوائية بنجاح`);
     } catch (apiError) {
       console.error('خطأ في تعديل الدواء:', apiError);
-      showSuccessAlert(`فشل في تعديل الدواء: ${apiError.response?.data?.message || apiError.message}`);
+      showErrorAlert(`فشل في تعديل الدواء: ${apiError.response?.data?.message || apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في تعديل الدواء:', err);
-    showSuccessAlert("حدث خطأ في تعديل الدواء. الرجاء المحاولة مرة أخرى.");
+    showErrorAlert("حدث خطأ في تعديل الدواء. الرجاء المحاولة مرة أخرى.");
   }
 };
 
@@ -724,7 +734,7 @@ const handleDeleteMedication = async (medIndex) => {
     const pivotId = medication.pivot_id || medication.id;
 
     if (!pivotId) {
-      showSuccessAlert("لا يمكن تحديد معرف الدواء للحذف.");
+      showWarningAlert("لا يمكن تحديد معرف الدواء للحذف.");
       return;
     }
 
@@ -750,18 +760,18 @@ const handleDeleteMedication = async (medIndex) => {
       const errorData = apiError.response?.data;
       
       if (apiError.response?.status === 404) {
-        showSuccessAlert("الدواء غير موجود أو تم حذفه مسبقاً.");
+        showWarningAlert("الدواء غير موجود أو تم حذفه مسبقاً.");
       } else if (apiError.response?.status === 403) {
-        showSuccessAlert("ليس لديك صلاحية لحذف هذا الدواء.");
+        showWarningAlert("ليس لديك صلاحية لحذف هذا الدواء.");
       } else if (errorData?.message) {
-        showSuccessAlert(` ${errorData.message}`);
+        showErrorAlert(` ${errorData.message}`);
       } else {
-        showSuccessAlert("حدث خطأ في حذف الدواء. الرجاء المحاولة مرة أخرى.");
+        showErrorAlert("حدث خطأ في حذف الدواء. الرجاء المحاولة مرة أخرى.");
       }
     }
   } catch (err) {
     console.error('خطأ في حذف الدواء:', err);
-    showSuccessAlert(" حدث خطأ في حذف الدواء. الرجاء المحاولة مرة أخرى.");
+    showErrorAlert(" حدث خطأ في حذف الدواء. الرجاء المحاولة مرة أخرى.");
   }
 };
 
@@ -774,7 +784,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert("فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -1107,24 +1117,12 @@ const reloadData = () => {
         @close="closeDispensationModal"
     />
 
-    <!-- التنبيهات -->
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div 
-            v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 text-white"
-            dir="rtl"
-            :class="successMessage.includes('خطأ') || successMessage.includes('فشل') || successMessage.includes('تعذر') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#3a8c94]'"
-        >
-            {{ successMessage }}
-        </div>
-    </Transition>
+    <Toast
+        :show="isAlertVisible"
+        :message="alertMessage"
+        :type="alertType"
+        @close="isAlertVisible = false"
+    />
 </template>
 
 <style>

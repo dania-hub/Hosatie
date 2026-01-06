@@ -12,6 +12,10 @@ import btnprint from "@/components/btnprint.vue";
 import PatientAddModal from "@/components/patientsDataEntry/PatientAddModel.vue";
 import PatientEditModal from "@/components/patientsDataEntry/PatientEditModel.vue";
 import PatientViewModal from "@/components/patientsDataEntry/PatientViewModel.vue";
+import Toast from "@/components/Shared/Toast.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. بيانات المرضى والـ Endpoint
@@ -224,30 +228,31 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 4. منطق رسالة النجاح والخطأ
+// 4. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
-    
-    // Auto-detect type if emoji is missing
-    let finalMessage = message;
-    
-    successMessage.value = finalMessage;
 
-    successMessage.value = finalMessage;
-    isSuccessAlertVisible.value = true;
-    
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
+
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 5. حالة الـ Modals ودوام الفتح/الإغلاق (لم يتغير)
@@ -361,7 +366,7 @@ const addPatient = async (newPatient) => {
             msg = " فشل تسجيل المريض. الرجاء المحاولة مرة أخرى.";
         }
         
-        showSuccessAlert(msg);
+        showErrorAlert(msg);
     }
 };
 
@@ -454,7 +459,7 @@ const updatePatient = async (updatedPatient) => {
             msg = " فشل تعديل بيانات المريض.";
         }
         
-        showSuccessAlert(msg);
+        showErrorAlert(msg);
     }
 };
 
@@ -492,7 +497,7 @@ const confirmDelete = async () => {
             msg = " فشل حذف المريض.";
         }
         
-        showSuccessAlert(msg);
+        showErrorAlert(msg);
         closeDeleteModal();
     }
 };
@@ -506,7 +511,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert(" فشل عملية الطباعة. الرجاء السماح بفتح النوافذ المنبثقة.");
+        showErrorAlert(" فشل عملية الطباعة. الرجاء السماح بفتح النوافذ المنبثقة.");
         return;
     }
 
@@ -893,26 +898,12 @@ const printTable = () => {
         </div>
     </div>
 
-    <!-- Alert Notification -->
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div 
-            v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 flex items-center justify-between gap-3 text-white"
-            dir="rtl"
-            :class="successMessage.includes('❌') || successMessage.includes('⚠️') ? 'bg-red-500' : 'bg-[#3a8c94]'"
-        >
-            <div class="flex-1 font-bold text-sm">
-                {{ successMessage }}
-            </div>
-        </div>
-    </Transition>
+    <Toast
+        :show="isAlertVisible"
+        :message="alertMessage"
+        :type="alertType"
+        @close="isAlertVisible = false"
+    />
 </template>
 
 <style>

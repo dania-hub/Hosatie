@@ -272,25 +272,8 @@ const fetchAllDrugsData = async () => {
 // 7. دالة تحديد لون الصف والخط
 // ----------------------------------------------------
 const getRowColorClass = (quantity, neededQuantity) => {
-  // تحويل القيم إلى أرقام والتأكد من وجودها
-  const qty = Number(quantity);
-  const neededQty = Number(neededQuantity);
-  
-  // إذا كانت القيم غير صالحة أو غير موجودة
-  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
-    return "bg-white border-gray-300 border";
-  }
-  
-  const dangerThreshold = neededQty * 0.25; 
-  const warningThreshold = neededQty * 0.5;  
-
-  if (qty < dangerThreshold) {
-    return "bg-red-50/70 hover:bg-red-100/80 border-r-4 ";
-  } else if (qty < warningThreshold) {
-    return "bg-yellow-50/70 hover:bg-yellow-100/80 border-r-4 ";
-  } else {
-    return "bg-white hover:bg-gray-50 border-gray-300 border";
-  }
+  // إرجاع class ثابت بدون تغيير لون الخلفية
+  return "bg-white hover:bg-gray-50 border-gray-300 border";
 };
 
 const getTextColorClass = (quantity, neededQuantity) => {
@@ -303,8 +286,8 @@ const getTextColorClass = (quantity, neededQuantity) => {
     return "text-gray-800";
   }
   
-  const dangerThreshold = neededQty * 0.25;
-  const warningThreshold = neededQty * 0.5;
+  const dangerThreshold = neededQty * 0.5;
+  const warningThreshold = neededQty * 0.75;
 
   if (qty < dangerThreshold) {
     return "text-red-700 font-semibold";
@@ -472,13 +455,13 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
+    <div class="drawer lg:drawer-open h-screen overflow-hidden" dir="rtl">
         <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
 
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
+        <div class="drawer-content flex flex-col bg-gray-50 h-full overflow-hidden">
+            <Navbar class="flex-shrink-0" />
 
-            <main class="flex-1 p-4 sm:p-5 pt-3">
+            <main class="flex-1 p-4 sm:p-5 pt-3 overflow-y-auto">
             <!-- حالة التحميل -->
            
 
@@ -704,10 +687,10 @@ onMounted(async () => {
                                             <th class="drug-name-col">
                                                 اسم الدواء
                                             </th>
-                                            <th class="quantity-col">
+                                            <th class="quantity-col" colspan="2">
                                                 الكمية المتوفرة
                                             </th>
-                                            <th class="needed-quantity-col">
+                                            <th class="needed-quantity-col" colspan="2">
                                                 الكمية المحتاجة
                                             </th>
                                             <th class="expiry-date-col">
@@ -715,16 +698,34 @@ onMounted(async () => {
                                             </th>
                                             <th class="actions-col">الإجراءات</th>
                                         </tr>
+                                        <tr>
+                                            <th></th>
+                                            <th></th>
+                                            <th class="quantity-col bg-[#8abcc0]">
+                                                الصيدلية
+                                            </th>
+                                            <th class="quantity-col bg-[#8abcc0]">
+                                                المستودع
+                                            </th>
+                                            <th class="needed-quantity-col bg-[#8abcc0]">
+                                                الصيدلية
+                                            </th>
+                                            <th class="needed-quantity-col bg-[#8abcc0]">
+                                                المستودع
+                                            </th>
+                                            <th></th>
+                                            <th></th>
+                                        </tr>
                                     </thead>
 
                                     <tbody class="text-gray-800">
                                         <tr v-if="isLoading">
-                                            <td colspan="6" class="p-4">
+                                            <td colspan="8" class="p-4">
                                                 <TableSkeleton :rows="5" />
                                             </td>
                                         </tr>
                                         <tr v-else-if="error">
-                                            <td colspan="6" class="py-12">
+                                            <td colspan="8" class="py-12">
                                                 <ErrorState :message="error" :retry="fetchDrugs" />
                                             </td>
                                         </tr>
@@ -732,8 +733,7 @@ onMounted(async () => {
                                             <tr
                                                 v-for="(drug, index) in filteredDrugss"
                                                 :key="drug.id || index"
-                                                class="border-b border-gray-200"
-                                                :class="getRowColorClass(drug.quantity, drug.neededQuantity)"
+                                                class="border-b border-gray-200 bg-white hover:bg-gray-50"
                                             >
                                                 <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
                                                     {{ drug.drugCode }}
@@ -741,11 +741,17 @@ onMounted(async () => {
                                                 <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
                                                     {{ drug.drugName }}
                                                 </td>
-                                                <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
-                                                    <span class="font-bold">{{ drug.quantity }}</span>
+                                                <td :class="getTextColorClass(drug.pharmacyQuantity || 0, drug.pharmacyNeededQuantity || 0)">
+                                                    <span class="font-bold">{{ drug.pharmacyQuantity || 0 }}</span>
                                                 </td>
-                                                <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
-                                                    <span class="font-bold">{{ drug.neededQuantity }}</span>
+                                                <td :class="getTextColorClass(drug.warehouseQuantity || 0, drug.warehouseNeededQuantity || 0)">
+                                                    <span class="font-bold">{{ drug.warehouseQuantity || 0 }}</span>
+                                                </td>
+                                                <td :class="getTextColorClass(drug.pharmacyQuantity || 0, drug.pharmacyNeededQuantity || 0)">
+                                                    <span class="font-bold">{{ drug.pharmacyNeededQuantity || 0 }}</span>
+                                                </td>
+                                                <td :class="getTextColorClass(drug.warehouseQuantity || 0, drug.warehouseNeededQuantity || 0)">
+                                                    <span class="font-bold">{{ drug.warehouseNeededQuantity || 0 }}</span>
                                                 </td>
                                                 <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
                                                     {{ drug.expiryDate }}
@@ -766,7 +772,7 @@ onMounted(async () => {
                                                 </td>
                                             </tr>
                                             <tr v-if="filteredDrugss.length === 0">
-                                                <td colspan="6" class="py-12">
+                                                <td colspan="8" class="py-12">
                                                     <EmptyState message="لا توجد أدوية في المخزون" />
                                                 </td>
                                             </tr>
@@ -780,7 +786,10 @@ onMounted(async () => {
             </main>
         </div>
 
-        <Sidebar />
+        <div class="drawer-side h-full overflow-hidden">
+            <label for="my-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+            <Sidebar />
+        </div>
 
         <DrugPreviewModal 
             :is-open="isDrugPreviewModalOpen"

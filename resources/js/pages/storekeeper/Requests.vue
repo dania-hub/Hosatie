@@ -344,22 +344,12 @@
             :is-loading="isConfirming"
         />
 
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </DefaultLayout>
 </template>
 
@@ -374,6 +364,10 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import RequestViewModal from "@/components/forstorekeeper/RequestViewModal.vue"; 
 import ConfirmationModal from "@/components/forstorekeeper/ConfirmationModal.vue"; 
+import Toast from "@/components/Shared/Toast.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات axios ونقاط النهاية API
@@ -427,21 +421,21 @@ api.interceptors.response.use(
             if (!token) {
                 showSuccessAlert(' لم يتم العثور على رمز المصادقة. يرجى تسجيل الدخول مرة أخرى.');
             } else {
-                showSuccessAlert(' انتهت جلسة العمل أو رمز المصادقة غير صحيح. يرجى تسجيل الدخول مرة أخرى.');
+                showErrorAlert(' انتهت جلسة العمل أو رمز المصادقة غير صحيح. يرجى تسجيل الدخول مرة أخرى.');
             }
             // يمكن إضافة إعادة توجيه لصفحة تسجيل الدخول هنا
         } else if (error.response?.status === 403) {
-            showSuccessAlert(' ليس لديك الصلاحية للقيام بهذا الإجراء.');
+            showWarningAlert(' ليس لديك الصلاحية للقيام بهذا الإجراء.');
         } else if (error.response?.status === 404) {
-            showSuccessAlert(' المورد المطلوب غير موجود.');
+            showErrorAlert(' المورد المطلوب غير موجود.');
         } else if (error.code === 'ECONNABORTED') {
-            showSuccessAlert(' انتهت مهلة الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
+            showWarningAlert(' انتهت مهلة الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
         } else if (!error.response) {
-            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showErrorAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         } else {
             // معالجة أخطاء أخرى
             const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ غير معروف';
-            showSuccessAlert(` ${errorMessage}`);
+            showErrorAlert(` ${errorMessage}`);
         }
         
         return Promise.reject(error);
@@ -761,7 +755,7 @@ const openRequestViewModal = async (shipment) => {
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
-        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
+        showErrorAlert(' فشل في تحميل تفاصيل الشحنة');
         console.error('Error loading shipment details:', err);
     }
 };
@@ -781,7 +775,7 @@ const closeRequestViewModal = () => {
 const openConfirmationModal = async (shipment) => {
     // التحقق من حالة الطلب - منع التعديل إذا كان في حالة "قيد الاستلام"
     if (shipment.requestStatus === 'قيد الاستلام' || shipment.requestStatus === 'approved') {
-        showSuccessAlert(' هذا الطلب قيد الاستلام ولا يمكن تعديله');
+        showWarningAlert(' هذا الطلب قيد الاستلام ولا يمكن تعديله');
         return;
     }
     
@@ -792,7 +786,7 @@ const openConfirmationModal = async (shipment) => {
         // التحقق مرة أخرى من حالة الطلب بعد جلب البيانات
         const currentStatus = response.status || shipment.requestStatus;
         if (currentStatus === 'قيد الاستلام' || currentStatus === 'approved') {
-            showSuccessAlert(' هذا الطلب قيد الاستلام ولا يمكن تعديله');
+            showWarningAlert(' هذا الطلب قيد الاستلام ولا يمكن تعديله');
             return;
         }
         
@@ -830,7 +824,7 @@ const openConfirmationModal = async (shipment) => {
         console.log(' Final selectedShipmentForConfirmation:', selectedShipmentForConfirmation.value);
         isConfirmationModalOpen.value = true;
     } catch (err) {
-        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
+        showErrorAlert(' فشل في تحميل تفاصيل الشحنة');
         console.error('Error loading shipment details:', err);
     }
 };
@@ -927,20 +921,20 @@ const handleConfirmation = async (confirmationData) => {
         console.error('Error in handleConfirmation:', err);
         
         if (err.code === 'ECONNABORTED') {
-            showSuccessAlert(' انتهت مهلة الاتصال. العملية تستغرق وقتاً طويلاً. يرجى التحقق من حالة الطلب.');
+            showWarningAlert(' انتهت مهلة الاتصال. العملية تستغرق وقتاً طويلاً. يرجى التحقق من حالة الطلب.');
         } else if (err.response?.status === 404) {
-            showSuccessAlert(` الشحنة غير موجودة أو تم حذفها`);
+            showErrorAlert(` الشحنة غير موجودة أو تم حذفها`);
         } else if (err.response?.status === 400) {
-            showSuccessAlert(` بيانات غير صالحة: ${err.response.data?.message || ''}`);
+            showErrorAlert(` بيانات غير صالحة: ${err.response.data?.message || ''}`);
         } else if (err.response?.status === 409) {
-            showSuccessAlert(` تعارض في البيانات: ${err.response.data?.message || ''}`);
+            showWarningAlert(` تعارض في البيانات: ${err.response.data?.message || ''}`);
         } else if (err.response?.status === 500) {
-            showSuccessAlert(` خطأ في الخادم: ${err.response.data?.message || 'يرجى المحاولة مرة أخرى'}`);
+            showErrorAlert(` خطأ في الخادم: ${err.response.data?.message || 'يرجى المحاولة مرة أخرى'}`);
         } else if (!err.response) {
-            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showErrorAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         } else {
             const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير معروف';
-            showSuccessAlert(` فشل في العملية: ${errorMessage}`);
+            showErrorAlert(` فشل في العملية: ${errorMessage}`);
         }
     } finally {
         isConfirming.value = false;
@@ -994,7 +988,7 @@ const openReviewModal = async (shipment) => {
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
-        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
+        showErrorAlert(' فشل في تحميل تفاصيل الشحنة');
         console.error('Error loading shipment details:', err);
     }
 };
@@ -1008,7 +1002,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -1072,25 +1066,31 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 };
 
 // ----------------------------------------------------
-// 9. نظام التنبيهات
+// 9. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
 
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 10. دورة الحياة

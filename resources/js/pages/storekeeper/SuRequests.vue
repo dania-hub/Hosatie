@@ -355,22 +355,12 @@
             :is-loading="isConfirming"
         />
 
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+        <Toast
+            :show="isAlertVisible"
+            :message="alertMessage"
+            :type="alertType"
+            @close="isAlertVisible = false"
+        />
     </DefaultLayout>
 </template>
 
@@ -385,30 +375,37 @@ import btnprint from "@/components/btnprint.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
 import RequestViewModal from "@/components/forstorekeeper/RequestViewModal.vue"; 
 import ConfirmationModal from "@/components/forstorekeeper/ConfirmationModal.vue"; 
+import Toast from "@/components/Shared/Toast.vue";
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue"; 
 
 // ----------------------------------------------------
-// 0. نظام التنبيهات - يجب تعريفه قبل الاستخدام
+// 0. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
 
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
 
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 1. إعدادات axios
@@ -452,11 +449,11 @@ api.interceptors.response.use(
       } else {
         console.error('No token found. Please login again.');
       }
-      showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+      showErrorAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
     } else if (error.response?.status === 403) {
-      showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+      showWarningAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
     } else if (!error.response) {
-      showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+      showErrorAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
     }
     return Promise.reject(error);
   }
@@ -636,7 +633,7 @@ const fetchCategories = async () => {
         }));
     } catch (err) {
         console.error('Error fetching categories:', err);
-        showSuccessAlert(' فشل في تحميل التصنيفات.');
+        showErrorAlert(' فشل في تحميل التصنيفات.');
         categories.value = [];
     }
 };
@@ -678,7 +675,7 @@ const fetchDrugs = async () => {
         
     } catch (err) {
         console.error('Error fetching drugs:', err);
-        showSuccessAlert(' فشل في تحميل الأدوية.');
+        showErrorAlert(' فشل في تحميل الأدوية.');
         allDrugsData.value = [];
     }
 };
@@ -874,7 +871,7 @@ const handleSupplyConfirm = async (data) => {
         
     } catch (err) {
         const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير متوقع';
-        showSuccessAlert(` فشل في إنشاء طلب التوريد: ${errorMessage}`);
+        showErrorAlert(` فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
@@ -1001,7 +998,7 @@ const handleConfirmation = async (confirmationData) => {
         console.error('Error confirming delivery:', err);
         console.error('Error response:', err.response);
         const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
-        showSuccessAlert(` فشل في تأكيد الاستلام: ${errorMessage}`);
+        showErrorAlert(` فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
@@ -1153,7 +1150,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -1178,7 +1175,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
-    <th class="center-icon">الإستلام</th> </tr>
+ </tr>
 </thead>
 <tbody>
 `;
@@ -1190,7 +1187,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <td>${shipment.shipmentNumber}</td>
     <td>${formatDate(shipment.requestDate)}</td>
     <td>${shipment.requestStatus}</td>
-    <td class="center-icon">${receivedIcon}</td>
+
 </tr>
 `;
     });

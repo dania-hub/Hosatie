@@ -251,24 +251,12 @@
         @close="closeDispensationModal"
     />
 
-    <!-- التنبيهات -->
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div 
-            v-if="isSuccessAlertVisible" 
-            class="fixed top-4 right-55 z-[1000] p-4 text-right rounded-lg shadow-xl max-w-xs transition-all duration-300 text-white"
-            dir="rtl"
-            :class="successMessage.includes('خطأ') || successMessage.includes('فشل') || successMessage.includes('تعذر') ? 'bg-red-500' : 'bg-[#3a8c94]'"
-        >
-            {{ successMessage }}
-        </div>
-    </Transition>
+    <Toast
+        :show="isAlertVisible"
+        :message="alertMessage"
+        :type="alertType"
+        @close="isAlertVisible = false"
+    />
 </template>
 
 <script setup>
@@ -285,6 +273,10 @@ import btnprint from "@/components/btnprint.vue";
 import PatientViewModal from "@/components/patientDoctor/PatientViewModal.vue";
 import AddMedicationModal from "@/components/patientDoctor/AddMedicationModal.vue";
 import DispensationModal from "@/components/patientDoctor/DispensationModal.vue";
+import Toast from "@/components/Shared/Toast.vue";
+import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
+import ErrorState from "@/components/Shared/ErrorState.vue";
+import EmptyState from "@/components/Shared/EmptyState.vue";
 
 // ----------------------------------------------------
 // 1. تكوين Axios
@@ -373,7 +365,7 @@ const fetchPatients = async () => {
       }
     } else {
       patients.value = [];
-      showSuccessAlert('شكل البيانات غير متوقع. تأكد من صحة استجابة الخادم');
+      showWarningAlert('شكل البيانات غير متوقع. تأكد من صحة استجابة الخادم');
     }
   } catch (err) {
     hasError.value = true;
@@ -422,7 +414,7 @@ const fetchPatients = async () => {
     }
     
     errorMessage.value = alertMessage;
-    showSuccessAlert(`${alertTitle}: ${alertMessage}`);
+    showErrorAlert(`${alertTitle}: ${alertMessage}`);
     patients.value = [];
   } finally {
     isLoading.value = false;
@@ -654,25 +646,31 @@ const filteredPatients = computed(() => {
 });
 
 // ----------------------------------------------------
-// 6. نظام التنبيهات (مبسط)
+// 6. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
+const isAlertVisible = ref(false);
+const alertMessage = ref("");
+const alertType = ref("success");
 let alertTimeout = null;
 
-const showSuccessAlert = (message) => {
+const showAlert = (message, type = "success") => {
     if (alertTimeout) {
         clearTimeout(alertTimeout);
     }
-    
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-    
+
+    alertMessage.value = message;
+    alertType.value = type;
+    isAlertVisible.value = true;
+
     alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
+        isAlertVisible.value = false;
     }, 4000);
 };
+
+const showSuccessAlert = (message) => showAlert(message, "success");
+const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 7. حالة الـ Modals
@@ -708,13 +706,13 @@ const openViewModal = async (patient) => {
       isViewModalOpen.value = true;
       showSuccessAlert(`تم تحميل تفاصيل المريض: بيانات ${patient.name} جاهزة للعرض`);
     } else {
-      showSuccessAlert('تعذر تحميل التفاصيل. يبدو أن هناك مشكلة في اتصال الخادم');
+      showErrorAlert('تعذر تحميل التفاصيل. يبدو أن هناك مشكلة في اتصال الخادم');
       selectedPatient.value = patient;
       isViewModalOpen.value = true;
     }
   } catch (err) {
     console.error('خطأ في فتح نافذة المريض:', err);
-    showSuccessAlert('خطأ في فتح النافذة: تعذر تحميل تفاصيل المريض');
+    showErrorAlert('خطأ في فتح النافذة: تعذر تحميل تفاصيل المريض');
   }
 };
 
@@ -750,7 +748,7 @@ const openDispensationModal = async () => {
     isViewModalOpen.value = false;
   } catch (err) {
     console.error('خطأ في تحميل سجل الصرف:', err);
-    showSuccessAlert('تعذر تحميل سجل الصرف. تأكد من اتصال الخادم');
+    showErrorAlert('تعذر تحميل سجل الصرف. تأكد من اتصال الخادم');
     dispensationHistory.value = [];
     isDispensationModalOpen.value = true;
     isViewModalOpen.value = false;
@@ -809,11 +807,11 @@ const addMedicationToPatient = async (medicationsData) => {
         errorMsg += ` (${errorData.error})`;
       }
       
-      showSuccessAlert(`فشل في إضافة الأدوية: ${errorMsg}`);
+      showErrorAlert(`فشل في إضافة الأدوية: ${errorMsg}`);
     }
   } catch (err) {
     console.error('خطأ في إضافة الأدوية:', err);
-    showSuccessAlert(' خطأ في إضافة الأدوية: حدث خطأ غير متوقع');
+    showErrorAlert(' خطأ في إضافة الأدوية: حدث خطأ غير متوقع');
   }
 };
 
@@ -830,7 +828,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
     const monthlyQuantity = Math.round(newDosage * 30);
 
     if (monthlyQuantity <= 0) {
-      showSuccessAlert('كمية غير صالحة: الجرعة يجب أن تكون أكبر من الصفر');
+      showErrorAlert('كمية غير صالحة: الجرعة يجب أن تكون أكبر من الصفر');
       return;
     }
 
@@ -860,11 +858,11 @@ const handleEditMedication = async (medIndex, newDosage) => {
 
       showSuccessAlert(`تم تعديل الجرعة الدوائية لـ ${medication.drugName || 'الدواء'} بنجاح`);
     } catch (apiError) {
-      showSuccessAlert(`فشل في تعديل الدواء: ${apiError.response?.data?.message || apiError.message}`);
+      showErrorAlert(`فشل في تعديل الدواء: ${apiError.response?.data?.message || apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في تعديل الدواء:', err);
-    showSuccessAlert('خطأ في تعديل الدواء: حدث خطأ غير متوقع');
+    showErrorAlert('خطأ في تعديل الدواء: حدث خطأ غير متوقع');
   }
 };
 
@@ -896,11 +894,11 @@ const handleDeleteMedication = async (medIndex) => {
 
       showSuccessAlert(`تم حذف ${medicationName} بنجاح من سجل المريض`);
     } catch (apiError) {
-      showSuccessAlert(`فشل في حذف الدواء: ${apiError.response?.data?.message || apiError.message}`);
+      showErrorAlert(`فشل في حذف الدواء: ${apiError.response?.data?.message || apiError.message}`);
     }
   } catch (err) {
     console.error('خطأ في حذف الدواء:', err);
-    showSuccessAlert('خطأ في حذف الدواء: حدث خطأ غير متوقع');
+    showErrorAlert('خطأ في حذف الدواء: حدث خطأ غير متوقع');
   }
 };
 
@@ -911,14 +909,14 @@ const printTable = () => {
     const resultsCount = filteredPatients.value.length;
 
     if (resultsCount === 0) {
-        showSuccessAlert('لا توجد بيانات للطباعة: لم يتم العثور على مرضى');
+        showWarningAlert('لا توجد بيانات للطباعة: لم يتم العثور على مرضى');
         return;
     }
 
     const printWindow = window.open('', '_blank', 'height=600,width=800');
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert('تعذر فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة');
+        showErrorAlert('تعذر فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة');
         return;
     }
 

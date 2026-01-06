@@ -11,7 +11,7 @@
       >
       <!-- الرجوع للصفحة السابقة  -->
   <a
-  href="/login"
+  href="/"
   class="absolute top-6 left-6 w-10 h-10 rounded-full flex items-center justify-center
          text-gray-500 transition-all duration-300 z-20
          hover:text-white hover:bg-[#2E5077] hover:scale-105"
@@ -63,9 +63,27 @@
           </div>
 
           <div class="flex flex-col items-center mt-2 w-full">
-            <button type="submit" class="button w-full sm:w-3/4 ">
-              تأكــــــيـد
+            <button 
+              type="submit" 
+              class="button w-full sm:w-3/4"
+              :disabled="loading"
+              :class="{ 'opacity-50 cursor-not-allowed': loading }"
+            >
+              <span v-if="loading" class="flex items-center justify-center gap-2">
+                <Icon icon="eos-icons:loading" class="w-5 h-5" />
+                جاري الإرسال...
+              </span>
+              <span v-else>تأكــــــيـد</span>
             </button>
+            
+            <!-- رسالة الخطأ من الـ API -->
+            <div v-if="apiError" class="mt-4 p-2 bg-red-50 border border-red-200 rounded-lg w-full sm:w-3/4">
+              <p class="text-red-700 text-sm font-medium flex items-center gap-2 justify-center">
+                <Icon icon="material-symbols:error-outline" class="w-4 h-4" />
+                {{ apiError }}
+              </p>
+            </div>
+            
             <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
               2024© حصتي. جميع الحقوق محفوظة
             </p>
@@ -80,10 +98,13 @@
 import { ref } from "vue";
 import { Mail, Stethoscope } from "lucide-vue-next"; 
 import { Icon } from "@iconify/vue";
+import { router } from '@inertiajs/vue3';
 
 // تعريف المتغيرات
 const email = ref("");
 const emailError = ref("");
+const apiError = ref("");
+const loading = ref(false);
 
 // ****** متغيرات الحالة لتعقب اللمس ******
 const emailTouched = ref(false); 
@@ -121,17 +142,49 @@ const handleBlur = (field) => {
 };
 
 // دالة الإرسال النهائية - تم تغيير اسمها لـ handleResetPassword
-const handleResetPassword = () => {
+const handleResetPassword = async () => {
     // نجبر التحقق على الحقل
     const isEmailValid = validateEmail();
     
     // يتم الإرسال فقط إذا كان التحقق ناجحاً
-    if (isEmailValid) {
-        // ****** هنا يتم وضع كود الاتصال بالـ API لإرسال رابط إعادة تعيين كلمة المرور ******
-        console.log("تم إرسال طلب إعادة تعيين كلمة المرور للبريد:", email.value);
-        // يمكنك إضافة رسالة نجاح للمستخدم هنا
-    } else {
-        console.log("خطأ في التحقق، يرجى مراجعة البريد المدخل.");
+    if (!isEmailValid) {
+        return;
+    }
+
+    loading.value = true;
+    apiError.value = "";
+
+    try {
+        const response = await fetch('/api/forgot-password/dashboard', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email.value
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'حدث خطأ أثناء إرسال رمز التحقق');
+        }
+
+        // حفظ البريد الإلكتروني في localStorage للاستخدام في الصفحات التالية
+        localStorage.setItem('reset_password_email', email.value);
+
+        // عرض رسالة نجاح
+        alert('✅ تم إرسال رمز التحقق إلى بريدك الإلكتروني. يرجى التحقق من صندوق الوارد.');
+
+        // الانتقال لصفحة OTP
+        router.visit('/otp');
+    } catch (error) {
+        console.error("خطأ في إرسال رمز التحقق:", error);
+        apiError.value = error.message || 'فشل الاتصال بالخادم';
+    } finally {
+        loading.value = false;
     }
 };
 </script>

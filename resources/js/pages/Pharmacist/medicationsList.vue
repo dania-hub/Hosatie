@@ -107,14 +107,64 @@ const clearDateFilter = () => {
   dateTo.value = "";
 };
 
+// دالة حساب نقاط الصلة للبحث الذكي
+const calculateRelevanceScore = (drug, searchTerms) => {
+  let score = 0;
+  const drugName = (drug.drugName || drug.name || '').toLowerCase();
+  const genericName = (drug.genericName || '').toLowerCase();
+  const strength = (drug.strength || '').toLowerCase();
+  const category = (drug.category || '').toLowerCase();
+  const manufacturer = (drug.manufacturer || '').toLowerCase();
+  
+  searchTerms.forEach(term => {
+    const termLower = term.toLowerCase();
+    
+    // مطابقة كاملة في اسم الدواء (أعلى نقاط)
+    if (drugName === termLower) {
+      score += 100;
+    } else if (drugName.startsWith(termLower)) {
+      score += 80;
+    } else if (drugName.includes(termLower)) {
+      score += 50;
+    }
+    
+    // مطابقة في الاسم العلمي
+    if (genericName === termLower) {
+      score += 40;
+    } else if (genericName.includes(termLower)) {
+      score += 30;
+    }
+    
+    // مطابقة في التركيز
+    if (strength.includes(termLower)) {
+      score += 20;
+    }
+    
+    // مطابقة في الفئة
+    if (category.includes(termLower)) {
+      score += 15;
+    }
+    
+    // مطابقة في الشركة المصنعة
+    if (manufacturer.includes(termLower)) {
+      score += 10;
+    }
+  });
+  
+  return score;
+};
+
 const filteredDrugss = computed(() => {
   if (!drugsData.value.length) return [];
 
   let list = [...drugsData.value];
-  const search = searchTerm.value ? searchTerm.value.toLowerCase() : '';
+  const search = searchTerm.value ? searchTerm.value.trim() : '';
 
-  // 1. البحث في جميع الحقول
+  // 1. البحث الذكي في جميع الحقول
   if (search) {
+    // تقسيم نص البحث إلى كلمات (يدعم البحث بعدة كلمات)
+    const searchTerms = search.split(/\s+/).filter(term => term.length > 0);
+    
     list = list.filter(drug => {
       // إنشاء نص شامل يحتوي على جميع المعلومات
       const drugNameStr = (drug.drugName || drug.name || '').toLowerCase();
@@ -125,10 +175,25 @@ const filteredDrugss = computed(() => {
       const expiryDateStr = (drug.expiryDate || '').toString();
       const categoryStr = (drug.category || '').toLowerCase();
       const statusStr = (drug.status || '').toLowerCase();
+      const manufacturerStr = (drug.manufacturer || '').toLowerCase();
+      const countryStr = (drug.country || '').toLowerCase();
+      const unitStr = (drug.unit || '').toLowerCase();
       
-      const fullText = `${drugNameStr} ${genericNameStr} ${strengthStr} ${quantityStr} ${neededQuantityStr} ${expiryDateStr} ${categoryStr} ${statusStr}`.trim();
+      // البحث في جميع الحقول
+      const fullText = `${drugNameStr} ${genericNameStr} ${strengthStr} ${quantityStr} ${neededQuantityStr} ${expiryDateStr} ${categoryStr} ${statusStr} ${manufacturerStr} ${countryStr} ${unitStr}`.trim();
       
-      return fullText.includes(search);
+      // البحث: يجب أن تطابق جميع الكلمات (AND logic)
+      const allTermsMatch = searchTerms.every(term => 
+        fullText.includes(term.toLowerCase())
+      );
+      
+      if (allTermsMatch) {
+        // حساب نقاط الصلة للترتيب
+        drug._relevanceScore = calculateRelevanceScore(drug, searchTerms);
+        return true;
+      }
+      
+      return false;
     });
   }
 
@@ -163,8 +228,20 @@ const filteredDrugss = computed(() => {
   }
 
   // 3. الفرز
+  // إذا كان هناك بحث، يتم الترتيب حسب الصلة أولاً، ثم حسب الفرز المحدد
+  // إذا لم يكن هناك بحث، يتم الفرز حسب الخيار المحدد فقط
   if (sortKey.value) {
     list.sort((a, b) => {
+      // إذا كان هناك بحث ونقاط صلة، نستخدمها كأولوية
+      if (search && (a._relevanceScore !== undefined || b._relevanceScore !== undefined)) {
+        const scoreA = a._relevanceScore || 0;
+        const scoreB = b._relevanceScore || 0;
+        if (scoreB !== scoreA) {
+          return scoreB - scoreA; // الأكثر صلة أولاً
+        }
+        // إذا كانت النقاط متساوية، نكمل بالفرز المحدد
+      }
+      
       let comparison = 0;
 
       if (sortKey.value === "drugName") {
@@ -188,32 +265,46 @@ const filteredDrugss = computed(() => {
   return list;
 });
 
-// استدعاء البحث من الـ API عند تغيير نص البحث (البحث المحلي يتم في filteredDrugss)
+// استدعاء البحث من الـ API عند تغيير نص البحث (مع debounce)
+let searchTimeout = null;
 watch(
   () => searchTerm.value,
   async (val) => {
+    // إلغاء البحث السابق إذا كان موجوداً
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
     // إذا كان مربع البحث فارغاً، نرجع لقائمة كاملة من /drugs
-    if (!val) {
+    if (!val || val.trim() === '') {
       await fetchDrugs();
       return;
     }
 
-    // البحث المحلي يتم في computed filteredDrugss
-    // يمكن أيضاً استخدام API للبحث إذا لزم الأمر
-    try {
-      // GET /api/pharmacist/drugs/search?search=...
-      const response = await api.get("/drugs/search", {
-        params: { search: val }
-      });
-      const data = response.data?.data ?? response.data;
-      if (Array.isArray(data) && data.length > 0) {
-        drugsData.value = data;
-        hasData.value = true;
+    // استخدام debounce لتقليل عدد الطلبات (انتظار 300ms بعد توقف المستخدم عن الكتابة)
+    searchTimeout = setTimeout(async () => {
+      // البحث المحلي يتم في computed filteredDrugss وهو أسرع
+      // يمكن استخدام API للبحث إذا كانت البيانات كبيرة جداً
+      // حالياً نعتمد على البحث المحلي لأنه أسرع وأكثر كفاءة
+      
+      // إذا أردت استخدام API للبحث، يمكنك إلغاء التعليق من الكود التالي:
+      /*
+      try {
+        // GET /api/pharmacist/drugs/search?search=...
+        const response = await api.get("/drugs/search", {
+          params: { search: val.trim() }
+        });
+        const data = response.data?.data ?? response.data;
+        if (Array.isArray(data) && data.length > 0) {
+          drugsData.value = data;
+          hasData.value = true;
+        }
+      } catch (error) {
+        // في حالة الخطأ، نستخدم البحث المحلي
+        console.warn("Warning: Could not search drugs via API, using local search", error);
       }
-    } catch (error) {
-      // في حالة الخطأ، نستخدم البحث المحلي
-      console.warn("Warning: Could not search drugs via API, using local search", error);
-    }
+      */
+    }, 300); // انتظار 300ms قبل تنفيذ البحث
   }
 );
 
@@ -383,7 +474,12 @@ const submitSupplyRequest = async (requestData) => {
 // ----------------------------------------------------
 // 7. دالة تحديد لون الصف والخط
 // ----------------------------------------------------
-const getRowColorClass = (quantity, neededQuantity) => {
+const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
+  // إذا كان الدواء غير مسجل، نعرضه بخلفية زرقاء فاتحة
+  if (isUnregistered) {
+    return "bg-blue-50/70 border-r-4 border-blue-400";
+  }
+  
   if (!quantity || !neededQuantity) return "bg-white border-gray-300 border";
   
   const dangerThreshold = neededQuantity * 0.25; 
@@ -398,7 +494,12 @@ const getRowColorClass = (quantity, neededQuantity) => {
   }
 };
 
-const getTextColorClass = (quantity, neededQuantity) => {
+const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
+  // إذا كان الدواء غير مسجل، نعرضه بلون أزرق
+  if (isUnregistered) {
+    return "text-blue-700 font-semibold";
+  }
+  
   if (!quantity || !neededQuantity) return "text-gray-800";
   
   const dangerThreshold = neededQuantity * 0.25;
@@ -481,12 +582,17 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <th>الكمية المتوفرة</th>
  <th>الكمية المحتاجة</th>
  <th>تاريخ إنتهاء الصلاحية</th>
+ <th>الحالة</th>
  </tr>
 </thead>
 <tbody>
 `;
 
     filteredDrugss.value.forEach((drug) => {
+      const statusText = drug.isUnregistered ? 'غير مسجل (موصوف للمرضى)' : 'مسجل';
+      const statusStyle = drug.isUnregistered ? 'color: #2563eb; font-weight: bold;' : 'color: #059669;';
+      const neededQtyText = drug.isUnregistered ? `${drug.neededQuantity || 0} ` : (drug.neededQuantity || 0);
+      
       tableHtml += `
 <tr>
 
@@ -498,8 +604,9 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 
 
  <td>${drug.quantity || 0}</td>
- <td>${drug.neededQuantity || 0}</td>
+ <td>${neededQtyText}</td>
  <td>${drug.expiryDate || '-'}</td>
+ <td style="${statusStyle}">${statusText}</td>
 </tr>
 `;
     });
@@ -896,7 +1003,8 @@ onMounted(async () => {
                                                     'hover:bg-gray-100',
                                                     getRowColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     ),
                                                 ]"
                                             >
@@ -905,17 +1013,26 @@ onMounted(async () => {
                                                 :class="
                                                     getTextColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     )
                                                 "
                                             >
-                                                {{ drug.drugName || drug.name }}
+                                                <div class="flex items-center gap-2">
+                                                    <span>{{ drug.drugName || drug.name }}</span>
+                                                    <span v-if="drug.isUnregistered" 
+                                                        class="px-2 py-0.5 text-xs font-bold bg-blue-200 text-blue-800 rounded-full"
+                                                        title="دواء غير مسجل في الصيدلية ولكن موصوف للمرضى">
+                                                        غير مسجل
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td
                                                 :class="
                                                     getTextColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     )
                                                 "
                                             >
@@ -925,7 +1042,8 @@ onMounted(async () => {
                                                 :class="
                                                     getTextColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     )
                                                 "
                                             >
@@ -938,7 +1056,8 @@ onMounted(async () => {
                                                 :class="
                                                     getTextColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     )
                                                 "
                                             >
@@ -950,19 +1069,22 @@ onMounted(async () => {
                                                 :class="
                                                     getTextColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     )
                                                 "
                                             >
                                                 <span class="font-bold">{{
                                                     drug.neededQuantity || 0
                                                 }}</span>
+                                               
                                             </td>
                                             <td
                                                 :class="
                                                     getTextColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     )
                                                 "
                                             >

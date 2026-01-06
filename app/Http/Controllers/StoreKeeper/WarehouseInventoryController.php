@@ -6,11 +6,14 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\Inventory;
 use App\Models\Drug;
+use App\Models\InternalSupplyRequest;
+use App\Models\InternalSupplyRequestItem;
+use App\Models\Pharmacy;
 
 class WarehouseInventoryController extends BaseApiController
 {
     // GET /api/storekeeper/drugs
-    // يعرض كل الأدوية الموجودة في مخزون المستودع (warehouse inventory)
+    // يعرض كل الأدوية الموجودة في مخزون المستودع (warehouse inventory) + الأدوية غير المسجلة ولكن المطلوبة في الطلبات
     public function index(Request $request)
     {
         $user = $request->user();
@@ -25,29 +28,124 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
         }
 
+        // التأكد من وجود hospital_id للمستخدم
+        if (!$user->hospital_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
+        }
+
+        // جلب طلبات التوريد الداخلية من نفس المستشفى والتي حالتها "جديد" فقط
+        $internalRequests = InternalSupplyRequest::where('status', 'pending') // فقط الطلبات بحالة "جديد"
+            ->whereHas('pharmacy', function($query) use ($user) {
+                $query->where('hospital_id', $user->hospital_id);
+            })
+            ->with(['items.drug'])
+            ->get();
+
+        // جمع جميع الأدوية من الطلبات مع الكميات المطلوبة
+        $requestItems = collect();
+        foreach ($internalRequests as $request) {
+            foreach ($request->items as $item) {
+                if ($item->drug) {
+                    $requestItems->push([
+                        'drug_id' => $item->drug_id,
+                        'requested_qty' => (int)($item->requested_qty ?? 0),
+                    ]);
+                }
+            }
+        }
+
+        // تجميع الأدوية حسب drug_id وحساب المجموع المطلوب من جميع الطلبات
+        $drugsRequestedQuantities = $requestItems
+            ->groupBy('drug_id')
+            ->map(function ($items, $drugId) {
+                return [
+                    'drug_id' => $drugId,
+                    'total_requested_qty' => $items->sum('requested_qty')
+                ];
+            });
+
         // عرض الأدوية التي تنتمي فقط لمخزن الـ storekeeper
         $items = Inventory::with('drug')
             ->where('warehouse_id', $user->warehouse_id)
             ->get();
 
-        // تحويل النتيجة للفورمات الذي يحتاجه الـ frontend
-        $data = $items->map(function ($item) {
+        // جلب معرفات الأدوية المسجلة في المستودع
+        $registeredDrugIds = $items->pluck('drug_id')->toArray();
+
+        // تحويل النتيجة للفورمات الذي يحتاجه الـ frontend للأدوية المسجلة
+        // مع حساب الكمية المحتاجة ديناميكياً من الطلبات
+        $registeredDrugs = $items->map(function ($item) use ($drugsRequestedQuantities) {
+            $drugId = $item->drug_id;
+            $availableQuantity = $item->current_quantity;
+            
+            // حساب الكمية المطلوبة من الطلبات لهذا الدواء
+            $totalRequestedQty = 0;
+            if ($drugsRequestedQuantities->has($drugId)) {
+                $totalRequestedQty = $drugsRequestedQuantities->get($drugId)['total_requested_qty'];
+            }
+            
+            // الكمية المحتاجة = مجموع الكميات المطلوبة من الطلبات - الكمية المتوفرة
+            // إذا كانت النتيجة <= 0، تصبح 0
+            $neededQuantity = max(0, $totalRequestedQty - $availableQuantity);
+            
             return [
                 'id'             => $item->id,
-                'drugCode'       => $item->drug->id ?? null, // استخدام ID كرمز مؤقت
+                'drugCode'       => $item->drug->id ?? null,
                 'drugName'       => $item->drug->name ?? null,
-                'name'           => $item->drug->name ?? null, // للتوافق مع pharmacist
+                'name'           => $item->drug->name ?? null,
                 'genericName'    => $item->drug->generic_name ?? null,
                 'strength'       => $item->drug->strength ?? null,
                 'category'       => $item->drug->category ?? null,
                 'status'         => $item->drug->status ?? null,
-                'quantity'       => $item->current_quantity,  // الكمية المتوفرة في المخزن
-                'neededQuantity' => $item->minimum_level,     // الحد الأدنى/المستهدف
+                'quantity'       => $availableQuantity,
+                'neededQuantity' => $neededQuantity, // الكمية المحتاجة المحسوبة ديناميكياً
                 'expiryDate'     => $item->drug->expiry_date ? date('Y/m/d', strtotime($item->drug->expiry_date)) : null,
+                'isUnregistered' => false, // دواء مسجل في المستودع
             ];
         });
 
-        return response()->json($data);
+        // جلب الأدوية غير المسجلة ولكن المطلوبة في طلبات التوريد الداخلية
+        $unregisteredDrugs = collect();
+        
+        // تجميع الأدوية غير المسجلة حسب drug_id وحساب المجموع المطلوب
+        $unregisteredDrugsData = $drugsRequestedQuantities
+            ->whereNotIn('drug_id', $registeredDrugIds) // استبعاد الأدوية المسجلة
+            ->values();
+
+        // جلب بيانات الأدوية من قاعدة البيانات
+        $drugIds = $unregisteredDrugsData->pluck('drug_id')->toArray();
+        
+        if (!empty($drugIds)) {
+            $drugs = Drug::whereIn('id', $drugIds)->get()->keyBy('id');
+            
+            $unregisteredDrugs = $unregisteredDrugsData->map(function ($item) use ($drugs) {
+                $drug = $drugs->get($item['drug_id']);
+                
+                if (!$drug) {
+                    return null;
+                }
+                
+                return [
+                    'id' => 'unregistered_' . $drug->id, // معرف مؤقت للدواء غير المسجل
+                    'drugCode' => $drug->id,
+                    'drugName' => $drug->name,
+                    'name' => $drug->name,
+                    'genericName' => $drug->generic_name,
+                    'strength' => $drug->strength,
+                    'category' => $drug->category,
+                    'status' => $drug->status,
+                    'quantity' => 0, // الكمية في المخزون = 0 لأنها غير مسجلة
+                    'neededQuantity' => $item['total_requested_qty'], // الكمية المطلوبة من جميع الطلبات
+                    'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                    'isUnregistered' => true, // دواء غير مسجل في المستودع
+                ];
+            })->filter(); // إزالة القيم null
+        }
+
+        // دمج الأدوية المسجلة وغير المسجلة
+        $data = $registeredDrugs->merge($unregisteredDrugs);
+
+        return response()->json($data->values());
     }
 
     // GET /api/storekeeper/drugs/all

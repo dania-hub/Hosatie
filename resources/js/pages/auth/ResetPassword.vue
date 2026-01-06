@@ -10,7 +10,7 @@
         class="w-full max-w-[470px] grid gap-6 text-center relative custom-container mx-auto"
       >
         <a
-          href="/login"
+          href="/"
           class="absolute top-6 left-6 w-10 h-10 rounded-full flex items-center justify-center
                    text-gray-500 transition-all duration-300 z-20
                    hover:text-white hover:bg-[#2E5077] hover:scale-105"
@@ -92,9 +92,27 @@
           </div>
 
           <div class="flex flex-col items-center mt-2 w-full">
-            <button type="submit" class="button w-full sm:w-3/4">
-              تأكــــــيـد
+            <button 
+              type="submit" 
+              class="button w-full sm:w-3/4"
+              :disabled="loading"
+              :class="{ 'opacity-50 cursor-not-allowed': loading }"
+            >
+              <span v-if="loading" class="flex items-center justify-center gap-2">
+                <Icon icon="eos-icons:loading" class="w-5 h-5" />
+                جاري إعادة التعيين...
+              </span>
+              <span v-else>تأكــــــيـد</span>
             </button>
+            
+            <!-- رسالة الخطأ من الـ API -->
+            <div v-if="apiError" class="mt-4 p-2 bg-red-50 border border-red-200 rounded-lg w-full sm:w-3/4">
+              <p class="text-red-700 text-sm font-medium flex items-center gap-2 justify-center">
+                <Icon icon="material-symbols:error-outline" class="w-4 h-4" />
+                {{ apiError }}
+              </p>
+            </div>
+            
             <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
               2024© حصتي. جميع الحقوق محفوظة
             </p>
@@ -106,9 +124,10 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { Lock, Stethoscope } from "lucide-vue-next";
 import { Icon } from "@iconify/vue";
+import { router } from '@inertiajs/vue3';
 
 // تعريف المتغيرات
 const newPassword = ref("");
@@ -116,6 +135,20 @@ const confirmPassword = ref("");
 
 const newPasswordError = ref("");
 const confirmPasswordError = ref("");
+const apiError = ref("");
+const loading = ref(false);
+
+// التحقق من وجود بيانات التحقق عند تحميل الصفحة
+onMounted(() => {
+  const email = localStorage.getItem('reset_password_email');
+  const otp = localStorage.getItem('reset_password_otp');
+  
+  if (!email || !otp) {
+    // إذا لم تكن البيانات موجودة، إعادة التوجيه لصفحة نسيت كلمة المرور
+    alert('يرجى إكمال عملية التحقق من البريد الإلكتروني و OTP أولاً.');
+    router.visit('/forgot-password');
+  }
+});
 
 // دالة التحقق الشاملة للحد الأدنى للطول
 const validatePassword = (passwordValue, errorRef, fieldName) => {
@@ -173,7 +206,7 @@ const validateField = (field) => {
 };
 
 // دالة الإرسال النهائية
-const handleResetPassword = () => {
+const handleResetPassword = async () => {
   // نجبر التحقق على جميع الحقول
   const isNewPasswordValid = validatePassword(newPassword.value, newPasswordError, "كلمة المرور الجديدة");
   let isConfirmPasswordValid = validatePassword(confirmPassword.value, confirmPasswordError, "تأكيد كلمة المرور");
@@ -185,12 +218,54 @@ const handleResetPassword = () => {
   }
 
   // يتم الإرسال فقط إذا كانت جميع التحققات ناجحة
-  if (isNewPasswordValid && isConfirmPasswordValid) {
-    // ****** هنا يتم وضع كود الاتصال بالـ API لإعادة تعيين كلمة المرور ******
-    console.log("تمت إعادة تعيين كلمة المرور بنجاح");
-    // مثال: router.push('/success');
-  } else {
-    console.log("خطأ في التحقق، يرجى مراجعة البيانات المدخلة.");
+  if (!isNewPasswordValid || !isConfirmPasswordValid) {
+    return;
+  }
+
+  loading.value = true;
+  apiError.value = "";
+
+  try {
+    // الحصول على البريد الإلكتروني و OTP من localStorage
+    const email = localStorage.getItem('reset_password_email');
+    const otp = localStorage.getItem('reset_password_otp');
+    
+    if (!email || !otp) {
+      throw new Error('لم يتم العثور على بيانات التحقق. يرجى البدء من جديد.');
+    }
+
+    const response = await fetch('/api/reset-password/dashboard', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email,
+        otp: otp,
+        password: newPassword.value,
+        password_confirmation: confirmPassword.value
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'حدث خطأ أثناء إعادة تعيين كلمة المرور');
+    }
+
+    // حذف البيانات المؤقتة من localStorage
+    localStorage.removeItem('reset_password_email');
+    localStorage.removeItem('reset_password_otp');
+
+    // عرض رسالة نجاح والانتقال لصفحة تسجيل الدخول
+    alert('تم إعادة تعيين كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.');
+    router.visit('/');
+  } catch (error) {
+    console.error("خطأ في إعادة تعيين كلمة المرور:", error);
+    apiError.value = error.message || 'فشل الاتصال بالخادم';
+  } finally {
+    loading.value = false;
   }
 };
 </script>

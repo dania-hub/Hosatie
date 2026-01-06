@@ -276,7 +276,12 @@ const submitSupplyRequest = async (requestData) => {
 // ----------------------------------------------------
 // 7. دالة تحديد لون الصف والخط
 // ----------------------------------------------------
-const getRowColorClass = (quantity, neededQuantity) => {
+const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
+  // إذا كان الدواء غير مسجل، نعرضه بخلفية زرقاء فاتحة
+  if (isUnregistered) {
+    return "bg-blue-50/70 border-r-4 border-blue-400";
+  }
+  
   if (!quantity || !neededQuantity) return "bg-white border-gray-300 border";
   
   const dangerThreshold = neededQuantity * 0.25; 
@@ -291,7 +296,12 @@ const getRowColorClass = (quantity, neededQuantity) => {
   }
 };
 
-const getTextColorClass = (quantity, neededQuantity) => {
+const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
+  // إذا كان الدواء غير مسجل، نعرضه بلون أزرق
+  if (isUnregistered) {
+    return "text-blue-700 font-semibold";
+  }
+  
   if (!quantity || !neededQuantity) return "text-gray-800";
   
   const dangerThreshold = neededQuantity * 0.25;
@@ -675,7 +685,8 @@ onMounted(async () => {
                                                     'hover:bg-gray-100',
                                                     getRowColorClass(
                                                         drug.quantity,
-                                                        drug.neededQuantity
+                                                        drug.neededQuantity,
+                                                        drug.isUnregistered
                                                     ),
                                                 ]"
                                             >
@@ -683,17 +694,26 @@ onMounted(async () => {
                                                     :class="
                                                         getTextColorClass(
                                                             drug.quantity,
-                                                            drug.neededQuantity
+                                                            drug.neededQuantity,
+                                                            drug.isUnregistered
                                                         )
                                                     "
                                                 >
-                                                    {{ drug.drugName }}
+                                                    <div class="flex items-center gap-2">
+                                                        <span>{{ drug.drugName }}</span>
+                                                        <span v-if="drug.isUnregistered" 
+                                                            class="px-2 py-0.5 text-xs font-bold bg-blue-200 text-blue-800 rounded-full"
+                                                            title="دواء غير مسجل في مخزون المورد ولكن مطلوب في الطلبات المستقبلة">
+                                                            غير مسجل
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td
                                                     :class="
                                                         getTextColorClass(
                                                             drug.quantity,
-                                                            drug.neededQuantity
+                                                            drug.neededQuantity,
+                                                            drug.isUnregistered
                                                         )
                                                     "
                                                 >
@@ -703,7 +723,8 @@ onMounted(async () => {
                                                     :class="
                                                         getTextColorClass(
                                                             drug.quantity,
-                                                            drug.neededQuantity
+                                                            drug.neededQuantity,
+                                                            drug.isUnregistered
                                                         )
                                                     "
                                                 >
@@ -715,19 +736,24 @@ onMounted(async () => {
                                                     :class="
                                                         getTextColorClass(
                                                             drug.quantity,
-                                                            drug.neededQuantity
+                                                            drug.neededQuantity,
+                                                            drug.isUnregistered
                                                         )
                                                     "
                                                 >
                                                     <span class="font-bold">{{
                                                         drug.neededQuantity
                                                     }}</span>
+                                                    <span v-if="drug.isUnregistered" class="text-xs text-blue-600 block mt-1">
+                                                        (من الطلبات)
+                                                    </span>
                                                 </td>
                                                 <td
                                                     :class="
                                                         getTextColorClass(
                                                             drug.quantity,
-                                                            drug.neededQuantity
+                                                            drug.neededQuantity,
+                                                            drug.isUnregistered
                                                         )
                                                     "
                                                 >

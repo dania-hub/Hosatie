@@ -480,14 +480,20 @@ const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
     return "bg-blue-50/70 border-r-4 border-blue-400";
   }
   
-  if (!quantity || !neededQuantity) return "bg-white border-gray-300 border";
+  // التحقق من أن القيم موجودة (وليس فقط falsy) - 0 هو قيمة صالحة
+  const qty = Number(quantity);
+  const neededQty = Number(neededQuantity);
   
-  const dangerThreshold = neededQuantity * 0.25; 
-  const warningThreshold = neededQuantity * 0.5;  
+  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
+    return "bg-white border-gray-300 border";
+  }
+  
+  const dangerThreshold = neededQty * 0.25; 
+  const warningThreshold = neededQty * 0.5;  
 
-  if (quantity < dangerThreshold) {
+  if (qty < dangerThreshold) {
     return " bg-red-50/70 border-r-4 border-red-500 ";
-  } else if (quantity < warningThreshold) {
+  } else if (qty < warningThreshold) {
     return "bg-yellow-50/70 border-r-4 border-yellow-500";
   } else {
     return "bg-white border-gray-300 border";
@@ -500,14 +506,20 @@ const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
     return "text-blue-700 font-semibold";
   }
   
-  if (!quantity || !neededQuantity) return "text-gray-800";
+  // التحقق من أن القيم موجودة (وليس فقط falsy) - 0 هو قيمة صالحة
+  const qty = Number(quantity);
+  const neededQty = Number(neededQuantity);
   
-  const dangerThreshold = neededQuantity * 0.25;
-  const warningThreshold = neededQuantity * 0.5;
+  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
+    return "text-gray-800";
+  }
+  
+  const dangerThreshold = neededQty * 0.25;
+  const warningThreshold = neededQty * 0.5;
 
-  if (quantity < dangerThreshold) {
+  if (qty < dangerThreshold) {
     return "text-red-700 font-semibold";
-  } else if (quantity < warningThreshold) {
+  } else if (qty < warningThreshold) {
     return "text-yellow-700 font-semibold";
   } else {
     return "text-gray-800";

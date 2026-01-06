@@ -126,6 +126,27 @@ const getMonthlyQuantityDisplay = (med) => {
 const cancelConfirmation = () => {
     showConfirmationModal.value = false;
 };
+
+// حساب الحد الأقصى لكمية الصرف (أقل قيمة بين الكمية المتبقية والكمية المتوفرة في المخزون)
+const getMaxDispensingQuantity = (med) => {
+    const availableQty = med.availableQuantity !== undefined ? med.availableQuantity : Infinity;
+    const remainingQty = med.remainingQuantity > 0 ? med.remainingQuantity : med.monthlyQuantityNum;
+    
+    // نأخذ أقل قيمة بين الكمية المتبقية والكمية المتوفرة في المخزون
+    return Math.min(availableQty, remainingQty);
+};
+
+// التحقق من صحة كمية الصرف المدخلة
+const validateDispensingQuantity = (med) => {
+    const maxQty = getMaxDispensingQuantity(med);
+    if (med.dispensedQuantity > maxQty) {
+        // تقييد القيمة عند الحد الأقصى
+        med.dispensedQuantity = maxQty;
+    }
+    if (med.dispensedQuantity < 1) {
+        med.dispensedQuantity = 1;
+    }
+};
 </script>
 
 <template>
@@ -210,6 +231,16 @@ const cancelConfirmation = () => {
                                         <div class="flex flex-col">
                                             <span>{{ med.drugName }}</span>
                                             <span v-if="med.strength" class="text-sm text-gray-500 font-normal mt-1">{{ med.strength }}</span>
+                                            <span v-if="med.availableQuantity !== undefined" class="text-xs mt-1.5">
+                                                <span class="font-semibold text-[#4DA1A9]">المخزون:</span>
+                                                <span :class="{
+                                                    'text-red-600 font-bold': med.availableQuantity === 0,
+                                                    'text-yellow-600 font-bold': med.availableQuantity > 0 && med.availableQuantity < 10,
+                                                    'text-green-600 font-bold': med.availableQuantity >= 10
+                                                }">
+                                                    {{ med.availableQuantity }} {{ med.unit || 'وحدة' }}
+                                                </span>
+                                            </span>
                                         </div>
                                     </td>
                                     <td class="p-4 text-gray-600">
@@ -260,13 +291,24 @@ const cancelConfirmation = () => {
                                                 v-model.number="med.dispensedQuantity"
                                                 type="number"
                                                 min="1"
-                                                :max="med.remainingQuantity > 0 ? med.remainingQuantity : med.monthlyQuantityNum"
-                                                class="w-full h-9 text-center rounded-lg border border-gray-300 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all"
+                                                :max="getMaxDispensingQuantity(med)"
+                                                class="w-full h-9 text-center rounded-lg border transition-all"
+                                                :class="{
+                                                    'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20': med.dispensedQuantity > getMaxDispensingQuantity(med),
+                                                    'border-gray-300 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20': med.dispensedQuantity <= getMaxDispensingQuantity(med)
+                                                }"
                                                 placeholder="الكمية"
-                                                @click.stop 
+                                                @click.stop
+                                                @input="validateDispensingQuantity(med)"
                                             />
-                                            <div v-if="med.remainingQuantity > 0" class="mt-2 text-xs text-gray-500 text-center">
-                                                الحد الأقصى: {{ med.remainingQuantity }} {{ med.unit || 'حبة' }}
+                                            <div v-if="med.dispensedQuantity > getMaxDispensingQuantity(med)" class="mt-2 text-xs text-red-600 font-semibold text-center">
+                                                ⚠️ الكمية المدخلة ({{ med.dispensedQuantity }}) تتجاوز الكمية المتوفرة في المخزون ({{ getMaxDispensingQuantity(med) }})
+                                            </div>
+                                            <div v-else-if="getMaxDispensingQuantity(med) > 0" class="mt-2 text-xs text-gray-500 text-center">
+                                                الحد الأقصى: {{ getMaxDispensingQuantity(med) }} {{ med.unit || 'حبة' }}
+                                                <span v-if="med.availableQuantity !== undefined && med.availableQuantity < med.remainingQuantity" class="text-orange-600 font-semibold">
+                                                    (المخزون: {{ med.availableQuantity }})
+                                                </span>
                                             </div>
                                         </div>
                                     </td>

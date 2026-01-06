@@ -287,6 +287,8 @@ class PatientPharmacistController extends BaseApiController
                     'totalDispensedThisMonth' => $totalDispensedThisMonth,
                     'remainingQuantity' => $remainingQuantity,
                     'remainingQuantityText' => $remainingQuantityText,
+                    // الكمية المتوفرة في المخزون
+                    'availableQuantity' => $inventory ? (int)($inventory->current_quantity ?? 0) : 0,
                     // ستتغير من الواجهة عند إدخال كمية الصرف
                     'dispensedQuantity' => 0,
                     'note' => $pivot->note,

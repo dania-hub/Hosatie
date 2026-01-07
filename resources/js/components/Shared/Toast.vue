@@ -25,7 +25,7 @@
             <Icon :icon="getIcon" class="w-5 h-5 text-white" />
           </div>
 
-          <!-- Content -->
+          <!-- .Content -->
           <div class="flex-1">
             <h3 class="text-sm font-bold leading-none mb-1">
               {{ getTitle }}

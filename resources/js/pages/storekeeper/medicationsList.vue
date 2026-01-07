@@ -987,7 +987,7 @@ onMounted(async () => {
                                                     <div
                                                         class="flex gap-3 justify-center"
                                                     >
-                                                        <button
+                                                        <button class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             @click="
                                                                 showDrugDetails(drug)
                                                             "
@@ -995,7 +995,7 @@ onMounted(async () => {
                                                             <Icon
                                                                 icon="tabler:eye-minus"
                                                                 :class="[
-                                                                    'w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-700',
+                                                                    'w-4 h-4 cursor-pointer hover:scale-110 transition-transform text-green-600',
                                                                 ]"
                                                             />
                                                         </button>

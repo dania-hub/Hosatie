@@ -58,7 +58,7 @@
                             <div class="relative">
                                 <select
                                     v-model="selectedCategory"
-                                    @change="handleInput"
+                                    @change="onCategoryChange"
                                     class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all appearance-none cursor-pointer"
                                     :disabled="isLoadingDrugs"
                                 >
@@ -85,10 +85,20 @@
                                     @focus="onSearchFocus"
                                     @blur="hideResults"
                                     placeholder="ابحث عن دواء..."
-                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
-                                    :disabled="isLoadingDrugs"
+                                    class="w-full h-11 px-4 pr-10 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
+                                    :disabled="isLoadingDrugs || !!selectedDrugName"
+                                    :readonly="!!selectedDrugName"
                                 />
-                                <div v-if="isLoadingDrugs" class="absolute left-3 top-1/2 -translate-y-1/2">
+                                <button
+                                    v-if="selectedDrugName"
+                                    @click="clearSelectedDrug"
+                                    type="button"
+                                    class="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded-full transition-all"
+                                    title="مسح الدواء"
+                                >
+                                    <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
+                                </button>
+                                <div v-else-if="isLoadingDrugs" class="absolute left-3 top-1/2 -translate-y-1/2">
                                     <Icon icon="svg-spinners:ring-resize" class="w-5 h-5 text-[#4DA1A9]" />
                                 </div>
                             </div>
@@ -210,13 +220,13 @@
                 >
                     إلغاء
                 </button>
-                <button
+                <button 
                     @click="confirmAddition"
                     :disabled="!isReadyToConfirm || isSaving"
                     class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#2E5077]/20 flex items-center gap-2 transition-all duration-200"
                     :class="(!isReadyToConfirm || isSaving)
                         ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                        : 'bg-[#2E5077] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
+                        : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
                 >
                     <Icon v-if="isSaving" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                     <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
@@ -249,7 +259,7 @@
                 <button 
                     @click="handleConfirmation" 
                     :disabled="isSaving"
-                    class="flex-1 px-4 py-2.5 rounded-xl bg-[#2E5077] text-white font-medium hover:bg-[#1a2f4d] transition-colors duration-200 shadow-lg shadow-[#2E5077]/20"
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium hover:bg-[#1a2f4d] transition-colors duration-200 shadow-lg shadow-[#2E5077]/20"
                 >
                     <Icon v-if="isSaving" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin inline ml-2" />
                     تأكيد نهائي
@@ -523,19 +533,50 @@ const clearForm = () => {
     showResults.value = false;
 };
 
+// معالج تغيير الفئة
+const onCategoryChange = () => {
+    // مسح الدواء المحدد عند تغيير الفئة
+    clearSelectedDrug();
+    // جلب الأدوية حسب الفئة المحددة
+    handleInput();
+};
+
 // عرض جميع الأدوية تلقائياً عند فتح النافذة
 const showAllDrugs = async () => {
     showResults.value = true;
     await fetchDrugsData();
 };
 
-let debounceTimer;
-const handleInput = () => {
+// مسح الدواء المحدد
+const clearSelectedDrug = () => {
     selectedDrugName.value = '';
     selectedDrugType.value = '';
     selectedDrugId.value = null;
     selectedDrugUnit.value = '';
     selectedDrugForm.value = '';
+    selectedDrugMaxMonthlyDose.value = 0;
+    dailyQuantity.value = null;
+    const hadCategory = !!selectedCategory.value;
+    searchTermDrug.value = '';
+    showResults.value = false;
+    // إعادة جلب الأدوية بناءً على الفئة المحددة
+    if (hadCategory) {
+        handleInput();
+    }
+};
+
+let debounceTimer;
+const handleInput = () => {
+    // إذا كان الدواء محدداً بالفعل، لا نقوم بمسحه عند البحث
+    if (selectedDrugName.value) {
+        return;
+    }
+    
+    selectedDrugType.value = '';
+    selectedDrugId.value = null;
+    selectedDrugUnit.value = '';
+    selectedDrugForm.value = '';
+    selectedDrugMaxMonthlyDose.value = 0;
     dailyQuantity.value = null;
 
     clearTimeout(debounceTimer);

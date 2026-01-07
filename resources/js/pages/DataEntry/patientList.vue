@@ -797,34 +797,34 @@ const printTable = () => {
                                             <div class="flex gap-3 justify-center items-center">
                                                 <button 
                                                     @click="openViewModal(patient)"
-                                                    class="p-1 rounded-full hover:bg-green-100 transition-colors duration-200"
+                                                    class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                     title="عرض البيانات"
                                                 >
                                                     <Icon
                                                         icon="tabler:eye-minus"
-                                                        class="w-5 h-5 text-green-600"
+                                                        class="w-4 h-4 text-green-600"
                                                     />
                                                 </button>
 
                                                 <button 
                                                     @click="openEditModal(patient)"
-                                                    class="p-1 rounded-full hover:bg-yellow-100 transition-colors duration-200"
+                                                    class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                     title="تعديل البيانات"
                                                 >
                                                     <Icon
                                                         icon="line-md:pencil"
-                                                        class="w-5 h-5 text-yellow-500"
+                                                        class="w-4 h-4 text-yellow-500"
                                                     />
                                                 </button>
 
                                                 <button 
                                                     @click="openDeleteModal(patient)"
-                                                    class="p-1 rounded-full hover:bg-red-100 transition-colors duration-200"
+                                                    class="p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                     title="حذف المريض"
                                                 >
                                                     <Icon
                                                         icon="line-md:account-delete"
-                                                        class="w-5 h-5 text-red-600"
+                                                        class="w-4 h-4 text-red-600"
                                                     />
                                                 </button>
                                             </div>

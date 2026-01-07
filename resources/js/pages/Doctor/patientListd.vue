@@ -7,7 +7,7 @@
 
             <main class="flex-1 p-4 sm:p-5 pt-3">
                     <!-- عناصر التحكم العلوية -->
-                    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                         <!-- البحث والفرز -->
                         <div class="flex items-center gap-3 w-full sm:max-w-2xl">
                             <search v-model="searchTerm" placeholder="ابحث بالاسم، رقم الملف، أو الرقم الوطني..." />
@@ -186,12 +186,12 @@
                                                     <div class="flex gap-3 justify-center">
                                                         <button 
                                                             @click="openViewModal(patient)"
-                                                            class="tooltip tooltip-bottom"
+                                                            class="tooltip tooltip-bottom p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                             data-tip="عرض تفاصيل المريض"
                                                         >
                                                             <Icon
                                                                 icon="famicons:open-outline"
-                                                                class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                                class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
                                                             />
                                                         </button>
                                                     </div>

@@ -58,7 +58,8 @@ class PatientDoctorController extends BaseApiController
                         'drugName' => $drug->name,
                         'strength' => $drug->strength ?? null,
                         'dosage'   => $drug->pivot->monthly_quantity,
-                        'note'     => $drug->pivot->note
+                        'note'     => $drug->pivot->note,
+                        'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
                     ]);
                 }
             }
@@ -165,7 +166,8 @@ class PatientDoctorController extends BaseApiController
                     'unit' => $unit, // وحدة القياس
                     'assignmentDate' => $assignmentDate,
                     'assignedBy' => $assignedBy,
-                    'note'     => $drug->pivot->note
+                    'note'     => $drug->pivot->note,
+                    'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
                 ]);
             }
         }

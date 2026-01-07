@@ -93,7 +93,7 @@
 <template>
     <button class="button " @click="handleClick">
         <span class="icon-wrapper">
-            <Icon icon="line-md:person-add" class="w-5 h-5" />
+            
         </span>
         إضافة قسم 
     </button>

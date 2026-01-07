@@ -403,11 +403,11 @@ api.interceptors.response.use(
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
         if (error.response?.status === 401) {
-            showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            showErrorAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
         } else if (error.response?.status === 403) {
-            showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+            showWarningAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
         } else if (!error.response) {
-            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showErrorAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         }
         return Promise.reject(error);
     }
@@ -644,7 +644,7 @@ const openRequestViewModal = async (shipment) => {
         isRequestViewModalOpen.value = true;
     } catch (err) {
         console.error('Error fetching shipment details:', err);
-        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
+        showErrorAlert(' فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -676,7 +676,7 @@ const openConfirmationModal = async (shipment) => {
         isConfirmationModalOpen.value = true;
     } catch (err) {
         console.error('Error fetching shipment details:', err);
-        showSuccessAlert(' فشل في تحميل تفاصيل الشحنة');
+        showErrorAlert(' فشل في تحميل تفاصيل الشحنة');
     }
 };
 
@@ -725,7 +725,7 @@ const handleConfirmation = async (confirmationData) => {
     } catch (err) {
         console.error('Error in handleConfirmation:', err);
         const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
-        showSuccessAlert(` فشل في العملية: ${errorMessage}`);
+        showErrorAlert(` فشل في العملية: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
@@ -744,7 +744,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 

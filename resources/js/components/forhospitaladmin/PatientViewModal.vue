@@ -185,7 +185,7 @@ const getMonthlyQuantityDisplay = (med) => {
             <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
                 <button 
                     @click="$emit('close')" 
-                    class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2"
+                    class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2"
                 >
                     <Icon icon="mingcute:close-fill" class="w-5 h-5" />
                     إغلاق

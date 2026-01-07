@@ -102,6 +102,7 @@ class PatientDepartmentAdminController extends BaseApiController
                         'assignmentDate' => $assignmentDate,
                         'assignedBy' => $assignedBy,
                         'note' => $drug->pivot->note ?? null,
+                        'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
                     ]);
                 }
             }
@@ -196,6 +197,7 @@ class PatientDepartmentAdminController extends BaseApiController
                     'assignmentDate' => $assignmentDate,
                     'assignedBy' => $assignedBy,
                     'note' => $drug->pivot->note ?? null,
+                    'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
                 ]);
             }
         }

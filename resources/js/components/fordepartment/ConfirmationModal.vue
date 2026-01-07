@@ -159,7 +159,7 @@
                     @click="confirmReceipt"
                     :disabled="props.isLoading || isConfirming"
                     class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200"
-                    :class="(props.isLoading || isConfirming) ? 'bg-gray-300 cursor-not-allowed shadow-none' : 'bg-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5'"
+                    :class="(props.isLoading || isConfirming) ? 'bg-gray-300 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5'"
                 >
                     <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                     <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />

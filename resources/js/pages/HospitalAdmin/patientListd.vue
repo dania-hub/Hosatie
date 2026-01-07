@@ -587,7 +587,7 @@ onMounted(() => {
       <!-- المحتوى الرئيسي -->
       <div>
         <div class="flex flex-col sm:flex-row justify-between items-center mb-1 gap-3 sm:gap-0">
-          <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
+          <div class="flex flex-col sm:flex-row justify-between items-center mb-2 gap-3 sm:gap-0">
             <div class="flex items-center gap-3 w-full sm:max-w-xl">
               <search v-model="searchTerm" />
               

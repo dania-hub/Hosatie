@@ -351,12 +351,12 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 <template>
  <DefaultLayout>
             <main class="flex-1 p-4 sm:p-5 pt-3">
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-1 gap-3 sm:gap-0">
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <div class="relative w-full sm:max-w-xs">
+                    
                             <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي أو الإسم رباعي" />
-                        </div>
+                       
                         
                         <!-- زر إظهار/إخفاء فلتر التاريخ -->
                         <button
@@ -534,7 +534,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             <td class="name-col">{{ op.name }}</td>
                                             <td class="operation-type-col">
                                                 <div class="flex flex-col">
-                                                    <span class="font-bold text-[#2E5077]">{{ getOperationDescription(op).title }}</span>
+                                                    <span class="font-bold text-[#000000]">{{ getOperationDescription(op).title }}</span>
                                                     <span class="text-xs text-gray-500 font-medium">{{ getOperationDescription(op).detail }}</span>
                                                 </div>
                                             </td>

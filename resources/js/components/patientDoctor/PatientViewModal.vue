@@ -40,28 +40,66 @@ const cancelDelete = () => {
     medicationIndexToDelete.value = null;
 };
 
+// الحد الأقصى للجرعة اليومية (سيتم حسابها من max_monthly_dose)
+const maxDailyDose = ref(null);
+const dosageError = ref('');
+
 // فتح نافذة تعديل الدواء
 const handleEditMedication = (medIndex) => {
     editingIndex.value = medIndex;
-    // استخراج الرقم فقط من الجرعة (مثال: "2 حبة يومياً" أو "2.5 حبة يومياً" ← "2" أو "2.5")
-    const dosageText = props.patient.medications[medIndex].dosage;
+    const medication = props.patient.medications[medIndex];
+    
+    // استخراج الرقم العشري من الجرعة (مثال: "2 حبة يومياً" أو "2.5 حبة يومياً" ← "2" أو "2.5")
+    const dosageText = medication.dosage;
     const dosageMatch = dosageText.match(/(\d+(?:\.\d+)?)/);
-    const dosageNumber = dosageMatch ? dosageMatch[1] : '';
+    const dosageNumber = dosageMatch ? dosageMatch[1] : (medication.dailyQuantity || '');
     editingDosage.value = dosageNumber;
+    dosageError.value = '';
+    
+    // حساب الحد الأقصى اليومي من max_monthly_dose
+    if (medication.maxMonthlyDose !== null && medication.maxMonthlyDose !== undefined) {
+        maxDailyDose.value = parseFloat(medication.maxMonthlyDose) / 30;
+    } else {
+        maxDailyDose.value = null;
+    }
+    
     showEditModal.value = true;
+};
+
+// التحقق من صحة الجرعة عند تغيير القيمة
+const validateDosage = () => {
+    const newDosage = parseFloat(editingDosage.value);
+    
+    // التحقق من صحة الرقم
+    if (!editingDosage.value || isNaN(newDosage) || newDosage <= 0) {
+        dosageError.value = 'يرجى إدخال جرعة صحيحة (رقم موجب).';
+        return false;
+    }
+    
+    // التحقق من الحد الأقصى إذا كان موجوداً
+    if (maxDailyDose.value !== null && newDosage > maxDailyDose.value) {
+        const medication = props.patient.medications[editingIndex.value];
+        dosageError.value = `الجرعة اليومية يجب ألا تتجاوز ${maxDailyDose.value.toFixed(2)} (الحد الأقصى الشهري: ${medication?.maxMonthlyDose || medication?.max_monthly_dose})`;
+        return false;
+    }
+    
+    dosageError.value = '';
+    return true;
 };
 
 // حفظ التعديل
 const saveEdit = () => {
-    const newDosage = parseFloat(editingDosage.value);
-    if (!isNaN(newDosage) && newDosage > 0) {
-        emit('edit-medication', editingIndex.value, newDosage);
-        showEditModal.value = false;
-        editingIndex.value = null;
-        editingDosage.value = '';
-    } else {
-        alert('يرجى إدخال جرعة صحيحة (رقم موجب).');
+    if (!validateDosage()) {
+        return;
     }
+    
+    const newDosage = parseFloat(editingDosage.value);
+    emit('edit-medication', editingIndex.value, newDosage);
+    showEditModal.value = false;
+    editingIndex.value = null;
+    editingDosage.value = '';
+    maxDailyDose.value = null;
+    dosageError.value = '';
 };
 
 // إلغاء التعديل
@@ -69,12 +107,16 @@ const cancelEdit = () => {
     showEditModal.value = false;
     editingIndex.value = null;
     editingDosage.value = '';
+    maxDailyDose.value = null;
+    dosageError.value = '';
 };
 
 // حساب الكمية الشهرية المحدثة
 const updatedMonthlyQuantity = computed(() => {
     const dosage = parseFloat(editingDosage.value) || 0;
-    return Math.round(dosage * 30);
+    const monthly = dosage * 30; // افتراض: 30 يوماً في الشهر
+    // إرجاع الرقم العشري إذا لزم الأمر
+    return monthly % 1 === 0 ? monthly : monthly.toFixed(2);
 });
 
 // دالة لحساب الكمية الشهرية للعرض (دائماً الجرعة اليومية * 30)
@@ -199,7 +241,7 @@ const formatDate = (dateString) => {
                             </button>
                             <button 
                                 @click="$emit('add-medication')"
-                                class="px-4 py-2 rounded-xl text-white bg-[#4DA1A9] font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2 shadow-lg shadow-[#4DA1A9]/20"
+                                class="px-4 py-2 rounded-xl text-white bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2 shadow-lg shadow-[#4DA1A9]/20"
                             >
                                 <Icon icon="solar:add-circle-bold" class="w-5 h-5" />
                                 إضافة دواء
@@ -331,20 +373,35 @@ const formatDate = (dateString) => {
             
             <div class="p-6 space-y-6">
                 <div class="space-y-2">
-                    <label class="text-sm font-semibold text-[#2E5077]">الجرعة اليومية (عدد الحبوب)</label>
+                    <label class="text-sm font-semibold text-[#2E5077]">
+                        الجرعة اليومية (عدد الحبوب أو الوحدات)
+                        <span v-if="maxDailyDose !== null" class="text-xs text-gray-500 font-normal">
+                            (الحد الأقصى: {{ maxDailyDose.toFixed(2) }})
+                        </span>
+                    </label>
                     <Input
                         v-model="editingDosage"
+                        @input="validateDosage"
+                        @blur="validateDosage"
                         type="number"
-                        min="1"
-                        class="bg-white border-gray-200 focus:border-[#4DA1A9]"
+                        step="0.01"
+                        min="0.01"
+                        :max="maxDailyDose !== null ? maxDailyDose : undefined"
+                        :class="['bg-white border-gray-200 focus:border-[#4DA1A9]', dosageError ? 'border-red-500 focus:border-red-500' : '']"
                         placeholder="أدخل العدد"
                     />
+                    <p v-if="dosageError" class="text-xs text-red-500 font-medium">
+                        {{ dosageError }}
+                    </p>
+                    <p v-else-if="maxDailyDose !== null" class="text-xs text-gray-500">
+                        الحد الأقصى الشهري: {{ props.patient.medications[editingIndex]?.maxMonthlyDose || props.patient.medications[editingIndex]?.max_monthly_dose }} وحدة
+                    </p>
                 </div>
 
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-[#2E5077]">الكمية الشهرية المتوقعة</label>
                     <div class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 font-medium">
-                        {{ updatedMonthlyQuantity }}
+                        {{ updatedMonthlyQuantity }} {{ props.patient.medications[editingIndex]?.unit || 'وحدة' }}
                     </div>
                 </div>
             </div>

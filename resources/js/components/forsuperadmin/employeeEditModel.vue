@@ -35,7 +35,8 @@ const props = defineProps({
     availableDepartments: Array,
     availableRoles: Array,
     departmentsWithManager: Array,
-    availableHospitals: Array // إضافة المستشفيات المتاحة
+    availableHospitals: Array, // إضافة المستشفيات المتاحة
+    availableSuppliers: Array // إضافة الموردين المتاحين
 });
 
 const emit = defineEmits(['close', 'save']);
@@ -80,12 +81,13 @@ watch(() => props.isOpen, (newVal) => {
             id: props.employee.id,
             nationalId: props.employee.nationalId,
             name: props.employee.name,
-            birth: props.employee.birth ? props.employee.birth.replace(/\//g, "-") : "",
+            birth: props.employee.birth || props.employee.birthDate || "",
             phone: props.employee.phone,
             email: props.employee.email,
             role: props.employee.role,
             department: props.employee.department || "",
-            hospital: props.employee.hospital || "", // تعيين قيمة المستشفى
+            hospital: props.employee.hospital || "", 
+            supplier: props.employee.supplier || "", // تعيين قيمة المورد
             isActive: props.employee.isActive,
         };
         phoneExists.value = false;
@@ -114,6 +116,29 @@ const getRoleList = computed(() => {
 const isWarehouseManagerRole = (role) => role === "مدير المخزن";
 const isDepartmentManagerRole = (role) => role === "مدير القسم";
 
+// الحصول على اسم الدور
+const getRoleName = (role) => {
+    if (!role) return "";
+    
+    if (typeof role === 'object') {
+        return role.name || role;
+    }
+    
+    return role;
+};
+
+// التحقق مما إذا كان الدور هو "مدير المورد"
+const isSupplierAdminRole = (role) => {
+    const roleName = getRoleName(role);
+    return roleName === "مدير المورد" || roleName === "supplier_admin";
+};
+
+// التحقق مما إذا كان الدور هو "مدير نظام المستشفى"
+const isHospitalAdminRole = (role) => {
+    const roleName = getRoleName(role);
+    return roleName === "مدير نظام المستشفى" || roleName === "hospital_admin";
+};
+
 // التحقق من صحة النموذج
 const validateForm = () => {
     let isValid = true;
@@ -127,8 +152,8 @@ const validateForm = () => {
     errors.value.name = !nameRegex.test(data.name.trim());
     if (errors.value.name) isValid = false;
 
-    errors.value.birth = !data.birth;
-    if (errors.value.birth) isValid = false;
+    // تاريخ الميلاد اختياري
+    errors.value.birth = false;
 
     const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
     const isValidFormat = phoneRegex.test(data.phone.trim());
@@ -159,13 +184,25 @@ const validateForm = () => {
 
     // التحقق من وجود مدير مخزن آخر
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager && props.employee.role !== "مدير المخزن") {
-        alert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+        alert("⛔ عذراً، يوجد بالفعل مدير مخزن مفعل في النظام.");
         isValid = false;
     }
 
     // التحقق من حقل المستشفى
-    errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
-    if (errors.value.hospital) isValid = false;
+    if (isHospitalAdminRole(data.role)) {
+        errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
+        if (errors.value.hospital) isValid = false;
+    } else {
+        errors.value.hospital = false;
+    }
+
+    // التحقق من حقل المورد
+    if (isSupplierAdminRole(data.role)) {
+        errors.value.supplier = !data.supplier || !props.availableSuppliers?.includes(data.supplier);
+        if (errors.value.supplier) isValid = false;
+    } else {
+        errors.value.supplier = false;
+    }
 
     return isValid;
 };
@@ -181,7 +218,8 @@ const isFormValid = computed(() => {
     const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
     if (!nameRegex.test(data.name.trim())) return false;
 
-    if (!data.birth) return false;
+    // التاريخ اختياري now
+    // if (!data.birth) return false;
 
     const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
     if (!phoneRegex.test(data.phone.trim())) return false;
@@ -205,25 +243,57 @@ const isFormValid = computed(() => {
     }
 
     // التحقق من حقل المستشفى
-    if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
-        return false;
+    if (isHospitalAdminRole(data.role)) {
+        if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
+            return false;
+        }
+    }
+
+    // التحقق من حقل المورد
+    if (isSupplierAdminRole(data.role)) {
+        if (!data.supplier || !props.availableSuppliers?.includes(data.supplier)) {
+            return false;
+        }
     }
 
     // التحقق من وجود تغييرات
-    const hasChanges = JSON.stringify(form.value) !== JSON.stringify({
+    const currentBirth = form.value.birth || "";
+    const originalBirth = props.employee.birth || props.employee.birthDate || "";
+    
+    // توحيد تنسيق التاريخ للمقارنة (تجاهل الفواصل)
+    const normalizedCurrentBirth = currentBirth.replace(/[\/-]/g, "");
+    const normalizedOriginalBirth = originalBirth.replace(/[\/-]/g, "");
+
+    const hasChanges = JSON.stringify({
+        ...form.value,
+        birth: normalizedCurrentBirth
+    }) !== JSON.stringify({
         id: props.employee.id,
         nationalId: props.employee.nationalId,
         name: props.employee.name,
-        birth: props.employee.birth ? props.employee.birth.replace(/\//g, "-") : "",
+        birth: normalizedOriginalBirth,
         phone: props.employee.phone,
         email: props.employee.email,
         role: props.employee.role,
         department: props.employee.department || "",
-        hospital: props.employee.hospital || "", // إضافة المستشفى للمقارنة
+        hospital: props.employee.hospital || "", 
+        supplier: props.employee.supplier || "",
         isActive: props.employee.isActive,
-    });
+    }); // we can simplify this check 
+    
+    // more robust comparison
+    if (normalizedCurrentBirth !== normalizedOriginalBirth) return true;
+    if (form.value.name !== props.employee.name) return true;
+    if (form.value.nationalId !== props.employee.nationalId) return true;
+    if (form.value.phone !== props.employee.phone) return true;
+    if (form.value.email !== props.employee.email) return true;
+    if (form.value.role !== props.employee.role) return true;
+    if ((form.value.department || "") !== (props.employee.department || "")) return true;
+    if ((form.value.hospital || "") !== (props.employee.hospital || "")) return true;
+    if ((form.value.supplier || "") !== (props.employee.supplier || "")) return true;
+    if (form.value.isActive !== props.employee.isActive) return true;
 
-    return hasChanges;
+    return false;
 });
 
 const submitForm = () => {
@@ -243,9 +313,10 @@ const closeConfirmationModal = () => {
 const confirmUpdate = () => {
     const updatedEmployee = {
         ...form.value,
-        birth: form.value.birth.replace(/-/g, "/"),
+        birth: form.value.birth || null,
         department: isDepartmentManagerRole(form.value.role) ? form.value.department : "",
-        hospital: form.value.hospital, // إضافة المستشفى
+        hospital: isHospitalAdminRole(form.value.role) ? form.value.hospital : "", 
+        supplier: isSupplierAdminRole(form.value.role) ? form.value.supplier : "", // إضافة المورد
     };
     
     emit('save', updatedEmployee);
@@ -432,8 +503,8 @@ watch(() => form.value.role, (newRole) => {
                         </p>
                     </div>
 
-                    <!-- Hospital -->
-                    <div class="space-y-2">
+                    <!-- Hospital (Conditional) -->
+                    <div v-if="isHospitalAdminRole(form.role)" class="space-y-2 animate-in fade-in slide-in-from-top-2">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:hospital-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             المستشفى
@@ -442,19 +513,53 @@ watch(() => form.value.role, (newRole) => {
                             <select
                                 id="hospital"
                                 v-model="form.hospital"
-                                :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.hospital }"
-                                class="w-full h-10 px-3 rounded-md bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:outline-none appearance-none"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.hospital 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
                             >
-                                <option value="" disabled>اختر المستشفى</option>
+                                <option value="" disabled selected>اختر المستشفى</option>
                                 <option v-for="hospital in availableHospitals" :key="hospital" :value="hospital">
                                     {{ hospital }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="errors.hospital" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             الرجاء اختيار المستشفى
+                        </p>
+                    </div>
+
+                    <!-- Supplier (Conditional) -->
+                    <div v-if="isSupplierAdminRole(form.role)" class="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            اسم شركة التوريد
+                        </label>
+                        <div class="relative">
+                            <select
+                                id="supplier"
+                                v-model="form.supplier"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.supplier 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
+                            >
+                                <option value="" disabled selected>اختر المورد</option>
+                                <option v-for="supplierName in availableSuppliers" :key="supplierName" :value="supplierName">
+                                    {{ supplierName }}
+                                </option>
+                            </select>
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
+                        </div>
+                        <p v-if="errors.supplier" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            الرجاء اختيار المورد
                         </p>
                     </div>
 

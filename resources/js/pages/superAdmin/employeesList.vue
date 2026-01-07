@@ -65,6 +65,7 @@ const employeeRoles = ref([
 
 // قائمة المستشفيات المتاحة 
 const availableHospitals = ref([]);
+const availableSuppliers = ref([]);
 
 // فلتر الحالة
 const statusFilter = ref("all");
@@ -95,7 +96,11 @@ const fetchEmployees = async () => {
     error.value = null;
     
     try {
-        const response = await api.get(API_URL);
+        const response = await api.get(API_URL, {
+            params: {
+                types: 'hospital_admin,supplier_admin'
+            }
+        });
         
         // معالجة البيانات المرجعة من API
         // الـ API يعيد البيانات في هيكل: { success: true, data: [...], message: "..." }
@@ -141,10 +146,10 @@ const fetchEmployees = async () => {
         // معالجة الأخطاء المختلفة
         if (err.response?.status === 401) {
             error.value = "انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى";
-            showSuccessAlert("❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى");
+            showSuccessAlert("⚠️ انتهت جلسة العمل، يرجى تسجيل الدخول مجدداً.");
         } else if (err.response?.status === 403) {
             error.value = "ليس لديك الصلاحية للوصول إلى هذه البيانات";
-            showSuccessAlert("❌ ليس لديك الصلاحية للوصول إلى هذه البيانات");
+            showSuccessAlert("⛔ عذراً، ليس لديك صلاحية الوصول لهذه البيانات.");
         } else {
             error.value = err.response?.data?.message || err.message || "حدث خطأ أثناء جلب البيانات";
             showSuccessAlert(`❌ ${error.value}`);
@@ -160,14 +165,19 @@ const fetchEmployees = async () => {
 const fetchHospitals = async () => {
     loadingHospitals.value = true;
     hospitalsError.value = null;
-    
     try {
         const response = await api.get(HOSPITALS_API_URL);
         availableHospitals.value = response.data.data || response.data || [];
+        
+        // Fetch suppliers as well
+        const suppliersResponse = await api.get('super-admin/suppliers');
+        availableSuppliers.value = suppliersResponse.data.data || suppliersResponse.data || [];
+        
     } catch (err) {
-        console.error("Error fetching hospitals:", err);
-        hospitalsError.value = err.response?.data?.message || "حدث خطأ أثناء جلب المستشفيات";
+        console.error("Error fetching hospitals/suppliers:", err);
+        hospitalsError.value = err.response?.data?.message || "حدث خطأ أثناء جلب المستشفيات والموردين";
         availableHospitals.value = [];
+        availableSuppliers.value = [];
     } finally {
         loadingHospitals.value = false;
     }
@@ -209,6 +219,51 @@ const hasWarehouseManager = computed(() => {
 const hospitalNames = computed(() => {
     return availableHospitals.value.map(hospital => hospital.name);
 });
+const supplierNames = computed(() => {
+    return availableSuppliers.value.map(s => s.name);
+});
+
+// قوائم المستشفيات والموردين المحجوزة (لمودال الإضافة)
+const filteredHospitalNamesForAdd = computed(() => {
+    // المستشفيات التي لديها مدير حالياً
+    const occupiedHospitals = employees.value
+        .filter(emp => emp.hospital)
+        .map(emp => emp.hospital);
+        
+    // استبعاد المستشفيات المحجوزة
+    return hospitalNames.value.filter(name => !occupiedHospitals.includes(name));
+});
+
+const filteredSupplierNamesForAdd = computed(() => {
+    // الموردين الذين لديهم مدير حالياً
+    const occupiedSuppliers = employees.value
+        .filter(emp => emp.supplier)
+        .map(emp => emp.supplier);
+        
+    // استبعاد الموردين المحجوزين
+    return supplierNames.value.filter(name => !occupiedSuppliers.includes(name));
+});
+
+// قوائم المستشفيات والموردين لمودال التعديل
+const filteredHospitalNamesForEdit = ref([]);
+const filteredSupplierNamesForEdit = ref([]);
+
+// تحديث قوائم التعديل بناءً على الموظف المحدد
+const updateEditLists = (employee) => {
+    // المستشفيات المحجوزة (باستثناء مستشفى الموظف الحالي)
+    const occupiedHospitals = employees.value
+        .filter(emp => emp.hospital && emp.hospital !== employee.hospital)
+        .map(emp => emp.hospital);
+        
+    filteredHospitalNamesForEdit.value = hospitalNames.value.filter(name => !occupiedHospitals.includes(name));
+
+    // الموردين المحجوزين (باستثناء مورد الموظف الحالي)
+    const occupiedSuppliers = employees.value
+        .filter(emp => emp.supplier && emp.supplier !== employee.supplier)
+        .map(emp => emp.supplier);
+
+    filteredSupplierNamesForEdit.value = supplierNames.value.filter(name => !occupiedSuppliers.includes(name));
+};
 
 // الحصول على قائمة الأقسام التي لها مدير (غير مطلوب في API الجديد)
 const availableDepartments = computed(() => {
@@ -259,14 +314,14 @@ const confirmStatusToggle = async () => {
         }
 
         showSuccessAlert(
-            `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
+            `✅ تم ${statusAction.value} حساب المدير ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
         );
         closeStatusConfirmationModal();
         // إعادة جلب البيانات للتأكد من التحديث
         await fetchEmployees();
     } catch (error) {
         console.error(`Error ${statusAction.value} employee:`, error);
-        const errorMessage = error.response?.data?.message || `فشل ${statusAction.value} حساب الموظف.`;
+        const errorMessage = error.response?.data?.message || `فشل ${statusAction.value} حساب المدير.`;
         showSuccessAlert(`❌ ${errorMessage}`);
         closeStatusConfirmationModal();
     }
@@ -445,7 +500,7 @@ const openViewModal = async (employee) => {
         isViewModalOpen.value = true;
     } catch (error) {
         console.error("Error fetching employee details:", error);
-        showSuccessAlert("❌ فشل جلب تفاصيل الموظف");
+        showSuccessAlert("❌ فشل جلب تفاصيل المدير");
     }
 };
 
@@ -460,7 +515,10 @@ const openEditModal = (employee) => {
         nameDisplay: employee.name || "",
         nationalIdDisplay: employee.nationalId || "",
         birthDisplay: employee.birth ? formatDateForDisplay(employee.birth) : "",
+        supplier: employee.supplier || "", // Ensure supplier is passed correctly
     };
+    // تحديث القوائم المتاحة للتعديل
+    updateEditLists(selectedEmployee.value);
     isEditModalOpen.value = true;
 };
 
@@ -499,7 +557,7 @@ const addEmployee = async (newEmployee) => {
         }
 
         if (!userType || !['hospital_admin', 'supplier_admin'].includes(userType)) {
-            showSuccessAlert("❌ يرجى اختيار نوع مستخدم صحيح (مدير نظام المستشفى أو مدير المورد)");
+            showSuccessAlert("⚠️ يرجى اختيار نوع المستخدم (مدير نظام المستشفى أو مدير المورد)");
             return;
         }
 
@@ -516,20 +574,28 @@ const addEmployee = async (newEmployee) => {
         // إضافة hospital_id أو supplier_id حسب النوع
         if (userType === "hospital_admin") {
             if (!newEmployee.hospital) {
-                showSuccessAlert("❌ يرجى اختيار المستشفى");
+                showSuccessAlert("⚠️ يرجى اختيار المستشفى");
                 return;
             }
             // البحث عن id المستشفى من الاسم
             const hospital = availableHospitals.value.find(h => h.name === newEmployee.hospital);
             if (!hospital) {
-                showSuccessAlert("❌ المستشفى المحدد غير موجود");
+                showSuccessAlert("❌ المستشفى المختار غير مسجل في النظام");
                 return;
             }
             employeeData.hospital_id = hospital.id;
         } else if (userType === "supplier_admin") {
-            // TODO: إضافة دعم للموردين إذا لزم الأمر
-            showSuccessAlert("❌ يرجى تحديد المورد");
-            return;
+            if (!newEmployee.supplier) {
+                showSuccessAlert("⚠️ يرجى اختيار المورد");
+                return;
+            }
+            // البحث عن id المورد من الاسم
+            const supplier = availableSuppliers.value.find(s => s.name === newEmployee.supplier);
+            if (!supplier) {
+                showSuccessAlert("❌ المورد المختار غير مسجل في النظام");
+                return;
+            }
+            employeeData.supplier_id = supplier.id;
         }
 
         const response = await api.post(API_URL, employeeData);
@@ -539,10 +605,10 @@ const addEmployee = async (newEmployee) => {
         await fetchEmployees();
         
         closeAddModal();
-        showSuccessAlert("✅ تم تسجيل بيانات الموظف بنجاح!");
+        showSuccessAlert("✅ تم إضافة المدير الجديد بنجاح!");
     } catch (error) {
         console.error("Error adding employee:", error);
-        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل تسجيل الموظف. تحقق من البيانات.";
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل إضافة المدير. يرجى مراجعة البيانات المدخلة.";
         showSuccessAlert(`❌ ${errorMessage}`);
     }
 };
@@ -561,6 +627,39 @@ const updateEmployee = async (updatedEmployee) => {
             birth_date: updatedEmployee.birth || updatedEmployee.birthDate || null,
         };
 
+        // إضافة hospital_id أو supplier_id حسب النوع
+        // نحتاج أولاً معرفة دور المستخدم الحالي أو الجديد إذا تم تغييره
+        // في الـ Modal الحالي، لا يوجد حقل لتغيير الدور مباشرة، لكن يجب تمرير هذه المعلومات.
+        // بما أن `selectedEmployee` يحتوي على البيانات الحالية، يمكننا استخدامه.
+        // لكن `updateEmployee` تستقبل فقط البيانات المعدلة من النموذج.
+        // سنفترض أن `updatedEmployee` يحتوي على الدور إذا تم تعديله، وإلا نستخدم الدور الأصلي.
+        
+        let userRole = updatedEmployee.role || selectedEmployee.value.role;
+         let userType = null;
+        if (userRole === "مدير نظام المستشفى" || userRole === "hospital_admin") {
+            userType = "hospital_admin";
+        } else if (userRole === "مدير المورد" || userRole === "supplier_admin") {
+            userType = "supplier_admin";
+        }
+        
+        if (userType === "hospital_admin") {
+            if (updatedEmployee.hospital) {
+                const hospital = availableHospitals.value.find(h => h.name === updatedEmployee.hospital);
+                if (hospital) {
+                    employeeData.hospital_id = hospital.id;
+                    employeeData.supplier_id = null;
+                }
+            }
+        } else if (userType === "supplier_admin") {
+            if (updatedEmployee.supplier) {
+                const supplier = availableSuppliers.value.find(s => s.name === updatedEmployee.supplier);
+                if (supplier) {
+                    employeeData.supplier_id = supplier.id;
+                    employeeData.hospital_id = null;
+                }
+            }
+        }
+
         const response = await api.put(
             `${API_URL}/${userId}`,
             employeeData
@@ -571,11 +670,11 @@ const updateEmployee = async (updatedEmployee) => {
 
         closeEditModal();
         showSuccessAlert(
-            `✅ تم تعديل بيانات الموظف بنجاح!`
+            `✅ تم تحديث بيانات المدير بنجاح!`
         );
     } catch (error) {
         console.error("Error updating employee:", error);
-        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل تعديل بيانات الموظف.";
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل تعديل بيانات المدير.";
         showSuccessAlert(`❌ ${errorMessage}`);
     }
 };
@@ -586,7 +685,7 @@ const getStatusTooltip = (isActive) => {
 
 // إعادة تعيين كلمة المرور
 const resetPassword = async (employee) => {
-    if (!confirm(`هل أنت متأكد من إعادة تعيين كلمة مرور ${employee.name || employee.fullName}؟`)) {
+    if (!confirm(`هل أنت متأكد من رغبتك في إعادة تعيين كلمة المرور للمدير ${employee.name || employee.fullName}؟`)) {
         return;
     }
 
@@ -1151,7 +1250,8 @@ const printTable = () => {
     <employeeAddModel
         :is-open="isAddModalOpen"
         :has-warehouse-manager="hasWarehouseManager"
-        :available-hospitals="hospitalNames"
+        :available-hospitals="filteredHospitalNamesForAdd"
+        :available-suppliers="filteredSupplierNamesForAdd"
         :available-departments="availableDepartments"
         :available-roles="employeeRoles"
         :departments-with-manager="departmentsWithManager"
@@ -1162,11 +1262,12 @@ const printTable = () => {
     <employeeEditModel
         :is-open="isEditModalOpen"
         :has-warehouse-manager="hasWarehouseManager"
-        :available-hospitals="hospitalNames"
+        :available-hospitals="filteredHospitalNamesForEdit"
+        :available-suppliers="filteredSupplierNamesForEdit"
         :available-departments="availableDepartments"
         :available-roles="employeeRoles"
         :departments-with-manager="departmentsWithManager"
-        :patient="selectedEmployee"
+        :employee="selectedEmployee"
         @close="closeEditModal"
         @save="updateEmployee"
     />

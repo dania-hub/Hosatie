@@ -34,7 +34,8 @@ const props = defineProps({
     availableDepartments: Array,
     availableRoles: Array,
     departmentsWithManager: Array,
-    availableHospitals: Array // إضافة المستشفيات المتاحة
+    availableHospitals: Array,
+    availableSuppliers: Array // إضافة الموردين المتاحين
 });
 
 const emit = defineEmits(['close', 'save']);
@@ -48,7 +49,8 @@ const form = ref({
     email: "",
     role: "",
     department: "",
-    hospital: "", // إضافة حقل المستشفى
+    hospital: "",
+    supplier: "", // إضافة حقل المورد
 });
 
 // أخطاء التحقق
@@ -60,7 +62,8 @@ const errors = ref({
     email: false,
     role: false,
     department: false,
-    hospital: false, // إضافة خطأ للمستشفى
+    hospital: false,
+    supplier: false, // إضافة خطأ للمورد
 });
 
 // حالة التحقق من رقم الهاتف
@@ -80,7 +83,8 @@ const resetForm = () => {
         email: "",
         role: "",
         department: "",
-        hospital: "" // إعادة تعيين المستشفى
+        hospital: "",
+        supplier: "" // إعادة تعيين المورد
     };
     errors.value = { 
         nationalId: false, 
@@ -90,7 +94,8 @@ const resetForm = () => {
         email: false, 
         role: false, 
         department: false,
-        hospital: false // إعادة تعيين خطأ المستشفى
+        hospital: false,
+        supplier: false // إعادة تعيين خطأ المورد
     };
     phoneExists.value = false;
 };
@@ -138,6 +143,18 @@ const isDepartmentManagerRole = (role) => {
     return roleName === "مدير القسم";
 };
 
+// التحقق مما إذا كان الدور هو "مدير المورد"
+const isSupplierAdminRole = (role) => {
+    const roleName = getRoleName(role);
+    return roleName === "مدير المورد" || roleName === "supplier_admin";
+};
+
+// التحقق مما إذا كان الدور هو "مدير نظام المستشفى"
+const isHospitalAdminRole = (role) => {
+    const roleName = getRoleName(role);
+    return roleName === "مدير نظام المستشفى" || roleName === "hospital_admin";
+};
+
 // التحقق من صحة النموذج
 const validateForm = () => {
     let isValid = true;
@@ -182,13 +199,26 @@ const validateForm = () => {
 
     // التحقق من وجود مدير مخزن إذا كان الدور هو "مدير المخزن"
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
-        alert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+        alert("⛔ عذراً، يوجد بالفعل مدير مخزن مفعل في النظام.");
         isValid = false;
     }
 
     // التحقق من حقل المستشفى
-    errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
-    if (errors.value.hospital) isValid = false;
+    if (isHospitalAdminRole(data.role)) {
+        errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
+        if (errors.value.hospital) isValid = false;
+    } else {
+        errors.value.hospital = false;
+    }
+
+    // التحقق من حقل المورد
+    if (isSupplierAdminRole(data.role)) {
+        errors.value.supplier = !data.supplier || !props.availableSuppliers?.includes(data.supplier);
+        if (errors.value.supplier) isValid = false;
+    } else {
+        errors.value.supplier = false;
+    }
+
 
     return isValid;
 };
@@ -230,8 +260,17 @@ const isFormValid = computed(() => {
     }
 
     // التحقق من حقل المستشفى
-    if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
-        return false;
+    if (isHospitalAdminRole(data.role)) {
+        if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
+            return false;
+        }
+    }
+
+    // التحقق من حقل المورد
+    if (isSupplierAdminRole(data.role)) {
+        if (!data.supplier || !props.availableSuppliers?.includes(data.supplier)) {
+            return false;
+        }
     }
 
     return true;
@@ -264,7 +303,8 @@ const confirmRegistration = () => {
         email: form.value.email,
         role: form.value.role,
         department: isDepartmentManagerRole(form.value.role) ? form.value.department : "",
-        hospital: form.value.hospital, // إضافة المستشفى
+        hospital: isHospitalAdminRole(form.value.role) ? form.value.hospital : "", 
+        supplier: isSupplierAdminRole(form.value.role) ? form.value.supplier : "", // إضافة المورد
     };
     
     emit('save', newEmployee);
@@ -484,8 +524,8 @@ const openDatePicker = () => {
                         </p>
                     </div>
 
-                    <!-- Hospital -->
-                    <div class="space-y-2">
+                    <!-- Hospital (Conditional) -->
+                    <div v-if="isHospitalAdminRole(form.role)" class="space-y-2 animate-in fade-in slide-in-from-top-2">
                         <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:hospital-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             المستشفى
@@ -511,6 +551,36 @@ const openDatePicker = () => {
                         <p v-if="errors.hospital" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             الرجاء اختيار المستشفى
+                        </p>
+                    </div>
+
+                    <!-- Supplier (Conditional) -->
+                    <div v-if="isSupplierAdminRole(form.role)" class="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            اسم شركة التوريد
+                        </label>
+                        <div class="relative">
+                            <select
+                                id="supplier"
+                                v-model="form.supplier"
+                                :class="[
+                                    'w-full h-10 px-3 pr-10 rounded-2xl bg-white border appearance-none focus:outline-none transition-colors duration-200',
+                                    errors.supplier 
+                                        ? 'border-red-500 focus:border-red-500' 
+                                        : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
+                                ]"
+                            >
+                                <option value="" disabled selected>اختر المورد</option>
+                                <option v-for="supplier in availableSuppliers" :key="supplier" :value="supplier">
+                                    {{ supplier }}
+                                </option>
+                            </select>
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
+                        </div>
+                        <p v-if="errors.supplier" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            الرجاء اختيار المورد
                         </p>
                     </div>
 

@@ -129,6 +129,51 @@ class PatientNotificationService
         return $notification;
     }
 
+    /**
+     * إرسال إشعار للمريض عند صرف دواء له من الصيدلية.
+     */
+    public function notifyDrugDispensed(User $patient, Drug $drug, int $quantity): Notification
+    {
+        $title = "صرف دواء";
+        $message = "تم صرف كمية ({$quantity}) من دواء ({$drug->name}) لك من الصيدلية.";
+        
+        return $this->createNotification($patient, 'عادي', $title, $message);
+    }
+
+    /**
+     * إرسال إشعار للمرضى عند توفر دواء كان غير متوفر في الصيدلية.
+     */
+    public function notifyDrugAvailability(Drug $drug, int $hospitalId): void
+    {
+        Log::info('🚨 === notifyDrugAvailability START ===', [
+            'drug_id' => $drug->id,
+            'hospital_id' => $hospitalId,
+            'timestamp' => now()->format('Y-m-d H:i:s.u')
+        ]);
+
+        // البحث عن جميع المرضى الذين لديهم هذا الدواء في وصفة نشطة في هذا المستشفى
+        $patients = User::where('type', 'patient')
+            ->whereHas('prescriptionsAsPatient', function ($query) use ($drug, $hospitalId) {
+                $query->where('status', 'active')
+                    ->where('hospital_id', $hospitalId)
+                    ->whereHas('drugs', function ($q) use ($drug) {
+                        $q->where('drug_id', $drug->id);
+                    });
+            })
+            ->get();
+
+        $title = "توفر دواء";
+        $message = "نود إعلامك بأن دواء ({$drug->name}) أصبح متوفراً الآن في صيدلية المستشفى.";
+
+        foreach ($patients as $patient) {
+            $this->createNotification($patient, 'عادي', $title, $message);
+        }
+
+        Log::info('🚨 === notifyDrugAvailability END ===', [
+            'notified_count' => $patients->count()
+        ]);
+    }
+
     public function notifyDrugUpdated(User $patient, Prescription $prescription, Drug $drug): Notification
     {
         Log::info('🚨 === notifyDrugUpdated START ===', [

@@ -422,6 +422,29 @@ class ShipmentSupplierController extends BaseApiController
                         $item->approved_qty = max(0, (float)$approvedQty); // الكمية المعتمدة من Supplier
                         $item->fulfilled_qty = max(0, (float)$fulfilledQty); // الكمية الفعلية المرسلة من Supplier
                         $item->save();
+
+                        // خصم الكمية من مخزون المورد
+                        $inventory = Inventory::where('drug_id', $item->drug_id)
+                            ->where('supplier_id', $user->supplier_id)
+                            ->whereNull('warehouse_id')
+                            ->whereNull('pharmacy_id')
+                            ->first();
+
+                        if ($inventory) {
+                            $inventory->current_quantity -= $item->fulfilled_qty;
+                            $inventory->save();
+
+                            // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
+                            try {
+                                $this->notifications->checkAndNotifyLowStock($inventory);
+                            } catch (\Exception $e) {
+                                \Log::error('Supplier stock alert notification failed', ['error' => $e->getMessage()]);
+                            }
+                            
+                            \Log::info("Subtracted {$item->fulfilled_qty} of drug {$item->drug_id} from supplier {$user->supplier_id} inventory.");
+                        } else {
+                            \Log::warning("Inventory record not found for drug {$item->drug_id} and supplier {$user->supplier_id} during shipment confirmation.");
+                        }
                     }
                 }
             } else {
@@ -431,6 +454,25 @@ class ShipmentSupplierController extends BaseApiController
                     $item->approved_qty = $defaultQty; // الكمية المعتمدة من Supplier
                     $item->fulfilled_qty = $defaultQty; // الكمية الفعلية المرسلة من Supplier
                     $item->save();
+
+                    // خصم الكمية من مخزون المورد
+                    $inventory = Inventory::where('drug_id', $item->drug_id)
+                        ->where('supplier_id', $user->supplier_id)
+                        ->whereNull('warehouse_id')
+                        ->whereNull('pharmacy_id')
+                        ->first();
+
+                    if ($inventory) {
+                        $inventory->current_quantity -= $item->fulfilled_qty;
+                        $inventory->save();
+
+                        // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
+                        try {
+                            $this->notifications->checkAndNotifyLowStock($inventory);
+                        } catch (\Exception $e) {
+                            \Log::error('Supplier stock alert notification failed (default qty)', ['error' => $e->getMessage()]);
+                        }
+                    }
                 }
             }
 

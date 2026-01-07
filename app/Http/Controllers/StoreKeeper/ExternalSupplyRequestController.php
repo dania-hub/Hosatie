@@ -603,6 +603,13 @@ class ExternalSupplyRequestController extends BaseApiController
                 $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $receivedQty;
                 $inventory->save();
 
+                // التنبيه في حالة انخفاض المخزون عن الحد الأدنى (حتى بعد التوريد)
+                try {
+                    $this->notifications->checkAndNotifyLowStock($inventory);
+                } catch (\Exception $e) {
+                    \Log::error('Warehouse stock replenishment alert notification failed', ['error' => $e->getMessage()]);
+                }
+
                 // تحديث fulfilled_qty بالكمية المستلمة الفعلية (إذا كانت مختلفة عن المرسلة)
                 // ملاحظة: fulfilled_qty تم تعيينه من قبل Supplier، لكن يمكن تحديثه بالكمية الفعلية المستلمة
                 // في هذه الحالة، نستخدم الكمية المستلمة الفعلية

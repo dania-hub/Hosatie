@@ -731,15 +731,15 @@ const fetchTransferRequests = async () => {
             if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
                 // إذا كانت الاستجابة من sendSuccess
                 data = response.data.data;
-                console.log('✅ Using data from sendSuccess response, count:', data.length);
+                console.log(' Using data from sendSuccess response, count:', data.length);
             } else if (response.data.data && Array.isArray(response.data.data)) {
                 // إذا كانت البيانات في response.data.data
                 data = response.data.data;
-                console.log('✅ Using nested array from response.data.data, count:', data.length);
+                console.log(' Using nested array from response.data.data, count:', data.length);
             } else if (Array.isArray(response.data)) {
                 // إذا كانت البيانات مصفوفة مباشرة
                 data = response.data;
-                console.log('✅ Using direct array from response.data, count:', data.length);
+                console.log(' Using direct array from response.data, count:', data.length);
             } else {
                 console.warn('⚠️ Unknown response structure:', response.data);
                 console.warn('⚠️ Response keys:', Object.keys(response.data));
@@ -759,11 +759,11 @@ const fetchTransferRequests = async () => {
         if (transferRequests.value.length === 0) {
             console.log('لا توجد بيانات متاحة');
         } else {
-            console.log('✅ تم جلب', transferRequests.value.length, 'طلب نقل بنجاح');
-            showSuccessAlert('✅ تم تحميل ' + transferRequests.value.length + ' طلب نقل بنجاح');
+            console.log(' تم جلب', transferRequests.value.length, 'طلب نقل بنجاح');
+            showSuccessAlert(' تم تحميل ' + transferRequests.value.length + ' طلب نقل بنجاح');
         }
     } catch (err) {
-        console.error('❌ Error fetching transfer requests:', err);
+        console.error(' Error fetching transfer requests:', err);
         console.error('Error details:', {
             message: err.message,
             response: err.response?.data,
@@ -773,7 +773,7 @@ const fetchTransferRequests = async () => {
         error.value = err.message || 'فشل في جلب البيانات من الخادم';
         transferRequests.value = [];
         const errorMessage = err.response?.data?.message || err.message || 'فشل في جلب قائمة طلبات النقل.';
-        showErrorAlert('❌ ' + errorMessage);
+        showErrorAlert(' ' + errorMessage);
     } finally {
         isLoading.value = false;
     }
@@ -804,14 +804,14 @@ const updateRequestStatus = async (requestId, statusData) => {
             status: statusData.status
         };
     } catch (err) {
-        console.error('❌ Error updating request status:', err);
+        console.error(' Error updating request status:', err);
         console.error('Error details:', {
             message: err.message,
             response: err.response?.data,
             status: err.response?.status
         });
         const errorMessage = err.response?.data?.message || err.message || 'فشل في تحديث حالة الطلب';
-        showErrorAlert('❌ ' + errorMessage);
+        showErrorAlert(' ' + errorMessage);
         return {
             success: false,
             message: errorMessage
@@ -869,13 +869,13 @@ const handleTransferResponse = async (responseData) => {
             await fetchTransferRequests();
             
             const successMsg = result.message || 
-                              `✅ تم ${apiData.status === 'rejected' ? 'رفض' : 'قبول'} طلب النقل بنجاح`;
+                              ` تم ${apiData.status === 'rejected' ? 'رفض' : 'قبول'} طلب النقل بنجاح`;
             showSuccessAlert(successMsg);
             closeResponseModal();
         }
     } catch (err) {
         console.error('Error handling transfer response:', err);
-        const errorMsg = err.response?.data?.message || err.message || '❌ فشل في حفظ الرد';
+        const errorMsg = err.response?.data?.message || err.message || ' فشل في حفظ الرد';
         showErrorAlert(errorMsg);
     }
 };
@@ -893,7 +893,7 @@ const printTable = () => {
     const printWindow = window.open("", "_blank", "height=600,width=800");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -961,7 +961,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 

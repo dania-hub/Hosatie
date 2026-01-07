@@ -147,6 +147,9 @@ class DrugPharmacistController extends BaseApiController
                 'manufacturer' => $drug->manufacturer,
                 'country' => $drug->country,
                 'utilizationType' => $drug->utilization_type,
+                'warnings' => $drug->warnings,
+                'indications' => $drug->indications,
+                'contraindications' => $drug->contraindications,
                 'quantity' => $availableQuantity, // الكمية في المخزون
                 'neededQuantity' => $neededQuantity, // الكمية المحتاجة المحسوبة ديناميكياً
                 'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
@@ -269,6 +272,9 @@ class DrugPharmacistController extends BaseApiController
                         'manufacturer' => $drug->manufacturer,
                         'country' => $drug->country,
                         'utilizationType' => $drug->utilization_type,
+                        'warnings' => $drug->warnings,
+                        'indications' => $drug->indications,
+                        'contraindications' => $drug->contraindications,
                         'quantity' => 0, // الكمية في المخزون = 0 لأنها غير مسجلة
                         'neededQuantity' => $totalNeededQuantity, // الكمية المحتاجة من المرضى المستحقين
                         'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,

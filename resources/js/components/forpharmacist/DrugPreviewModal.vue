@@ -36,18 +36,30 @@
                                 <Icon icon="solar:bottle-bold-duotone" class="w-7 h-7 text-[#2E5077]" />
                             </div>
                             <div class="flex-1">
-                                <h3 class="text-xl font-bold text-[#2E5077] mb-1">{{ drug.drugName || "-" }}</h3>
-                                <p class="text-gray-500 font-medium">{{ drug.scientificName || "-" }}</p>
+                                <h3 class="text-xl font-bold text-[#2E5077] mb-1">{{ drug.drugName || drug.name || "-" }}</h3>
+                                <p class="text-gray-500 font-medium">{{ drug.genericName || "-" }}</p>
                             </div>
                             <div class="bg-[#EAF3F4] text-[#4DA1A9] px-3 py-1 rounded-lg text-sm font-bold">
-                                {{ drug.therapeuticClass || "-" }}
+                                {{ drug.category || "-" }}
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                             <div>
+                                <p class="text-xs text-gray-400 mb-1">التركيز</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.strength || "-" }}</p>
+                            </div>
+                            <div>
                                 <p class="text-xs text-gray-400 mb-1">الشكل الصيدلاني</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.pharmaceuticalForm || "-" }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.form || "-" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">الوحدة</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.unit || "-" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">الجرعة الشهرية القصوى</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.maxMonthlyDose || "-" }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الشركة المصنعة</p>
@@ -55,7 +67,27 @@
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الدولة المصنعة</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.mfgCountry || "-" }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.country || "-" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">نوع الاستخدام</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.utilizationType || "-" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">الحالة</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.status || "-" }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- معلومات المخزون -->
+                        <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">الكمية المتوفرة</p>
+                                <p class="font-semibold text-[#4DA1A9] text-lg">{{ drug.quantity || 0 }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">الكمية المحتاجة</p>
+                                <p class="font-semibold text-[#2E5077] text-lg">{{ drug.neededQuantity || 0 }}</p>
                             </div>
                         </div>
                     </div>
@@ -74,27 +106,27 @@
 
                         <div class="space-y-2">
                             <h4 class="font-bold text-[#2E5077] flex items-center gap-2">
-                                <Icon icon="solar:clipboard-list-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
-                                إرشادات الاستخدام
+                                <Icon icon="solar:danger-triangle-bold-duotone" class="w-5 h-5 text-red-500" />
+                                تحذيرات هامة
                             </h4>
-                            <p class="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                {{ drug.instructions || "-" }}
+                            <p class="text-gray-600 text-sm leading-relaxed bg-red-50 p-3 rounded-xl border border-red-100">
+                                {{ drug.warnings || "-" }}
                             </p>
                         </div>
 
                         <div class="space-y-2">
                             <h4 class="font-bold text-[#2E5077] flex items-center gap-2">
-                                <Icon icon="solar:danger-triangle-bold-duotone" class="w-5 h-5 text-red-500" />
-                                تحذيرات هامة
+                                <Icon icon="solar:forbidden-circle-bold-duotone" class="w-5 h-5 text-orange-500" />
+                                موانع الاستعمال
                             </h4>
-                            <p class="text-gray-600 text-sm leading-relaxed bg-red-50 p-3 rounded-xl border border-red-100">
-                                {{ drug.warnings || " -" }}
+                            <p class="text-gray-600 text-sm leading-relaxed bg-orange-50 p-3 rounded-xl border border-orange-100">
+                                {{ drug.contraindications || "-" }}
                             </p>
                         </div>
                     </div>
 
                     <!-- Footer Info -->
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4">
                         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
                             <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center text-orange-500">
                                 <Icon icon="solar:calendar-date-bold-duotone" class="w-6 h-6" />
@@ -102,15 +134,6 @@
                             <div>
                                 <p class="text-xs text-gray-400">تاريخ الانتهاء</p>
                                 <p class="font-bold text-[#2E5077]">{{ drug.expiryDate || "-" }}</p>
-                            </div>
-                        </div>
-                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
-                            <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center text-green-500">
-                                <Icon icon="solar:refresh-circle-bold-duotone" class="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-400">آخر تحديث</p>
-                                <p class="font-bold text-[#2E5077]">{{ drug.lastUpdate || "-" }}</p>
                             </div>
                         </div>
                     </div>

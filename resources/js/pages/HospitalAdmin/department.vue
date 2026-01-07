@@ -306,12 +306,12 @@ const confirmStatusToggle = async () => {
             departments.value[index].lastUpdated = responseData.lastUpdated || new Date().toISOString();
         }
 
-        const successMessage = response.data?.message || `✅ تم ${statusAction.value} القسم ${departmentToToggle.value.name} بنجاح!`;
+        const successMessage = response.data?.message || ` تم ${statusAction.value} القسم ${departmentToToggle.value.name} بنجاح!`;
         showSuccessAlert(successMessage);
         closeStatusConfirmationModal();
     } catch (error) {
         console.error(`Error ${statusAction.value} department:`, error);
-        const errorMessage = error.response?.data?.message || `❌ فشل ${statusAction.value} القسم.`;
+        const errorMessage = error.response?.data?.message || ` فشل ${statusAction.value} القسم.`;
         showSuccessAlert(errorMessage);
         closeStatusConfirmationModal();
     }
@@ -481,11 +481,11 @@ const addDepartment = async (newDepartment) => {
         });
         
         closeAddModal();
-        const successMessage = response.data?.message || "✅ تم إنشاء القسم بنجاح!";
+        const successMessage = response.data?.message || " تم إنشاء القسم بنجاح!";
         showSuccessAlert(successMessage);
     } catch (error) {
         console.error("Error adding department:", error);
-        const errorMessage = error.response?.data?.message || error.response?.data?.error || "❌ فشل إنشاء القسم. تحقق من البيانات.";
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || " فشل إنشاء القسم. تحقق من البيانات.";
         showSuccessAlert(errorMessage);
     }
 };
@@ -517,11 +517,11 @@ const updateDepartment = async (updatedDepartment) => {
         }
 
         closeEditModal();
-        const successMessage = response.data?.message || `✅ تم تعديل بيانات القسم ${updatedDepartment.name} بنجاح!`;
+        const successMessage = response.data?.message || ` تم تعديل بيانات القسم ${updatedDepartment.name} بنجاح!`;
         showSuccessAlert(successMessage);
     } catch (error) {
         console.error("Error updating department:", error);
-        const errorMessage = error.response?.data?.message || error.response?.data?.error || "❌ فشل تعديل بيانات القسم.";
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || " فشل تعديل بيانات القسم.";
         showSuccessAlert(errorMessage);
     }
 };
@@ -537,7 +537,7 @@ const printTable = () => {
     const resultsCount = filteredDepartments.value.length;
 
     if (resultsCount === 0) {
-        showSuccessAlert("❌ لا توجد بيانات للطباعة.");
+        showSuccessAlert(" لا توجد بيانات للطباعة.");
         return;
     }
 
@@ -545,7 +545,7 @@ const printTable = () => {
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
         showSuccessAlert(
-            "❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
+            " فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
         );
         return;
     }
@@ -642,7 +642,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 </script>

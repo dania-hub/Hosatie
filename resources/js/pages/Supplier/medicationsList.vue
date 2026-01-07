@@ -131,6 +131,7 @@ const filteredDrugss = computed(() => {
     list = list.filter(
       (drug) =>
         (drug.drugName && drug.drugName.toLowerCase().includes(search)) ||
+        (drug.genericName && drug.genericName.toLowerCase().includes(search)) ||
         (drug.strength && drug.strength.toLowerCase().includes(search))
     );
   }
@@ -377,6 +378,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 <thead>
  <tr>
  <th>اسم الدواء</th>
+ <th>الاسم العلمي</th>
  <th>التركيز</th>
  <th>الكمية المتوفرة</th>
  <th>الكمية المحتاجة</th>
@@ -390,6 +392,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
       tableHtml += `
 <tr>
  <td>${drug.drugName || ''}</td>
+ <td>${drug.genericName || 'غير محدد'}</td>
  <td>${drug.strength || 'غير محدد'}</td>
  <td>${drug.quantity || 0}</td>
  <td>${drug.neededQuantity || 0}</td>
@@ -650,6 +653,9 @@ onMounted(async () => {
                                             <th class="drug-name-col">
                                                 اسم الدواء
                                             </th>
+                                            <th class="scientific-name-col">
+                                                الاسم العلمي
+                                            </th>
                                             <th class="strength-col">
                                                 التركيز
                                             </th>
@@ -668,12 +674,12 @@ onMounted(async () => {
 
                                     <tbody class="text-gray-800">
                                         <tr v-if="isLoading">
-                                            <td colspan="6" class="p-4">
+                                            <td colspan="7" class="p-4">
                                                 <TableSkeleton :rows="10" />
                                             </td>
                                         </tr>
                                         <tr v-else-if="error">
-                                            <td colspan="6" class="py-12">
+                                            <td colspan="7" class="py-12">
                                                 <ErrorState :message="error" :retry="fetchDrugs" />
                                             </td>
                                         </tr>
@@ -707,6 +713,17 @@ onMounted(async () => {
                                                             غير مسجل
                                                         </span>
                                                     </div>
+                                                </td>
+                                                <td
+                                                    :class="
+                                                        getTextColorClass(
+                                                            drug.quantity,
+                                                            drug.neededQuantity,
+                                                            drug.isUnregistered
+                                                        )
+                                                    "
+                                                >
+                                                    {{ drug.genericName || 'غير محدد' }}
                                                 </td>
                                                 <td
                                                     :class="
@@ -779,7 +796,7 @@ onMounted(async () => {
                                                 </td>
                                             </tr>
                                             <tr v-if="filteredDrugss.length === 0">
-                                                <td colspan="6" class="py-12">
+                                                <td colspan="7" class="py-12">
                                                     <EmptyState message="لا توجد أدوية في المخزون حالياً" />
                                                 </td>
                                             </tr>
@@ -873,6 +890,10 @@ onMounted(async () => {
 .drug-name-col {
     width: auto;
     min-width: 170px;
+}
+.scientific-name-col {
+    width: auto;
+    min-width: 150px;
 }
 .min-w-\[700px\] {
     min-width: 700px;

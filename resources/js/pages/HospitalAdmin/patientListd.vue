@@ -75,11 +75,11 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.data || error.message);
     if (error.response?.status === 401) {
-      showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+      showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
     } else if (error.response?.status === 403) {
-      showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+      showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
     } else if (!error.response) {
-      showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+      showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
     }
     return Promise.reject(error);
   }
@@ -117,7 +117,7 @@ const fetchPatients = async () => {
       nationalIdDisplay: patient.nationalId || '',
       birthDisplay: patient.birth ? formatDateForDisplay(patient.birth) : ''
     }));
-    showSuccessAlert(`✅ تم تحميل ${patients.value.length} مريض بنجاح`);
+    showSuccessAlert(` تم تحميل ${patients.value.length} مريض بنجاح`);
   } catch (err) {
     hasError.value = true;
     if (err.response) {
@@ -147,7 +147,7 @@ const fetchPatients = async () => {
     error.value = errorMessage.value; // Sync for ErrorState component
 
     if (!err.response || (err.response.status !== 401 && err.response.status !== 403)) {
-      showSuccessAlert(`❌ فشل في تحميل المرضى: ${errorMessage.value}`);
+      showSuccessAlert(` فشل في تحميل المرضى: ${errorMessage.value}`);
     }
   } finally {
     isLoading.value = false;
@@ -441,7 +441,7 @@ const handleEditMedication = async (medIndex, newDosage) => {
       medications: updatedPatient.medications || updatedMedications
     };
 
-    showSuccessAlert(`✅ تم تعديل جرعة ${medicationName} بنجاح`);
+    showSuccessAlert(` تم تعديل جرعة ${medicationName} بنجاح`);
   } catch (err) {
     console.error('فشل تعديل الدواء:', err);
     const errorMsg = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
@@ -493,7 +493,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showInfoAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showInfoAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -562,7 +562,7 @@ const printTable = () => {
         printWindow.focus();
         printWindow.print();
         if (resultsCount > 0) {
-            showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+            showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
         } else {
             showInfoAlert("تم فتح نافذة الطباعة ولكن الجدول فارغ.");
         }

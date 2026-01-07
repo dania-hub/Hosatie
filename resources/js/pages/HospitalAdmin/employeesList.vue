@@ -301,10 +301,10 @@ const confirmStatusToggle = async () => {
 
         // التحقق من بنية الاستجابة
         const responseData = response.data;
-        let successMessage = `✅ تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name} بنجاح!`;
+        let successMessage = ` تم ${statusAction.value} حساب الموظف ${employeeToToggle.value.name} بنجاح!`;
         
         if (responseData.message) {
-            successMessage = "✅ " + responseData.message;
+            successMessage = " " + responseData.message;
         }
 
         // إعادة تحميل قائمة الموظفين بعد التحديث
@@ -316,14 +316,14 @@ const confirmStatusToggle = async () => {
         console.error(`Error ${statusAction.value} employee:`, error);
         console.error("Error response:", error.response?.data);
         
-        let errorMessage = `❌ فشل ${statusAction.value} حساب الموظف.`;
+        let errorMessage = ` فشل ${statusAction.value} حساب الموظف.`;
         
         if (error.response?.data) {
             const errorData = error.response.data;
             if (errorData.message) {
-                errorMessage = "❌ " + errorData.message;
+                errorMessage = " " + errorData.message;
             } else if (errorData.error) {
-                errorMessage = "❌ " + errorData.error;
+                errorMessage = " " + errorData.error;
             }
         }
         
@@ -560,7 +560,7 @@ const addEmployee = async (newEmployee) => {
         );
         
         if (warehouseManagerRole && newEmployee.role === "مدير المخزن" && hasWarehouseManager.value) {
-            showSuccessAlert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+            showSuccessAlert(" يوجد بالفعل مدير مخزن مفعل في النظام!");
             return;
         }
 
@@ -580,7 +580,7 @@ const addEmployee = async (newEmployee) => {
             );
             
             if (existingManager) {
-                showSuccessAlert(`❌ القسم "${newEmployee.department}" لديه بالفعل مدير مفعل!`);
+                showSuccessAlert(` القسم "${newEmployee.department}" لديه بالفعل مدير مفعل!`);
                 return;
             }
         }
@@ -614,10 +614,10 @@ const addEmployee = async (newEmployee) => {
         
         // التحقق من بنية الاستجابة
         const responseData = response.data.data || response.data;
-        let successMessage = "✅ تم تسجيل بيانات الموظف بنجاح!";
+        let successMessage = " تم تسجيل بيانات الموظف بنجاح!";
         
         if (responseData.message) {
-            successMessage = "✅ " + responseData.message;
+            successMessage = " " + responseData.message;
         }
         
         // إعادة تحميل قائمة الموظفين بعد الإضافة
@@ -631,7 +631,7 @@ const addEmployee = async (newEmployee) => {
         console.error("Error status:", error.response?.status);
         console.error("Error headers:", error.response?.headers);
         
-        let errorMessage = "❌ فشل تسجيل الموظف.";
+        let errorMessage = " فشل تسجيل الموظف.";
         
         if (error.response?.data) {
             const errorData = error.response.data;
@@ -639,14 +639,14 @@ const addEmployee = async (newEmployee) => {
             // معالجة أخطاء التحقق من Laravel
             if (errorData.errors) {
                 const validationErrors = Object.values(errorData.errors).flat();
-                errorMessage = "❌ " + validationErrors.join(', ');
+                errorMessage = " " + validationErrors.join(', ');
             } else if (errorData.message) {
-                errorMessage = "❌ " + errorData.message;
+                errorMessage = " " + errorData.message;
             } else if (errorData.error) {
-                errorMessage = "❌ " + errorData.error;
+                errorMessage = " " + errorData.error;
             }
         } else if (error.message) {
-            errorMessage = "❌ " + error.message;
+            errorMessage = " " + error.message;
         }
         
         // إضافة تفاصيل إضافية للخطأ
@@ -685,7 +685,7 @@ const updateEmployee = async (updatedEmployee) => {
                 '';
             
             if (!currentEmployee || currentRoleName !== "مدير المخزن") {
-                showSuccessAlert("❌ يوجد بالفعل مدير مخزن مفعل في النظام!");
+                showSuccessAlert(" يوجد بالفعل مدير مخزن مفعل في النظام!");
                 return;
             }
         }
@@ -712,7 +712,7 @@ const updateEmployee = async (updatedEmployee) => {
             );
             
             if (existingManager) {
-                showSuccessAlert(`❌ القسم "${updatedEmployee.department}" لديه بالفعل مدير مفعل!`);
+                showSuccessAlert(` القسم "${updatedEmployee.department}" لديه بالفعل مدير مفعل!`);
                 return;
             }
         }
@@ -728,7 +728,7 @@ const updateEmployee = async (updatedEmployee) => {
         };
 
         if (!employeeId) {
-            showSuccessAlert("❌ فشل تعديل بيانات الموظف: رقم الموظف غير محدد.");
+            showSuccessAlert(" فشل تعديل بيانات الموظف: رقم الموظف غير محدد.");
             return;
         }
         
@@ -744,11 +744,11 @@ const updateEmployee = async (updatedEmployee) => {
         closeEditModal();
         const employeeName = updatedEmployee.name || 'الموظف';
         showSuccessAlert(
-            `✅ تم تعديل بيانات الموظف ${employeeName} بنجاح!`
+            ` تم تعديل بيانات الموظف ${employeeName} بنجاح!`
         );
     } catch (error) {
         console.error("Error updating employee:", error);
-        const errorMessage = error.response?.data?.message || "❌ فشل تعديل بيانات الموظف.";
+        const errorMessage = error.response?.data?.message || " فشل تعديل بيانات الموظف.";
         showSuccessAlert(errorMessage);
     }
 };
@@ -764,7 +764,7 @@ const printTable = () => {
     const resultsCount = filteredEmployees.value.length;
 
     if (resultsCount === 0) {
-        showSuccessAlert("❌ لا توجد بيانات للطباعة.");
+        showSuccessAlert(" لا توجد بيانات للطباعة.");
         return;
     }
 
@@ -772,7 +772,7 @@ const printTable = () => {
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
         showSuccessAlert(
-            "❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
+            " فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
         );
         return;
     }
@@ -875,7 +875,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 </script>

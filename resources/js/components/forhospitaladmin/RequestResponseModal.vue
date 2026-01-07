@@ -107,16 +107,16 @@
                     </div>
                 </div>
 
-                <!-- نموذج الرد -->
-                <div v-if="!showRejectionNote" class="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                <!-- نموذج الرد (يظهر فقط للشكاوى، وليس لطلبات النقل) -->
+                <div v-if="!showRejectionNote && requestData?.requestType !== 'النقل' && requestData?.type !== 'transfer'" class="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:chat-line-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                        {{ (requestData?.requestType === 'النقل' || requestData?.type === 'transfer') ? 'قبول الطلب' : 'الرد على الطلب' }}
+                        الرد على الطلب
                     </h3>
 
                     <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                        <!-- حقل الرد/الملاحظات (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
-                        <label v-if="requestData?.type !== 'transfer' && requestData?.requestType !== 'النقل'" class="block mb-4">
+                        <!-- حقل الرد/الملاحظات -->
+                        <label class="block mb-4">
                             <span class="font-bold text-gray-700 mb-2 block">نص الرد</span>
                             <textarea
                                 v-model="responseText"
@@ -138,8 +138,8 @@
                             </p>
                         </label>
                         
-                        <!-- حقل الملاحظات الإضافية (يظهر فقط للشكاوى، وليس لطلبات النقل عند الموافقة) -->
-                        <!-- <label v-if="requestData?.type !== 'transfer' && requestData?.requestType !== 'النقل'" class="block mt-4">
+                        <!-- حقل الملاحظات الإضافية (اختياري) -->
+                        <!-- <label class="block mt-4">
                             <span class="font-bold text-gray-700 mb-2 block">ملاحظات إضافية (اختياري)</span>
                             <textarea
                                 v-model="additionalNotes"
@@ -235,7 +235,7 @@
 
                         <button
                             @click="submitResponse"
-                            class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
+                            class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2 w-full sm:w-auto"
                             :disabled="isLoading || isSubmitting"
                         >
                             <Icon v-if="isSubmitting" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />

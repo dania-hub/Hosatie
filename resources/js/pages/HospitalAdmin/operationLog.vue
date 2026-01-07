@@ -40,11 +40,11 @@ api.interceptors.response.use(
     (error) => {
         console.error('API Error:', error.response?.data || error.message);
         if (error.response?.status === 401) {
-            showSuccessAlert('❌ انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
+            showSuccessAlert(' انتهت جلسة العمل. يرجى تسجيل الدخول مرة أخرى.');
         } else if (error.response?.status === 403) {
-            showSuccessAlert('❌ ليس لديك الصلاحية للوصول إلى هذه البيانات.');
+            showSuccessAlert(' ليس لديك الصلاحية للوصول إلى هذه البيانات.');
         } else if (!error.response) {
-            showSuccessAlert('❌ فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
+            showSuccessAlert(' فشل في الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
         }
         return Promise.reject(error);
     }
@@ -81,7 +81,7 @@ const fetchOperations = async () => {
         console.error("Error response:", err.response);
         error.value = err.response?.data?.message || err.message || "فشل في تحميل البيانات.";
         operations.value = []; // تعيين قائمة فارغة في حالة الخطأ
-        showSuccessAlert("❌ " + error.value);
+        showSuccessAlert(" " + error.value);
     } finally {
         isLoading.value = false;
     }
@@ -195,7 +195,7 @@ const printTable = () => {
     const printWindow = window.open('', '_blank', 'height=600,width=800');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
@@ -275,7 +275,7 @@ const printTable = () => {
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
     };
 };
 

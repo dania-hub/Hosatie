@@ -111,6 +111,7 @@ const filteredDrugss = computed(() => {
       const searchFields = [
         drug.drugCode?.toString(),
         drug.drugName,
+        drug.genericName,
         drug.quantity?.toString(),
         drug.neededQuantity?.toString(),
         drug.expiryDate,
@@ -332,7 +333,7 @@ const printTable = () => {
   const printWindow = window.open("", "_blank", "height=600,width=800");
 
   if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-    showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+    showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
     return;
   }
 
@@ -359,6 +360,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <tr>
  <th>رمز الدواء</th>
  <th>اسم الدواء</th>
+ <th>الاسم العلمي</th>
  <th>الكمية المتوفرة</th>
  <th>الكمية المحتاجة</th>
  <th>تاريخ إنتهاء الصلاحية</th>
@@ -372,6 +374,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 <tr>
  <td>${drug.drugCode || ''}</td>
  <td>${drug.drugName || ''}</td>
+ <td>${drug.genericName || 'غير محدد'}</td>
  <td>${drug.quantity || 0}</td>
  <td>${drug.neededQuantity || 0}</td>
  <td>${drug.expiryDate || ''}</td>
@@ -687,6 +690,9 @@ onMounted(async () => {
                                             <th class="drug-name-col">
                                                 اسم الدواء
                                             </th>
+                                            <th class="scientific-name-col">
+                                                الاسم العلمي
+                                            </th>
                                             <th class="quantity-col" colspan="2">
                                                 الكمية المتوفرة
                                             </th>
@@ -699,6 +705,7 @@ onMounted(async () => {
                                             <th class="actions-col">الإجراءات</th>
                                         </tr>
                                         <tr>
+                                            <th></th>
                                             <th></th>
                                             <th></th>
                                             <th class="quantity-col bg-[#8abcc0]">
@@ -720,12 +727,12 @@ onMounted(async () => {
 
                                     <tbody class="text-gray-800">
                                         <tr v-if="isLoading">
-                                            <td colspan="8" class="p-4">
+                                            <td colspan="9" class="p-4">
                                                 <TableSkeleton :rows="5" />
                                             </td>
                                         </tr>
                                         <tr v-else-if="error">
-                                            <td colspan="8" class="py-12">
+                                            <td colspan="9" class="py-12">
                                                 <ErrorState :message="error" :retry="fetchDrugs" />
                                             </td>
                                         </tr>
@@ -740,6 +747,9 @@ onMounted(async () => {
                                                 </td>
                                                 <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
                                                     {{ drug.drugName }}
+                                                </td>
+                                                <td :class="getTextColorClass(drug.quantity, drug.neededQuantity)">
+                                                    {{ drug.genericName || 'غير محدد' }}
                                                 </td>
                                                 <td :class="getTextColorClass(drug.pharmacyQuantity || 0, drug.pharmacyNeededQuantity || 0)">
                                                     <span class="font-bold">{{ drug.pharmacyQuantity || 0 }}</span>
@@ -772,7 +782,7 @@ onMounted(async () => {
                                                 </td>
                                             </tr>
                                             <tr v-if="filteredDrugss.length === 0">
-                                                <td colspan="8" class="py-12">
+                                                <td colspan="9" class="py-12">
                                                     <EmptyState message="لا توجد أدوية في المخزون" />
                                                 </td>
                                             </tr>
@@ -853,6 +863,10 @@ onMounted(async () => {
 .drug-name-col {
     width: auto;
     min-width: 170px;
+}
+.scientific-name-col {
+    width: auto;
+    min-width: 150px;
 }
 .min-w-\[700px\] {
     min-width: 700px;

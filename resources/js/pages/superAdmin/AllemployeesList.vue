@@ -36,21 +36,18 @@ api.interceptors.request.use(
 // ----------------------------------------------------
 // 1. إعدادات API
 // ----------------------------------------------------
-const API_URL = "/data-entry/employees";
+const API_URL = "/super-admin/users";
 const DEPARTMENTS_API_URL = "/departments";
 const ROLES_API_URL = "/employee-roles";
-const HOSPITALS_API_URL = "/hospitals";
+const HOSPITALS_API_URL = "/super-admin/hospitals";
 
 // ----------------------------------------------------
-// 2. البيانات الوهمية (نفس البيانات السابقة)
+// 2. البيانات الوهمية (لتفادي الأخطاء عند فشل الاتصال)
 // ----------------------------------------------------
-// const mockEmployees = [];
-
-// const mockDepartments = [];
-
-// const mockEmployeeRoles = [];
-
-// const mockHospitals = [];
+const mockEmployees = [];
+const mockDepartments = [];
+const mockEmployeeRoles = [];
+const mockHospitals = [];
 
 // ----------------------------------------------------
 // 3. الحالة العامة للتطبيق
@@ -87,26 +84,46 @@ const formatDateForDisplay = (dateString) => {
 const processEmployeeData = (employeeData) => {
     return employeeData.map(emp => {
         // استخراج القيم من الهياكل المختلفة
-        const hospitalName = emp.hospital?.name || emp.hospital || "غير محدد";
-        const hospitalId = emp.hospital?.id || emp.hospitalId || null;
-        const departmentName = emp.department?.name || emp.department || "غير محدد";
-        const departmentId = emp.department?.id || emp.departmentId || null;
-        const roleName = emp.role?.name || emp.role || "غير محدد";
-        const roleId = emp.role?.id || emp.roleId || null;
+        const hospitalName = emp.hospital?.name || "-";
+        const hospitalId = emp.hospital?.id || null;
+        const supplierName = emp.supplier?.name || "-";
+        const supplierId = emp.supplier?.id || null;
         
+        // في حالة المستخدمين من جدول Users
+        const name = emp.fullName || emp.full_name || emp.name || "";
+        const roleName = emp.typeArabic || emp.role?.name || emp.role || "-";
+        const roleId = emp.role?.id || null;
+        const birthDate = emp.birthDate || emp.birth;
+        const isActive = emp.status === 'active' || emp.isActive === true;
+
         return {
             ...emp,
-            nameDisplay: emp.name || "",
+            isActive,
+            nameDisplay: name,
             nationalIdDisplay: emp.nationalId || "",
-            birthDisplay: emp.birth ? formatDateForDisplay(emp.birth) : "",
+            birthDisplay: birthDate ? formatDateForDisplay(birthDate) : "",
             hospitalName,
             hospitalId,
-            departmentName,
-            departmentId,
+            supplierName,
+            supplierId,
+            departmentName: emp.department?.name || "-",
+            departmentId: emp.department?.id || null,
             roleName,
             roleId
         };
     });
+};
+
+
+const getHospitalName = (id) => {
+    const hospital = availableHospitals.value.find(h => h.id == id);
+    return hospital ? hospital.name : 'غير موجود';
+};
+
+const getRoleName = (id) => {
+    const role = employeeRoles.value.find(r => r.id == id);
+    if(id.toString() === role?.name) return role.name; // Handle case where ID is the name itself
+    return role ? role.name : 'غير موجود';
 };
 
 // ----------------------------------------------------
@@ -118,7 +135,15 @@ const fetchEmployees = async () => {
     
     try {
         const response = await api.get(API_URL);
-        employees.value = processEmployeeData(response.data);
+        // Correctly handle Laravel base API structure: { success: true, data: [...] }
+        const data = response.data.data ? response.data.data : response.data; 
+        
+        if (Array.isArray(data)) {
+             employees.value = processEmployeeData(data);
+        } else {
+             employees.value = [];
+             console.error("API response format error: expected array", data);
+        }
     } catch (err) {
         console.warn("استخدام بيانات وهمية للموظفين:", err.message);
         error.value = "فشل في جلب بيانات الموظفين. يرجى المحاولة مرة أخرى.";
@@ -128,48 +153,72 @@ const fetchEmployees = async () => {
     }
 };
 
-const fetchDepartments = async () => {
-    loadingDepartments.value = true;
-    departmentsError.value = null;
+// ------------------------------
+// Extract Filter Options from Employees List
+// (Instead of fetching 404 APIs)
+// ------------------------------
+watch(employees, (newEmployees) => {
+    // 1. Department Filter Options
+    const deps = new Map();
+    newEmployees.forEach(e => {
+        if(e.departmentId && e.departmentName && e.departmentName !== "-" && e.departmentName !== "غير محدد") {
+            deps.set(e.departmentId, e.departmentName);
+        }
+    });
+    // Add unique departments or keep empty if none
+    availableDepartments.value = Array.from(deps.entries()).map(([id, name]) => ({ id, name }));
+
+    // 2. Role Filter Options
+    const roles = new Map();
+    newEmployees.forEach(e => { 
+        // using roleId or roleName as key
+        if(e.roleName && e.roleName !== "-" && e.roleName !== "غير محدد") {
+             // If roleId not present, generate one or use Name. 
+             // Ideally API returns roleId. If not, use roleName as ID.
+             const rId = e.roleId || e.roleName;
+             roles.set(rId, e.roleName);
+        }
+    });
+    employeeRoles.value = Array.from(roles.entries()).map(([id, name]) => ({ id, name }));
     
-    try {
-        const response = await api.get(DEPARTMENTS_API_URL);
-        availableDepartments.value = response.data;
-    } catch (err) {
-        console.warn("استخدام بيانات وهمية للأقسام:", err.message);
-        availableDepartments.value = mockDepartments;
-    } finally {
-        loadingDepartments.value = false;
-    }
+    // 3. Hospital Filter Options
+    const hosps = new Map();
+    newEmployees.forEach(e => {
+        if(e.hospitalId && e.hospitalName && e.hospitalName !== "-" && e.hospitalName !== "غير محدد") {
+            hosps.set(e.hospitalId, e.hospitalName);
+        }
+    });
+    availableHospitals.value = Array.from(hosps.entries()).map(([id, name]) => ({ id, name }));
+});
+
+const fetchDepartments = async () => {
+    // Removed 404 API call
+    loadingDepartments.value = false;
 };
 
 const fetchEmployeeRoles = async () => {
-    loadingRoles.value = true;
-    rolesError.value = null;
-    
-    try {
-        const response = await api.get(ROLES_API_URL);
-        employeeRoles.value = response.data;
-        filteredRoles.value = response.data;
-    } catch (err) {
-        console.warn("استخدام بيانات وهمية للأدوار:", err.message);
-        employeeRoles.value = mockEmployeeRoles;
-        filteredRoles.value = mockEmployeeRoles;
-    } finally {
-        loadingRoles.value = false;
-    }
+   // Removed 404 API call
+   loadingRoles.value = false;
 };
 
 const fetchHospitals = async () => {
+    // We try to fetch hospitals if the API exists, otherwise we rely on extracted list
+    // OR just remove the call if it's failing. The user mentioned 404s.
+    // However, HOSPITALS_API_URL = "/super-admin/hospitals" SHOULD exist.
+    // Let's keep it but handle failure gracefully without blocking UI
     loadingHospitals.value = true;
     hospitalsError.value = null;
     
     try {
         const response = await api.get(HOSPITALS_API_URL);
-        availableHospitals.value = response.data;
+        // Handle wrapper
+        const data = response.data.data ? response.data.data : response.data;
+        if(Array.isArray(data)) {
+            availableHospitals.value = data;
+        }
     } catch (err) {
-        console.warn("استخدام بيانات وهمية للمستشفيات:", err.message);
-        availableHospitals.value = mockHospitals;
+        console.warn("Could not fetch hospitals list separately, using extracted list.");
+        // Do not set error.value to block UI, just let the extracted list work.
     } finally {
         loadingHospitals.value = false;
     }
@@ -569,7 +618,7 @@ onMounted(async () => {
         <div
             tabindex="0"
             role="button"
-            class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d] h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[110px] w-34"
+            class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d] h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[110px]"
         >
             <span>
                 {{ roleFilter === 'all' ? 'جميع الأدوار' : getRoleName(roleFilter) }}
@@ -578,7 +627,7 @@ onMounted(async () => {
         </div>
         <ul
             tabindex="0"
-            class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-50 text-right  overflow-y-auto"
+            class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right  overflow-y-auto"
         >
             <li>
                 <a
@@ -744,14 +793,14 @@ onMounted(async () => {
                                     class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                                 >
                                     <tr>
-                                        <th class="file-number-col">رقم الملف</th>
+                                        <!-- <th class="file-number-col">رقم الملف</th> -->
                                         <th class="name-col">الإسم الرباعي</th>
                                         <th class="role-col">الدور الوظيفي</th>
                                         <th class="department-col">القسم</th>
                                         <th class="hospital-col">المستشفى</th>
-                                        <th class="status-col">الحالة</th>
+                                        <th class="supplier-col">شركة التوريد</th>
                                         <th class="phone-col">رقم الهاتف</th>
-                                        <th class="actions-col">الإجراءات</th>
+                                        <th class="status-col">الحالة</th>
                                     </tr>
                                 </thead>
 
@@ -772,11 +821,11 @@ onMounted(async () => {
                                             :key="employee.fileNumber || index"
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            <td class="file-number-col">
+                                            <!-- <td class="file-number-col">
                                                 {{ employee.fileNumber || 'N/A' }}
-                                            </td>
+                                            </td> -->
                                             <td class="name-col">
-                                                {{ employee.name || 'N/A' }}
+                                                {{ employee.nameDisplay || employee.fullName || 'N/A' }}
                                             </td>
                                             <td class="role-col">
                                                 {{ employee.roleName }}
@@ -786,6 +835,12 @@ onMounted(async () => {
                                             </td>
                                             <td class="hospital-col">
                                                 {{ employee.hospitalName }}
+                                            </td>
+                                            <td class="supplier-col">
+                                                {{ employee.supplierName }}
+                                            </td>
+                                            <td class="phone-col">
+                                                {{ employee.phone || 'N/A' }}
                                             </td>
                                             <td class="status-col">
                                                 <span
@@ -803,24 +858,7 @@ onMounted(async () => {
                                                     }}
                                                 </span>
                                             </td>
-                                            <td class="phone-col">
-                                                {{ employee.phone || 'N/A' }}
-                                            </td>
 
-                                            <td class="actions-col">
-                                                <div class="flex gap-3 justify-center items-center">
-                                                    <button
-                                                        @click="openViewModal(employee)"
-                                                        class="p-1 rounded-full hover:bg-green-100 transition-colors"
-                                                        title="عرض البيانات"
-                                                    >
-                                                        <Icon
-                                                            icon="tabler:eye-minus"
-                                                            class="w-5 h-5 text-green-600"
-                                                        />
-                                                    </button>
-                                                </div>
-                                            </td>
                                         </tr>
 
                                         <tr v-if="filteredEmployees.length === 0">
@@ -892,28 +930,14 @@ onMounted(async () => {
     width: 90px;
     min-width: 90px;
 }
-.status-col {
-    width: 100px;
-    min-width: 100px;
-}
-.role-col {
-    width: 130px;
-    min-width: 130px;
-}
-.department-col {
-    width: 150px;
-    min-width: 150px;
-}
-.hospital-col {
-    width: 150px;
-    min-width: 150px;
-}
-.phone-col {
-    width: 120px;
-    min-width: 120px;
-}
+.status-col,
+.role-col,
+.department-col,
+.hospital-col,
+.supplier-col,
+.phone-col,
 .name-col {
-    width: 170px;
-    min-width: 150px;
+    width: 14%;
+    min-width: 120px;
 }
 </style>

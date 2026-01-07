@@ -23,11 +23,11 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
-            $query = User::with(['hospital', 'supplier'])
-                ->whereIn('type', ['hospital_admin', 'supplier_admin']);
+            $query = User::with(['hospital', 'supplier', 'department', 'managedDepartment'])
+                ->where('type', '!=', 'patient');
 
             // البحث
             if ($request->has('search')) {
@@ -40,9 +40,20 @@ class UserSuperController extends BaseApiController
                 });
             }
 
-            // التصفية حسب النوع
+            // التصفية حسب النوع (المفرد)
             if ($request->has('type')) {
                 $query->where('type', $request->input('type'));
+            }
+
+            // التصفية حسب الأنواع المتعددة
+            if ($request->has('types')) {
+                $types = $request->input('types');
+                if (is_string($types)) {
+                    $types = explode(',', $types);
+                }
+                if (is_array($types) && count($types) > 0) {
+                     $query->whereIn('type', $types);
+                }
             }
 
             // التصفية حسب الحالة
@@ -61,6 +72,42 @@ class UserSuperController extends BaseApiController
             }
 
             $users = $query->orderBy('full_name')->get()->map(function ($u) {
+                // Initialize type and department data
+                $type = $u->type;
+                $departmentData = null;
+
+                // 1. Check direct department relationship (belongsTo via department_id)
+                if ($u->department) {
+                    $departmentData = [
+                        'id' => $u->department->id,
+                        'name' => $u->department->name
+                    ];
+                    // If user has a department relationship, mark as department_head per requirement
+                    $type = 'department_head';
+                }
+
+                // 2. Check managed department relationship (hasOne via head_user_id)
+                if (!$departmentData && $u->managedDepartment) {
+                    $departmentData = [
+                        'id' => $u->managedDepartment->id,
+                        'name' => $u->managedDepartment->name
+                    ];
+                    $type = 'department_head';
+                }
+
+                // 3. Fallback: Manual check for managed department via head_user_id query
+                // This catches cases where the relationship didn't load but the ID link exists
+                if (!$departmentData) {
+                     $managedDept = \App\Models\Department::where('head_user_id', $u->id)->first();
+                     if ($managedDept) {
+                         $departmentData = [
+                             'id' => $managedDept->id,
+                             'name' => $managedDept->name
+                         ];
+                         $type = 'department_head';
+                     }
+                }
+
                 return [
                     'id' => $u->id,
                     'fullName' => $u->full_name,
@@ -68,8 +115,8 @@ class UserSuperController extends BaseApiController
                     'phone' => $u->phone,
                     'nationalId' => $u->national_id,
                     'birthDate' => $u->birth_date ? $u->birth_date->format('Y-m-d') : null,
-                    'type' => $u->type,
-                    'typeArabic' => $this->translateUserType($u->type),
+                    'type' => $type,
+                    'typeArabic' => $this->translateUserType($type),
                     'status' => $u->status,
                     'statusArabic' => $this->translateStatus($u->status),
                     'hospital' => $u->hospital ? [
@@ -82,11 +129,12 @@ class UserSuperController extends BaseApiController
                         'name' => $u->supplier->name,
                         'code' => $u->supplier->code,
                     ] : null,
+                    'department' => $departmentData,
                     'createdAt' => optional($u->created_at)->format('Y-m-d'),
                 ];
             });
 
-            return $this->sendSuccess($users, 'تم جلب قائمة المستخدمين بنجاح');
+            return $this->sendSuccess($users, 'تم تحميل قائمة المدراء بنجاح');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Users Index Error');
@@ -103,7 +151,7 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             $targetUser = User::with(['hospital', 'supplier', 'creator'])
@@ -158,7 +206,7 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             $validator = Validator::make($request->all(), [
@@ -171,20 +219,20 @@ class UserSuperController extends BaseApiController
                 'hospital_id' => 'required_if:type,hospital_admin|exists:hospitals,id',
                 'supplier_id' => 'required_if:type,supplier_admin|exists:suppliers,id',
             ], [
-                'type.required' => 'نوع المستخدم مطلوب',
-                'type.in' => 'نوع المستخدم غير صحيح',
-                'full_name.required' => 'الاسم الكامل مطلوب',
-                'email.required' => 'البريد الإلكتروني مطلوب',
-                'email.unique' => 'البريد الإلكتروني مستخدم بالفعل',
-                'phone.required' => 'رقم الهاتف مطلوب',
-                'phone.unique' => 'رقم الهاتف مستخدم بالفعل',
-                'national_id.unique' => 'الرقم الوطني مستخدم بالفعل',
-                'hospital_id.required_if' => 'المستشفى مطلوب لمدير النظام',
-                'supplier_id.required_if' => 'المورد مطلوب لمدير المورد',
+                'type.required' => 'يرجى تحديد نوع المدير (مستشفى أو مورد)',
+                'type.in' => 'نوع المستخدم المختار غير صحيح',
+                'full_name.required' => 'الاسم الرباعي مطلوب',
+                'email.required' => 'البريد الإلكتروني حقل إلزامي',
+                'email.unique' => 'عذراً، هذا البريد الإلكتروني مسجل مسبقاً',
+                'phone.required' => 'رقم الهاتف حقل إلزامي',
+                'phone.unique' => 'عذراً، رقم الهاتف هذا مسجل مسبقاً',
+                'national_id.unique' => 'عذراً، الرقم الوطني هذا مسجل مسبقاً',
+                'hospital_id.required_if' => 'يرجى اختيار المستشفى لمدير النظام',
+                'supplier_id.required_if' => 'يرجى اختيار الشركة الموردة لمدير المورد',
             ]);
 
             if ($validator->fails()) {
-                return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+                return $this->sendError('عذراً، البيانات المدخلة غير صحيحة. يرجى التحقق منها.', $validator->errors(), 422);
             }
 
             // توليد كلمة مرور عشوائية
@@ -214,7 +262,7 @@ class UserSuperController extends BaseApiController
                 'fullName' => $newUser->full_name,
                 'email' => $newUser->email,
                 'temporaryPassword' => $randomPassword, // في الواقع يُرسل عبر البريد فقط
-            ], 'تم إنشاء الحساب بنجاح. تم إرسال بيانات الدخول إلى البريد الإلكتروني', 201);
+            ], '✅ تم إنشاء حساب المدير بنجاح. تم إرسال بيانات الدخول إلى البريد الإلكتروني.', 201);
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Store Error');
@@ -231,7 +279,7 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             $targetUser = User::whereIn('type', ['hospital_admin', 'supplier_admin'])
@@ -243,24 +291,28 @@ class UserSuperController extends BaseApiController
                 'phone' => 'sometimes|required|string|max:20|unique:users,phone,' . $id,
                 'national_id' => 'nullable|string|max:20|unique:users,national_id,' . $id,
                 'birth_date' => 'nullable|date',
+                'hospital_id' => 'nullable|exists:hospitals,id',
+                'supplier_id' => 'nullable|exists:suppliers,id',
             ], [
-                'email.unique' => 'البريد الإلكتروني مستخدم بالفعل',
-                'phone.unique' => 'رقم الهاتف مستخدم بالفعل',
-                'national_id.unique' => 'الرقم الوطني مستخدم بالفعل',
+                'email.unique' => 'عذراً، هذا البريد الإلكتروني مسجل مسبقاً',
+                'phone.unique' => 'عذراً، رقم الهاتف هذا مسجل مسبقاً',
+                'national_id.unique' => 'عذراً، الرقم الوطني هذا مسجل مسبقاً',
+                'hospital_id.exists' => 'عذراً، المستشفى المختار غير صحيح',
+                'supplier_id.exists' => 'عذراً، المورد المختار غير صحيح',
             ]);
 
             if ($validator->fails()) {
-                return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+                return $this->sendError('عذراً، البيانات المدخلة غير صحيحة. يرجى التحقق منها.', $validator->errors(), 422);
             }
 
             $targetUser->update($request->only([
-                'full_name', 'email', 'phone', 'national_id', 'birth_date'
+                'full_name', 'email', 'phone', 'national_id', 'birth_date', 'hospital_id', 'supplier_id'
             ]));
 
             return $this->sendSuccess([
                 'id' => $targetUser->id,
                 'fullName' => $targetUser->full_name,
-            ], 'تم تعديل بيانات المستخدم بنجاح');
+            ], '✅ تم تحديث بيانات المدير بنجاح');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Update Error');
@@ -277,7 +329,7 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             $targetUser = User::whereIn('type', ['hospital_admin', 'supplier_admin'])
@@ -296,7 +348,7 @@ class UserSuperController extends BaseApiController
                 'id' => $targetUser->id,
                 'fullName' => $targetUser->full_name,
                 'status' => 'inactive',
-            ], 'تم تعطيل الحساب بنجاح');
+            ], '✅ تم تعطيل الحساب بنجاح');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Deactivate Error');
@@ -313,7 +365,7 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             $targetUser = User::whereIn('type', ['hospital_admin', 'supplier_admin'])
@@ -329,7 +381,7 @@ class UserSuperController extends BaseApiController
                 'id' => $targetUser->id,
                 'fullName' => $targetUser->full_name,
                 'status' => 'active',
-            ], 'تم تفعيل الحساب بنجاح');
+            ], '✅ تم تفعيل الحساب بنجاح');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Activate Error');
@@ -346,7 +398,7 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             $targetUser = User::whereIn('type', ['hospital_admin', 'supplier_admin'])
@@ -369,7 +421,7 @@ class UserSuperController extends BaseApiController
                 'id' => $targetUser->id,
                 'email' => $targetUser->email,
                 'temporaryPassword' => $newPassword, // في الواقع يُرسل عبر البريد فقط
-            ], 'تم إعادة تعيين كلمة المرور بنجاح. تم إرسال كلمة المرور الجديدة إلى البريد الإلكتروني');
+            ], '✅ تم إعادة تعيين كلمة المرور بنجاح. تم إرسال كلمة المرور الجديدة إلى البريد الإلكتروني.');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Reset Password Error');
@@ -386,12 +438,12 @@ class UserSuperController extends BaseApiController
             $user = $request->user();
             
             if ($user->type !== 'super_admin') {
-                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
             }
 
             // التحقق من التنسيق
             if (!preg_match('/^(021|092|091|093|094)\d{7}$/', $phone)) {
-                return $this->sendError('تنسيق رقم الهاتف غير صحيح', null, 422);
+                return $this->sendError('عذراً، تنسيق رقم الهاتف غير صحيح. يجب أن يبدأ بـ 021, 091, 092, 093, 094', null, 422);
             }
 
             // التحقق من وجود الرقم في users و hospitals و suppliers
@@ -403,7 +455,7 @@ class UserSuperController extends BaseApiController
             return $this->sendSuccess([
                 'exists' => $exists,
                 'phone' => $phone
-            ], $exists ? 'رقم الهاتف موجود بالفعل في النظام' : 'رقم الهاتف متاح');
+            ], $exists ? 'عذراً، رقم الهاتف هذا مسجل مسبقاً' : 'رقم الهاتف متاح للاستخدام');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Check Phone Error');
@@ -424,6 +476,7 @@ class UserSuperController extends BaseApiController
             'doctor' => 'طبيب',
             'department_head' => 'مدير القسم',
             'patient' => 'مريض',
+            'data_entry' => 'مدخل البيانات',
             default => $type,
         };
     }

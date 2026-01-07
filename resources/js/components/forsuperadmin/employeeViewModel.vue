@@ -97,6 +97,19 @@ const emit = defineEmits(['close']);
                         />
                     </div>
 
+                    <!-- Supplier -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            المورد
+                        </label>
+                        <Input
+                            readonly
+                            :model-value="patient.supplier || '-'"
+                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 font-bold text-[#2E5077]"
+                        />
+                    </div>
+
                 
 
                   

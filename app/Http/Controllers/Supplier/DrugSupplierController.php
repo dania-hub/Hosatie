@@ -161,6 +161,150 @@ class DrugSupplierController extends BaseApiController
     }
 
     /**
+     * جلب تفاصيل دواء معين من قاعدة البيانات
+     * GET /api/supplier/drugs/{id}
+     */
+    public function show(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+
+            if ($user->type !== 'supplier_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            // التأكد من وجود supplier_id و hospital_id
+            if (!$user->supplier_id) {
+                return $this->sendError('المستخدم غير مرتبط بمورد', null, 403);
+            }
+
+            if (!$user->hospital_id) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى', null, 403);
+            }
+
+            // التحقق من أن المعرف هو معرف Inventory أو معرف Drug
+            // إذا كان يبدأ بـ "unregistered_"، فهو دواء غير مسجل
+            if (strpos($id, 'unregistered_') === 0) {
+                // دواء غير مسجل - جلب من جدول drugs مباشرة
+                $drugId = str_replace('unregistered_', '', $id);
+                $drug = Drug::find($drugId);
+                
+                if (!$drug) {
+                    return $this->sendError('الدواء غير موجود', null, 404);
+                }
+
+                // حساب الكمية المحتاجة من الطلبات
+                $externalRequests = ExternalSupplyRequest::where('hospital_id', $user->hospital_id)
+                    ->where('status', 'approved')
+                    ->where('supplier_id', $user->supplier_id)
+                    ->with(['items' => function($query) use ($drugId) {
+                        $query->where('drug_id', $drugId);
+                    }])
+                    ->get();
+
+                $totalRequestedQty = 0;
+                foreach ($externalRequests as $request) {
+                    foreach ($request->items as $item) {
+                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
+                        $totalRequestedQty += $qty;
+                    }
+                }
+
+                $data = [
+                    'id' => 'unregistered_' . $drug->id,
+                    'drugCode' => $drug->id,
+                    'drugName' => $drug->name,
+                    'name' => $drug->name,
+                    'genericName' => $drug->generic_name,
+                    'strength' => $drug->strength,
+                    'form' => $drug->form,
+                    'category' => is_object($drug->category)
+                        ? ($drug->category->name ?? 'غير مصنف')
+                        : ($drug->category ?? 'غير مصنف'),
+                    'unit' => $drug->unit,
+                    'maxMonthlyDose' => $drug->max_monthly_dose,
+                    'status' => $drug->status,
+                    'manufacturer' => $drug->manufacturer,
+                    'country' => $drug->country,
+                    'utilizationType' => $drug->utilization_type,
+                    'indications' => $drug->indications,
+                    'warnings' => $drug->warnings,
+                    'contraindications' => $drug->contraindications,
+                    'quantity' => 0,
+                    'neededQuantity' => $totalRequestedQty,
+                    'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : 'غير محدد',
+                    'isUnregistered' => true,
+                ];
+
+                return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح');
+            } else {
+                // دواء مسجل - جلب من Inventory مع معلومات Drug
+                $inventory = Inventory::with('drug')
+                    ->where('supplier_id', $user->supplier_id)
+                    ->where('drug_id', $id)
+                    ->whereNull('warehouse_id')
+                    ->whereNull('pharmacy_id')
+                    ->first();
+
+                if (!$inventory || !$inventory->drug) {
+                    return $this->sendError('الدواء غير موجود في المخزون', null, 404);
+                }
+
+                $drug = $inventory->drug;
+
+                // حساب الكمية المحتاجة من الطلبات
+                $externalRequests = ExternalSupplyRequest::where('hospital_id', $user->hospital_id)
+                    ->where('status', 'approved')
+                    ->where('supplier_id', $user->supplier_id)
+                    ->with(['items' => function($query) use ($drug) {
+                        $query->where('drug_id', $drug->id);
+                    }])
+                    ->get();
+
+                $totalRequestedQty = 0;
+                foreach ($externalRequests as $request) {
+                    foreach ($request->items as $item) {
+                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
+                        $totalRequestedQty += $qty;
+                    }
+                }
+
+                $neededQuantity = max(0, $totalRequestedQty - $inventory->current_quantity);
+
+                $data = [
+                    'id' => $drug->id,
+                    'drugCode' => $drug->id,
+                    'drugName' => $drug->name,
+                    'name' => $drug->name,
+                    'genericName' => $drug->generic_name,
+                    'strength' => $drug->strength,
+                    'form' => $drug->form,
+                    'category' => is_object($drug->category)
+                        ? ($drug->category->name ?? 'غير مصنف')
+                        : ($drug->category ?? 'غير مصنف'),
+                    'unit' => $drug->unit,
+                    'maxMonthlyDose' => $drug->max_monthly_dose,
+                    'status' => $drug->status,
+                    'manufacturer' => $drug->manufacturer,
+                    'country' => $drug->country,
+                    'utilizationType' => $drug->utilization_type,
+                    'indications' => $drug->indications,
+                    'warnings' => $drug->warnings,
+                    'contraindications' => $drug->contraindications,
+                    'quantity' => $inventory->current_quantity,
+                    'neededQuantity' => $neededQuantity,
+                    'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : 'غير محدد',
+                    'isUnregistered' => false,
+                ];
+
+                return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح');
+            }
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Supplier Drug Show Error');
+        }
+    }
+
+    /**
      * جلب جميع الأدوية للبحث
      * GET /api/supplier/drugs/all
      */

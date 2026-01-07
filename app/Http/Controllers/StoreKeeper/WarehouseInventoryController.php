@@ -165,6 +165,124 @@ class WarehouseInventoryController extends BaseApiController
         return response()->json($drugs);
     }
 
+    // GET /api/storekeeper/drugs/{id}
+    // جلب تفاصيل دواء معين من قاعدة البيانات
+    public function show(Request $request, $id)
+    {
+        $user = $request->user();
+
+        if ($user->type !== 'warehouse_manager') {
+            return response()->json(['message' => 'غير مصرح'], 403);
+        }
+
+        // التحقق من أن المعرف هو معرف Inventory أو معرف Drug
+        // إذا كان يبدأ بـ "unregistered_"، فهو دواء غير مسجل
+        if (strpos($id, 'unregistered_') === 0) {
+            // دواء غير مسجل - جلب من جدول drugs مباشرة
+            $drugId = str_replace('unregistered_', '', $id);
+            $drug = Drug::find($drugId);
+            
+            if (!$drug) {
+                return response()->json(['message' => 'الدواء غير موجود'], 404);
+            }
+
+            // حساب الكمية المحتاجة من الطلبات
+            $internalRequests = InternalSupplyRequest::where('status', 'pending')
+                ->whereHas('pharmacy', function($query) use ($user) {
+                    $query->where('hospital_id', $user->hospital_id);
+                })
+                ->with(['items' => function($query) use ($drugId) {
+                    $query->where('drug_id', $drugId);
+                }])
+                ->get();
+
+            $totalRequestedQty = 0;
+            foreach ($internalRequests as $request) {
+                foreach ($request->items as $item) {
+                    $totalRequestedQty += (int)($item->requested_qty ?? 0);
+                }
+            }
+
+            return response()->json([
+                'id' => 'unregistered_' . $drug->id,
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'indications' => $drug->indications,
+                'warnings' => $drug->warnings,
+                'contraindications' => $drug->contraindications,
+                'quantity' => 0,
+                'neededQuantity' => $totalRequestedQty,
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'isUnregistered' => true,
+            ]);
+        } else {
+            // دواء مسجل - جلب من Inventory مع معلومات Drug
+            $item = Inventory::with('drug')
+                ->where('warehouse_id', $user->warehouse_id)
+                ->find($id);
+
+            if (!$item || !$item->drug) {
+                return response()->json(['message' => 'الدواء غير موجود في المخزون'], 404);
+            }
+
+            $drug = $item->drug;
+
+            // حساب الكمية المحتاجة من الطلبات
+            $internalRequests = InternalSupplyRequest::where('status', 'pending')
+                ->whereHas('pharmacy', function($query) use ($user) {
+                    $query->where('hospital_id', $user->hospital_id);
+                })
+                ->with(['items' => function($query) use ($drug) {
+                    $query->where('drug_id', $drug->id);
+                }])
+                ->get();
+
+            $totalRequestedQty = 0;
+            foreach ($internalRequests as $request) {
+                foreach ($request->items as $requestItem) {
+                    $totalRequestedQty += (int)($requestItem->requested_qty ?? 0);
+                }
+            }
+
+            $neededQuantity = max(0, $totalRequestedQty - $item->current_quantity);
+
+            return response()->json([
+                'id' => $item->id,
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'indications' => $drug->indications,
+                'warnings' => $drug->warnings,
+                'contraindications' => $drug->contraindications,
+                'quantity' => $item->current_quantity,
+                'neededQuantity' => $neededQuantity,
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'isUnregistered' => false,
+            ]);
+        }
+    }
+
     // هذه الثلاثة فقط لأن الواجهة الحالية تناديها، لكن منطقك الحقيقي
     // يعتمد على external/internal supply وليس على CRUD مباشر.
     // يمكنك لاحقاً تعطيلها أو حصرها.

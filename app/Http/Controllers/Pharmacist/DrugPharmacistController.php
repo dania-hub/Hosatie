@@ -293,6 +293,150 @@ class DrugPharmacistController extends BaseApiController
     }
 
     /**
+     * GET /api/pharmacist/drugs/{id}
+     * جلب تفاصيل دواء معين من قاعدة البيانات
+     */
+    public function show(Request $request, $id)
+    {
+        $user = $request->user();
+        $pharmacyId = $this->getPharmacistPharmacyId($user);
+        $hospitalId = $user->hospital_id;
+
+        if (!$pharmacyId) {
+            return $this->sendError('المستخدم غير مرتبط بصيدلية.', [], 400);
+        }
+
+        // دالة مساعدة لحساب الكمية المحتاجة
+        $calculateNeededQuantity = function($drugId, $availableQuantity, $hospitalId) {
+            $activePrescriptions = Prescription::where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->whereHas('patient', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId)
+                          ->where('type', 'patient');
+                })
+                ->whereHas('drugs', function($query) use ($drugId) {
+                    $query->where('drugs.id', $drugId);
+                })
+                ->with(['drugs' => function($query) use ($drugId) {
+                    $query->where('drugs.id', $drugId);
+                }])
+                ->get();
+
+            $totalNeededQuantity = 0;
+            $startOfMonth = Carbon::now()->startOfMonth();
+            $endOfMonth = Carbon::now()->endOfMonth();
+
+            foreach ($activePrescriptions as $prescription) {
+                foreach ($prescription->drugs as $drug) {
+                    if ($drug->id != $drugId) continue;
+
+                    $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                    if ($monthlyQty === 0 && isset($drug->pivot->daily_quantity)) {
+                        $monthlyQty = (int)($drug->pivot->daily_quantity ?? 0) * 30;
+                    }
+
+                    if ($monthlyQty > 0) {
+                        $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $prescription->patient_id)
+                            ->where('drug_id', $drugId)
+                            ->where('reverted', false)
+                            ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                            ->sum('quantity_dispensed');
+
+                        $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
+                        if ($remainingQuantity > 0) {
+                            $totalNeededQuantity += $remainingQuantity;
+                        }
+                    }
+                }
+            }
+
+            return max(0, $totalNeededQuantity - $availableQuantity);
+        };
+
+        // التحقق من أن المعرف هو معرف Inventory أو معرف Drug غير مسجل
+        if (strpos($id, 'unregistered_') === 0) {
+            // دواء غير مسجل - جلب من جدول drugs مباشرة
+            $drugId = str_replace('unregistered_', '', $id);
+            $drug = Drug::find($drugId);
+            
+            if (!$drug) {
+                return $this->sendError('الدواء غير موجود', [], 404);
+            }
+
+            // حساب الكمية المحتاجة
+            $neededQuantity = $hospitalId ? $calculateNeededQuantity($drug->id, 0, $hospitalId) : 0;
+
+            $data = [
+                'id' => 'unregistered_' . $drug->id,
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'categoryId' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'indications' => $drug->indications,
+                'warnings' => $drug->warnings,
+                'contraindications' => $drug->contraindications,
+                'quantity' => 0,
+                'neededQuantity' => $neededQuantity,
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'isUnregistered' => true,
+            ];
+
+            return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح');
+        } else {
+            // دواء مسجل - جلب من Inventory مع معلومات Drug
+            $inventory = Inventory::with('drug')
+                ->where('pharmacy_id', $pharmacyId)
+                ->find($id);
+
+            if (!$inventory || !$inventory->drug) {
+                return $this->sendError('الدواء غير موجود في المخزون', [], 404);
+            }
+
+            $drug = $inventory->drug;
+
+            // حساب الكمية المحتاجة
+            $neededQuantity = $hospitalId ? $calculateNeededQuantity($drug->id, $inventory->current_quantity, $hospitalId) : 0;
+
+            $data = [
+                'id' => $inventory->id,
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'categoryId' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'indications' => $drug->indications,
+                'warnings' => $drug->warnings,
+                'contraindications' => $drug->contraindications,
+                'quantity' => $inventory->current_quantity,
+                'neededQuantity' => $neededQuantity,
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'isUnregistered' => false,
+            ];
+
+            return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح');
+        }
+    }
+
+    /**
      * GET /api/pharmacist/drugs/all
      * جلب جميع الأدوية من قاعدة البيانات (لإضافتها لمخزون الصيدلية).
      */

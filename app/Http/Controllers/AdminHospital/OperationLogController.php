@@ -16,18 +16,29 @@ class OperationLogController extends BaseApiController
 {
     public function index(Request $request)
     {
-        // جلب السجلات مع استبعاد جميع العمليات التي قام بها مدير المستشفى
+        $user = $request->user();
+        $hospitalId = $user->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return response()->json([
+                'error' => 'المستخدم غير مرتبط بمستشفى'
+            ], 400);
+        }
+
+        // جلب السجلات مع فلترة حسب hospital_id واستبعاد جميع العمليات التي قام بها مدير المستشفى
         // نستخدم whereHas للفلترة في قاعدة البيانات مباشرة لتحسين الأداء
-        $logs = AuditLog::where(function ($query) {
-            // إما لا يوجد user_id (سجلات قديمة)
-            $query->whereNull('user_id')
-                // أو يوجد user_id لكن user غير موجود (تم حذفه)
-                ->orWhereDoesntHave('user')
-                // أو يوجد user لكنه ليس hospital_admin (استبعاد جميع عمليات hospital_admin)
-                ->orWhereHas('user', function ($q) {
-                    $q->where('type', '!=', 'hospital_admin');
-                });
-        })->latest()->get();
+        $logs = AuditLog::where('hospital_id', $hospitalId)
+            ->where(function ($query) {
+                // إما لا يوجد user_id (سجلات قديمة)
+                $query->whereNull('user_id')
+                    // أو يوجد user_id لكن user غير موجود (تم حذفه)
+                    ->orWhereDoesntHave('user')
+                    // أو يوجد user لكنه ليس hospital_admin (استبعاد جميع عمليات hospital_admin)
+                    ->orWhereHas('user', function ($q) {
+                        $q->where('type', '!=', 'hospital_admin');
+                    });
+            })->latest()->get();
         
         // فلترة إضافية للتأكد من عدم وجود أي عمليات لمدير المستشفى
         $logs = $logs->filter(function ($log) {
@@ -303,6 +314,7 @@ class OperationLogController extends BaseApiController
             'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام توريد خارجي',
             'storekeeper_reject_external_request' => 'رفض طلب توريد خارجي',
+            'supplier_create_external_supply_request' => 'إنشاء طلب توريد خارجي (مورد)',
             'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
             'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',
             'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي (مورد)',

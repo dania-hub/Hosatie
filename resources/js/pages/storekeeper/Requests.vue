@@ -862,7 +862,7 @@ const handleConfirmation = async (confirmationData) => {
                 shipmentsData.value[shipmentIndex].details.rejectionReason = confirmationData.rejectionReason;
             }
             
-            showSuccessAlert(` تم رفض الشحنة رقم ${shipmentNumber} بنجاح`);
+            showSuccessAlert(`تم رفض الشحنة (${shipmentNumber})`);
             
         } else if (confirmationData.itemsToSend) {
             // 🟢 معالجة إرسال الشحنة

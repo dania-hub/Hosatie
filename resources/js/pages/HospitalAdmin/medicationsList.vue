@@ -302,9 +302,28 @@ const getTextColorClass = (quantity, neededQuantity) => {
 // ----------------------------------------------------
 // 8. وظائف العرض
 // ----------------------------------------------------
-const showDrugDetails = (drug) => {
-  selectedDrug.value = drug;
+const isDrugDetailsLoading = ref(false);
+const showDrugDetails = async (drug) => {
+  isDrugDetailsLoading.value = true;
   isDrugPreviewModalOpen.value = true;
+  try {
+    // نستخدم drug.drugCode كونه يمثل معرف الدواء الحقيقي
+    const drugId = drug.drugCode || drug.id;
+    const response = await api.get(`/admin-hospital/drugs/${drugId}`);
+    const data = response.data?.data ?? response.data;
+    selectedDrug.value = data || drug;
+  } catch (e) {
+    console.error('Error fetching drug details:', e);
+    selectedDrug.value = drug; // fallback
+  } finally {
+    isDrugDetailsLoading.value = false;
+  }
+};
+
+const closeDrugPreviewModal = () => {
+  isDrugPreviewModalOpen.value = false;
+  selectedDrug.value = {};
+  isDrugDetailsLoading.value = false;
 };
 
 const openSupplyRequestModal = () => {
@@ -804,7 +823,8 @@ onMounted(async () => {
         <DrugPreviewModal 
             :is-open="isDrugPreviewModalOpen"
             :drug="selectedDrug"
-            @close="isDrugPreviewModalOpen = false"
+            :is-loading="isDrugDetailsLoading"
+            @close="closeDrugPreviewModal"
             @update-drug="updateDrug"
             @delete-drug="deleteDrug"
         />

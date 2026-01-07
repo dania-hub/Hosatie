@@ -488,8 +488,8 @@ const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
     return "bg-white border-gray-300 border";
   }
   
-  const dangerThreshold = neededQty * 0.25; 
-  const warningThreshold = neededQty * 0.5;  
+  const dangerThreshold = neededQty * 0.5; 
+  const warningThreshold = neededQty * 0.55;  
 
   if (qty < dangerThreshold) {
     return " bg-red-50/70 border-r-4 border-red-500 ";
@@ -514,8 +514,8 @@ const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
     return "text-gray-800";
   }
   
-  const dangerThreshold = neededQty * 0.25;
-  const warningThreshold = neededQty * 0.5;
+  const dangerThreshold = neededQty * 0.5;
+  const warningThreshold = neededQty * 0.75;
 
   if (qty < dangerThreshold) {
     return "text-red-700 font-semibold";

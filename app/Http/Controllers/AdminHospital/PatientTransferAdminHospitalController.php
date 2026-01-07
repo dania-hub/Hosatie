@@ -4,6 +4,7 @@ namespace App\Http\Controllers\AdminHospital;
 use App\Services\PatientNotificationService;
 use App\Http\Controllers\BaseApiController;
 use App\Models\PatientTransferRequest;
+use App\Models\Pharmacy;
 use Illuminate\Http\Request;
 
 class PatientTransferAdminHospitalController extends BaseApiController
@@ -118,9 +119,31 @@ class PatientTransferAdminHospitalController extends BaseApiController
             if ($data['status'] === 'approved') {
                 $r->load('patient');
                 
-                // تحديث hospital_id للمريض إلى المستشفى الجديد
+                // تحديث hospital_id و pharmacy_id للمريض إلى المستشفى الجديد
                 if ($r->patient && $r->to_hospital_id) {
                     $r->patient->hospital_id = $r->to_hospital_id;
+                    
+                    // تحديث pharmacy_id إلى الصيدلية الرئيسية للمستشفى الجديد
+                    // البحث عن الصيدلية الرئيسية (التي تحتوي على "رئيس" أو "رئيسية" في الاسم) أو أول صيدلية نشطة
+                    $mainPharmacy = Pharmacy::where('hospital_id', $r->to_hospital_id)
+                        ->where('status', 'active')
+                        ->where(function($query) {
+                            $query->where('name', 'LIKE', '%رئيس%')
+                                  ->orWhere('name', 'LIKE', '%رئيسية%');
+                        })
+                        ->first();
+                    
+                    // إذا لم يتم العثور على صيدلية رئيسية، استخدم أول صيدلية نشطة
+                    if (!$mainPharmacy) {
+                        $mainPharmacy = Pharmacy::where('hospital_id', $r->to_hospital_id)
+                            ->where('status', 'active')
+                            ->first();
+                    }
+                    
+                    if ($mainPharmacy) {
+                        $r->patient->pharmacy_id = $mainPharmacy->id;
+                    }
+                    
                     $r->patient->save();
                 }
                 

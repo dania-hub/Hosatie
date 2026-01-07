@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\AdminHospital;
 use App\Services\PatientNotificationService;
+use App\Services\StaffNotificationService;
 use App\Http\Controllers\BaseApiController;
 use App\Http\Controllers\Controller;
 use App\Models\Complaint;
@@ -11,10 +12,12 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ComplaintHospitalAdminController extends BaseApiController
 { public function __construct(
-        private PatientNotificationService $notifications
+        private PatientNotificationService $notifications,
+        private StaffNotificationService $staffNotifications
     ) {}
     // 1) قائمة الطلبات/الشكاوى
     public function index(Request $request)
@@ -367,6 +370,13 @@ class ComplaintHospitalAdminController extends BaseApiController
                 }
                 
                 $transferRequest->load('patient');
+                
+                // إبلاغ مدير المستشفى المستقبل بالموافقة الأولية
+                try {
+                    $this->staffNotifications->notifyDestinationAdminPreApproved($transferRequest);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to notify destination admin about pre-approval: ' . $e->getMessage());
+                }
 
                 return $this->sendSuccess([
                     'id' => $transferRequest->id,

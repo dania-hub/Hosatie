@@ -9,8 +9,13 @@ use App\Models\Inventory;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\AuditLog;
+use App\Services\StaffNotificationService;
+
 class ShipmentPharmacistController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $staffNotifications
+    ) {}
     /**
      * جلب الملاحظات من audit_log
      */
@@ -298,6 +303,26 @@ class ShipmentPharmacistController extends BaseApiController
                 // - fulfilled_qty: الكمية المستلمة الفعلية من pharmacist (يتم تحديثها هنا)
                 $item->fulfilled_qty = $qtyToAdd;
                 $item->save();
+            }
+
+            // تحقق من وجود نقص أو تلف في أي صنف
+            $hasShortage = false;
+            foreach ($shipment->items as $item) {
+                $sentQty = $item->approved_qty ?? $item->requested_qty ?? 0;
+                $receivedQty = $item->fulfilled_qty ?? 0;
+                if ($receivedQty < $sentQty) {
+                    $hasShortage = true;
+                    break;
+                }
+            }
+
+            if ($hasShortage) {
+                try {
+                    $pharmacyName = $shipment->pharmacy->name ?? 'الصيدلية';
+                    $this->staffNotifications->notifyAdminShipmentDamage($shipment, $pharmacyName);
+                } catch (\Exception $e) {
+                    \Log::error('Failed to notify admin about pharmacist shortage: ' . $e->getMessage());
+                }
             }
 
             DB::commit();

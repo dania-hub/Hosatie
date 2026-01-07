@@ -15,9 +15,13 @@ use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Observers\PrescriptionDrugObserver;
+use App\Services\StaffNotificationService;
 
 class PatientPharmacistController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * GET /api/pharmacist/patients
      * قائمة المرضى مرتبة حسب آخر صرف (الأحدث أولاً).
@@ -449,6 +453,13 @@ class PatientPharmacistController extends BaseApiController
                 // د. خصم الكمية من المخزون والحفظ
                 $inventory->current_quantity -= $item['quantity'];
                 $inventory->save();
+
+                // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
+                try {
+                    $this->notifications->checkAndNotifyLowStock($inventory);
+                } catch (\Exception $e) {
+                    \Log::error('Pharmacy stock alert notification failed', ['error' => $e->getMessage()]);
+                }
                 
                 // حفظ معلومات تغيير المخزون للتراجع
                 $inventoryChanges[] = [

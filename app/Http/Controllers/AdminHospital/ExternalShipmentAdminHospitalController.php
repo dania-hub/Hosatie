@@ -13,8 +13,13 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\StaffNotificationService;
+
 class ExternalShipmentAdminHospitalController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     // 1) قائمة الشحنات - فقط الطلبات من StoreKeeper التي تحتاج موافقة
     public function index(Request $request)
     {
@@ -384,6 +389,13 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
             }
         });
 
+        try {
+            $this->notifications->notifyWarehouseExternalUpdate($r, 'approved');
+            $this->notifications->notifySupplierNewRequest($r);
+        } catch (\Exception $e) {
+            \Log::error('Failed to send notifications after external request approval', ['error' => $e->getMessage()]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'تم قبول الطلب بنجاح. سيتم إرساله للمورد للموافقة النهائية.',
@@ -447,6 +459,12 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+        }
+
+        try {
+            $this->notifications->notifyWarehouseExternalUpdate($r, 'rejected', $rejectionReason);
+        } catch (\Exception $e) {
+            \Log::error('Failed to send notifications after external request rejection', ['error' => $e->getMessage()]);
         }
 
         return response()->json([

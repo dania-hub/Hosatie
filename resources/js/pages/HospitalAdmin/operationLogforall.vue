@@ -144,14 +144,32 @@ const filteredOperations = computed(() => {
     let list = operations.value;
     const search = searchTerm.value ? searchTerm.value.toLowerCase() : '';
 
-    // 1. التصفية (البحث ونص نوع العملية ورقم الملف)
+    // 1. التصفية (البحث شامل جميع حقول الجدول)
     list = list.filter(op => {
-        // تصفية حسب نص البحث
-        const searchMatch = !search ||
-                            op.fileNumber.toString().includes(search) ||
-                            op.name.toLowerCase().includes(search) ||
-                            (op.patientName && op.patientName.toLowerCase().includes(search)) ||
-                            op.operationType.includes(search);
+        if (!search) {
+            // إذا لم يكن هناك بحث، فقط تطبيق فلتر نوع العملية
+            const typeMatch = operationTypeFilter.value === 'الكل' ||
+                              getOperationCategory(op.operationType) === operationTypeFilter.value;
+            return typeMatch;
+        }
+
+        // البحث الشامل في جميع الحقول
+        const searchLower = search.toLowerCase();
+        const fileNumberStr = op.fileNumber ? op.fileNumber.toString() : '';
+        const nameStr = op.name ? op.name.toLowerCase() : '';
+        const patientNameStr = op.patientName ? op.patientName.toLowerCase() : '';
+        const operationTypeStr = op.operationType ? op.operationType.toLowerCase() : '';
+        const roleStr = op.role ? op.role.toLowerCase() : '';
+        const operationDateStr = op.operationDate ? op.operationDate.toString() : '';
+        
+        // البحث في جميع الحقول
+        const searchMatch = 
+            fileNumberStr.includes(searchLower) ||
+            nameStr.includes(searchLower) ||
+            patientNameStr.includes(searchLower) ||
+            operationTypeStr.includes(searchLower) ||
+            roleStr.includes(searchLower) ||
+            operationDateStr.includes(searchLower);
 
         // تصفية حسب الفئة العامة للعملية
         const typeMatch = operationTypeFilter.value === 'الكل' ||
@@ -429,7 +447,7 @@ const getOperationDescription = (op) => {
             <div  class="flex flex-col sm:flex-row justify-between items-center pt-2 pb-4 mb-4 gap-4  sm:gap-0">
                 
                 <div class="flex items-center gap-3 w-full sm:max-w-2xl">
-                        <search v-model="searchTerm" placeholder="ابحث برقم الملف، اسم الموظف أو اسم المريض" />
+                        <search v-model="searchTerm" placeholder="ابحث في جميع الحقول: رقم الملف، اسم الموظف، اسم المريض، نوع العملية، الدور، التاريخ" />
                          <!-- زر إظهار/إخفاء فلتر التاريخ -->
                     <button
                         @click="showDateFilter = !showDateFilter"

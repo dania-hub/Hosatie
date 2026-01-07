@@ -357,7 +357,7 @@ class AuditLogHospitalAdminController extends BaseApiController
     /**
      * الحصول على تفاصيل العملية (اسم الدواء، اسم الموظف، اسم القسم، إلخ)
      */
-    private function getOperationDetails($log)
+    public function getOperationDetails($log)
     {
         if (!$log->table_name || !$log->record_id) {
             return null;

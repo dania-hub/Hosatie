@@ -16,29 +16,33 @@ class OperationLogController extends BaseApiController
 {
     public function index(Request $request)
     {
-        // جلب السجلات مع استبعاد العمليات التي قام بها مدير المستشفى
+        // جلب السجلات مع استبعاد جميع العمليات التي قام بها مدير المستشفى
         // نستخدم whereHas للفلترة في قاعدة البيانات مباشرة لتحسين الأداء
-        // استثناء: عمليات نقل المريض والرد على الشكاوى تظهر حتى لو قام بها hospital_admin
         $logs = AuditLog::where(function ($query) {
             // إما لا يوجد user_id (سجلات قديمة)
             $query->whereNull('user_id')
                 // أو يوجد user_id لكن user غير موجود (تم حذفه)
                 ->orWhereDoesntHave('user')
-                // أو يوجد user لكنه ليس hospital_admin
+                // أو يوجد user لكنه ليس hospital_admin (استبعاد جميع عمليات hospital_admin)
                 ->orWhereHas('user', function ($q) {
                     $q->where('type', '!=', 'hospital_admin');
-                })
-                // استثناء: عمليات نقل المريض (patient_transfer_requests) تظهر حتى لو قام بها hospital_admin
-                ->orWhere(function ($q) {
-                    $q->where('table_name', 'patient_transfer_requests')
-                      ->whereIn('action', ['create', 'approve', 'reject', 'preapprove']);
-                })
-                // استثناء: الرد على الشكاوى (complaints) يظهر حتى لو قام به hospital_admin
-                ->orWhere(function ($q) {
-                    $q->where('table_name', 'complaints')
-                      ->where('action', 'الرد على شكوى');
                 });
         })->latest()->get();
+        
+        // فلترة إضافية للتأكد من عدم وجود أي عمليات لمدير المستشفى
+        $logs = $logs->filter(function ($log) {
+            if (!$log->user_id) {
+                return true; // السجلات القديمة بدون user_id تظهر
+            }
+            
+            $user = User::find($log->user_id);
+            if (!$user) {
+                return true; // المستخدم المحذوف تظهر عملياته
+            }
+            
+            // استبعاد جميع عمليات hospital_admin
+            return $user->type !== 'hospital_admin';
+        });
 
         $data = $logs->map(function ($log) {
             $user = User::find($log->user_id);
@@ -52,11 +56,31 @@ class OperationLogController extends BaseApiController
             $operationType = $this->addRequestDetails($log, $operationType);
 
             // الحصول على تفاصيل إضافية للشكوى أو طلب نقل المريض
+            // ملاحظة: نحن نستخدم getOperationDetails فقط لبعض العمليات المحددة
+            // ولا نستبدل نوع العملية بالكامل، بل ندمج التفاصيل إذا لزم الأمر
             try {
-                $auditCtrl = new AuditLogHospitalAdminController();
-                $detailOperation = $auditCtrl->getOperationDetails($log);
-                if ($detailOperation) {
-                    $operationType = $detailOperation;
+                $userType = $user->type ?? null;
+                
+                // للعمليات المتعلقة بمدير المخزن والصيدلي ومدير القسم على الشحنات، نتعامل معها بشكل خاص
+                // لأن addRequestDetails يضيف رقم الشحنة بالفعل، لا نحتاج getOperationDetails
+                if (in_array($userType, ['warehouse_manager', 'pharmacist', 'department_head']) && 
+                    in_array($log->table_name, ['internal_supply_request', 'external_supply_request', 'external_supply_requests'])) {
+                    // نوع العملية جاهز من addRequestDetails، لا حاجة لتعديله
+                } elseif (in_array($log->table_name, ['complaints', 'patient_transfer_requests', 'drugs', 'departments', 'users'])) {
+                    // فقط للعمليات التي نحتاج فيها تفاصيل إضافية
+                    $auditCtrl = new AuditLogHospitalAdminController();
+                    $detailOperation = $auditCtrl->getOperationDetails($log);
+                    if ($detailOperation) {
+                        // دمج نوع العملية مع التفاصيل بدلاً من استبدالها
+                        // فقط إذا كانت التفاصيل تحتوي على معلومات إضافية وليست مجرد رقم شحنة
+                        if (!preg_match('/^(INT-|EXT-)\d+$/', $detailOperation)) {
+                            // إذا كانت التفاصيل ليست مجرد رقم شحنة (تمت إضافتها بالفعل في addRequestDetails)
+                            // ندمج نوع العملية مع التفاصيل
+                            if (strpos($operationType, $detailOperation) === false) {
+                                $operationType = $translatedAction . ' - ' . $detailOperation;
+                            }
+                        }
+                    }
                 }
             } catch (\Exception $e) {
                 \Log::warning('Failed to get detailed operation info', ['log_id' => $log->id, 'error' => $e->getMessage()]);
@@ -267,6 +291,7 @@ class OperationLogController extends BaseApiController
             'department_create_supply_request' => 'إنشاء طلب توريد داخلي (قسم)',
             'pharmacist_create_supply_request' => 'إنشاء طلب توريد داخلي (صيدلي)',
             'storekeeper_confirm_internal_request' => 'تأكيد طلب توريد داخلي',
+            'storekeeper_reject_internal_request' => 'رفض طلب توريد داخلي',
             'رفض طلب توريد داخلي' => 'رفض طلب توريد داخلي',
             
             // عمليات الشحنات الداخلية
@@ -277,6 +302,7 @@ class OperationLogController extends BaseApiController
             // عمليات طلبات التوريد الخارجية
             'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام توريد خارجي',
+            'storekeeper_reject_external_request' => 'رفض طلب توريد خارجي',
             'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
             'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',
             'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي (مورد)',

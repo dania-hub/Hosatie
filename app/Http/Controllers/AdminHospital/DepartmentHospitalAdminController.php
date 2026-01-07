@@ -131,6 +131,12 @@ class DepartmentHospitalAdminController extends BaseApiController
 
             $dep->load('head');
 
+            // التقاط اسم المدير الحالي إذا تم تعيينه
+            $managerName = '-';
+            if ($dep->head_user_id) {
+                $managerName = $dep->head ? $dep->head->full_name : '-';
+            }
+
             // تسجيل العملية في audit_log
             try {
                 \App\Models\AuditLog::create([
@@ -142,6 +148,7 @@ class DepartmentHospitalAdminController extends BaseApiController
                     'new_values' => json_encode([
                         'name' => $dep->name,
                         'head_user_id' => $dep->head_user_id,
+                        'manager_name' => $managerName,
                         'status' => $dep->status,
                     ]),
                     'ip_address' => $request->ip(),
@@ -229,14 +236,33 @@ class DepartmentHospitalAdminController extends BaseApiController
                 }
             }
 
+            // التقاط القيم القديمة قبل التحديث
+            $oldName = $dep->name;
+            $oldStatus = $dep->status;
+            $oldHeadId = $dep->head_user_id;
+            $oldManagerName = '-';
+            if ($oldHeadId) {
+                $oldManager = User::find($oldHeadId);
+                $oldManagerName = $oldManager ? $oldManager->full_name : '-';
+            }
+
             $dep->update([
                 'name'         => $data['name'],
                 'head_user_id' => $newManagerId,
                 'status'       => isset($data['isActive']) ? ($data['isActive'] ? 'active' : 'inactive') : $dep->status,
             ]);
 
-            $oldStatus = $dep->getOriginal('status');
             $dep->load('head');
+
+            $newManagerName = '-';
+            if ($dep->head_user_id) {
+                // إذا كان المدير الجديد هو نفسه القديم ولم يتغير، نوفر استعلام
+                if ($dep->head_user_id == $oldHeadId) {
+                    $newManagerName = $oldManagerName;
+                } else {
+                    $newManagerName = $dep->head ? $dep->head->full_name : '-';
+                }
+            }
 
             // تسجيل العملية في audit_log
             try {
@@ -252,14 +278,16 @@ class DepartmentHospitalAdminController extends BaseApiController
                     'table_name' => 'departments',
                     'record_id' => $dep->id,
                     'old_values' => json_encode([
-                        'name' => $dep->getOriginal('name'),
+                        'name' => $oldName,
                         'status' => $oldStatus,
-                        'head_user_id' => $dep->getOriginal('head_user_id'),
+                        'head_user_id' => $oldHeadId,
+                        'manager_name' => $oldManagerName,
                     ]),
                     'new_values' => json_encode([
                         'name' => $dep->name,
                         'status' => $dep->status,
                         'head_user_id' => $dep->head_user_id,
+                        'manager_name' => $newManagerName,
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

@@ -343,7 +343,9 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
             return response()->json(['message' => 'المستشفى غير مرتبط بمورد. يرجى التحقق من إعدادات المستشفى.'], 400);
         }
 
-        DB::transaction(function () use ($r, $data, $adminUser, $hospital) {
+        $oldStatus = $r->status;
+        
+        DB::transaction(function () use ($r, $data, $adminUser, $hospital, $oldStatus, $request) {
             // ملاحظة: العلاقة الصحيحة للكميات:
             // - requested_qty: الكمية المطلوبة من StoreKeeper
             // - approved_qty: الكمية المعتمدة من Supplier (سيتم تحديدها لاحقاً من Supplier)
@@ -358,6 +360,28 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
             $r->handeled_by = $adminUser->id; // تسجيل من وافق على الطلب (HospitalAdmin)
             $r->handeled_at = now(); // تسجيل وقت الموافقة
             $r->save();
+            
+            // حفظ عملية القبول في audit_log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $adminUser->id,
+                    'hospital_id' => $adminUser->hospital_id,
+                    'action' => 'hospital_admin_confirm_external_supply_request',
+                    'table_name' => 'external_supply_request',
+                    'record_id' => $r->id,
+                    'old_values' => json_encode(['status' => $oldStatus]),
+                    'new_values' => json_encode([
+                        'status' => 'approved',
+                        'approved_by' => $adminUser->id
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('Failed to log approval', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
         });
 
         return response()->json([

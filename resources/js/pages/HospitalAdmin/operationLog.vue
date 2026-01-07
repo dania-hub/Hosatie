@@ -426,7 +426,14 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                         >
                                             <td class="file-number-col">{{ op.fileNumber }}</td>
                                             <td class="target-name-col">{{ op.targetName || '-' }}</td>
-                                            <td class="operation-type-col">{{ op.operationType }}</td>
+                                            <td class="operation-type-col">
+                                                <div class="font-bold text-gray-800">
+                                                    {{ op.operationType.split(' - ')[0] }}
+                                                </div>
+                                                <div v-if="op.operationType.includes(' - ')" class="text-[13px] text-gray-700 mt-1 leading-relaxed">
+                                                    {{ op.operationType.split(' - ').slice(1).join(' - ') }}
+                                                </div>
+                                            </td>
                                             
                                             <td class="operation-date-col">{{ op.operationDate }}</td>
 

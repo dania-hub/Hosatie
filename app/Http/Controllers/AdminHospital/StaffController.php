@@ -315,6 +315,9 @@ class StaffController extends BaseApiController
                         'email' => $user->email,
                         'type' => $user->type,
                         'phone' => $user->phone,
+                        'national_id' => $user->national_id,
+                        'birth_date' => $user->birth_date ? 
+                            (\Carbon\Carbon::parse($user->birth_date)->format('Y-m-d')) : null,
                     ]),
                     'ip_address' => $request->ip(),
                 ]);
@@ -471,6 +474,17 @@ class StaffController extends BaseApiController
                 $staff->birth_date = $validated['birth_date'];
             }
 
+            // التقاط القيم القديمة قبل الحفظ
+            $oldValues = [
+                'full_name' => $staff->getOriginal('full_name'),
+                'email' => $staff->getOriginal('email'),
+                'type' => $staff->getOriginal('type'),
+                'phone' => $staff->getOriginal('phone'),
+                'national_id' => $staff->getOriginal('national_id'),
+                'birth_date' => $staff->getOriginal('birth_date') ? 
+                    (\Carbon\Carbon::parse($staff->getOriginal('birth_date'))->format('Y-m-d')) : null,
+            ];
+
             $staff->save();
 
             DB::commit();
@@ -483,11 +497,15 @@ class StaffController extends BaseApiController
                     'action' => 'تعديل موظف',
                     'table_name' => 'users',
                     'record_id' => $staff->id,
+                    'old_values' => json_encode($oldValues),
                     'new_values' => json_encode([
                         'full_name' => $staff->full_name,
                         'email' => $staff->email,
                         'type' => $staff->type,
                         'phone' => $staff->phone,
+                        'national_id' => $staff->national_id,
+                        'birth_date' => $staff->birth_date ? 
+                            (\Carbon\Carbon::parse($staff->birth_date)->format('Y-m-d')) : null,
                     ]),
                     'ip_address' => $request->ip(),
                 ]);

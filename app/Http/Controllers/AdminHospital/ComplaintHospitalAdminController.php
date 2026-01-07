@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use App\Http\Controllers\Controller;
 use App\Models\Complaint;
 use App\Models\PatientTransferRequest;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -313,6 +314,7 @@ class ComplaintHospitalAdminController extends BaseApiController
 
             if ($transferRequest) {
                 // الموافقة الأولية من المستشفى الحالي - الحالة تصبح preapproved
+                $oldStatus = $transferRequest->status;
                 $transferRequest->status = 'preapproved';
                 
                 // جلب ID المدير الأول من نفس المستشفى
@@ -330,6 +332,39 @@ class ComplaintHospitalAdminController extends BaseApiController
                 $transferRequest->handeled_at = Carbon::now();
                 // المريض لا يزال في المستشفى الحالي - سيتم نقله لاحقاً من قبل المستشفى المستقبل
                 $transferRequest->save();
+                
+                // تسجيل العملية في audit_log (الموافقة الأولية)
+                try {
+                    $transferRequest->load(['patient', 'fromHospital', 'toHospital']);
+                    
+                    $newValues = [
+                        'status' => $transferRequest->status,
+                        'old_status' => $oldStatus,
+                        'patient_id' => $transferRequest->patient_id,
+                        'patient_name' => $transferRequest->patient?->full_name ?? null,
+                        'from_hospital_id' => $transferRequest->from_hospital_id,
+                        'from_hospital_name' => $transferRequest->fromHospital?->name ?? null,
+                        'to_hospital_id' => $transferRequest->to_hospital_id,
+                        'to_hospital_name' => $transferRequest->toHospital?->name ?? null,
+                        'requested_by' => $transferRequest->requested_by,
+                        'handeled_at' => $transferRequest->handeled_at?->toIso8601String(),
+                    ];
+
+                    AuditLog::create([
+                        'user_id' => $user->id,
+                        'hospital_id' => $hospitalId,
+                        'action' => 'preapprove',
+                        'table_name' => 'patient_transfer_requests',
+                        'record_id' => $transferRequest->id,
+                        'new_values' => json_encode($newValues),
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to create audit log for transfer request preapproval', [
+                        'error' => $e->getMessage(),
+                        'request_id' => $transferRequest->id
+                    ]);
+                }
                 
                 $transferRequest->load('patient');
 
@@ -380,6 +415,38 @@ class ComplaintHospitalAdminController extends BaseApiController
                     $transferRequest->patient->save();
                 }
                 $transferRequest->save();
+                
+                // تسجيل العملية في audit_log
+                try {
+                    $transferRequest->load(['patient', 'fromHospital', 'toHospital']);
+                    
+                    $newValues = [
+                        'status' => $transferRequest->status,
+                        'patient_id' => $transferRequest->patient_id,
+                        'patient_name' => $transferRequest->patient?->full_name ?? null,
+                        'from_hospital_id' => $transferRequest->from_hospital_id,
+                        'from_hospital_name' => $transferRequest->fromHospital?->name ?? null,
+                        'to_hospital_id' => $transferRequest->to_hospital_id,
+                        'to_hospital_name' => $transferRequest->toHospital?->name ?? null,
+                        'handeled_by' => $transferRequest->handeled_by,
+                        'handeled_at' => $transferRequest->handeled_at?->toIso8601String(),
+                    ];
+
+                    AuditLog::create([
+                        'user_id' => $user->id,
+                        'hospital_id' => $hospitalId,
+                        'action' => 'approve',
+                        'table_name' => 'patient_transfer_requests',
+                        'record_id' => $transferRequest->id,
+                        'new_values' => json_encode($newValues),
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to create audit log for transfer request approval', [
+                        'error' => $e->getMessage(),
+                        'request_id' => $transferRequest->id
+                    ]);
+                }
                 
                 $this->notifications->notifyTransferApproved($transferRequest->patient, $transferRequest);
                 
@@ -458,10 +525,42 @@ class ComplaintHospitalAdminController extends BaseApiController
             // رفض/إلغاء طلب النقل من المستشفى المرسل
             $transferRequest->update([
                 'status' => 'rejected',
+                'requested_by' => $user->id,
                 'rejected_by' => $user->id,
                 'rejected_at' => Carbon::now(),
                 'rejection_reason' => $request->rejectionReason,
             ]);
+
+            // تسجيل العملية في audit_log
+            try {
+                $transferRequest->load(['patient', 'fromHospital', 'toHospital']);
+                
+                $newValues = [
+                    'status' => $transferRequest->status,
+                    'patient_id' => $transferRequest->patient_id,
+                    'patient_name' => $transferRequest->patient?->full_name ?? null,
+                    'from_hospital_id' => $transferRequest->from_hospital_id,
+                    'from_hospital_name' => $transferRequest->fromHospital?->name ?? null,
+                    'to_hospital_id' => $transferRequest->to_hospital_id,
+                    'to_hospital_name' => $transferRequest->toHospital?->name ?? null,
+                    'rejection_reason' => $transferRequest->rejection_reason,
+                ];
+
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'reject',
+                    'table_name' => 'patient_transfer_requests',
+                    'record_id' => $transferRequest->id,
+                    'new_values' => json_encode($newValues),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to create audit log for transfer request rejection', [
+                    'error' => $e->getMessage(),
+                    'request_id' => $transferRequest->id
+                ]);
+            }
 
             $transferRequest->load('patient');
             $this->notifications->notifyTransferRejected($transferRequest->patient, $transferRequest);

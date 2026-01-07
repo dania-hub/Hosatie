@@ -110,9 +110,20 @@ class AuditLogHospitalAdminController extends BaseApiController
                 $operationDetails = $this->getOperationDetails($log);
                 
                 // دمج نوع العملية مع التفاصيل
-                $operationType = $operationDetails 
-                    ? $translatedAction . ' - ' . $operationDetails
-                    : $translatedAction;
+                // للعمليات المتعلقة بطلبات التوريد الخارجية من مدير المستشفى (قبول/رفض)
+                // نعرض فقط: "قبول/رفض طلب توريد خارجي - رقم الشحنة: [رقم]" بدون تفاصيل أخرى
+                if ($log->table_name === 'external_supply_request' && 
+                    in_array($log->action, ['hospital_admin_confirm_external_supply_request', 'hospital_admin_reject_external_supply_request'])) {
+                    // استخدام رقم الشحنة فقط من operationDetails
+                    $operationType = $operationDetails 
+                        ? $translatedAction . ' - رقم الشحنة: ' . $operationDetails
+                        : $translatedAction;
+                } else {
+                    // للعمليات الأخرى، نعرض التفاصيل الكاملة
+                    $operationType = $operationDetails 
+                        ? $translatedAction . ' - ' . $operationDetails
+                        : $translatedAction;
+                }
                 
                 // جلب اسم الموظف/المريض
                 $targetName = $this->getTargetName($log);
@@ -228,6 +239,19 @@ class AuditLogHospitalAdminController extends BaseApiController
             'الرد على شكوى' => 'الرد على شكوى',
             'رد على شكوى' => 'الرد على شكوى',
             
+            // عمليات طلبات نقل المريض
+            'preapprove' => 'الموافقة الأولية على نقل مريض',
+            'approve' => 'الموافقة على نقل مريض',
+            'reject' => 'رفض طلب',
+
+            // عمليات عامة
+            'create' => 'إنشاء',
+            'update' => 'تعديل',
+            'delete' => 'حذف',
+            'login' => 'تسجيل دخول',
+            'logout' => 'تسجيل خروج',
+            'password_change' => 'تغيير كلمة المرور',
+
             // عمليات الطلبات العامة
             'hospital_admin_accept_request' => 'قبول طلب',
             'hospital_admin_reject_request' => 'رفض طلب',
@@ -309,6 +333,17 @@ class AuditLogHospitalAdminController extends BaseApiController
             };
         }
 
+        if ($tableName === 'patient_transfer_requests') {
+            return match($action) {
+                'create' => 'إنشاء طلب نقل مريض',
+                'preapprove' => 'الموافقة الأولية على نقل مريض',
+                'approve' => 'الموافقة على نقل مريض',
+                'reject' => 'رفض طلب نقل مريض',
+                'update' => 'تعديل طلب نقل مريض',
+                default => $action,
+            };
+        }
+
         // التحقق من إذا كانت النص يحتوي على أحرف عربية
         $arabicChars = preg_match_all('/[\x{0600}-\x{06FF}]/u', $action);
         $totalChars = mb_strlen($action);
@@ -357,74 +392,90 @@ class AuditLogHospitalAdminController extends BaseApiController
                     return null;
 
                 case 'users':
-                    // جلب تفاصيل الموظف
-                    $user = User::with(['department'])->find($log->record_id);
-                    if ($user && $user->type !== 'patient') {
-                        $details = [];
-                        $details[] = $user->full_name ?? 'غير معروف';
-                        
-                        // إضافة نوع الموظف
-                        $userTypeMap = [
-                            'doctor' => 'طبيب',
-                            'pharmacist' => 'صيدلي',
-                            'warehouse_manager' => 'مسؤول المخزن',
-                            'department_head' => 'مدير القسم',
-                            'data_entry' => 'مدخل بيانات',
-                            'hospital_admin' => 'مدير المستشفى',
-                        ];
-                        $userType = $userTypeMap[$user->type] ?? $user->type;
-                        $details[] = 'النوع: ' . $userType;
-                        
-                        // إضافة القسم إن وجد
-                        if ($user->department) {
-                            $details[] = 'القسم: ' . $user->department->name;
-                        }
-                        
-                        // إضافة الحالة
-                        $statusMap = [
-                            'active' => 'نشط',
-                            'inactive' => 'غير نشط',
-                            'pending_activation' => 'قيد التفعيل'
-                        ];
-                        $status = $statusMap[$user->status] ?? $user->status;
-                        $details[] = 'الحالة: ' . $status;
-                        
-                        return implode(' - ', $details);
+                    // محاولة استخراج الحقول التي تغيرت لمقارنتها
+                    $oldValues = json_decode($log->old_values ?? '{}', true);
+                    $newValues = json_decode($log->new_values ?? '{}', true);
+
+                    if (!is_array($oldValues) || !is_array($newValues)) {
+                        return null;
                     }
-                    // محاولة من JSON
-                    $values = json_decode($log->new_values ?? $log->old_values, true);
-                    if (is_array($values) && isset($values['type']) && $values['type'] !== 'patient') {
-                        $details = [];
-                        $details[] = $values['full_name'] ?? 'غير معروف';
-                        if (isset($values['type'])) {
-                            $userTypeMap = [
-                                'doctor' => 'طبيب',
-                                'pharmacist' => 'صيدلي',
-                                'warehouse_manager' => 'مسؤول المخزن',
-                                'department_head' => 'مدير القسم',
-                                'data_entry' => 'مدخل بيانات',
-                            ];
-                            $userType = $userTypeMap[$values['type']] ?? $values['type'];
-                            $details[] = 'النوع: ' . $userType;
+
+                    $changes = [];
+                    $fieldNames = [
+                        'full_name' => 'الاسم',
+                        'phone' => 'رقم الهاتف',
+                        'email' => 'البريد الإلكتروني',
+                        'birth_date' => 'تاريخ الميلاد',
+                        'national_id' => 'الرقم الوطني',
+                        'status' => 'الحالة',
+                        'password' => 'كلمة المرور',
+                    ];
+
+                    foreach ($newValues as $field => $newValue) {
+                        // التحقق من الحقول التي تغيرت وموجودة في القائمة المسموح بها
+                        if (array_key_exists($field, $oldValues) && $oldValues[$field] != $newValue && isset($fieldNames[$field])) {
+                            // تنسيق خاص لبعض الحقول
+                            if ($field === 'birth_date' && $newValue) {
+                                try {
+                                    $newValue = \Carbon\Carbon::parse($newValue)->format('Y/m/d');
+                                } catch (\Exception $e) {
+                                    // في حالة الفشل نترك القيمة كما هي
+                                }
+                            }
+                            
+                            if ($field === 'password') {
+                                $changes[] = "تعديل كلمة المرور";
+                            } else {
+                                $changes[] = "تعديل " . $fieldNames[$field] . " إلى: " . $newValue;
+                            }
                         }
-                        return implode(' - ', $details);
+                    }
+
+                    if (count($changes) > 0) {
+                        return implode(' و ', $changes);
                     }
                     return null;
 
                 case 'departments':
-                    // جلب تفاصيل القسم
+                    // محاولة استخراج الحقول التي تغيرت لمقارنتها
+                    $oldValues = json_decode($log->old_values ?? '{}', true);
+                    $newValues = json_decode($log->new_values ?? '{}', true);
+
+                    if (is_array($oldValues) && is_array($newValues) && count($newValues) > 0) {
+                        $changes = [];
+                        
+                        // 1. تغيير الاسم
+                        if (isset($newValues['name']) && isset($oldValues['name']) && $newValues['name'] != $oldValues['name']) {
+                            $changes[] = "تعديل الاسم إلى: " . $newValues['name'];
+                        }
+
+                        // 2. تغيير المدير
+                        $oldHeadId = $oldValues['head_user_id'] ?? null;
+                        $newHeadId = $newValues['head_user_id'] ?? null;
+                        
+                        if ($oldHeadId != $newHeadId) {
+                            $oldName = $oldValues['manager_name'] ?? '-';
+                            $newName = $newValues['manager_name'] ?? '-';
+                            
+                            if (!$oldHeadId && $newHeadId) {
+                                $changes[] = "تعيين مدير جديد: " . $newName;
+                            } elseif ($oldHeadId && !$newHeadId) {
+                                $changes[] = "إلغاء المدير السابق: " . $oldName;
+                            } else {
+                                $changes[] = "تغيير المدير من " . $oldName . " إلى " . $newName;
+                            }
+                        }
+
+                        if (count($changes) > 0) {
+                            return implode(' و ', $changes);
+                        }
+                    }
+
+                    // في حالة عدم وجود تغييرات محددة أو سجل قديم (مثل الإضافة)، نعرض الحالة الحالية
                     $department = Department::with(['head'])->find($log->record_id);
                     if ($department) {
                         $details = [];
                         $details[] = $department->name;
-                        
-                        // إضافة الحالة
-                        $statusMap = [
-                            'active' => 'نشط',
-                            'inactive' => 'غير نشط'
-                        ];
-                        $status = $statusMap[$department->status] ?? $department->status;
-                        $details[] = 'الحالة: ' . $status;
                         
                         // إضافة اسم المدير إن وجد
                         if ($department->head) {
@@ -437,7 +488,21 @@ class AuditLogHospitalAdminController extends BaseApiController
 
                 case 'external_supply_request':
                 case 'external_supply_requests':
-                    // جلب تفاصيل طلب التوريد الخارجي
+                    // للعمليات المتعلقة بطلبات التوريد الخارجية من مدير المستشفى (قبول/رفض)
+                    // نعرض فقط رقم الشحنة بدون تفاصيل أخرى
+                    if (in_array($log->action, ['hospital_admin_confirm_external_supply_request', 'hospital_admin_reject_external_supply_request'])) {
+                        // محاولة استخراج رقم الطلب من JSON أولاً
+                        $values = json_decode($log->new_values ?? $log->old_values, true);
+                        $requestId = null;
+                        if (is_array($values) && isset($values['request_id'])) {
+                            $requestId = $values['request_id'];
+                        } elseif ($log->record_id) {
+                            $requestId = $log->record_id;
+                        }
+                        return $requestId ? 'EXT-' . $requestId : null;
+                    }
+                    
+                    // للعمليات الأخرى، نعرض التفاصيل الكاملة
                     $request = ExternalSupplyRequest::with(['supplier', 'items'])->find($log->record_id);
                     if ($request) {
                         $details = [];
@@ -478,13 +543,13 @@ class AuditLogHospitalAdminController extends BaseApiController
                     $complaint = Complaint::with('patient')->find($log->record_id);
                     if ($complaint) {
                         $details = [];
-                        
+
                         // إضافة اسم المريض
                         if ($complaint->patient) {
                             $details[] = 'المريض: ' . $complaint->patient->full_name;
                             $details[] = 'FILE-' . $complaint->patient_id;
                         }
-                        
+
                         // إضافة الحالة
                         $statusMap = [
                             'قيد المراجعة' => 'قيد المراجعة',
@@ -493,7 +558,12 @@ class AuditLogHospitalAdminController extends BaseApiController
                         ];
                         $status = $statusMap[$complaint->status] ?? $complaint->status;
                         $details[] = 'الحالة: ' . $status;
-                        
+
+                        // إذا كان الإجراء هو الرد على الشكوى، نضيف توضيحاً
+                        if (in_array($log->action, ['reply', 'respond'])) {
+                            $details[] = 'العملية: الرد على الشكوى';
+                        }
+
                         return implode(' - ', $details);
                     }
                     return null;
@@ -502,32 +572,50 @@ class AuditLogHospitalAdminController extends BaseApiController
                     // جلب تفاصيل طلب النقل
                     $transferRequest = PatientTransferRequest::with(['patient', 'fromHospital', 'toHospital'])->find($log->record_id);
                     if ($transferRequest) {
+                        // تفاصيل خاصة بالإجراءات
+                        if ($log->action === 'create') {
+                            // عند إنشاء طلب النقل: "إنشاء طلب نقل مريض إلى مستشفى: [اسم المستشفى]"
+                            $details = ['إنشاء طلب نقل مريض'];
+                            if ($transferRequest->toHospital) {
+                                $details[] = 'إلى مستشفى: ' . $transferRequest->toHospital->name;
+                            }
+                            if ($transferRequest->patient) {
+                                $details[] = 'المريض: ' . $transferRequest->patient->full_name;
+                            }
+                            return implode(' - ', $details);
+                        } elseif ($log->action === 'approve') {
+                            // عند الموافقة النهائية: "الموافقة على نقل مريض إلى مستشفى: [اسم المستشفى]"
+                            return 'الموافقة على نقل مريض إلى مستشفى: ' . ($transferRequest->toHospital->name ?? '-');
+                        } elseif ($log->action === 'preapprove') {
+                            // عند الموافقة الأولية: "الموافقة الأولية على نقل مريض إلى مستشفى: [اسم المستشفى]"
+                            $details = ['الموافقة الأولية على نقل مريض'];
+                            if ($transferRequest->toHospital) {
+                                $details[] = 'إلى مستشفى: ' . $transferRequest->toHospital->name;
+                            }
+                            if ($transferRequest->patient) {
+                                $details[] = 'المريض: ' . $transferRequest->patient->full_name;
+                            }
+                            return implode(' - ', $details);
+                        } elseif ($log->action === 'reject') {
+                            // عند الرفض: "رفض طلب النقل - مع تفاصيل المريض"
+                            $details = ['رفض طلب النقل'];
+                            if ($transferRequest->patient) {
+                                $details[] = 'المريض: ' . $transferRequest->patient->full_name;
+                            }
+                            if ($transferRequest->rejection_reason) {
+                                $details[] = 'سبب الرفض: ' . $transferRequest->rejection_reason;
+                            }
+                            return implode(' - ', $details);
+                        }
+
+                        // للعمليات الأخرى (إن وجدت)
                         $details = [];
-                        
-                        // إضافة اسم المريض
                         if ($transferRequest->patient) {
                             $details[] = 'المريض: ' . $transferRequest->patient->full_name;
                         }
-                        
-                        // إضافة المستشفى المرسل
-                        if ($transferRequest->fromHospital) {
-                            $details[] = 'من: ' . $transferRequest->fromHospital->name;
-                        }
-                        
-                        // إضافة المستشفى المستقبل
                         if ($transferRequest->toHospital) {
                             $details[] = 'إلى: ' . $transferRequest->toHospital->name;
                         }
-                        
-                        // إضافة الحالة
-                        $statusMap = [
-                            'pending' => 'قيد الانتظار',
-                            'approved' => 'مقبول',
-                            'rejected' => 'مرفوض'
-                        ];
-                        $status = $statusMap[$transferRequest->status] ?? $transferRequest->status;
-                        $details[] = 'الحالة: ' . $status;
-                        
                         return implode(' - ', $details);
                     }
                     return null;

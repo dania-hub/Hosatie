@@ -7,6 +7,9 @@ use App\Models\User;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use App\Models\Drug;
+use App\Models\Complaint;
+use App\Models\PatientTransferRequest;
+use App\Http\Controllers\AdminHospital\AuditLogHospitalAdminController;
 use Illuminate\Http\Request;
 
 class OperationLogController extends BaseApiController
@@ -15,6 +18,7 @@ class OperationLogController extends BaseApiController
     {
         // جلب السجلات مع استبعاد العمليات التي قام بها مدير المستشفى
         // نستخدم whereHas للفلترة في قاعدة البيانات مباشرة لتحسين الأداء
+        // استثناء: عمليات نقل المريض والرد على الشكاوى تظهر حتى لو قام بها hospital_admin
         $logs = AuditLog::where(function ($query) {
             // إما لا يوجد user_id (سجلات قديمة)
             $query->whereNull('user_id')
@@ -23,6 +27,16 @@ class OperationLogController extends BaseApiController
                 // أو يوجد user لكنه ليس hospital_admin
                 ->orWhereHas('user', function ($q) {
                     $q->where('type', '!=', 'hospital_admin');
+                })
+                // استثناء: عمليات نقل المريض (patient_transfer_requests) تظهر حتى لو قام بها hospital_admin
+                ->orWhere(function ($q) {
+                    $q->where('table_name', 'patient_transfer_requests')
+                      ->whereIn('action', ['create', 'approve', 'reject', 'preapprove']);
+                })
+                // استثناء: الرد على الشكاوى (complaints) يظهر حتى لو قام به hospital_admin
+                ->orWhere(function ($q) {
+                    $q->where('table_name', 'complaints')
+                      ->where('action', 'الرد على شكوى');
                 });
         })->latest()->get();
 
@@ -36,6 +50,17 @@ class OperationLogController extends BaseApiController
             
             // إضافة رقم الشحنة إذا كانت العملية متعلقة بطلب
             $operationType = $this->addRequestDetails($log, $operationType);
+
+            // الحصول على تفاصيل إضافية للشكوى أو طلب نقل المريض
+            try {
+                $auditCtrl = new AuditLogHospitalAdminController();
+                $detailOperation = $auditCtrl->getOperationDetails($log);
+                if ($detailOperation) {
+                    $operationType = $detailOperation;
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to get detailed operation info', ['log_id' => $log->id, 'error' => $e->getMessage()]);
+            }
 
             // الحصول على رقم الملف المناسب (رقم ملف الشحنة للشحنات، رقم المريض للمرضى)
             $fileNumber = $this->getFileNumber($log);
@@ -255,8 +280,13 @@ class OperationLogController extends BaseApiController
             'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
             'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',
             'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي (مورد)',
-            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
+            'hospital_admin_confirm_external_supply_request' => 'قبول طلب توريد خارجي',
+            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي',
             'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
+            
+            // عمليات طلبات نقل المريض
+            'preapprove' => 'الموافقة الأولية على نقل مريض',
+            'approve' => 'الموافقة على نقل مريض',
             
             // عمليات عامة
             'create' => 'إنشاء',
@@ -470,7 +500,19 @@ class OperationLogController extends BaseApiController
             ]);
         }
 
-        // بناء النص مع رقم الشحنة
+        // للعمليات المتعلقة بطلبات التوريد الخارجية من مدير المستشفى (قبول/رفض)
+        // نعرض فقط: "قبول/رفض طلب توريد خارجي - رقم الشحنة: [رقم]" بدون تفاصيل أخرى
+        if ($log->table_name === 'external_supply_request' && 
+            in_array($log->action, ['hospital_admin_confirm_external_supply_request', 'hospital_admin_reject_external_supply_request'])) {
+            // استخدام النص المترجم مباشرة مع رقم الشحنة فقط (تجاهل أي تفاصيل إضافية من $operationType)
+            $baseText = $this->translateAction($log->action);
+            if ($requestNumber) {
+                return $baseText . ' - رقم الشحنة: ' . $requestNumber;
+            }
+            return $baseText;
+        }
+
+        // بناء النص مع رقم الشحنة للعمليات الأخرى
         if ($requestNumber) {
             return $operationType . ' - رقم الشحنة: ' . $requestNumber;
         }

@@ -360,6 +360,12 @@ class InternalSupplyRequestController extends BaseApiController
                 if ($req->status !== 'pending') {
                     $suggestedQuantity = 0;
                 }
+                // الحالة الخاصة: إذا كان الدواء موجود فقط في الطلب الحالي (لا يوجد في طلبات أخرى)
+                // والمخزون كافي للطلب الحالي، نعطي الكمية المطلوبة بالكامل
+                else if ($totalOtherRequestsQty == 0 && $availableStock >= $item->requested_qty) {
+                    // الكمية المقترحة = الكمية المطلوبة بالكامل للطلب الحالي
+                    $suggestedQuantity = $item->requested_qty;
+                }
                 // الحالة 1: إذا كان المخزون كافي لجميع الطلبات بحالة "جديد" (الطلب الحالي + الطلبات الأخرى)
                 else if ($availableStock >= $totalRequestedQty && $totalRequestedQty > 0) {
                     // الكمية المقترحة = الكمية المطلوبة بالكامل للطلب الحالي

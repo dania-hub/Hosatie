@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Log;
 
 class StaffNotificationService
 {
+    public function __construct(
+        private FcmLegacyService $fcm,
+        private FcmV1Service $fcmV1
+    ) {}
+
     /**
      * 1. Pharmacist Notifications
      */
@@ -435,15 +440,52 @@ class StaffNotificationService
     private function createNotification(User $user, string $title, string $message, string $type = 'عادي')
     {
         try {
-            Notification::create([
+            $notification = Notification::create([
                 'user_id' => $user->id,
                 'title'   => $title,
                 'message' => $message,
                 'type'    => $type, // Use the Arabic type directly
                 'is_read' => false,
             ]);
+
+            // إرسال إشعار Push إذا توفر التوكن
+            $this->sendPushIfPossible($user, $title, $message);
+
         } catch (\Exception $e) {
             \Log::error("Failed to create notification for user {$user->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * إرسال إشعار Push عبر FCM إذا كان المستخدم لديه Token
+     */
+    private function sendPushIfPossible(User $user, string $title, string $message): void
+    {
+        if (empty($user->fcm_token)) {
+            return;
+        }
+
+        $data = [
+            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+            'collapse_key' => 'staff_notification_' . $user->id . '_' . time(),
+        ];
+
+        $hasV1Config = (string) config('services.fcm.project_id') !== ''
+            && (string) config('services.fcm.service_account_json') !== '';
+
+        $hasLegacyConfig = (string) config('services.fcm.server_key') !== '';
+
+        try {
+            if ($hasV1Config) {
+                $this->fcmV1->sendToToken($user->fcm_token, $title, $message, $data);
+            } elseif ($hasLegacyConfig) {
+                $this->fcm->sendToToken($user->fcm_token, $title, $message, $data);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Staff FCM send failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

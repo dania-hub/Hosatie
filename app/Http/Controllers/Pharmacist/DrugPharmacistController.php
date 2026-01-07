@@ -132,6 +132,12 @@ class DrugPharmacistController extends BaseApiController
                 );
             }
             
+            // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
+            if ($inventory->minimum_level != $neededQuantity) {
+                $inventory->minimum_level = $neededQuantity;
+                $inventory->save();
+            }
+            
             return [
                 'id' => $inventory->id, // ID المخزون
                 'drugCode' => $drug->id,
@@ -406,6 +412,12 @@ class DrugPharmacistController extends BaseApiController
 
             // حساب الكمية المحتاجة
             $neededQuantity = $hospitalId ? $calculateNeededQuantity($drug->id, $inventory->current_quantity, $hospitalId) : 0;
+            
+            // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
+            if ($inventory->minimum_level != $neededQuantity) {
+                $inventory->minimum_level = $neededQuantity;
+                $inventory->save();
+            }
 
             $data = [
                 'id' => $inventory->id,

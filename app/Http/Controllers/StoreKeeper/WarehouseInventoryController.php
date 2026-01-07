@@ -88,6 +88,12 @@ class WarehouseInventoryController extends BaseApiController
             // إذا كانت النتيجة <= 0، تصبح 0
             $neededQuantity = max(0, $totalRequestedQty - $availableQuantity);
             
+            // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
+            if ($item->minimum_level != $neededQuantity) {
+                $item->minimum_level = $neededQuantity;
+                $item->save();
+            }
+            
             return [
                 'id'             => $item->id,
                 'drugCode'       => $item->drug->id ?? null,
@@ -256,6 +262,12 @@ class WarehouseInventoryController extends BaseApiController
             }
 
             $neededQuantity = max(0, $totalRequestedQty - $item->current_quantity);
+            
+            // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
+            if ($item->minimum_level != $neededQuantity) {
+                $item->minimum_level = $neededQuantity;
+                $item->save();
+            }
 
             return response()->json([
                 'id' => $item->id,

@@ -93,6 +93,12 @@ class DrugSupplierController extends BaseApiController
                 // إذا كانت النتيجة <= 0، تصبح 0
                 $neededQuantity = max(0, $totalRequestedQty - $availableQuantity);
                 
+                // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
+                if ($inventory->minimum_level != $neededQuantity) {
+                    $inventory->minimum_level = $neededQuantity;
+                    $inventory->save();
+                }
+                
                 return [
                     'id' => $inventory->drug->id,
                     'drugCode' => $inventory->drug->id,
@@ -270,6 +276,12 @@ class DrugSupplierController extends BaseApiController
                 }
 
                 $neededQuantity = max(0, $totalRequestedQty - $inventory->current_quantity);
+                
+                // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
+                if ($inventory->minimum_level != $neededQuantity) {
+                    $inventory->minimum_level = $neededQuantity;
+                    $inventory->save();
+                }
 
                 $data = [
                     'id' => $drug->id,

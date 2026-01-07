@@ -10,8 +10,13 @@ use App\Http\Requests\Supplier\RejectShipmentRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\StaffNotificationService;
+
 class ShipmentSupplierController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * عرض قائمة الشحنات للمورد
      * GET /api/supplier/shipments
@@ -456,6 +461,12 @@ class ShipmentSupplierController extends BaseApiController
                 }
             }
 
+            try {
+                $this->notifications->notifyWarehouseSupplierAccepted($shipment);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify warehouse manager about supplier acceptance', ['error' => $e->getMessage()]);
+            }
+
             DB::commit();
 
             return $this->sendSuccess([
@@ -525,6 +536,12 @@ class ShipmentSupplierController extends BaseApiController
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
+            }
+
+            try {
+                $this->notifications->notifyWarehouseSupplierRejected($shipment, $rejectionReason);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify warehouse manager about supplier rejection', ['error' => $e->getMessage()]);
             }
 
             DB::commit();

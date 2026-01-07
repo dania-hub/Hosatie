@@ -11,8 +11,13 @@ use Carbon\Carbon;
 use App\Models\User;
 use App\Models\Notification;
 
+use App\Services\StaffNotificationService;
+
 class ShipmentDepartmentAdminController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * جلب الملاحظات من audit_log
      */
@@ -431,56 +436,14 @@ class ShipmentDepartmentAdminController extends BaseApiController
                 ];
             }
         }
-
+        
         // إرسال إشعار بالنقص إذا وجد
         if (!empty($shortageItems)) {
-            \Log::info("Shortage detected, preparing notification", ['count' => count($shortageItems)]);
-
-            $msg = "تنبيه: تم اكتشاف نقص في استلام الشحنة رقم {$shipment->id}.";
-            foreach ($shortageItems as $s) {
-                $msg .= "\n- {$s['name']}: أرسل {$s['sent']}، استلم {$s['received']} {$s['unit']}";
-            }
-
-            $userIdsToNotify = [];
-
-            // 1. Hospital Admins
-            if ($user->hospital_id) {
-                $admins = User::where('hospital_id', $user->hospital_id)
-                              ->where('type', 'hospital_admin')
-                              ->pluck('id')
-                              ->toArray();
-                \Log::info("Found Hospital Admins to notify", ['ids' => $admins]);
-                $userIdsToNotify = array_merge($userIdsToNotify, $admins);
-            } else {
-                \Log::warning("User has no hospital_id", ['user_id' => $user->id]);
-            }
-
-            // 2. Storekeeper (Approver/Handler)
-            if ($shipment->handeled_by) {
-                \Log::info("Found Storekeeper (Handler) to notify", ['id' => $shipment->handeled_by]);
-                $userIdsToNotify[] = $shipment->handeled_by;
-            } else {
-                \Log::warning("Shipment has no handeled_by", ['shipment_id' => $shipment->id]);
-            }
-
-            $userIdsToNotify = array_unique($userIdsToNotify);
-            \Log::info("Final list of users to notify", ['ids' => $userIdsToNotify]);
-
-            foreach ($userIdsToNotify as $uid) {
-                if ($uid == $user->id) continue; // Don't notify self
-
-                try {
-                    Notification::create([
-                        'user_id' => $uid,
-                        'type'    => 'مستعجل',
-                        'title'   => 'نقص في استلام شحنة',
-                        'message' => $msg,
-                        'is_read' => false,
-                    ]);
-                    \Log::info("Shortage notification sent", ['user_id' => $uid]);
-                } catch (\Exception $e) {
-                    \Log::error("Failed to send shortage notification", ['user_id' => $uid, 'error' => $e->getMessage()]);
-                }
+            try {
+                $entityName = $currentDepartment ? $currentDepartment->name : 'القسم';
+                $this->notifications->notifyAdminShipmentDamage($shipment, $entityName);
+            } catch (\Exception $e) {
+                \Log::error("Failed to send shortage notification", ['error' => $e->getMessage()]);
             }
         } else {
             \Log::info("No shortage detected in shipment", ['shipment_id' => $shipment->id]);

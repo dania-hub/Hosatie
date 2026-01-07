@@ -11,8 +11,13 @@ use App\Models\AuditLog;
 use App\Models\Department;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\StaffNotificationService;
+
 class SupplyRequestControllerDepartmentAdmin extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * POST /api/department-admin/supply-requests
      * Create a new request for medicines
@@ -73,6 +78,12 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
             }
 
             DB::commit();
+
+            try {
+                $this->notifications->notifyWarehouseNewInternalRequest($supplyRequest);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify warehouse manager', ['error' => $e->getMessage()]);
+            }
 
             // تحديد اسم القسم و department_id وقت إنشاء الطلب (لتجنب تغييره عند تغيير قسم المستخدم لاحقاً)
             $departmentName = 'غير محدد';

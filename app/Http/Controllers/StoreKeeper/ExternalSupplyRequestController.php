@@ -11,8 +11,13 @@ use App\Models\AuditLog;
 use App\Models\Inventory;
 use App\Models\Warehouse;
 
+use App\Services\StaffNotificationService;
+
 class ExternalSupplyRequestController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     // GET /api/storekeeper/supply-requests
     public function index(Request $request)
     {
@@ -434,6 +439,12 @@ class ExternalSupplyRequestController extends BaseApiController
 
             DB::commit();
 
+            try {
+                $this->notifications->notifyAdminNewExternalRequest($externalRequest);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify admin about new external request', ['error' => $e->getMessage()]);
+            }
+
             // 🟢 تسجيل العملية في audit_log
             try {
                 AuditLog::create([
@@ -513,7 +524,7 @@ class ExternalSupplyRequestController extends BaseApiController
             // التحقق من البيانات المرسلة
             $validated = $request->validate([
                 'items' => 'required|array|min:1',
-                'items.*.id' => 'required|integer|exists:external_supply_request_item,id',
+                'items.*.id' => 'required|integer|exists:external_supply_request_items,id', // ✅ تم تصحيح اسم الجدول
                 'items.*.receivedQuantity' => 'required|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
             ]);
@@ -606,6 +617,32 @@ class ExternalSupplyRequestController extends BaseApiController
             // تحديث الحالة - يمكن إضافة حالة جديدة أو نتركها 'fulfilled'
             // حالياً، نتركها 'fulfilled' لأنها تعني أن Supplier أرسلها و StoreKeeper استلمها
             // يمكن إضافة عمود جديد في الجدول لتتبع حالة الاستلام إذا لزم الأمر
+
+            // إرسال إشعار في حالة وجود نقص
+            $shortageItems = [];
+            foreach ($validated['items'] as $itemData) {
+                $item = $externalRequest->items->firstWhere('id', $itemData['id']);
+                if (!$item) continue;
+
+                $sentQty = $originalSentQuantities[$item->id] ?? 0;
+                $receivedQty = (float)($itemData['receivedQuantity'] ?? 0);
+
+                if ($receivedQty < $sentQty) {
+                    $shortageItems[] = [
+                        'name' => $item->drug->name ?? 'دواء',
+                        'sent' => $sentQty,
+                        'received' => $receivedQty
+                    ];
+                }
+            }
+
+            if (!empty($shortageItems)) {
+                try {
+                    $this->notifications->notifyExternalShipmentShortage($externalRequest, $shortageItems);
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send shortage notifications', ['error' => $e->getMessage()]);
+                }
+            }
 
             DB::commit();
 

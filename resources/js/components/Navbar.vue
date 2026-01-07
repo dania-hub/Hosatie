@@ -3,16 +3,11 @@ import { ref, onMounted, computed } from "vue";
 import { Icon } from "@iconify/vue";
 import { Link, usePage } from "@inertiajs/vue3"; // 👈 تم استيراد Link و usePage
 import axios from 'axios'; 
+import NotificationDropdown from './NotificationDropdown.vue'; 
 
-const NOTIFICATIONS_ENDPOINT = "/api/notifications/mobile"; 
+ 
 const LOGOUT_ENDPOINT = "/api/logout/dashboard"; 
 const PROFILE_ENDPOINT = "/api/profile/dashboard"; 
-
-// حالات المكون
-const notifications = ref([]);
-const unreadCount = ref(0);
-const loading = ref(true);
-const error = ref(null);
 
 // حالة التحكم في نافذة تأكيد تسجيل الخروج
 const showLogoutConfirmation = ref(false);
@@ -185,70 +180,11 @@ const fetchUserProfile = async () => {
         // 💡 لإضافة أدوار جديدة: أضف نوع المستخدم في المصفوفة allowedTypes
         const allowedTypes = ['supplier_admin', 'warehouse_manager', 'department_head', 'department_admin', 'pharmacist']; // 👈 أضف الأدوار هنا
         if (allowedTypes.includes(userData.value.type)) {
-            fetchNotifications();
+            // Notifications are handled by NotificationDropdown component
         }
     } catch (e) {
         console.error("Failed to fetch user profile:", e);
         // في حالة الفشل، سيتم استخدام البيانات من Inertia props أو القيم الافتراضية
-    }
-};
-
-/**
- * 🛠️ دالة لجلب الإشعارات باستخدام Axios (لم تتغير)
- */
-const fetchNotifications = async () => {
-    loading.value = true;
-    error.value = null;
-    
-    try {
-        const response = await axios.get(NOTIFICATIONS_ENDPOINT, getAuthHeaders()); 
-        const data = response.data;
-        
-        // دعم الهيكل { success: true, data: [...] } أو المصفوفة المباشرة
-        const rawList = data.data || data.notifications || data; 
-        
-        // التأكد من أنها مصفوفة ومواءمة الحقول
-        if (Array.isArray(rawList)) {
-            notifications.value = rawList.map(n => ({
-                ...n,
-                message: n.message || n.body, // تعيين الرسالة من body إذا لم توجد message
-                date: n.date || n.created_at, // تعيين التاريخ من created_at إذا لم يوجد date
-                is_read: n.is_read || n.read // توحيد حقل القراءة
-            }));
-        } else {
-            notifications.value = [];
-        }
-
-        unreadCount.value = notifications.value.filter(n => !n.is_read && !n.read).length;
-
-    } catch (e) {
-        console.error("Failed to fetch notifications:", e);
-        error.value = "تعذر جلب البيانات.";
-        notifications.value = [];
-        unreadCount.value = 0;
-    } finally {
-        loading.value = false;
-    }
-};
-
-/**
- * دالة لتحديد الإشعار كمقروء وإرسال تحديث للسيرفر باستخدام Axios (لم تتغير)
- */
-const markAsRead = async (notification) => {
-    if (notification.is_read || notification.read) return;
-
-    // 1. تحديث الواجهة أولاً
-    notification.is_read = true;
-    notification.read = true;
-    unreadCount.value = notifications.value.filter(n => !n.is_read && !n.read).length;
-    
-    // 2. إرسال طلب تحديث للسيرفر
-    try {
-        await axios.post('/api/notifications/mark-as-read', { notification_ids: [notification.id] }, getAuthHeaders()); 
-        
-    } catch (e) {
-        console.error("Failed to mark notification as read:", e);
-        // يمكنك هنا اختيار إضافة منطق إعادة الحالة في حالة الفشل
     }
 };
 
@@ -271,102 +207,33 @@ const cancelLogout = () => {
  */
 const confirmLogout = async () => {
     try {
-        // التحقق من وجود token
         const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
         if (!token) {
             window.location.href = '/';
             return;
         }
 
-        const response = await axios.post(LOGOUT_ENDPOINT, {}, getAuthHeaders());
+        await axios.post(LOGOUT_ENDPOINT, {}, getAuthHeaders());
         
-        // إغلاق نافذة التأكيد
         showLogoutConfirmation.value = false;
-        
-        // حذف الـ token من localStorage
         localStorage.removeItem('auth_token');
         localStorage.removeItem('token');
-        
-        // إعادة تحميل الصفحة بعد تسجيل الخروج أو التوجيه لصفحة تسجيل الدخول
         window.location.href = '/';
 
     } catch (e) {
         console.error("Failed to logout:", e);
-        console.error("Error details:", e.response?.data || e.message);
-        console.error("Error status:", e.response?.status);
         showLogoutConfirmation.value = false;
-        
-        // عرض رسالة خطأ أكثر تفصيلاً
-        let errorMessage = "فشل تسجيل الخروج. يرجى المحاولة مرة أخرى.";
-        
-        if (e.response?.status === 401) {
-            errorMessage = "انتهت جلسة العمل. سيتم إعادة التوجيه إلى صفحة تسجيل الدخول.";
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('token');
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 2000);
-        } else if (e.response?.data?.message) {
-            errorMessage = e.response.data.message;
-        } else if (e.message) {
-            errorMessage = e.message;
-        }
-        
-        alert(errorMessage);
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('token');
+        window.location.href = '/login';
     }
 };
 
-// 🚀 جلب البيانات عند تحميل المكون
 onMounted(() => {
     fetchUserProfile();
 });
 
-// 🛠️ دوال مساعدة للعرض
-const formatDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-        const date = new Date(dateString);
-        return new Intl.DateTimeFormat('en-US', {
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-        }).format(date);
-    } catch (e) {
-        return dateString;
-    }
-};
 
-const getNotificationIcon = (type) => {
-    switch (type) {
-        case 'success':
-        case 'عادي':
-            return 'ph:check-circle-fill';
-        case 'error':
-        case 'warning':
-        case 'مستعجل':
-            return 'ph:x-circle-fill'; 
-        case 'info':
-        default:
-            return 'ph:info-fill';
-    }
-};
-
-const getNotificationColor = (type) => {
-    switch (type) {
-        case 'success':
-        case 'عادي':
-            return 'text-green-500';
-        case 'error':
-        case 'warning':
-        case 'مستعجل':
-            return 'text-red-500';
-        default:
-            return 'text-[#7093bb]';
-    }
-};
 </script>
 <template>
   <div v-bind="$attrs">
@@ -387,64 +254,7 @@ const getNotificationColor = (type) => {
 
     <section class="flex gap-6 items-center">
       <div v-if="canShowNotifications" class="dropdown dropdown-end">
-        <button tabindex="0" role="button" class="btn btn-ghost btn-circle relative">
-          <Icon icon="ic:round-notifications" class="w-7 h-7 text-[#2E5077]" />
-          <div
-            v-if="unreadCount > 0 && !loading"
-            class="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white"
-          >
-            {{ unreadCount }}
-          </div>
-        </button>
-
-        <div
-          tabindex="0"
-          class="mt-5 z-[100] shadow dropdown-content bg-white rounded-lg w-80 text-right p-0"
-        >
-          <div class="bg-[#2E5077] text-white p-2 rounded-t-lg">
-            <h3 class="text-lg font-bold">الإشعارات</h3>
-            <span class="text-2xl font-extrabold">{{ unreadCount }}</span>
-          </div>
-
-          <ul
-            class="max-h-96 overflow-y-auto space-y-0 text-sm text-[#2E5077] divide-y divide-gray-100"
-          >
-            <li v-if="loading" class="p-4 text-center text-gray-500">
-              جاري تحميل الإشعارات...
-            </li>
-
-            <li v-else-if="error" class="p-4 text-center text-red-500">
-              {{ error }}
-            </li>
-
-            <li v-else v-for="(notification, index) in notifications" :key="index">
-              <a
-                class="flex flex-col items-start p-3 hover:bg-gray-50 transition-colors"
-                @click="markAsRead(notification)"
-              >
-                <div class="flex items-center w-full mb-1">
-                  <Icon
-                    :icon="getNotificationIcon(notification.type)"
-                    :class="['w-6 h-6 ml-3 flex-shrink-0', getNotificationColor(notification.type)]"
-                  />
-                  <p class="font-medium text-sm text-gray-800">
-                    {{ notification.message }}
-                  </p>
-                </div>
-                <p class="text-xs text-gray-400 mt-1 mr-9" dir="ltr">
-                  {{ formatDate(notification.date) }}
-                </p>
-              </a>
-            </li>
-
-            <li
-              v-if="!loading && !error && notifications.length === 0"
-              class="p-4 text-center text-gray-500"
-            >
-              لا توجد إشعارات جديدة.
-            </li>
-          </ul>
-        </div>
+        <NotificationDropdown />
       </div>
       <div class="dropdown dropdown-end  ">
         <button tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">

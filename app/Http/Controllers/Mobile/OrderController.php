@@ -10,8 +10,13 @@ use App\Models\Hospital;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\StaffNotificationService;
+
 class OrderController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $staffNotifications
+    ) {}
     // 4.1 عرض قائمة الطلبات (شكاوى + نقل)
     public function index(Request $request)
     {
@@ -162,7 +167,7 @@ class OrderController extends BaseApiController
     private function createComplaint($user, $request)
     {
         try {
-            $possibleStatuses = ['pending', 'new', 'open', 'in_review'];
+            $possibleStatuses = ['قيد المراجعة', 'تمت المراجعة'];
             $inserted = false;
             $lastId = null;
             $usedStatus = null;
@@ -174,7 +179,7 @@ class OrderController extends BaseApiController
                     $lastId = DB::getPdo()->lastInsertId();
                     $inserted = true;
                     $usedStatus = $status;
-                    Log::info('Complaint created with English status: ' . $status);
+                    Log::info('Complaint created with status: ' . $status);
                     break;
                 } catch (\Exception $statusError) {
                     Log::warning('Failed with status ' . $status . ': ' . $statusError->getMessage());
@@ -182,7 +187,26 @@ class OrderController extends BaseApiController
                 }
             }
 
+            if (!$inserted) {
+                $sql = "INSERT INTO complaints (patient_id, message, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
+                DB::insert($sql, [$user->id, $request->input('content')]);
+                $lastId = DB::getPdo()->lastInsertId();
+                $usedStatus = 'قيد المراجعة'; // Default status defined in migration
+                Log::info('Complaint created without status field (using default)');
+                $inserted = true;
+            }
+
             if ($inserted) {
+                try {
+                    $complaint = Complaint::find($lastId);
+                    if ($complaint) {
+                        $this->staffNotifications->notifyAdminComplaint($complaint);
+                        Log::info('Notification sent to admin for complaint ID: ' . $lastId);
+                    }
+                } catch (\Exception $notifyError) {
+                    Log::error('Failed to notify admin about new complaint: ' . $notifyError->getMessage());
+                }
+
                 return response()->json([
                     'success' => true,
                     'message' => 'تم إرسال الشكوى بنجاح.',
@@ -190,20 +214,6 @@ class OrderController extends BaseApiController
                         'id' => $lastId,
                         'type' => 'complaint',
                         'status' => $this->translateComplaintStatus($usedStatus)
-                    ]
-                ], 201);
-            } else {
-                $sql = "INSERT INTO complaints (patient_id, message, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
-                DB::insert($sql, [$user->id, $request->input('content')]);
-                $lastId = DB::getPdo()->lastInsertId();
-                Log::info('Complaint created without status field (using default)');
-                return response()->json([
-                    'success' => true,
-                    'message' => 'تم إرسال الشكوى بنجاح.',
-                    'data' => [
-                        'id' => $lastId,
-                        'type' => 'complaint',
-                        'status' => 'قيد المراجعة'
                     ]
                 ], 201);
             }
@@ -282,6 +292,12 @@ class OrderController extends BaseApiController
                 'reason' => $transfer->reason,
                 'created_at' => $transfer->created_at
             ]);
+
+            try {
+                $this->staffNotifications->notifyAdminTransferRequest($transfer);
+            } catch (\Exception $notifyError) {
+                Log::error('Failed to notify admin about new transfer request: ' . $notifyError->getMessage());
+            }
 
             return response()->json([
                 'success' => true,

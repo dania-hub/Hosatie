@@ -266,13 +266,24 @@
                             class="w-5 h-5 text-red-600"
                           />
                         </div>
+                        <!-- عرض أيقونة ساعة معطلة لطلبات النقل التي تمت الموافقة عليها مبدئياً -->
+                        <div
+                          v-else-if="patient.requestType === 'النقل' && (patient.status === 'تمت الموافقة الأولية' || patient.status === 'تمت الموافقة عليها مبدئياً' || patient.status === 'preapproved')"
+                          class="tooltip p-2 rounded-lg bg-gray-50 border border-gray-200"
+                          data-tip="تمت الموافقة عليه مبدئياً - في انتظار الموافقة النهائية"
+                        >
+                          <Icon
+                            icon="solar:clock-circle-bold"
+                            class="w-5 h-5 text-gray-400"
+                          />
+                        </div>
                         <!-- زر الرد على الطلب (للشكاوى وطلبات النقل المعلقة) -->
                         <button
                           v-else
                           @click="openResponseModal(patient)"
                           class="tooltip p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                           data-tip="الرد على الطلب"
-                          :disabled="patient.status === 'تم الرد' || patient.status === 'تمت المراجعة' || isLoadingResponse"
+                          :disabled="patient.status === 'تم الرد' || patient.status === 'تمت المراجعة' || patient.status === 'تمت الموافقة الأولية' || patient.status === 'تمت الموافقة عليها مبدئياً' || patient.status === 'preapproved' || isLoadingResponse"
                         >
                           <Icon
                             icon="streamline:mail-send-reply-all-email-message-reply-all-actions-action-arrow"
@@ -281,6 +292,9 @@
                               'opacity-50 cursor-not-allowed': 
                                 patient.status === 'تم الرد' ||
                                 patient.status === 'تمت المراجعة' ||
+                                patient.status === 'تمت الموافقة الأولية' ||
+                                patient.status === 'تمت الموافقة عليها مبدئياً' ||
+                                patient.status === 'preapproved' ||
                                 isLoadingResponse
                             }"
                           />

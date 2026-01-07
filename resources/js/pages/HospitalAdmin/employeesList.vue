@@ -891,7 +891,7 @@ const printTable = () => {
 
             <!-- المحتوى الرئيسي -->
             <div>
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-2 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
 
@@ -900,7 +900,7 @@ const printTable = () => {
                             <div
                                 tabindex="0"
                                 role="button"
-                                class="inline-flex items-center justify-between h-11 px-4 py-2 border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[150px]"
+                                class="inline-flex items-center justify-between h-11 px-4 py-2 border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[10px]"
                             >
                                 <span>
                                     {{ roleFilter === 'all' || roleFilter === 'الكل' ? 'جميع الأدوار' : roleFilter }}

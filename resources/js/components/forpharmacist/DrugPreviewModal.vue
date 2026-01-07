@@ -36,26 +36,26 @@
                                 <Icon icon="solar:bottle-bold-duotone" class="w-7 h-7 text-[#2E5077]" />
                             </div>
                             <div class="flex-1">
-                                <h3 class="text-xl font-bold text-[#2E5077] mb-1">{{ drug.drugName || "Glucophage" }}</h3>
-                                <p class="text-gray-500 font-medium">{{ drug.scientificName || "Metformin Hydrochloride" }}</p>
+                                <h3 class="text-xl font-bold text-[#2E5077] mb-1">{{ drug.drugName || "-" }}</h3>
+                                <p class="text-gray-500 font-medium">{{ drug.scientificName || "-" }}</p>
                             </div>
                             <div class="bg-[#EAF3F4] text-[#4DA1A9] px-3 py-1 rounded-lg text-sm font-bold">
-                                {{ drug.therapeuticClass || "أدوية علاج السكري" }}
+                                {{ drug.therapeuticClass || "-" }}
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الشكل الصيدلاني</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.pharmaceuticalForm || "أقراص فموية" }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.pharmaceuticalForm || "-" }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الشركة المصنعة</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.manufacturer || "Merck" }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.manufacturer || "-" }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الدولة المصنعة</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.mfgCountry || "فرنسا" }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.mfgCountry || "-" }}</p>
                             </div>
                         </div>
                     </div>
@@ -68,7 +68,7 @@
                                 دواعي الاستعمال
                             </h4>
                             <p class="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                {{ drug.indications || "يستخدم للتحكم في مستوى السكر المرتفع في الدم لدى مرضى السكري من النوع الثاني" }}
+                                {{ drug.indications || "-" }}
                             </p>
                         </div>
 
@@ -78,7 +78,7 @@
                                 إرشادات الاستخدام
                             </h4>
                             <p class="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                {{ drug.instructions || "يؤخذ عادة مع وجبات الطعام لتقليل اضطرابات المعدة. يجب اتباع تعليمات الطبيب بدقة بخصوص الجرعة" }}
+                                {{ drug.instructions || "-" }}
                             </p>
                         </div>
 
@@ -88,7 +88,7 @@
                                 تحذيرات هامة
                             </h4>
                             <p class="text-gray-600 text-sm leading-relaxed bg-red-50 p-3 rounded-xl border border-red-100">
-                                {{ drug.warnings || "يجب إبلاغ الطبيب في حال وجود أمراض في الكلى أو الكبد. لا يستخدم أثناء الحمل إلا باستشارة طبية" }}
+                                {{ drug.warnings || " -" }}
                             </p>
                         </div>
                     </div>
@@ -101,7 +101,7 @@
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400">تاريخ الانتهاء</p>
-                                <p class="font-bold text-[#2E5077]">{{ drug.expiryDate || "2028/10/22" }}</p>
+                                <p class="font-bold text-[#2E5077]">{{ drug.expiryDate || "-" }}</p>
                             </div>
                         </div>
                         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
@@ -110,7 +110,7 @@
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400">آخر تحديث</p>
-                                <p class="font-bold text-[#2E5077]">{{ drug.lastUpdate || "2025/12/09" }}</p>
+                                <p class="font-bold text-[#2E5077]">{{ drug.lastUpdate || "-" }}</p>
                             </div>
                         </div>
                     </div>

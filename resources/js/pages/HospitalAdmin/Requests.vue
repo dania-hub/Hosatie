@@ -2,7 +2,7 @@
     <DefaultLayout>
         <main class="flex-1 p-4 sm:p-5 pt-3">
             <div
-                class="flex flex-col sm:flex-row justify-between items-center pt-2 pb-4 mb-4 gap-3  sm:gap-0"
+                class="flex flex-col sm:flex-row justify-between items-center pt-2 pb-4 mb-2 gap-3  sm:gap-0"
             >
                 <div class="flex items-center gap-3 w-full sm:max-w-xl ">
                     <search v-model="searchTerm" />

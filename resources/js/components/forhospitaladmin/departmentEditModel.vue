@@ -87,7 +87,7 @@ const confirmUpdate = () => {
     const updatedDepartment = {
         id: form.value.id,
         name: form.value.name,
-        managerId: form.value.managerId || null,
+        managerId: form.value.managerId ? (Number(form.value.managerId) || form.value.managerId) : null,
         isActive: form.value.isActive,
     };
     
@@ -96,13 +96,30 @@ const confirmUpdate = () => {
     emit('close');
 };
 
+// حساب المدير الحالي
+const currentManager = computed(() => {
+    if (!form.value.managerId) return null;
+    return props.availableManagers.find(m => 
+        String(m.id || m.fileNumber) === String(form.value.managerId)
+    ) || (props.department?.managerName ? {
+        id: props.department.managerId,
+        name: props.department.managerName,
+        full_name: props.department.managerName
+    } : null);
+});
+
 // تهيئة البيانات عند فتح النافذة
 watch(() => props.isOpen, (newVal) => {
     if (newVal && props.department) {
+        // تحويل managerId إلى string للتأكد من المطابقة
+        const managerId = props.department.managerId 
+            ? String(props.department.managerId) 
+            : "";
+        
         const initialData = {
             id: props.department.id,
             name: props.department.name || "",
-            managerId: props.department.managerId || "",
+            managerId: managerId,
             isActive: props.department.isActive !== undefined ? props.department.isActive : true,
         };
 
@@ -114,6 +131,29 @@ watch(() => props.isOpen, (newVal) => {
             name: false,
         };
     }
+});
+
+// إضافة المدير الحالي إلى قائمة المتاحين إذا لم يكن موجوداً
+const managersWithCurrent = computed(() => {
+    const managers = [...props.availableManagers];
+    
+    if (form.value.managerId && props.department?.managerName) {
+        const exists = managers.some(m => 
+            String(m.id || m.fileNumber) === String(form.value.managerId)
+        );
+        
+        if (!exists) {
+            managers.unshift({
+                id: props.department.managerId,
+                fileNumber: props.department.managerId,
+                name: props.department.managerName,
+                full_name: props.department.managerName,
+                nameDisplay: props.department.managerName
+            });
+        }
+    }
+    
+    return managers;
 });
 </script>
 
@@ -171,17 +211,23 @@ watch(() => props.isOpen, (newVal) => {
                             <select
                                 id="managerId"
                                 v-model="form.managerId"
-                                class="w-full h-10 px-3 pr-10 rounded-2xl bg-white border border-gray-200 appearance-none focus:outline-none focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20 transition-colors duration-200"
+                                class="w-full h-11 px-4 pr-10 rounded-2xl bg-white border border-gray-200 appearance-none focus:outline-none focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20 transition-colors duration-200"
                             >
                                 <option value="">بدون مدير</option>
-                                <option v-for="manager in props.availableManagers" 
+                                <option v-for="manager in managersWithCurrent" 
                                         :key="manager.id || manager.fileNumber" 
-                                        :value="manager.id || manager.fileNumber">
+                                        :value="String(manager.id || manager.fileNumber)">
                                     {{ manager.name || manager.full_name || manager.nameDisplay }} - {{ manager.id || manager.fileNumber }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
+                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-3 pointer-events-none" />
                         </div>
+                        <p class="text-xs text-gray-500">
+                            المدير الحالي: 
+                            <span class="font-semibold text-[#2E5077]">
+                                {{ currentManager ? (currentManager.name || currentManager.full_name || currentManager.nameDisplay) : 'غير محدد' }}
+                            </span>
+                        </p>
                     </div>
 
                     <!-- حالة القسم -->

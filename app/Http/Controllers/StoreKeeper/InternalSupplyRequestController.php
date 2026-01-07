@@ -10,8 +10,13 @@ use App\Models\Inventory;
 use App\Models\AuditLog;
 use App\Models\Warehouse;
 use App\Models\Department;
+use App\Services\StaffNotificationService;
+
 class InternalSupplyRequestController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * جلب الملاحظات من audit_log
      */
@@ -475,22 +480,13 @@ class InternalSupplyRequestController extends BaseApiController
                 'request_id'   => $req->id
             ]);
 
-            $usersToNotify = array_unique(array_filter([$req->requested_by, $req->handeled_by]));
-
-            if (empty($usersToNotify)) {
-                \Log::warning('No requested_by or approved_by found for request', ['request_id' => $req->id]);
-            }
-
-            foreach ($usersToNotify as $userId) {
-                // ملاحظة: الحقل type في قاعدة البيانات هو enum يقبل فقط ['عادي', 'مستعجل']
-                $notif = \App\Models\Notification::create([
-                    'user_id' => $userId,
-                    'type'    => 'مستعجل',
-                    'title'   => 'تم رفض طلب التوريد',
-                    'message' => "تم رفض طلب التوريد رقم {$req->id}. السبب: {$validated['rejectionReason']}",
-                    'is_read' => false,
-                ]);
-                \Log::info('Rejection notification created', ['notification_id' => $notif->id, 'user_id' => $userId]);
+            if ($req->requester) {
+                 $this->notifications->notifyRequesterShipmentRejected($req->requester, $req, $validated['rejectionReason']);
+            } else {
+                 $requester = \App\Models\User::find($req->requested_by);
+                 if ($requester) {
+                      $this->notifications->notifyRequesterShipmentRejected($requester, $req, $validated['rejectionReason']);
+                 }
             }
 
         } catch (\Exception $e) {
@@ -628,6 +624,13 @@ class InternalSupplyRequestController extends BaseApiController
                 $check['inventory']->current_quantity -= $check['qty'];
                 $check['inventory']->save();
 
+                // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
+                try {
+                    $this->notifications->checkAndNotifyLowStock($check['inventory']);
+                } catch (\Exception $e) {
+                    \Log::error('Stock alert notification failed', ['error' => $e->getMessage()]);
+                }
+
                 // تثبيت الكميات في عناصر الطلب الداخلي
                 // ملاحظة: requested_qty لا يتم تعديله (يحتوي على الكمية المطلوبة الأصلية من pharmacist/department)
                 // approved_qty: الكمية التي يتم إرسالها من storekeeper
@@ -677,23 +680,14 @@ class InternalSupplyRequestController extends BaseApiController
                     'request_id'   => $req->id
                 ]);
 
-                $usersToNotify = array_unique(array_filter([$req->requested_by, $user->id]));
-
-                if (empty($usersToNotify)) {
-                    \Log::warning('No requested_by or approved_by found for request', ['request_id' => $req->id]);
-                }
-
-                foreach ($usersToNotify as $userId) {
-                    // ملاحظة: الحقل type في قاعدة البيانات هو enum يقبل فقط ['عادي', 'مستعجل']
-                    $notif = \App\Models\Notification::create([
-                        'user_id' => $userId,
-                        'type'    => 'عادي',
-                        'title'   => 'تم قبول طلب التوريد',
-                        'message' => "تم قبول طلب التوريد رقم {$req->id}وتم إرسال الشحنة. ",
-                        'is_read' => false,
-                    ]);
-                    \Log::info('Success notification created', ['notification_id' => $notif->id, 'user_id' => $userId]);
-                }
+                 if ($req->requester) {
+                      $this->notifications->notifyRequesterShipmentApproved($req->requester, $req);
+                 } else {
+                      $requester = \App\Models\User::find($req->requested_by);
+                      if ($requester) {
+                           $this->notifications->notifyRequesterShipmentApproved($requester, $req);
+                      }
+                 }
 
             } catch (\Exception $auditError) {
                 // لا نفشل العملية إذا فشل الـ logging

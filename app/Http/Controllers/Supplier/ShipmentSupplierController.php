@@ -10,8 +10,13 @@ use App\Http\Requests\Supplier\RejectShipmentRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\StaffNotificationService;
+
 class ShipmentSupplierController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * عرض قائمة الشحنات للمورد
      * GET /api/supplier/shipments
@@ -417,6 +422,29 @@ class ShipmentSupplierController extends BaseApiController
                         $item->approved_qty = max(0, (float)$approvedQty); // الكمية المعتمدة من Supplier
                         $item->fulfilled_qty = max(0, (float)$fulfilledQty); // الكمية الفعلية المرسلة من Supplier
                         $item->save();
+
+                        // خصم الكمية من مخزون المورد
+                        $inventory = Inventory::where('drug_id', $item->drug_id)
+                            ->where('supplier_id', $user->supplier_id)
+                            ->whereNull('warehouse_id')
+                            ->whereNull('pharmacy_id')
+                            ->first();
+
+                        if ($inventory) {
+                            $inventory->current_quantity -= $item->fulfilled_qty;
+                            $inventory->save();
+
+                            // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
+                            try {
+                                $this->notifications->checkAndNotifyLowStock($inventory);
+                            } catch (\Exception $e) {
+                                \Log::error('Supplier stock alert notification failed', ['error' => $e->getMessage()]);
+                            }
+                            
+                            \Log::info("Subtracted {$item->fulfilled_qty} of drug {$item->drug_id} from supplier {$user->supplier_id} inventory.");
+                        } else {
+                            \Log::warning("Inventory record not found for drug {$item->drug_id} and supplier {$user->supplier_id} during shipment confirmation.");
+                        }
                     }
                 }
             } else {
@@ -426,6 +454,25 @@ class ShipmentSupplierController extends BaseApiController
                     $item->approved_qty = $defaultQty; // الكمية المعتمدة من Supplier
                     $item->fulfilled_qty = $defaultQty; // الكمية الفعلية المرسلة من Supplier
                     $item->save();
+
+                    // خصم الكمية من مخزون المورد
+                    $inventory = Inventory::where('drug_id', $item->drug_id)
+                        ->where('supplier_id', $user->supplier_id)
+                        ->whereNull('warehouse_id')
+                        ->whereNull('pharmacy_id')
+                        ->first();
+
+                    if ($inventory) {
+                        $inventory->current_quantity -= $item->fulfilled_qty;
+                        $inventory->save();
+
+                        // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
+                        try {
+                            $this->notifications->checkAndNotifyLowStock($inventory);
+                        } catch (\Exception $e) {
+                            \Log::error('Supplier stock alert notification failed (default qty)', ['error' => $e->getMessage()]);
+                        }
+                    }
                 }
             }
 
@@ -454,6 +501,12 @@ class ShipmentSupplierController extends BaseApiController
                 } catch (\Exception $e) {
                     \Log::warning('Failed to log confirmation notes', ['error' => $e->getMessage()]);
                 }
+            }
+
+            try {
+                $this->notifications->notifyWarehouseSupplierAccepted($shipment);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify warehouse manager about supplier acceptance', ['error' => $e->getMessage()]);
             }
 
             DB::commit();
@@ -525,6 +578,12 @@ class ShipmentSupplierController extends BaseApiController
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
+            }
+
+            try {
+                $this->notifications->notifyWarehouseSupplierRejected($shipment, $rejectionReason);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify warehouse manager about supplier rejection', ['error' => $e->getMessage()]);
             }
 
             DB::commit();

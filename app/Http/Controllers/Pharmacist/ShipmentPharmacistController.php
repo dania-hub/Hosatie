@@ -9,8 +9,16 @@ use App\Models\Inventory;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\AuditLog;
+use App\Models\Drug;
+use App\Services\StaffNotificationService;
+use App\Services\PatientNotificationService;
+
 class ShipmentPharmacistController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $staffNotifications,
+        private PatientNotificationService $patientNotifications
+    ) {}
     /**
      * جلب الملاحظات من audit_log
      */
@@ -215,8 +223,8 @@ class ShipmentPharmacistController extends BaseApiController
     {
         DB::beginTransaction();
         try {
-            // 1) جلب الطلب الداخلي مع العناصر
-            $shipment = InternalSupplyRequest::with('items')->findOrFail($id);
+            // 1) جلب الطلب الداخلي مع العناصر والصيدلية لضمان الحصول على hospital_id
+            $shipment = InternalSupplyRequest::with(['items', 'pharmacy'])->findOrFail($id);
 
             if ($shipment->status === 'fulfilled') {
                 return $this->sendError('تم استلام هذه الشحنة مسبقاً.');
@@ -288,8 +296,30 @@ class ShipmentPharmacistController extends BaseApiController
                     $inventory->warehouse_id = null;
                 }
 
-                $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $qtyToAdd;
+                $oldQuantity = (float)($inventory->current_quantity ?? 0);
+                $inventory->current_quantity = $oldQuantity + $qtyToAdd;
                 $inventory->save();
+
+                // التنبيه في حالة انخفاض المخزون عن الحد الأدنى (حتى بعد التوريد)
+                try {
+                    $this->staffNotifications->checkAndNotifyLowStock($inventory);
+                } catch (\Exception $e) {
+                    \Log::error('Pharmacy stock replenishment alert notification failed', ['error' => $e->getMessage()]);
+                }
+
+                // ✅ منطق إخطار المرضى عند توفر دواء كان غير متوفر
+                // إذا كان الرصيد السابق 0 والرصيد الجديد > 0
+                if ($oldQuantity <= 0 && $inventory->current_quantity > 0) {
+                    try {
+                        $drug = Drug::find($item->drug_id);
+                        if ($drug) {
+                            $hospitalId = $shipment->pharmacy->hospital_id ?? 0;
+                            $this->patientNotifications->notifyDrugAvailability($drug, (int)$hospitalId);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Patient availability notification failed', ['error' => $e->getMessage()]);
+                    }
+                }
 
                 // تحديث fulfilled_qty في item بالكمية المستلمة الفعلية:
                 // ملاحظة: 
@@ -298,6 +328,26 @@ class ShipmentPharmacistController extends BaseApiController
                 // - fulfilled_qty: الكمية المستلمة الفعلية من pharmacist (يتم تحديثها هنا)
                 $item->fulfilled_qty = $qtyToAdd;
                 $item->save();
+            }
+
+            // تحقق من وجود نقص أو تلف في أي صنف
+            $hasShortage = false;
+            foreach ($shipment->items as $item) {
+                $sentQty = $item->approved_qty ?? $item->requested_qty ?? 0;
+                $receivedQty = $item->fulfilled_qty ?? 0;
+                if ($receivedQty < $sentQty) {
+                    $hasShortage = true;
+                    break;
+                }
+            }
+
+            if ($hasShortage) {
+                try {
+                    $pharmacyName = $shipment->pharmacy->name ?? 'الصيدلية';
+                    $this->staffNotifications->notifyAdminShipmentDamage($shipment, $pharmacyName);
+                } catch (\Exception $e) {
+                    \Log::error('Failed to notify admin about pharmacist shortage: ' . $e->getMessage());
+                }
             }
 
             DB::commit();

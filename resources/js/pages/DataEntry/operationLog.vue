@@ -564,7 +564,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 </template>
 
 <style>
-/* 14. تنسيقات شريط التمرير */
+/* 14.. تنسيقات شريط التمرير */
 ::-webkit-scrollbar {
     width: 8px;
 }

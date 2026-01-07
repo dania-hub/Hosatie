@@ -10,8 +10,13 @@ use App\Models\Pharmacy; // <--- إضافة موديل الصيدلية
 use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 
+use App\Services\StaffNotificationService;
+
 class SupplyRequestPharmacistController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
     /**
      * Create a new internal supply request from Pharmacy to Warehouse/Admin.
      */
@@ -65,6 +70,12 @@ class SupplyRequestPharmacistController extends BaseApiController
             }
 
             DB::commit();
+
+            try {
+                $this->notifications->notifyWarehouseNewInternalRequest($supplyRequest);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify warehouse manager', ['error' => $e->getMessage()]);
+            }
 
             // تحديد اسم الصيدلية وقت إنشاء الطلب (لتجنب تغييره عند تغيير صيدلية المستخدم لاحقاً)
             $pharmacyName = 'غير محدد';

@@ -426,6 +426,7 @@ const sortKey = ref('createdAt');
 const sortOrder = ref('desc');
 const dateFrom = ref('');
 const dateTo = ref('');
+const showDateFilter = ref(false);
 
 const sortPatients = (key, order) => {
   sortKey.value = key;
@@ -457,6 +458,17 @@ const filteredPatients = computed(() => {
         (patient.status && patient.status.toLowerCase().includes(search))
       );
     });
+  }
+
+  // تطبيق فلترة التاريخ
+  if (dateFrom.value) {
+    const from = new Date(dateFrom.value);
+    list = list.filter(p => new Date(p.createdAt) >= from);
+  }
+  if (dateTo.value) {
+    const to = new Date(dateTo.value);
+    to.setHours(23, 59, 59, 999);
+    list = list.filter(p => new Date(p.createdAt) <= to);
   }
 
   // تطبيق الفرز

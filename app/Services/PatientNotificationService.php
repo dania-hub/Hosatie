@@ -44,12 +44,18 @@ class PatientNotificationService
             'request_id' => $request->id,
             'timestamp' => now()->format('Y-m-d H:i:s.u')
         ]);
+
+        if (!$request->relationLoaded('toHospital')) {
+            $request->load('toHospital');
+        }
+
+        $hospitalName = $request->toHospital->name ?? 'المستشفى الجديد';
         
         $notification = $this->createNotification(
             $patient,
             'عادي',
             'تمت الموافقة على طلب النقل',
-            'تمت الموافقة على طلب نقلك إلى المستشفى الجديد.'
+            "تمت الموافقة على طلب نقلك إلى مستشفى [{$hospitalName}]."
         );
         
         Log::info('🚨 === notifyTransferApproved END ===');

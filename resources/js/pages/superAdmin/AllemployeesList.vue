@@ -739,7 +739,7 @@ onMounted(async () => {
     </ul>
 </div>
 
-<!-- عرض عدد النتائج -->
+<!-- عرض ةعدد النتائج -->
 <div class="flex items-center gap-1">
     <p class="text-sm font-semibold text-gray-600">عدد النتائج:</p>
     <span class="text-[#4DA1A9] text-lg font-bold bg-gray-100 px-3 py-1 rounded-full">

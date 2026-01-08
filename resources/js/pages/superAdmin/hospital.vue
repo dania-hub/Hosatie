@@ -95,15 +95,8 @@ const fetchAllData = async () => {
         
         // معالجة بيانات الموردين (فقط الذين لم يتم تعيينهم في مستشفى)
         const suppliersData = suppliersResponse.data.data || [];
-        // الحصول على قائمة IDs الموردين المعينين في مستشفيات
-        const assignedSupplierIds = new Set(
-            hospitalsData
-                .filter(h => h.supplier && h.supplier.id)
-                .map(h => h.supplier.id)
-        );
         
         availableSuppliers.value = suppliersData
-            .filter(supplier => !assignedSupplierIds.has(supplier.id))
             .map(supplier => ({
                 ...supplier,
                 id: supplier.id,
@@ -114,7 +107,7 @@ const fetchAllData = async () => {
         // معالجة بيانات المدراء (فقط hospital_admin الذين لم يتم تعيينهم في مستشفى)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'hospital_admin' && !user.hospital)
+            .filter(user => user.type === 'hospital_admin')
             .map(user => ({
                 ...user,
                 id: user.id,
@@ -951,7 +944,7 @@ const printTable = () => {
 
     <hospitalEditModel
         :is-open="isEditModalOpen"
-        :available-suppliers="availableSuppliersForHospitals"
+        :available-suppliers="availableSuppliers"
         :available-managers="availableManagersForHospitals"
         :hospital="selectedHospital"
         @close="closeEditModal"

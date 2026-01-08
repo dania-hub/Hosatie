@@ -136,8 +136,6 @@
                 <button
                     @click="closeModal"
                     class="px-6 py-2.5 rounded-xl text-gray-600 bg-gray-100 font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
-                    :disabled="isConfirming"
-                    :class="{ 'opacity-50 cursor-not-allowed': isConfirming }"
                 >
                     إلغاء
                 </button>
@@ -296,11 +294,9 @@ const confirmReceipt = async () => {
 
 // إغلاق النموذج
 const closeModal = () => {
-    if (!isConfirming.value) {
-        additionalNotes.value = "";
-        errorMessage.value = "";
-        emit("close");
-    }
+    additionalNotes.value = "";
+    errorMessage.value = "";
+    emit("close");
 };
 
 // مراقبة فتح/إغلاق المودال

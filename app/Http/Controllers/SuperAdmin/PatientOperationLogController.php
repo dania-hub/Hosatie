@@ -14,128 +14,171 @@ class PatientOperationLogController extends BaseApiController
 {
     public function index(Request $request)
     {
-        // Filter for patient-related tables only
-        $patientTables = [
+        // 1. Define tables
+        $tables = [
             'users', 
-            'prescription', 
+            'prescriptions', 
             'prescription_drug', 
             'prescription_drugs', 
-            'dispensings'
+            'dispensings',
+            'hospitals',
+            'suppliers',
+            'drugs',
+            'inventories' // Maybe?
         ];
 
-        $query = AuditLog::whereIn('table_name', $patientTables)
-            ->with(['user', 'patientUser', 'hospital']);
+        // 2. Base Query - Fetch logs for these tables, performed by THIS user
+        $query = AuditLog::whereIn('table_name', $tables)
+            ->where('user_id', \Illuminate\Support\Facades\Auth::id())
+            ->with(['user', 'hospital']) 
+            ->latest();
 
-        // Search
-        if ($request->has('search') && $request->input('search') != '') {
-            $search = $request->input('search');
-            $query->where(function($q) use ($search) {
-                $q->where('action', 'like', "%{$search}%")
-                  ->orWhereHas('patientUser', function($p) use ($search) {
-                      $p->where('full_name', 'like', "%{$search}%")
-                        ->orWhere('file_number', 'like', "%{$search}%");
-                  });
-            });
-        }
+        // 3. Fetch Data (Limit to 300 to ensure performance)
+        $logs = $query->take(300)->get();
 
-        $logs = $query->latest()->get();
-
-        // Filter out non-patient user records if table is 'users'
-        $filteredLogs = $logs->filter(function ($log) {
-            if ($log->table_name === 'users') {
-                // Check if the affected user is a patient
-                $user = User::find($log->record_id);
-                if ($user && $user->type !== 'patient') {
-                    return false;
-                }
-                // If user deleted or not found, try to check old/new values for type
-                if (!$user) {
-                    $vals = json_decode($log->new_values ?? $log->old_values, true);
-                    if (isset($vals['type']) && $vals['type'] !== 'patient') {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        });
-
-        $data = $filteredLogs->map(function ($log) {
-            $patientName = $this->getPatientName($log);
-            $fileNumber = $this->getFileNumber($log);
+        // 4. Process and Map to View Format
+        $data = $logs->map(function ($log) {
+            $context = $this->resolveGenericContext($log);
             
-            // Format the operation text
-            $formattedText = $this->formatOperationText($log);
+            // "Patient" here is a metaphor for the target entity
+            $entity = $context['patient'];
+            $formatted = $this->formatOperationText($log, $context);
+            
+            if (!$entity && !$formatted['label']) {
+                 // Skip if we cant identify meaningful info
+                 return null;
+            }
+
+            // Map fields to what frontend expects:
+            // file_number -> ID
+            // full_name -> Name of Entity (Hospital Name, Drug Name...)
+            
+            $fileNumber = $log->record_id;
+            $fullName = 'غير معروف';
+
+            if ($entity) {
+                $fileNumber = $entity->file_number ?? $entity->id;
+                $fullName = $entity->full_name ?? ($entity->name ?? $entity->name_ar ?? 'غير معروف');
+            }
 
             return [
                 'id'              => $log->id,
                 'file_number'     => $fileNumber,
-                'full_name'       => $patientName,
-                'operation_label' => $formattedText['label'],
-                'operation_body'  => $formattedText['body'],
-                'operation_type'  => $formattedText['label'], // For filtering
-                'date'            => $log->created_at?->format('Y/m/d'),
+                'full_name'       => $fullName,
+                'operation_label' => $formatted['label'],
+                'operation_body'  => $formatted['body'],
+                'operation_type'  => $formatted['label'],
+                'date'            => $log->created_at->format('Y/m/d'),
+                
+                // Fields for search
+                'searchable_text' => strtolower(
+                    $fullName . ' ' . $fileNumber . ' ' . 
+                    ($formatted['label'] ?? '') . ' ' . 
+                    ($formatted['body'] ?? '')
+                ),
             ];
-        })->values(); // Reset keys after filter
+        })
+        ->filter() // Remove nulls
+        ->values();
+
+        // 5. In-Memory Search (Since data volume is capped by take(300))
+        if ($request->has('search') && $request->input('search') != '') {
+            $search = strtolower($request->input('search'));
+            $data = $data->filter(function ($item) use ($search) {
+                return str_contains($item['searchable_text'], $search);
+            })->values();
+        }
 
         return response()->json($data);
     }
 
     /**
-     * جلب اسم المريض
+     * Resolves the patient and related object based on log table and record_id
      */
-    private function getPatientName($log)
+    private function resolveGenericContext($log)
     {
-        // Logic copied and simplified from OperationLogSuperController
-        if ($log->patientUser) {
-            return $log->patientUser->full_name;
-        }
-
-        if ($log->table_name === 'users') {
-            $patient = User::find($log->record_id);
-            return $patient ? $patient->full_name : '-';
-        }
-
-        // Fallback to JSON parsing if needed (simplified for brevity, assuming relation works mostly)
-        $values = json_decode($log->new_values ?? $log->old_values, true);
-        if (isset($values['patient_name'])) return $values['patient_name'];
-        if (isset($values['full_name'])) return $values['full_name'];
+        $entity = null; // Renamed from $patient for clarity, but logic remains similar
+        $relatedObject = null;
+        $newValues = json_decode($log->new_values, true) ?? [];
+        $oldValues = json_decode($log->old_values, true) ?? [];
         
-        return '-';
+        $mergedValues = array_merge($oldValues ?? [], $newValues ?? []);
+
+        // 1. Specific Entity Loading
+        switch ($log->table_name) {
+            case 'hospitals':
+                $entity = \App\Models\Hospital::find($log->record_id);
+                if (!$entity && isset($mergedValues['name'])) {
+                     $entity = new \App\Models\Hospital($mergedValues); // Virtual
+                     $entity->id = $log->record_id;
+                }
+                break;
+                
+            case 'suppliers':
+                $entity = \App\Models\Supplier::find($log->record_id);
+                if (!$entity && isset($mergedValues['name'])) {
+                     $entity = new \App\Models\Supplier($mergedValues);
+                     $entity->id = $log->record_id;
+                }
+                break;
+                
+            case 'drugs':
+                $entity = \App\Models\Drug::find($log->record_id);
+                if (!$entity && isset($mergedValues['name'])) {
+                     $entity = new \App\Models\Drug($mergedValues);
+                     $entity->id = $log->record_id;
+                }
+                break;
+
+            case 'users':
+                 $user = User::find($log->record_id);
+                 if (!$user) {
+                      // Check JSON
+                      if (isset($mergedValues['full_name'])) {
+                          $user = new User($mergedValues);
+                          $user->id = $log->record_id;
+                      }
+                 }
+                 $entity = $user;
+                 break;
+
+            // ... Existing cases for patient stuff ...
+             case 'prescriptions':
+                $prescription = Prescription::with('patient')->find($log->record_id);
+                if ($prescription) {
+                    $entity = $prescription->patient;
+                    $relatedObject = $prescription;
+                }
+                break;
+            case 'prescription_drugs':
+            case 'prescription_drug': 
+                $pDrug = PrescriptionDrug::with('prescription.patient')->find($log->record_id);
+                if ($pDrug && $pDrug->prescription) {
+                    $entity = $pDrug->prescription->patient;
+                    $relatedObject = $pDrug;
+                }
+                break;
+            case 'dispensings':
+                $dispensing = \App\Models\Dispensing::with('patient')->find($log->record_id);
+                if ($dispensing) {
+                    $entity = $dispensing->patient;
+                    $relatedObject = $dispensing;
+                }
+                break;
+        }
+        
+        // Return structured as 'patient' because index method expects it, 
+        // effectively 'patient' now means 'Target Entity'
+        return ['patient' => $entity, 'object' => $relatedObject];
     }
 
-    /**
-     * الحصول على رقم الملف
-     */
-    private function getFileNumber($log)
+    private function formatOperationText($log, $context)
     {
-        if ($log->patientUser) {
-            return $log->patientUser->file_number ?? $log->patientUser->id;
-        }
-        
-        // For patients, record_id is often the user_id which is the file number in some contexts, 
-        // or we need to look up the user.
-        if ($log->table_name === 'users') {
-            $user = User::find($log->record_id);
-            return $user ? ($user->file_number ?? $user->id) : $log->record_id;
-        }
-
-        return $log->record_id;
-    }
-
-    /**
-     * تنسيق نص العملية
-     */
-    private function formatOperationText($log)
-    {
-        $newValues = $log->new_values ? json_decode($log->new_values, true) : [];
-        $oldValues = $log->old_values ? json_decode($log->old_values, true) : [];
-        
-        $action = $log->action;
-        $label = $action;
+        $label = $log->action;
         $body = '';
 
-        // Translate Action
-        $translations = [
+        // Translations map
+        $map = [
             'create_patient' => 'إضافة مريض',
             'update_patient' => 'تعديل بيانات مريض',
             'delete_patient' => 'حذف مريض',
@@ -144,25 +187,131 @@ class PatientOperationLogController extends BaseApiController
             'delete' => 'حذف',
         ];
         
-        if (isset($translations[$action])) {
-            $label = $translations[$action];
+        if (isset($map[$log->action])) {
+            $label = $map[$log->action];
         }
 
-        // Specific formatting
-        if ($action === 'update_patient') {
-            $body = 'تم تعديل البيانات الشخصية';
-        } elseif ($action === 'create_patient') {
-            $body = 'تم فتح ملف جديد';
-        } elseif (in_array($log->table_name, ['prescription_drug', 'prescription_drugs'])) {
-            $label = 'عملية على الأدوية';
-            $drugName = '';
-            if (isset($newValues['drug_id'])) {
-                $drug = Drug::find($newValues['drug_id']);
-                $drugName = $drug ? $drug->name : '';
+        // Context-aware Formats
+        if ($log->table_name === 'hospitals') {
+            $label = 'إدارة المستشفيات';
+            if ($log->action == 'create') {
+                $body = 'إضافة مستشفى جديد';
+            } else {
+                $changes = $this->getChangesDescription($log);
+                $body = $changes ?: 'تحديث بيانات مستشفى';
+            } 
+        }
+        if ($log->table_name === 'suppliers') {
+            $label = 'إدارة الموردين';
+            if ($log->action == 'create') {
+                $body = 'إضافة مورد جديد';
+            } else {
+                $changes = $this->getChangesDescription($log);
+                $body = $changes ?: 'تحديث بيانات مورد';
             }
-            $body = $drugName ? "دواء: $drugName" : '';
+        }
+        if ($log->table_name === 'drugs') {
+            $label = 'إدارة الأدوية';
+            if ($log->action == 'create') {
+                $body = 'إضافة دواء جديد';
+            } else {
+                $changes = $this->getChangesDescription($log);
+                $body = $changes ?: 'تحديث بيانات دواء';
+            }
         }
 
+        if ($log->table_name === 'users') {
+            if ($log->action === 'create_patient') $body = 'تم فتح ملف جديد';
+            elseif ($log->action === 'update_patient') $body = 'تم تعديل البيانات الشخصية';
+            else {
+                $label = 'إدارة المستخدمين';
+                if ($log->action == 'create') {
+                     $body = 'إضافة مستخدم جديد';
+                } else {
+                     $changes = $this->getChangesDescription($log);
+                     $body = $changes ?: 'تحديث بيانات مستخدم';
+                }
+            }
+        }
+        
+        if ($log->table_name === 'prescriptions') {
+             $label = 'وصفة طبية';
+             $body = $log->action === 'create' ? 'تم إنشاء وصفة طبية' : 'تحديث حالة الوصفة';
+        }
+        
+        if (in_array($log->table_name, ['prescription_drugs', 'prescription_drug'])) {
+             $label = 'عملية على الأدوية';
+             // Try to get drug name from new values or the object
+             $pDrug = $context['object'];
+             $drugName = '';
+             
+             if ($pDrug instanceof PrescriptionDrug) {
+                 // Check if relation loaded
+                 if($pDrug->drug) {
+                    $drugName = $pDrug->drug->name;
+                 } else {
+                    $d = Drug::find($pDrug->drug_id);
+                    if ($d) $drugName = $d->name;
+                 }
+             }
+
+             // If object is missing or drug not found, check json
+             if (!$drugName && $log->new_values) {
+                 $vals = json_decode($log->new_values, true);
+                 if (isset($vals['drug_id'])) {
+                      $d = Drug::find($vals['drug_id']);
+                      if ($d) $drugName = $d->name;
+                 }
+             }
+
+             $body = $drugName ? "دواء: {$drugName}" : 'تعديل في الأدوية';
+        }
+        
         return ['label' => $label, 'body' => $body];
+    }
+
+    private function getChangesDescription($log)
+    {
+        if ($log->action !== 'update') return '';
+
+        $newValues = json_decode($log->new_values, true);
+        if (!$newValues || !is_array($newValues)) return '';
+
+        $fieldMap = [
+            'name' => 'الاسم',
+            'full_name' => 'الاسم الكامل',
+            'email' => 'البريد الإلكتروني',
+            'phone' => 'رقم الهاتف',
+            'address' => 'العنوان',
+            'status' => 'الحالة',
+            'password' => 'كلمة المرور',
+            'type' => 'نوع الحساب',
+            'role' => 'الصلاحية',
+            'license_number' => 'رقم الترخيص',
+            'description' => 'الوصف',
+            'manufacturer' => 'الشركة المصنعة',
+            'price' => 'السعر',
+            'quantity' => 'الكمية',
+            'is_active' => 'التفعيل',
+        ];
+
+        $changedFields = [];
+        foreach ($newValues as $key => $val) {
+            if (in_array($key, ['updated_at', 'created_at', 'id', 'remember_token'])) continue;
+            
+            // Password special case
+            if ($key === 'password') {
+                $changedFields[] = 'كلمة المرور';
+                continue;
+            }
+
+            $fieldName = $fieldMap[$key] ?? $key;
+            $changedFields[] = $fieldName;
+        }
+
+        if (empty($changedFields)) return '';
+        
+        // Return first 3 changes
+        return 'تم تحديث: ' . implode('، ', array_slice($changedFields, 0, 3));
     }
 }

@@ -138,12 +138,12 @@ const links = {
         { name: "المدراء و الموردين", icon: "clarity:employee-group-solid", to: "/superAdmin/employees" },
          { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/superAdmin/AllemployeesList" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/superAdmin/operations" },
-        { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/superAdmin/all-operations" },
         { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/superAdmin/requests" },
         { name: "المستشفيات", icon: "fa:hospital-o", to: "/superAdmin/hospital" },
         { name: "شركات التوريد", icon: "fa:hospital-o", to: "/superAdmin/Supply" },
         { name: "مخزون الموردين", icon: "ic:outline-inventory-2", to: "/superAdmin/supplier-inventory" },
-        { name: "مخزون", icon: "ic:outline-inventory-2", to: "/superAdmin/inventory" },
+        { name:    " مخزون المستشفيات", icon: "ic:outline-inventory-2", to: "/superAdmin/inventory" },
+        { name: "التقارير", icon: "carbon:report-data", to: "/superAdmin/reports" },
     ],
 
 

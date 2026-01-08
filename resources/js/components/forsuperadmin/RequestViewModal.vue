@@ -176,7 +176,6 @@
                 <button
                     @click="closeModal"
                     class="px-8 py-3 rounded-xl bg-[#2E5077] text-white font-bold hover:bg-[#1a3b5e] transition-all duration-200 shadow-lg shadow-[#2E5077]/20"
-                    :disabled="isLoading"
                 >
                     إغلاق
                 </button>

@@ -2,6 +2,7 @@
 namespace App\Observers;
 
 use App\Models\Inventory;
+use App\Models\Drug;
 
 class InventoryObserver
 {
@@ -19,5 +20,34 @@ class InventoryObserver
         if ($inventory->warehouse_id || $inventory->pharmacy_id) {
             $inventory->supplier_id = null;
         }
+    }
+
+    public function created(Inventory $inventory)
+    {
+        $this->updateDrugStatus($inventory);
+    }
+
+    public function updated(Inventory $inventory)
+    {
+        $this->updateDrugStatus($inventory);
+    }
+
+    public function deleted(Inventory $inventory)
+    {
+        $this->updateDrugStatus($inventory);
+    }
+
+    protected function updateDrugStatus(Inventory $inventory)
+    {
+        $drug = Drug::find($inventory->drug_id);
+        if (!$drug) return;
+
+        // متوفر إذا كان موجود في أي صيدلية وكميتها > 0
+        $isAvailable = Inventory::where('drug_id', $drug->id)
+            ->whereNotNull('pharmacy_id')
+            ->where('current_quantity', '>', 0)
+            ->exists();
+
+        $drug->update(['status' => $isAvailable ? 'متوفر' : 'غير متوفر']);
     }
 }

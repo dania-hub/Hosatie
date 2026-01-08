@@ -18,7 +18,6 @@ Route::prefix('superAdmin')->group(function () {
     Route::get('/patients', function () { return Inertia::render('superAdmin/patientListd'); });
     Route::get('/medications', function () { return Inertia::render('superAdmin/medicationsList'); });
     Route::get('/operations', function () { return Inertia::render('superAdmin/operationLog'); });
-    Route::get('/all-operations', function () { return Inertia::render('superAdmin/operationLogforall'); });
     Route::get('/statistics', function () { return Inertia::render('superAdmin/statistics'); });
     Route::get('/employees', function () { return Inertia::render('superAdmin/employeesList'); });
     Route::get('/AllemployeesList', function () { return Inertia::render('superAdmin/AllemployeesList'); });
@@ -27,6 +26,7 @@ Route::prefix('superAdmin')->group(function () {
     Route::get('/Supply', function () { return Inertia::render('superAdmin/Supply'); });
     Route::get('/supplier-inventory', function () { return Inertia::render('superAdmin/SupplierInventory'); });
     Route::get('/inventory', function () { return Inertia::render('superAdmin/Inventory'); });
+    Route::get('/reports', function () { return Inertia::render('superAdmin/reports'); });
    
 
 

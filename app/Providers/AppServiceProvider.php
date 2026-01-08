@@ -44,7 +44,11 @@ class AppServiceProvider extends ServiceProvider
         // Register model observers
 // تسجيل جميع Observers
     \App\Models\Drug::observe(\App\Observers\DrugObserver::class);
+    \App\Models\Drug::observe(\App\Observers\GeneralAuditObserver::class);
     \App\Models\Inventory::observe(\App\Observers\InventoryObserver::class);
+    
+    \App\Models\Hospital::observe(\App\Observers\GeneralAuditObserver::class);
+    \App\Models\Supplier::observe(\App\Observers\GeneralAuditObserver::class);
 
         User::observe(UserObserver::class);
    InternalSupplyRequest::observe(InternalSupplyRequestObserver::class);

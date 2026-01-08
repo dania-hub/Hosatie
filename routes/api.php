@@ -300,6 +300,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout/dashboard', [AuthController::class, 'logoutDashboard']);
     Route::post('fcm-token', [AuthController::class, 'updateFcmToken']);
 
+    // =====================================================================
+    // B. Shared Lookups
+    // =====================================================================
+    Route::get('/categories', [DrugSuperController::class, 'categories']);
+    Route::get('/pharmaceutical-forms', [DrugSuperController::class, 'forms']);
+    Route::get('/countries', [DrugSuperController::class, 'countries']);
+
     Route::get('profile/mobile', [AuthController::class, 'profileMobile']);
     Route::put('profile/mobile', [AuthController::class, 'updateProfileMobile']);
     Route::put('profile/password/mobile', [AuthController::class, 'changePasswordMobile']);
@@ -593,9 +600,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('dashboard/stats', [DashboardSuperController::class, 'stats']);
         Route::get('reports/hospitals', [DashboardSuperController::class, 'hospitalsReport']);
         Route::get('reports/drugs', [DashboardSuperController::class, 'drugsReport']);
-        Route::get('reports/users', [DashboardSuperController::class, 'usersReport']);
+        Route::get('reports/dispensings', [DashboardSuperController::class, 'dispensingsReport']);
         Route::get('reports/requests-monthly', [DashboardSuperController::class, 'requestsMonthlyReport']);
+        Route::get('reports/requests-monthly/details', [DashboardSuperController::class, 'requestsMonthlyDetails']);
+        Route::get('reports/request-items', [DashboardSuperController::class, 'getRequestItems']);
         Route::get('reports/activities', [DashboardSuperController::class, 'activitiesReport']);
+        Route::get('reports/hospital-departments', [DashboardSuperController::class, 'getHospitalDepartments']);
+        Route::get('reports/hospital-pharmacies', [DashboardSuperController::class, 'getHospitalPharmacies']);
         
          Route::get('/patients', [PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
          
@@ -607,5 +618,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
          // Patient Operations Log (Simple)
          Route::get('/patient-operations', [App\Http\Controllers\SuperAdmin\PatientOperationLogController::class, 'index']);
+
+         // Shipments (External Supply Requests)
+         Route::get('/shipments', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'index']);
+         Route::put('/shipments/{id}/confirm', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'confirm']);
     });
 });

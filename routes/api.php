@@ -283,6 +283,7 @@ Route::get('check-otp-cache', function (Request $request) {
     ]);
 });
 Route::post('forgot-password/dashboard', [ForgotPasswordController::class, 'sendOtpDashboard']);
+//Route::post('verify-otp/dashboard', [ForgotPasswordController::class, 'verifyOtpDashboard']);
 Route::post('reset-password/dashboard', [ForgotPasswordController::class, 'resetPasswordDashboard']);
 // Staff Account Activation (Email Link)
 Route::post('activate-account', [AuthController::class, 'activateAccount']);
@@ -374,6 +375,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('drugs', [DrugPharmacistController::class, 'index']);
         Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']);
+        Route::get('drugs/{id}', [DrugPharmacistController::class, 'show']);
         Route::post('drugs', [DrugPharmacistController::class, 'store']);
         Route::put('drugs/{id}', [DrugPharmacistController::class, 'update']);
         Route::delete('drugs/{id}', [DrugPharmacistController::class, 'destroy']);
@@ -405,6 +407,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('drugs', [WarehouseInventoryController::class, 'index']);
         Route::get('drugs/all', [WarehouseInventoryController::class, 'allDrugs']);
+        Route::get('drugs/{id}', [WarehouseInventoryController::class, 'show']);
 
         Route::post('drugs', [WarehouseInventoryController::class, 'store']);
         Route::put('drugs/{id}', [WarehouseInventoryController::class, 'update']);
@@ -439,6 +442,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('drugs', [DrugHospitalAdminController::class, 'index']); // جلب الأدوية من جميع الصيدليات
         Route::get('drugs/all', [DrugHospitalAdminController::class, 'searchAll']); // البحث في جميع الأدوية
+        Route::get('drugs/{id}', [DrugHospitalAdminController::class, 'show']); // تفاصيل دواء واحد
         Route::get('categories', [DrugHospitalAdminController::class, 'categories']); // جلب قائمة الفئات
 
         Route::get('/departments', [DepartmentHospitalAdminController::class, 'index']);//تعرض الاقسام اللي عندك
@@ -538,6 +542,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // 2. Drugs & Categories (الأدوية والفئات)
         Route::get('drugs', [DrugSupplierController::class, 'index']);
         Route::get('drugs/all', [DrugSupplierController::class, 'all']);
+        Route::get('drugs/{id}', [DrugSupplierController::class, 'show']);
         Route::get('drugs/search', [DrugSupplierController::class, 'search']);
         Route::post('drugs/register', [DrugSupplierController::class, 'register']);
         Route::get('categories', [DrugSupplierController::class, 'categories']);

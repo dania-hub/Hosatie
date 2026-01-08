@@ -28,7 +28,15 @@
             </div>
 
             <div class="p-8 space-y-6">
-                <template v-if="drug.drugName">
+                <!-- حالة التحميل -->
+                <div v-if="isLoading" class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#4DA1A9] mb-4"></div>
+                        <p class="text-gray-600 font-medium">جاري تحميل تفاصيل الدواء...</p>
+                    </div>
+                </div>
+
+                <template v-else-if="drug.drugName">
                     <!-- Basic Info -->
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                         <div class="flex items-start gap-4">
@@ -138,6 +146,12 @@
                         </div>
                     </div>
                 </template>
+
+                <!-- حالة عدم وجود بيانات -->
+                <div v-else class="text-center py-12">
+                    <Icon icon="solar:danger-triangle-bold-duotone" class="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p class="text-gray-600 font-medium">لا توجد بيانات للدواء</p>
+                </div>
             </div>
 
             <!-- Footer -->
@@ -164,6 +178,10 @@ defineProps({
     drug: {
         type: Object,
         default: () => ({})
+    },
+    isLoading: {
+        type: Boolean,
+        default: false
     }
 });
 

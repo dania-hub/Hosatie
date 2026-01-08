@@ -403,5 +403,180 @@ class DrugHospitalAdminController extends BaseApiController
             return $this->sendError('فشل في جلب قائمة الفئات.', [], 500);
         }
     }
+
+    /**
+     * GET /api/admin-hospital/drugs/{id}
+     * جلب تفاصيل دواء محدد مع تجميع الكميات عبر صيدليات ومستودعات المستشفى
+     */
+    public function show(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
+
+            $hospitalId = $user->hospital_id;
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            // جلب الدواء
+            $drug = Drug::find($id);
+            if (!$drug) {
+                return $this->sendError('الدواء غير موجود.', [], 404);
+            }
+
+            // جميع الصيدليات والمستودعات النشطة للمستشفى
+            $pharmacyIds = \App\Models\Pharmacy::where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->pluck('id')
+                ->toArray();
+            $warehouseIds = \App\Models\Warehouse::where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->pluck('id')
+                ->toArray();
+
+            // جمع مخزون هذا الدواء فقط من صيدليات/مستودعات المستشفى
+            $inventories = \App\Models\Inventory::query()
+                ->where('drug_id', $drug->id)
+                ->where(function ($query) use ($pharmacyIds, $warehouseIds, $hospitalId) {
+                    if (!empty($pharmacyIds)) {
+                        $query->where(function ($q) use ($pharmacyIds, $hospitalId) {
+                            $q->whereNotNull('pharmacy_id')
+                                ->whereNull('warehouse_id')
+                                ->whereIn('pharmacy_id', $pharmacyIds)
+                                ->whereHas('pharmacy', function ($pharmacyQuery) use ($hospitalId) {
+                                    $pharmacyQuery->where('hospital_id', $hospitalId)
+                                                  ->where('status', 'active');
+                                });
+                        });
+                    }
+                    if (!empty($warehouseIds)) {
+                        $query->orWhere(function ($q) use ($warehouseIds, $hospitalId) {
+                            $q->whereNotNull('warehouse_id')
+                                ->whereNull('pharmacy_id')
+                                ->whereIn('warehouse_id', $warehouseIds)
+                                ->whereHas('warehouse', function ($warehouseQuery) use ($hospitalId) {
+                                    $warehouseQuery->where('hospital_id', $hospitalId)
+                                                   ->where('status', 'active');
+                                });
+                        });
+                    }
+                })
+                ->with(['pharmacy', 'warehouse'])
+                ->get();
+
+            // الكميات من الصيدليات والمستودعات
+            $pharmacyQuantity = $inventories
+                ->filter(fn($inv) => $inv->pharmacy_id !== null && $inv->warehouse_id === null)
+                ->reduce(fn($carry, $inv) => $carry + (int)($inv->current_quantity ?? 0), 0);
+
+            $warehouseQuantity = $inventories
+                ->filter(fn($inv) => $inv->warehouse_id !== null && $inv->pharmacy_id === null)
+                ->reduce(fn($carry, $inv) => $carry + (int)($inv->current_quantity ?? 0), 0);
+
+            $totalQuantity = $pharmacyQuantity + $warehouseQuantity;
+
+            // حساب الكمية المحتاجة للصيدليات من الوصفات النشطة
+            $calculatePharmacyNeededQuantity = function(int $drugId, int $availablePharmacyQuantity, int $hospitalId) {
+                $activePrescriptions = \App\Models\Prescription::where('hospital_id', $hospitalId)
+                    ->where('status', 'active')
+                    ->whereHas('patient', function($query) use ($hospitalId) {
+                        $query->where('hospital_id', $hospitalId)
+                              ->where('type', 'patient');
+                    })
+                    ->whereHas('drugs', function($query) use ($drugId) {
+                        $query->where('drugs.id', $drugId);
+                    })
+                    ->with(['drugs' => function($query) use ($drugId) {
+                        $query->where('drugs.id', $drugId);
+                    }])
+                    ->get();
+
+                $totalNeededQuantity = 0;
+                $startOfMonth = \Carbon\Carbon::now()->startOfMonth();
+                $endOfMonth = \Carbon\Carbon::now()->endOfMonth();
+
+                foreach ($activePrescriptions as $prescription) {
+                    foreach ($prescription->drugs as $d) {
+                        if ((int)$d->id !== $drugId) continue;
+                        $monthlyQty = (int)($d->pivot->monthly_quantity ?? 0);
+                        if ($monthlyQty === 0 && isset($d->pivot->daily_quantity)) {
+                            $monthlyQty = (int)($d->pivot->daily_quantity ?? 0) * 30;
+                        }
+                        if ($monthlyQty > 0) {
+                            $dispensed = (int)\App\Models\Dispensing::where('patient_id', $prescription->patient_id)
+                                ->where('drug_id', $drugId)
+                                ->where('reverted', false)
+                                ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                                ->sum('quantity_dispensed');
+                            $remaining = max(0, $monthlyQty - $dispensed);
+                            if ($availablePharmacyQuantity > 0 && $remaining > 0) {
+                                $totalNeededQuantity += $remaining;
+                            } elseif ($availablePharmacyQuantity <= 0) {
+                                $totalNeededQuantity += $remaining;
+                            }
+                        }
+                    }
+                }
+                return max(0, $totalNeededQuantity - $availablePharmacyQuantity);
+            };
+
+            $pharmacyNeededQuantity = $calculatePharmacyNeededQuantity($drug->id, $pharmacyQuantity, $hospitalId);
+
+            // حساب الكمية المحتاجة للمستودعات من الطلبات الداخلية المعلقة
+            $internalRequests = \App\Models\InternalSupplyRequest::where('status', 'pending')
+                ->whereHas('pharmacy', function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                })
+                ->with(['items' => function($q) use ($drug) {
+                    $q->where('drug_id', $drug->id);
+                }])
+                ->get();
+
+            $totalRequestedQty = 0;
+            foreach ($internalRequests as $req) {
+                foreach ($req->items as $item) {
+                    $totalRequestedQty += (int)($item->requested_qty ?? 0);
+                }
+            }
+            $warehouseNeededQuantity = max(0, $totalRequestedQty - $warehouseQuantity);
+
+            $data = [
+                'id' => $inventories->first()->id ?? null,
+                'drugCode' => $drug->id,
+                'drugName' => $drug->name,
+                'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'categoryId' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilizationType' => $drug->utilization_type,
+                'indications' => $drug->indications,
+                'warnings' => $drug->warnings,
+                'contraindications' => $drug->contraindications,
+                'quantity' => $totalQuantity,
+                'pharmacyQuantity' => $pharmacyQuantity,
+                'warehouseQuantity' => $warehouseQuantity,
+                'neededQuantity' => $pharmacyNeededQuantity + $warehouseNeededQuantity,
+                'pharmacyNeededQuantity' => $pharmacyNeededQuantity,
+                'warehouseNeededQuantity' => $warehouseNeededQuantity,
+                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'type' => $drug->form ?? 'Tablet',
+            ];
+
+            return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح.');
+        } catch (\Exception $e) {
+            Log::error('Show Hospital Drug Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في جلب تفاصيل الدواء.', [], 500);
+        }
+    }
 }
 

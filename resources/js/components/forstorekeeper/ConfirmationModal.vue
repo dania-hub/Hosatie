@@ -166,15 +166,15 @@
                                                     :id="`sent-qty-${index}`"
                                                     type="number"
                                                     v-model.number="item.sentQuantity"
-                                                    :max="item.availableQuantity"
+                                                    :max="Math.min(item.availableQuantity, item.originalQuantity)"
                                                     :min="0"
                                                     class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
                                                     :class="{
-                                                        'border-red-300 focus:border-red-500': item.sentQuantity > item.availableQuantity,
-                                                        'border-green-300 focus:border-green-500': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0,
+                                                        'border-red-300 focus:border-red-500': item.sentQuantity > Math.min(item.availableQuantity, item.originalQuantity),
+                                                        'border-green-300 focus:border-green-500': item.sentQuantity <= Math.min(item.availableQuantity, item.originalQuantity) && item.sentQuantity > 0,
                                                         'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0
                                                     }"
-                                                    @input="validateQuantity(index, item.availableQuantity)"
+                                                    @input="validateQuantity(index, Math.min(item.availableQuantity, item.originalQuantity))"
                                                     :disabled="props.isLoading || isConfirming"
                                                 />
                                             </div>
@@ -209,11 +209,9 @@
                         class="w-full p-4 border-2 rounded-xl bg-white text-gray-800 transition-all duration-200 resize-none focus:outline-none focus:ring-4 focus:ring-red-500/10"
                         :class="{
                             'border-red-500 focus:border-red-500': rejectionError,
-                            'border-red-200 focus:border-red-400': !rejectionError,
-                            'bg-gray-100 cursor-not-allowed': isProcessing
+                            'border-red-200 focus:border-red-400': !rejectionError
                         }"
                         @input="rejectionError = false"
-                        :disabled="isProcessing"
                     ></textarea>
                         
                         <div v-if="rejectionError" class="text-red-600 text-sm flex items-center gap-1 font-medium">
@@ -419,6 +417,22 @@ const hasShortage = computed(() => {
     });
 });
 
+// إعادة تعيين حالة الرفض عند فتح النموذج
+watch(
+    () => props.isOpen,
+    (isOpen) => {
+        if (isOpen) {
+            // إعادة تعيين حالة الرفض عند فتح النموذج
+            showRejectionNote.value = false;
+            rejectionNote.value = "";
+            rejectionError.value = false;
+            isConfirming.value = false;
+            additionalNotes.value = "";
+            notesError.value = false;
+        }
+    }
+);
+
 // تهيئة receivedItems
 watch(
     () => props.requestData.items,
@@ -609,18 +623,16 @@ const confirmRejection = () => {
         return;
     }
 
-    if (confirm("هل أنت متأكد من رفض هذا الطلب؟ سيتم إلغاء الطلب بالكامل.")) {
-        isConfirming.value = true;
-        
-        const rejectionData = {
-            id: props.requestData.id,
-            shipmentNumber: props.requestData.shipmentNumber,
-            rejectionReason: rejectionNote.value.trim(),
-            timestamp: new Date().toISOString()
-        };
+    isConfirming.value = true;
+    
+    const rejectionData = {
+        id: props.requestData.id,
+        shipmentNumber: props.requestData.shipmentNumber,
+        rejectionReason: rejectionNote.value.trim(),
+        timestamp: new Date().toISOString()
+    };
 
-        emit("reject", rejectionData);
-    }
+    emit("reject", rejectionData);
 };
 
 // تأكيد الاستلام
@@ -677,16 +689,21 @@ const confirmReceipt = async () => {
 
 // إرسال الشحنة
 const sendShipment = async () => {
-    // التحقق من صحة الكميات
+    // التحقق من صحة الكميات - لا يمكن إرسال أكثر من الكمية المطلوبة أو المتوفرة
     const hasInvalidQuantity = receivedItems.value.some(
-        (item) =>
-            item.sentQuantity === null ||
-            item.sentQuantity === undefined ||
-            item.sentQuantity < 0 ||
-            item.sentQuantity > item.availableQuantity
+        (item) => {
+            const maxAllowed = Math.min(item.availableQuantity || 0, item.originalQuantity || 0);
+            return item.sentQuantity === null ||
+                item.sentQuantity === undefined ||
+                item.sentQuantity < 0 ||
+                item.sentQuantity > maxAllowed;
+        }
     );
     
-  
+    if (hasInvalidQuantity) {
+        alert("يرجى التأكد من إدخال كميات صحيحة لجميع الأصناف، وأنها لا تتجاوز الكمية المطلوبة أو المتوفرة.");
+        return;
+    }
     
     // التحقق من ملاحظات الإرسال إذا كان هناك عنصر بكمية مرسلة = 0
     if (hasZeroQuantityItem.value && !additionalNotes.value.trim()) {

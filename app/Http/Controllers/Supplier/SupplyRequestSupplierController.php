@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use App\Models\ExternalSupplyRequest;
 use App\Models\ExternalSupplyRequestItem;
 use App\Models\Hospital;
+use App\Models\AuditLog;
 use App\Http\Requests\Supplier\CreateSupplyRequestRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -183,6 +184,32 @@ class SupplyRequestSupplierController extends BaseApiController
                     'request_id' => $supplyRequest->id,
                     'drug_id' => $drugId,
                     'requested_qty' => $totalQty,
+                ]);
+            }
+
+            // تسجيل العملية في AuditLog
+            try {
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospital->id,
+                    'action' => 'supplier_create_external_supply_request',
+                    'table_name' => 'external_supply_request',
+                    'record_id' => $supplyRequest->id,
+                    'old_values' => null,
+                    'new_values' => json_encode([
+                        'request_id' => $supplyRequest->id,
+                        'hospital_id' => $hospital->id,
+                        'hospital_name' => $hospital->name,
+                        'supplier_id' => $user->supplier_id,
+                        'status' => 'pending',
+                        'notes' => $request->input('notes'),
+                        'items_count' => count($grouped),
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to create audit log for supplier supply request', [
+                    'error' => $e->getMessage()
                 ]);
             }
 

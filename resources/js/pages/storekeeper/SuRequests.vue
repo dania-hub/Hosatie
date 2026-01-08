@@ -863,7 +863,22 @@ const handleSupplyConfirm = async (data) => {
         
         const response = await endpoints.supplyRequests.create(requestData);
         
-        const requestNumber = response.data?.requestNumber || response.requestNumber || `EXT-${response.data?.id || response.id}`;
+        // استخراج requestNumber من الاستجابة (دعم عدة أشكال للاستجابة)
+        let requestNumber = null;
+        if (response.data?.data?.requestNumber) {
+            requestNumber = response.data.data.requestNumber;
+        } else if (response.data?.requestNumber) {
+            requestNumber = response.data.requestNumber;
+        } else if (response.data?.data?.id) {
+            requestNumber = `EXT-${response.data.data.id}`;
+        } else if (response.data?.id) {
+            requestNumber = `EXT-${response.data.id}`;
+        } else if (response.id) {
+            requestNumber = `EXT-${response.id}`;
+        } else {
+            requestNumber = 'EXT-غير محدد';
+        }
+        
         showSuccessAlert(` تم إنشاء طلب التوريد رقم ${requestNumber} بنجاح!`);
         closeSupplyRequestModal();
         

@@ -333,67 +333,78 @@ class InternalSupplyRequestController extends BaseApiController
                 // التأكد من جلب الكمية الصحيحة من قاعدة البيانات
                 $availableStock = $inventory ? (int) $inventory->current_quantity : 0;
                 
-                // جلب جميع الطلبات الأخرى التي حالتها "جديد" (pending) فقط والتي تحتوي نفس الدواء
-                // ملاحظة: أي طلب تتغير حالته (approved, rejected, fulfilled) لا يدخل في الحساب
-                $otherPendingRequests = DB::table('internal_supply_request_items')
+                // جلب جميع الطلبات التي بحالة "جديد" (pending) والتي تحتوي نفس الدواء
+                $allPendingRequests = DB::table('internal_supply_request_items')
                     ->join('internal_supply_requests', 'internal_supply_request_items.request_id', '=', 'internal_supply_requests.id')
-                    ->where('internal_supply_requests.status', 'pending') // فقط الطلبات بحالة "جديد"
+                    ->where('internal_supply_requests.status', 'pending')
                     ->where('internal_supply_request_items.drug_id', $item->drug_id)
-                    ->where('internal_supply_requests.id', '!=', $req->id) // استثناء الطلب الحالي
-                    ->select('internal_supply_request_items.requested_qty')
+                    ->select(
+                        'internal_supply_requests.id as request_id', 
+                        'internal_supply_request_items.requested_qty'
+                    )
                     ->get();
                 
-                // حساب إجمالي الكمية المطلوبة من جميع الطلبات الأخرى بحالة "جديد" فقط
-                $totalOtherRequestsQty = $otherPendingRequests->sum('requested_qty');
+                // إجمالي الكمية المطلوبة من جميع الطلبات
+                $totalRequestedQty = $allPendingRequests->sum('requested_qty');
                 
-                // إجمالي الكمية المطلوبة (الطلب الحالي + الطلبات الأخرى بحالة "جديد" فقط)
-                // ملاحظة: إذا كان الطلب الحالي ليس في حالة "جديد"، لن يتم حسابه في الكمية المقترحة
-                $totalRequestedQty = 0;
-                if ($req->status === 'pending') {
-                    // فقط إذا كان الطلب الحالي في حالة "جديد"، نضيفه للحساب
-                    $totalRequestedQty = $item->requested_qty + $totalOtherRequestsQty;
-                } else {
-                    // إذا تغيرت حالة الطلب الحالي، نحسب فقط من الطلبات الأخرى بحالة "جديد"
-                    $totalRequestedQty = $totalOtherRequestsQty;
-                }
+                // إجمالي الطلبات الأخرى (لأغراض العرض)
+                // نحسبها باستبعاد الطلب الحالي من المجموع الكلي (إذا كان موجوداً)
+                $totalOtherRequestsQty = $allPendingRequests->where('request_id', '!=', $req->id)->sum('requested_qty');
                 
-                // حساب الكمية المقترحة
-                // ملاحظة: يتم حساب الكمية المقترحة فقط من الطلبات بحالة "جديد" (pending)
+                // حساب الكمية المقترحة باستخدام خوارزمية التوزيع العادل (Max-Min Fairness)
                 $suggestedQuantity = 0;
                 
-                // إذا كان الطلب الحالي ليس في حالة "جديد"، لا نحسب له كمية مقترحة
-                if ($req->status !== 'pending') {
-                    $suggestedQuantity = 0;
+                if ($req->status === 'pending') {
+                    // إذا المخزون كافي للجميع، نعطي الجميع طلبهم
+                    if ($availableStock >= $totalRequestedQty) {
+                        $suggestedQuantity = $item->requested_qty;
+                    } else {
+                        // المخزون غير كافي - توزيع عادل (Max-Min Fairness)
+                        // 1. ترتيب الطلبات تصاعدياً حسب الكمية المطلوبة
+                        $sortedRequests = $allPendingRequests->sortBy('requested_qty')->values();
+                        
+                        $remainingStock = $availableStock;
+                        $remainingRequestsCount = $sortedRequests->count();
+                        $allocations = []; // request_id => allocated_qty
+                        
+                        foreach ($sortedRequests as $requestItem) {
+                            if ($remainingRequestsCount == 0) break;
+                            
+                            // الحصة العادلة لما تبقى (Stock / N)
+                            $fairShare = floor($remainingStock / $remainingRequestsCount);
+                            
+                            // نمنح الطلب: الأقل بين (حاجته) و (الحصة العادلة)
+                            $allocated = min($requestItem->requested_qty, $fairShare);
+                            
+                            $allocations[$requestItem->request_id] = $allocated;
+                            
+                            $remainingStock -= $allocated;
+                            $remainingRequestsCount--;
+                        }
+                        
+                        // 2. توزيع المتبقي (الكسور أو الفائض) على من يحتاج المزيد
+                        if ($remainingStock > 0) {
+                            // نعيد التوزيع على الطلبات الكبيرة أولاً
+                            foreach ($sortedRequests->sortByDesc('requested_qty') as $requestItem) {
+                                if ($remainingStock <= 0) break;
+                                
+                                $currentAllocated = $allocations[$requestItem->request_id] ?? 0;
+                                $stillNeeded = $requestItem->requested_qty - $currentAllocated;
+                                
+                                if ($stillNeeded > 0) {
+                                    $extra = min($remainingStock, $stillNeeded);
+                                    $allocations[$requestItem->request_id] += $extra;
+                                    $remainingStock -= $extra;
+                                }
+                            }
+                        }
+                        
+                        $suggestedQuantity = $allocations[$req->id] ?? 0;
+                    }
+                } else {
+                    // إذا لم يكن الطلب جديداً، فلا نحسب كمية مقترحة
+                    $suggestedQuantity = 0; 
                 }
-                // الحالة الخاصة: إذا كان الدواء موجود فقط في الطلب الحالي (لا يوجد في طلبات أخرى)
-                // والمخزون كافي للطلب الحالي، نعطي الكمية المطلوبة بالكامل
-                else if ($totalOtherRequestsQty == 0 && $availableStock >= $item->requested_qty) {
-                    // الكمية المقترحة = الكمية المطلوبة بالكامل للطلب الحالي
-                    $suggestedQuantity = $item->requested_qty;
-                }
-                // الحالة 1: إذا كان المخزون كافي لجميع الطلبات بحالة "جديد" (الطلب الحالي + الطلبات الأخرى)
-                else if ($availableStock >= $totalRequestedQty && $totalRequestedQty > 0) {
-                    // الكمية المقترحة = الكمية المطلوبة بالكامل للطلب الحالي
-                    $suggestedQuantity = $item->requested_qty;
-                } 
-                // الحالة 2: إذا كان المخزون ناقص ولكن متوفر
-                else if ($availableStock > 0 && $totalRequestedQty > 0) {
-                    // حساب نسبة الطلب الحالي من إجمالي الطلبات بحالة "جديد"
-                    $requestRatio = $item->requested_qty / $totalRequestedQty;
-                    
-                    // توزيع المخزون المتاح بشكل نسبي حسب نسبة الطلب
-                    $suggestedQuantity = floor($availableStock * $requestRatio);
-                    
-                    // التأكد من أن الكمية المقترحة:
-                    // - لا تتجاوز الكمية المطلوبة في الطلب الحالي
-                    // - لا تتجاوز المخزون المتاح
-                    $suggestedQuantity = min($suggestedQuantity, $item->requested_qty, $availableStock);
-                    
-                    // التأكد من أن القيمة لا تقل عن 0
-                    $suggestedQuantity = max(0, $suggestedQuantity);
-                }
-                // الحالة 3: إذا كان المخزون = 0 أو لا توجد طلبات بحالة "جديد"
-                // $suggestedQuantity سيبقى 0 (القيمة الافتراضية)
                 
                 return [
                     'id'             => $item->id,

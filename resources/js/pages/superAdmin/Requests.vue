@@ -114,7 +114,14 @@
 
                 <div
                     class="flex items-center gap-5 w-full sm:w-auto justify-end"
-                >
+                >                    <!-- Date Filter -->
+                    <div class="relative">
+                        <input 
+                            type="date" 
+                            v-model="filterDate"
+                            class="px-4 py-[9px] border-2 border-[#ffffff8d] h-11 rounded-[30px] font-sans text-[15px] outline-none transition-all duration-200 ease-in text-gray-600 bg-white hover:border-[#a8a8a8] focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20 shadow-sm"
+                        >
+                    </div>
                     <btnprint @click="printTable" />
                 </div>
             </div>
@@ -144,9 +151,7 @@
                                     <th class="department-col">
                                         الجهة الطالبة
                                     </th>
-                                    <th class="shipment-number-col">
-                                        رقم الشحنة
-                                    </th>
+                                    <!-- Shipment Number Column Deleted -->
                                     <th class="request-date-col">
                                         تاريخ الطلب
                                     </th>
@@ -177,16 +182,14 @@
                                         <td class="font-semibold text-gray-700">
                                             {{ shipment.requestingDepartment }}
                                         </td>
-                                        <td class="font-semibold text-gray-700">
-                                            {{ shipment.shipmentNumber }}
-                                        </td>
+                                        <!-- Shipment Number Cell Deleted -->
                                         <td>
                                             {{ formatDate(shipment.requestDate) }}
                                         </td>
                                         <td
                                             :class="{
                                                 'text-green-600 font-semibold':
-                                                    shipment.status === 'تم الإستلام',
+                                                    shipment.status === 'تم الإستلام' || shipment.status === 'تم الرد',
                                                 'text-yellow-600 font-semibold':
                                                     shipment.status === 'قيد التجهيز' || 
                                                     shipment.status === 'جديد' || 
@@ -223,9 +226,9 @@
                                                 
                                                 <template v-else>
                                                     <button
-                                                        @click="openConfirmationModal(shipment)" 
+                                                        @click="openResponseModal(shipment)" 
                                                         class="tooltip"
-                                                        data-tip="تأكيد قبول الشحنة">
+                                                        data-tip="الرد على الطلب">
                                                         <Icon
                                                             icon="fluent:box-checkmark-24-regular"
                                                             class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
@@ -254,12 +257,12 @@
             @close="closeRequestViewModal"
         />
 
-        <ConfirmationModal
-            :is-open="isConfirmationModalOpen"
-            :request-data="selectedShipmentForConfirmation"
-            @close="closeConfirmationModal"
-            @confirm="handleConfirmation"
+        <RequestResponseModal
+            :is-open="isRequestResponseModalOpen"
+            :request-data="selectedShipmentForResponse"
             :is-loading="isConfirming"
+            @close="closeResponseModal"
+            @submit="handleResponseSubmit"
         />
 
         <Transition
@@ -295,7 +298,7 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue"; 
 import btnprint from "@/components/btnprint.vue";
 import RequestViewModal from "@/components/forsuperadmin/RequestViewModal.vue"; 
-import ConfirmationModal from "@/components/forsuperadmin/ConfirmationModal.vue"; 
+import RequestResponseModal from "@/components/forsuperadmin/RequestResponseModal.vue"; 
 
 // ----------------------------------------------------
 // 1. إعدادات axios ونقاط النهاية API
@@ -326,9 +329,9 @@ api.interceptors.request.use(
 // تعريف نقاط النهاية API
 const API_ENDPOINTS = {
     shipments: {
-        getAll: () => api.get('/shipments'),
-        getById: (id) => api.get(`/shipments/${id}`),
-        confirm: (id, data) => api.put(`/shipments/${id}/confirm`, data)
+        getAll: () => api.get('/super-admin/shipments'),
+        getById: (id) => api.get(`/super-admin/shipments/${id}`),
+        confirm: (id, data) => api.put(`/super-admin/shipments/${id}/confirm`, data)
     }
 };
 
@@ -352,7 +355,8 @@ const fetchShipments = async () => {
     
     try {
         const response = await API_ENDPOINTS.shipments.getAll();
-        shipmentsData.value = response.data.map(shipment => ({
+        const data = response.data.data || response.data; // Handle wrapped response
+        shipmentsData.value = (Array.isArray(data) ? data : []).map(shipment => ({
             id: shipment.id,
             shipmentNumber: shipment.shipmentNumber,
             requestDate: shipment.createdAt || shipment.requestDate,
@@ -396,6 +400,7 @@ const formatDate = (dateString) => {
 const searchTerm = ref("");
 const sortKey = ref("requestDate");
 const sortOrder = ref("desc");
+const filterDate = ref("");
 
 const sortShipments = (key, order) => {
     sortKey.value = key;
@@ -405,14 +410,24 @@ const sortShipments = (key, order) => {
 const filteredShipments = computed(() => {
     let list = shipmentsData.value;
     
+    // Search Filter
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
             (shipment) =>
-                (shipment.shipmentNumber?.toLowerCase() || '').includes(search) ||
+                (shipment.shipmentNumber?.toLowerCase() || '').includes(search) || // Only searches in background not visible
                 (shipment.status?.includes(search) || false) ||
                 (shipment.requestingDepartment?.includes(search) || false)
         );
+    }
+
+    // Date Filter
+    if (filterDate.value) {
+        list = list.filter(shipment => {
+            if (!shipment.requestDate) return false;
+            // Compare YYYY-MM-DD
+            return shipment.requestDate.startsWith(filterDate.value);
+        });
     }
 
     if (sortKey.value) {
@@ -494,73 +509,56 @@ const closeRequestViewModal = () => {
     };
 };
 
-const openConfirmationModal = async (shipment) => {
+const isRequestResponseModalOpen = ref(false);
+const selectedShipmentForResponse = ref(null);
+
+const openResponseModal = async (shipment) => {
     try {
-        selectedShipmentForConfirmation.value = {
+        selectedShipmentForResponse.value = {
             id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber,
+            fileNumber: shipment.shipmentNumber, // Map for Modal
+            patientName: shipment.requestingDepartment, // Map for Modal
             department: shipment.requestingDepartment,
             date: shipment.requestDate,
             createdAt: shipment.createdAt,
             status: shipment.status,
+            requestType: 'طلب توريد خارجي', // Custom type
+            content: `عدد العناصر: ${shipment.items?.length || 0}`,
             items: shipment.items || [],
-           
         };
-        isConfirmationModalOpen.value = true;
+        isRequestResponseModalOpen.value = true;
     } catch (err) {
-        console.error('Error opening confirmation modal:', err);
-        showSuccessAlert('❌ فشل في فتح نموذج التأكيد');
+        console.error('Error opening response modal:', err);
+        showSuccessAlert('❌ فشل في فتح نموذج الرد');
     }
 };
 
-const closeConfirmationModal = () => {
-    isConfirmationModalOpen.value = false;
-    selectedShipmentForConfirmation.value = { 
-        id: null, 
-        shipmentNumber: '', 
-        department: '', 
-        date: '', 
-        status: '', 
-        items: [] 
-    };
+const closeResponseModal = () => {
+    isRequestResponseModalOpen.value = false;
+    selectedShipmentForResponse.value = null;
 };
 
-const handleConfirmation = async (confirmationData) => {
+const handleResponseSubmit = async (responseData) => {
     isConfirming.value = true;
-    const shipmentId = selectedShipmentForConfirmation.value.id;
-    const shipmentNumber = selectedShipmentForConfirmation.value.shipmentNumber;
+    const shipmentId = selectedShipmentForResponse.value.id;
     
     try {
-        // تأكيد الاستلام فقط
-        try {
-            await API_ENDPOINTS.shipments.confirm(shipmentId, {
-                items: confirmationData.items,
-                notes: confirmationData.notes || ''
-            });
-        } catch (apiErr) {
-            console.warn('API confirm failed, using dummy data');
-        }
+        await API_ENDPOINTS.shipments.confirm(shipmentId, {
+            ...responseData,
+            status: 'تم الإستلام' // Or whatever status "Submit" implies (Acceptance)
+        });
         
-        // تحديث البيانات محلياً
+        // Update local state
         const shipmentIndex = shipmentsData.value.findIndex(s => s.id === shipmentId);
         if (shipmentIndex !== -1) {
             shipmentsData.value[shipmentIndex].status = 'تم الإستلام';
             shipmentsData.value[shipmentIndex].confirmedAt = new Date().toISOString();
-            shipmentsData.value[shipmentIndex].confirmationNotes = confirmationData.notes || '';
-            
-            // تحديث جميع العناصر كمستلمة بالكامل
-            if (shipmentsData.value[shipmentIndex].items) {
-                shipmentsData.value[shipmentIndex].items.forEach(item => {
-                    item.receivedQuantity = item.requestedQuantity || item.quantity;
-                });
-            }
         }
         
-        showSuccessAlert(`✅ تم تأكيد قبول الشحنة رقم ${shipmentNumber} بنجاح!`);
-        closeConfirmationModal();
-        
+        showSuccessAlert(`✅ تم الرد على الشحنة بنجاح!`);
+        closeResponseModal();
     } catch (err) {
-        console.error('Error in handleConfirmation:', err);
+        console.error('Error in handleResponseSubmit:', err);
         showSuccessAlert(`❌ فشل في العملية: ${err.message || 'حدث خطأ غير معروف'}`);
     } finally {
         isConfirming.value = false;

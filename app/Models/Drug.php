@@ -102,4 +102,11 @@ class Drug extends Model
     {
         return $this->hasMany(Dispensing::class);
     }
+
+    public function prescriptions()
+    {
+        return $this->belongsToMany(Prescription::class, 'prescription_drugs', 'drug_id', 'prescription_id')
+                    ->withPivot('id', 'monthly_quantity', 'daily_quantity')
+                    ->withTimestamps();
+    }
 }

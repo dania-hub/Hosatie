@@ -564,12 +564,7 @@ const getRowColorClass = (quantity, neededQuantity) => {
 
 // تحديد لون النص حسب الكمية
 const getTextColorClass = (quantity, neededQuantity) => {
-  const qty = parseInt(quantity) || 0;
-  const neededQty = parseInt(neededQuantity) || 0;
-  
-  if (qty === 0) return 'text-red-600 font-bold';
-  if (qty < neededQty) return 'text-yellow-600 font-semibold';
-  return '';
+  return 'text-gray-800';
 };
 
 // زر إعادة التحميل

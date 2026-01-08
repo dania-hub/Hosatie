@@ -299,6 +299,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout/dashboard', [AuthController::class, 'logoutDashboard']);
     Route::post('fcm-token', [AuthController::class, 'updateFcmToken']);
 
+    // =====================================================================
+    // B. Shared Lookups
+    // =====================================================================
+    Route::get('/categories', [DrugSuperController::class, 'categories']);
+    Route::get('/pharmaceutical-forms', [DrugSuperController::class, 'forms']);
+    Route::get('/countries', [DrugSuperController::class, 'countries']);
+
     Route::get('profile/mobile', [AuthController::class, 'profileMobile']);
     Route::put('profile/mobile', [AuthController::class, 'updateProfileMobile']);
     Route::put('profile/password/mobile', [AuthController::class, 'changePasswordMobile']);
@@ -602,5 +609,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
          // Patient Operations Log (Simple)
          Route::get('/patient-operations', [App\Http\Controllers\SuperAdmin\PatientOperationLogController::class, 'index']);
+
+         // Shipments (External Supply Requests)
+         Route::get('/shipments', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'index']);
+         Route::put('/shipments/{id}/confirm', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'confirm']);
     });
 });

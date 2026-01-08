@@ -73,6 +73,51 @@ class DrugSuperController extends BaseApiController
     }
 
     /**
+     * GET /api/categories
+     */
+    public function categories()
+    {
+        $categories = Drug::select('category')
+            ->distinct()
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->orderBy('category')
+            ->pluck('category');
+
+        return $this->sendSuccess($categories, 'تم جلب الفئات بنجاح');
+    }
+
+    /**
+     * GET /api/pharmaceutical-forms
+     */
+    public function forms()
+    {
+        $forms = Drug::select('form')
+            ->distinct()
+            ->whereNotNull('form')
+            ->where('form', '!=', '')
+            ->orderBy('form')
+            ->pluck('form');
+
+        return $this->sendSuccess($forms, 'تم جلب الأشكال الصيدلانية بنجاح');
+    }
+
+    /**
+     * GET /api/countries
+     */
+    public function countries()
+    {
+        $countries = Drug::select('country')
+            ->distinct()
+            ->whereNotNull('country')
+            ->where('country', '!=', '')
+            ->orderBy('country')
+            ->pluck('country');
+
+        return $this->sendSuccess($countries, 'تم جلب الدول بنجاح');
+    }
+
+    /**
      * FR-90: إضافة دواء جديد إلى القائمة
      * POST /api/super-admin/drugs
      */
@@ -144,12 +189,27 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $request->utilization_type,
                 'warnings' => $request->warnings,
                 'indications' => $request->indications,
+                'contraindications' => $request->contraindications ?? '',
                 'expiry_date' => $request->expiry_date,
             ]);
 
             return $this->sendSuccess([
                 'id' => $drug->id,
                 'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilization_type' => $drug->utilization_type,
+                'warnings' => $drug->warnings,
+                'indications' => $drug->indications,
+                'expiryDate' => $drug->expiry_date,
+                'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم إضافة الدواء بنجاح', 201);
 
         } catch (\Exception $e) {
@@ -202,6 +262,20 @@ class DrugSuperController extends BaseApiController
             return $this->sendSuccess([
                 'id' => $drug->id,
                 'name' => $drug->name,
+                'genericName' => $drug->generic_name,
+                'strength' => $drug->strength,
+                'form' => $drug->form,
+                'category' => $drug->category,
+                'unit' => $drug->unit,
+                'maxMonthlyDose' => $drug->max_monthly_dose,
+                'status' => $drug->status,
+                'manufacturer' => $drug->manufacturer,
+                'country' => $drug->country,
+                'utilization_type' => $drug->utilization_type,
+                'warnings' => $drug->warnings,
+                'indications' => $drug->indications,
+                'expiryDate' => $drug->expiry_date,
+                'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم تعديل بيانات الدواء بنجاح');
 
         } catch (\Exception $e) {

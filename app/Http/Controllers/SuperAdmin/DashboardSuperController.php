@@ -420,25 +420,25 @@ class DashboardSuperController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $query = DB::table('audit_log')
-                ->join('users', 'audit_log.user_id', '=', 'users.id')
+            $query = DB::table('audit_logs')
+                ->join('users', 'audit_logs.user_id', '=', 'users.id')
                 ->select(
-                    'audit_log.id',
-                    'audit_log.action',
-                    'audit_log.table_name',
-                    'audit_log.record_id',
-                    'audit_log.created_at',
+                    'audit_logs.id',
+                    'audit_logs.action',
+                    'audit_logs.table_name',
+                    'audit_logs.record_id',
+                    'audit_logs.created_at',
                     'users.full_name as user_name',
                     'users.type as user_type'
                 );
 
             // Filter by date range
             if ($request->has('start_date')) {
-                $query->whereDate('audit_log.created_at', '>=', $request->input('start_date'));
+                $query->whereDate('audit_logs.created_at', '>=', $request->input('start_date'));
             }
 
             if ($request->has('end_date')) {
-                $query->whereDate('audit_log.created_at', '<=', $request->input('end_date'));
+                $query->whereDate('audit_logs.created_at', '<=', $request->input('end_date'));
             }
 
             // Filter by user type
@@ -448,10 +448,10 @@ class DashboardSuperController extends BaseApiController
 
             // Filter by action
             if ($request->has('action')) {
-                $query->where('audit_log.action', $request->input('action'));
+                $query->where('audit_logs.action', $request->input('action'));
             }
 
-            $activities = $query->orderBy('audit_log.created_at', 'desc')
+            $activities = $query->orderBy('audit_logs.created_at', 'desc')
                 ->limit(100)
                 ->get()
                 ->map(function ($activity) {
@@ -525,12 +525,58 @@ class DashboardSuperController extends BaseApiController
     private function translateAction($action)
     {
         return match($action) {
+            // General Actions
             'created' => 'إنشاء',
+            'create' => 'إنشاء',
             'updated' => 'تعديل',
+            'update' => 'تعديل',
             'deleted' => 'حذف',
+            'delete' => 'حذف',
             'approved' => 'موافقة',
             'rejected' => 'رفض',
             'dispensed' => 'صرف',
+            'login' => 'تسجيل دخول',
+            'logout' => 'تسجيل خروج',
+            'view' => 'عرض',
+            'restore' => 'استعادة',
+            'force_delete' => 'حذف نهائي',
+            'confirmed' => 'تأكيد',
+            'cancelled' => 'إلغاء',
+            'activated' => 'تفعيل',
+            'deactivated' => 'تعطيل',
+            'suspended' => 'إيقاف',
+            
+            // Patient Actions
+            'create_patient' => 'إضافة ملف مريض',
+            'update_patient' => 'تعديل بيانات مريض',
+            'delete_patient' => 'حذف ملف مريض',
+            'view_patient' => 'عرض ملف مريض',
+            
+            // Drug Actions
+            'create_drug' => 'إضافة دواء جديد',
+            'update_drug' => 'تعديل بيانات دواء',
+            'delete_drug' => 'حذف دواء',
+            'dispense_drug' => 'صرف دواء',
+            
+            // User Actions
+            'create_user' => 'إضافة مستخدم',
+            'update_user' => 'تعديل بيانات مستخدم',
+            'delete_user' => 'حذف مستخدم',
+            'block_user' => 'حظر مستخدم',
+            
+            // Hospital/Supplier Actions
+            'create_hospital' => 'إضافة مؤسسة صحية',
+            'update_hospital' => 'تعديل بيانات مؤسسة',
+            'create_supplier' => 'إضافة مورد',
+            'update_supplier' => 'تعديل بيانات مورد',
+            
+            // Request/Order Actions
+            'create_order' => 'إنشاء طلب',
+            'update_order' => 'تعديل طلب',
+            'cancel_order' => 'إلغاء طلب',
+            'approve_order' => 'الموافقة على طلب',
+            'reject_order' => 'رفض طلب',
+
             default => $action,
         };
     }

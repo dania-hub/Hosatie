@@ -66,4 +66,14 @@ class Hospital extends Model
     {
         return $this->hasOne(User::class)->where('type', 'hospital_admin');
     }
+
+    public function users()
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function warehouses()
+    {
+        return $this->hasMany(Warehouse::class);
+    }
 }

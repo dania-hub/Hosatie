@@ -245,7 +245,6 @@
                         type="button"
                         class="px-6 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                         @click="closeModal"
-                        :disabled="isSubmitting"
                     >
                         إلغاء
                     </button>
@@ -283,6 +282,19 @@ const emit = defineEmits(['close', 'update-drug']);
 const formData = ref({});
 const isSubmitting = ref(false);
 
+const formatDate = (date) => {
+    if (!date) return '';
+    // If it's already a date string like YYYY-MM-DD, just return it
+    if (typeof date === 'string') {
+        return date.split('T')[0].split(' ')[0];
+    }
+    try {
+        return new Date(date).toISOString().split('T')[0];
+    } catch (e) {
+        return date;
+    }
+};
+
 // عند تغيير الدواء أو فتح النافذة، نسخ البيانات
 watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
     if (isOpen && drug) {
@@ -294,23 +306,21 @@ watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
             form: drug.form || '',
             category: drug.category || drug.therapeuticClass || '',
             unit: drug.unit || '',
-            max_monthly_dose: drug.max_monthly_dose || '',
+            max_monthly_dose: (drug.max_monthly_dose !== undefined && drug.max_monthly_dose !== null) ? drug.max_monthly_dose : ((drug.maxMonthlyDose !== undefined && drug.maxMonthlyDose !== null) ? drug.maxMonthlyDose : ''),
             status: drug.status || '',
             manufacturer: drug.manufacturer || '',
             country: drug.country || '',
             utilization_type: drug.utilization_type || '',
             warnings: drug.warnings || '',
             indications: drug.indications || '',
-            expiry_date: drug.expiry_date || drug.expiryDate || ''
+            expiry_date: formatDate(drug.expiry_date || drug.expiryDate)
         };
     }
 }, { immediate: true });
 
 // إغلاق النافذة
 const closeModal = () => {
-    if (!isSubmitting.value) {
-        emit('close');
-    }
+    emit('close');
 };
 
 // إرسال النموذج

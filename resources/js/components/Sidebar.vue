@@ -143,7 +143,8 @@ const links = {
         { name: "المستشفيات", icon: "fa:hospital-o", to: "/superAdmin/hospital" },
         { name: "شركات التوريد", icon: "fa:hospital-o", to: "/superAdmin/Supply" },
         { name: "مخزون الموردين", icon: "ic:outline-inventory-2", to: "/superAdmin/supplier-inventory" },
-        { name: "مخزون", icon: "ic:outline-inventory-2", to: "/superAdmin/inventory" },
+        { name:    " مخزون المستشفيات", icon: "ic:outline-inventory-2", to: "/superAdmin/inventory" },
+        { name: "التقارير", icon: "carbon:report-data", to: "/superAdmin/reports" },
     ],
 
 

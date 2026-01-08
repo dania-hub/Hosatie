@@ -444,34 +444,6 @@ watch(() => props.isOpen, (newVal) => {
                     <!-- فاصل -->
                     <div class="md:col-span-2 border-t border-gray-200 my-2"></div>
 
-                    <!-- مدير المستشفى -->
-                    <div class="space-y-2">
-                        <Label for="edit-manager" class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:user-id-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            مدير المستشفى
-                        </Label>
-                        <div class="relative">
-                            <select
-                                id="edit-manager"
-                                v-model="editForm.managerId"
-                                class="h-10 text-right w-full rounded-xl bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:ring-2 transition-all px-4 appearance-none focus:outline-none"
-                            >
-                                <option value="">بدون مدير</option>
-                                <option v-for="manager in props.availableManagers" 
-                                        :key="manager.id" 
-                                        :value="manager.id">
-                                    {{ manager.name }}
-                                </option>
-                            </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
-                        </div>
-                        <p v-if="editForm.managerId" class="text-xs text-gray-500 mt-1">
-                            المدير المختار: 
-                            <span class="font-semibold text-[#4DA1A9]">
-                                {{ props.availableManagers.find(m => m.id === editForm.managerId)?.name }}
-                            </span>
-                        </p>
-                    </div>
 
                     <!-- المورد -->
                     <div class="space-y-2">

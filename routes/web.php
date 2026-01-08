@@ -27,6 +27,7 @@ Route::prefix('superAdmin')->group(function () {
     Route::get('/Supply', function () { return Inertia::render('superAdmin/Supply'); });
     Route::get('/supplier-inventory', function () { return Inertia::render('superAdmin/SupplierInventory'); });
     Route::get('/inventory', function () { return Inertia::render('superAdmin/Inventory'); });
+    Route::get('/reports', function () { return Inertia::render('superAdmin/reports'); });
    
 
 

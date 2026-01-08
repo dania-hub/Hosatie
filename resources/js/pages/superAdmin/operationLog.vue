@@ -68,6 +68,7 @@ const operationTypes = computed(() => {
 // ----------------------------------------------------
 const searchTerm = ref("");
 const operationTypeFilter = ref("الكل");
+const selectedDate = ref("");
 
 // حالة الفرز الحالية
 const sortKey = ref('date');
@@ -105,7 +106,20 @@ const filteredOperations = computed(() => {
         const typeMatch = operationTypeFilter.value === 'الكل' ||
                           op.operation_type === operationTypeFilter.value;
 
-        return searchMatch && typeMatch;
+        // تصفية حسب التاريخ
+        let dateMatch = true;
+        if (selectedDate.value) {
+            const [y, m, d] = selectedDate.value.split('-').map(Number);
+            // إنشاء تاريخ من المدخل (توقيت محلي 00:00:00)
+            const inputTime = new Date(y, m - 1, d).getTime();
+            
+            // إنشاء تاريخ من البيانات (توقيت محلي 00:00:00)
+            const opTime = parseDate(op.date).getTime();
+            
+            dateMatch = inputTime === opTime;
+        }
+
+        return searchMatch && typeMatch && dateMatch;
     });
 
     // 2. الفرز
@@ -224,10 +238,13 @@ const printTable = () => {
     filteredOperations.value.forEach(op => {
         tableHtml += `
             <tr>
-                <td>${op.fileNumber}</td>
-                <td>${op.name}</td>
-                <td>${op.operationType}</td>
-                <td>${op.operationDate}</td>
+                <td>${op.file_number || '-'}</td>
+                <td>${op.full_name || '-'}</td>
+                <td>
+                    <strong>${op.operation_label || '-'}</strong><br>
+                    <small>${op.operation_body || ''}</small>
+                </td>
+                <td>${op.date || '-'}</td>
             </tr>
         `;
     });
@@ -263,6 +280,14 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
                             <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                        </div>
+
+                         <div class="relative">
+                            <input 
+                                type="date" 
+                                v-model="selectedDate"
+                                class="h-11 px-4 rounded-[30px] border-2 border-gray-200 outline-none text-sm text-gray-600 focus:border-[#4DA1A9] transition-all bg-white"
+                            />
                         </div>
                         
                         <div class="dropdown dropdown-start">
@@ -353,8 +378,8 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
                                     <tr>
                                         <th class="file-number-col">رقم الملف</th>
-                                        <th class="name-col">الإسم الرباعي</th>
-                                        <th class="operation-type-col">نوع العملية</th>
+                                        <th class="name-col">المفعول به</th>
+                                        <th class="operation-type-col">التفاصيل</th>
                                         <th class="operation-date-col">تاريخ العملية</th>
                                         </tr>
                                 </thead>

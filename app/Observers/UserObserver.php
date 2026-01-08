@@ -48,9 +48,12 @@ class UserObserver
      */
     public function created(User $user)
     {
-        // Only log if a logged-in user creates a 'patient'
-        if (Auth::check() && $user->type === 'patient') {
-            $currentUser = Auth::user();
+        if (!Auth::check()) return;
+
+        $currentUser = Auth::user();
+
+        // 1. Log Patient Creation (Legacy handling)
+        if ($user->type === 'patient') {
             AuditLog::create([
                 'user_id'    => $currentUser->id,
                 'hospital_id' => $currentUser->hospital_id ?? null,
@@ -60,7 +63,19 @@ class UserObserver
                 'new_values' => json_encode($user->only(['full_name', 'national_id', 'birth_date', 'phone', 'email', 'hospital_id', 'pharmacy_id'])),
                 'ip_address' => request()->ip(),
             ]);
+            return;
         }
+
+        // 2. Log Generic User Creation (Super Admin Models)
+        AuditLog::create([
+            'user_id'    => $currentUser->id,
+            'hospital_id' => $currentUser->hospital_id ?? null,
+            'action'     => 'create',
+            'table_name' => 'users',
+            'record_id'  => $user->id,
+            'new_values' => json_encode($user->makeHidden(['password', 'remember_token'])->toArray()),
+            'ip_address' => request()->ip(),
+        ]);
     }
 
     /**
@@ -68,9 +83,11 @@ class UserObserver
      */
     public function updated(User $user)
     {
-        // Only log if a logged-in user updates a 'patient'
-        if (Auth::check() && $user->type === 'patient') {
-            $currentUser = Auth::user();
+        if (!Auth::check()) return;
+        $currentUser = Auth::user();
+
+        // 1. Log Patient Update
+        if ($user->type === 'patient') {
             AuditLog::create([
                 'user_id'    => $currentUser->id,
                 'hospital_id' => $currentUser->hospital_id ?? null,
@@ -81,7 +98,20 @@ class UserObserver
                 'new_values' => json_encode($user->getChanges()),
                 'ip_address' => request()->ip(),
             ]);
+            return;
         }
+
+        // 2. Generic User Update
+        AuditLog::create([
+            'user_id'    => $currentUser->id,
+            'hospital_id' => $currentUser->hospital_id ?? null,
+            'action'     => 'update',
+            'table_name' => 'users',
+            'record_id'  => $user->id,
+            'old_values' => json_encode($user->getOriginal()),
+            'new_values' => json_encode($user->getChanges()),
+            'ip_address' => request()->ip(),
+        ]);
     }
 
     /**
@@ -89,9 +119,11 @@ class UserObserver
      */
     public function deleting(User $user)
     {
-        // Only log if a logged-in user deletes a 'patient'
-        if (Auth::check() && $user->type === 'patient') {
-            $currentUser = Auth::user();
+        if (!Auth::check()) return;
+        $currentUser = Auth::user();
+
+        // 1. Log Patient Delete
+        if ($user->type === 'patient') {
             AuditLog::create([
                 'user_id'    => $currentUser->id,
                 'hospital_id' => $currentUser->hospital_id ?? null,
@@ -102,6 +134,19 @@ class UserObserver
                 'new_values' => null,
                 'ip_address' => request()->ip(),
             ]);
+            return;
         }
+
+        // 2. Generic User Delete
+        AuditLog::create([
+            'user_id'    => $currentUser->id,
+            'hospital_id' => $currentUser->hospital_id ?? null,
+            'action'     => 'delete',
+            'table_name' => 'users',
+            'record_id'  => $user->id,
+            'old_values' => json_encode($user->makeHidden(['password', 'remember_token'])->toArray()),
+            'new_values' => null,
+            'ip_address' => request()->ip(),
+        ]);
     }
 }

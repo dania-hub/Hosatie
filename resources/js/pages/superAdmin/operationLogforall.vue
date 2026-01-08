@@ -89,7 +89,8 @@ const operationTypes = computed(() => {
 // ----------------------------------------------------
 const searchTerm = ref("");
 const operationTypeFilter = ref("الكل");
-const hospitalFilter = ref("all"); // ✅ فلتر المستشفى
+const hospitalFilter = ref("all");
+const selectedDate = ref("");
 
 // حالة الفرز الحالية
 const sortKey = ref('date');
@@ -180,6 +181,16 @@ const filteredOperations = computed(() => {
     if (hospitalFilter.value !== 'all') {
         list = list.filter(op => {
             return op.hospital_id == hospitalFilter.value || op.hospital_name === hospitalFilter.value;
+        });
+    }
+
+    // ✅ التصفية حسب التاريخ
+    if (selectedDate.value) {
+        list = list.filter(op => {
+            const [y, m, d] = selectedDate.value.split('-').map(Number);
+            const inputTime = new Date(y, m - 1, d).getTime();
+            const opTime = parseDate(op.date).getTime();
+            return inputTime === opTime;
         });
     }
 
@@ -361,6 +372,14 @@ const printTable = () => {
                     <div class="w-full sm:w-auto">
                         <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي، اسم الموظف، اسم المريض أو المستشفى" />
                     </div>
+
+                     <div class="relative">
+                            <input 
+                                type="date" 
+                                v-model="selectedDate"
+                                class="h-11 px-4 rounded-[30px] border-2 border-gray-200 outline-none text-sm text-gray-600 focus:border-[#4DA1A9] transition-all bg-white"
+                            />
+                        </div>
 
                     <!-- مجموعة الفلاتر -->
                     <div class="flex items-center gap-3 flex-wrap">

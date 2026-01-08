@@ -224,6 +224,19 @@
                         ></textarea>
                     </div>
 
+                    <!-- موانع الاستعمال -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            موانع الاستعمال 
+                        </label>
+                        <textarea
+                            v-model="formData.contraindications"
+                            rows="4"
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                            placeholder="أدخل موانع الاستعمال..."
+                        ></textarea>
+                    </div>
+
                     <!-- تحذيرات هامة -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -245,7 +258,6 @@
                         type="button"
                         class="px-6 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
                         @click="closeModal"
-                        :disabled="isSubmitting"
                     >
                         إلغاء
                     </button>
@@ -291,6 +303,7 @@ const formData = ref({
     utilization_type: '',
     warnings: '',
     indications: '',
+    contraindications: '', // Ensure default value is an empty string
     expiry_date: ''
 });
 
@@ -298,10 +311,8 @@ const isSubmitting = ref(false);
 
 // إغلاق النافذة
 const closeModal = () => {
-    if (!isSubmitting.value) {
-        resetForm();
-        emit('close');
-    }
+    resetForm();
+    emit('close');
 };
 
 // إعادة تعيين النموذج

@@ -204,20 +204,24 @@ const validateForm = () => {
     }
 
     // التحقق من حقل المستشفى
-    if (isHospitalAdminRole(data.role)) {
-        errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
-        if (errors.value.hospital) isValid = false;
-    } else {
-        errors.value.hospital = false;
-    }
+    // تم تعطيل التحقق من المستشفى لجعله خيارياً
+    // if (isHospitalAdminRole(data.role)) {
+    //     errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
+    //     if (errors.value.hospital) isValid = false;
+    // } else {
+    //     errors.value.hospital = false;
+    // }
+    errors.value.hospital = false; // Always valid/optional
 
     // التحقق من حقل المورد
-    if (isSupplierAdminRole(data.role)) {
-        errors.value.supplier = !data.supplier || !props.availableSuppliers?.includes(data.supplier);
-        if (errors.value.supplier) isValid = false;
-    } else {
-        errors.value.supplier = false;
-    }
+    // تم تعطيل التحقق من المورد لجعله خيارياً
+    // if (isSupplierAdminRole(data.role)) {
+    //     errors.value.supplier = !data.supplier || !props.availableSuppliers?.includes(data.supplier);
+    //     if (errors.value.supplier) isValid = false;
+    // } else {
+    //     errors.value.supplier = false;
+    // }
+    errors.value.supplier = false; // Always valid/optional
 
 
     return isValid;
@@ -259,19 +263,19 @@ const isFormValid = computed(() => {
         return false;
     }
 
-    // التحقق من حقل المستشفى
-    if (isHospitalAdminRole(data.role)) {
-        if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
-            return false;
-        }
-    }
+    // التحقق من حقل المستشفى (اختياري الآن)
+    // if (isHospitalAdminRole(data.role)) {
+    //     if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
+    //         return false;
+    //     }
+    // }
 
-    // التحقق من حقل المورد
-    if (isSupplierAdminRole(data.role)) {
-        if (!data.supplier || !props.availableSuppliers?.includes(data.supplier)) {
-            return false;
-        }
-    }
+    // التحقق من حقل المورد (اختياري الآن)
+    // if (isSupplierAdminRole(data.role)) {
+    //     if (!data.supplier || !props.availableSuppliers?.includes(data.supplier)) {
+    //         return false;
+    //     }
+    // }
 
     return true;
 });

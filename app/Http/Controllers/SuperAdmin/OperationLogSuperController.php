@@ -80,6 +80,20 @@ class OperationLogSuperController extends BaseApiController
         $oldValues = $log->old_values ? json_decode($log->old_values, true) : [];
         $translatedAction = $this->translateAction($log->action);
 
+        // 0. Auth
+        if (in_array($log->action, ['login', 'logout'])) {
+             $newValues = $log->new_values ? json_decode($log->new_values, true) : [];
+             $method = match($newValues['method'] ?? '') {
+                 'mobile_app' => 'تطبيق الهاتف',
+                 'dashboard' => 'لوحة التحكم',
+                 default => ''
+             };
+             return [
+                'label' => $translatedAction,
+                'body' => $method ? "عبر $method" : ''
+             ];
+        }
+
         // 1. Create Patient
         if ($log->action === 'create_patient') {
             $name = $newValues['full_name'] ?? '-';
@@ -92,15 +106,10 @@ class OperationLogSuperController extends BaseApiController
 
         // 2. Update Patient
         if ($log->action === 'update_patient') {
-            if (isset($newValues['phone']) && isset($oldValues['phone']) && $newValues['phone'] !== $oldValues['phone']) {
-                return [
-                    'label' => 'تعديل',
-                    'body' => "تعديل الرقم إلى " . $newValues['phone']
-                ];
-            }
+            $changes = $this->getChangesDescription($log);
             return [
                 'label' => 'تعديل',
-                'body' => "تم تعديل بيانات الملف"
+                'body' => $changes ?: "تم تعديل بيانات الملف"
             ];
         }
 
@@ -150,6 +159,24 @@ class OperationLogSuperController extends BaseApiController
                 'label' => $translatedAction,
                 'body' => "رقم الشحنة: $prefix$reqId"
             ];
+        }
+
+        // 5. Generic Update Logic (Hospitals, Drugs, Users, etc.)
+        if (str_contains($log->action, 'update')) {
+             $changes = $this->getChangesDescription($log);
+             return [
+                'label' => $translatedAction,
+                'body' => $changes ?: 'تم تحديث السجل'
+             ];
+        }
+
+        // 6. Generic Create/Delete Logic
+        if (str_contains($log->action, 'create')) {
+             $name = $newValues['name'] ?? ($newValues['full_name'] ?? '');
+             return [
+                'label' => $translatedAction,
+                'body' => $name ? "تم إضافة: $name" : 'تم إنشاء سجل جديد'
+             ];
         }
 
         // Default
@@ -317,6 +344,10 @@ class OperationLogSuperController extends BaseApiController
     private function translateAction($action)
     {
         $translations = [
+            // مصادقة
+            'login' => 'تسجيل دخول',
+            'logout' => 'تسجيل خروج',
+
             // عمليات المرضى
             'create_patient' => 'إضافة مريض',
             'update_patient' => 'تعديل مريض',
@@ -590,5 +621,71 @@ class OperationLogSuperController extends BaseApiController
             'patient' => 'مريض',
             default => $type,
         };
+    }
+
+    /**
+     * Helper to get a string describing what fields changed
+     */
+    private function getChangesDescription($log)
+    {
+        // Only relevant for updates
+        if (!str_contains($log->action, 'update') && $log->action !== 'update') {
+            return '';
+        }
+
+        $newValues = json_decode($log->new_values, true);
+        if (!$newValues || !is_array($newValues)) {
+            return '';
+        }
+
+        // Field translations
+        $fieldMap = [
+            'name' => 'الاسم',
+            'full_name' => 'الاسم الكامل',
+            'email' => 'البريد الإلكتروني',
+            'phone' => 'رقم الهاتف',
+            'mobile' => 'رقم الجوال',
+            'address' => 'العنوان',
+            'status' => 'الحالة',
+            'password' => 'كلمة المرور',
+            'type' => 'نوع الحساب',
+            'role' => 'الصلاحية',
+            'license_number' => 'رقم الترخيص',
+            'description' => 'الوصف',
+            'manufacturer' => 'الشركة المصنعة',
+            'price' => 'السعر',
+            'quantity' => 'الكمية',
+            'current_quantity' => 'الكمية الحالية',
+            'is_active' => 'التفعيل',
+            'generic_name' => 'الاسم العلمي',
+            'strength' => 'التركيز',
+            'form' => 'الشكل الصيدلاني',
+            'category' => 'الفئة',
+            'expiry_date' => 'تاريخ الانتهاء',
+            'code' => 'الكود',
+            'department_id' => 'القسم',
+            'hospital_id' => 'المستشفى',
+        ];
+
+        $changedFields = [];
+        foreach ($newValues as $key => $val) {
+            if (in_array($key, ['updated_at', 'created_at', 'id', 'remember_token', 'password_reset_token'])) continue;
+            
+            // Password special case
+            if ($key === 'password') {
+                $changedFields[] = 'كلمة المرور';
+                continue;
+            }
+
+            $fieldName = $fieldMap[$key] ?? $key;
+            $changedFields[] = $fieldName;
+        }
+
+        if (empty($changedFields)) {
+            return 'تحديث بيانات';
+        }
+        
+        // Return first few changes
+        return 'تم تحديث: ' . implode('، ', array_slice($changedFields, 0, 4));
     }
 }

@@ -8,6 +8,8 @@ use App\Models\Drug;
 use App\Models\User;
 use App\Models\Supplier;
 use App\Models\Inventory;
+use App\Models\Department;
+use App\Models\Pharmacy;
 use App\Models\Prescription;
 use App\Models\Dispensing;
 use App\Models\InternalSupplyRequest;
@@ -188,6 +190,8 @@ class DashboardSuperController extends BaseApiController
                 ->withCount([
                     'users as staff_count',
                     'warehouses as warehouses_count',
+                    'departments as departments_count',
+                    'pharmacies as pharmacies_count'
                 ])
                 ->get()
                 ->map(function ($hospital) {
@@ -222,6 +226,8 @@ class DashboardSuperController extends BaseApiController
                         'statistics' => [
                             'staffCount' => $hospital->staff_count,
                             'warehousesCount' => $hospital->warehouses_count,
+                            'departmentsCount' => $hospital->departments_count,
+                            'pharmaciesCount' => $hospital->pharmacies_count,
                             'patientsCount' => $patientsCount,
                             'activePrescriptions' => $activePrescriptions,
                             'internalRequests' => $internalRequests,
@@ -299,10 +305,10 @@ class DashboardSuperController extends BaseApiController
     }
 
     /**
-     * FR-101: تقرير المستخدمين
-     * GET /api/super-admin/reports/users
+     * FR-101: تقرير عمليات الصرف
+     * GET /api/super-admin/reports/dispensings
      */
-    public function usersReport(Request $request)
+    public function dispensingsReport(Request $request)
     {
         try {
             $user = $request->user();
@@ -311,51 +317,30 @@ class DashboardSuperController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $users = User::whereNotIn('type', ['patient'])
-                ->with(['hospital', 'supplier', 'warehouse', 'pharmacy', 'department'])
+            $dispensings = Dispensing::with(['pharmacy', 'patient', 'pharmacist', 'drug', 'prescription'])
+                ->orderBy('created_at', 'desc')
+                ->limit(100)
                 ->get()
-                ->map(function ($u) {
-                    $lastLogin = $u->tokens()->latest('created_at')->first();
-
+                ->map(function ($d) {
                     return [
-                        'id' => $u->id,
-                        'fullName' => $u->full_name,
-                        'email' => $u->email,
-                        'phone' => $u->phone,
-                        'nationalId' => $u->national_id,
-                        'type' => $u->type,
-                        'typeArabic' => $this->translateUserType($u->type),
-                        'status' => $u->status,
-                        'statusArabic' => $this->translateStatus($u->status),
-                        'hospital' => $u->hospital ? [
-                            'id' => $u->hospital->id,
-                            'name' => $u->hospital->name,
-                        ] : null,
-                        'supplier' => $u->supplier ? [
-                            'id' => $u->supplier->id,
-                            'name' => $u->supplier->name,
-                        ] : null,
-                        'warehouse' => $u->warehouse ? [
-                            'id' => $u->warehouse->id,
-                            'name' => $u->warehouse->name,
-                        ] : null,
-                        'pharmacy' => $u->pharmacy ? [
-                            'id' => $u->pharmacy->id,
-                            'name' => $u->pharmacy->name,
-                        ] : null,
-                        'department' => $u->department ? [
-                            'id' => $u->department->id,
-                            'name' => $u->department->name,
-                        ] : null,
-                        'lastLogin' => $lastLogin ? $lastLogin->created_at->format('Y-m-d H:i') : null,
-                        'createdAt' => optional($u->created_at)->format('Y-m-d'),
+                        'id' => $d->id,
+                        'pharmacy' => $d->pharmacy ? $d->pharmacy->name : 'غير محدد',
+                        'patient' => $d->patient ? $d->patient->full_name : 'غير محدد',
+                        'pharmacist' => $d->pharmacist ? $d->pharmacist->full_name : 'غير محدد',
+                        'drug' => $d->drug ? $d->drug->name : 'غير محدد',
+                        'prescriptionId' => $d->prescription ? $d->prescription->id : '-',
+                         'quantity' => $d->quantity_dispensed,
+                         // Use dispense_month or created_at if available
+                         'date' => $d->created_at ? $d->created_at->format('Y-m-d H:i') : ($d->dispense_month ? $d->dispense_month->format('Y-m-d') : '-'),
+                         'status' => $d->reverted ? 'reverted' : 'completed',
+                         'statusArabic' => $d->reverted ? 'تم الإرجاع' : 'تم الصرف',
                     ];
                 });
 
-            return $this->sendSuccess($users, 'تم جلب تقرير المستخدمين بنجاح');
+            return $this->sendSuccess($dispensings, 'تم جلب تقرير الصرف بنجاح');
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Super Admin Users Report Error');
+            return $this->handleException($e, 'Super Admin Dispensings Report Error');
         }
     }
 
@@ -408,6 +393,164 @@ class DashboardSuperController extends BaseApiController
     }
 
     /**
+     * FR-102-Detail: تفاصيل الطلبات الشهرية
+     * GET /api/super-admin/reports/requests-monthly/details
+     */
+    public function requestsMonthlyDetails(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $month = $request->input('month'); // YYYY-MM
+            if (!$month) {
+                return $this->sendError('يرجى تحديد الشهر', null, 400);
+            }
+
+            $date = Carbon::createFromFormat('Y-m', $month);
+            $year = $date->year;
+            $monthNum = $date->month;
+
+            // 1. Internal Requests (Pharmacy -> Warehouse)
+            $internal = InternalSupplyRequest::with(['pharmacy.hospital', 'requester'])
+                ->whereYear('created_at', $year)
+                ->whereMonth('created_at', $monthNum)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'displayId' => 'INT-' . $item->id,
+                        'type' => 'internal',
+                        'typeArabic' => 'طلب داخلي',
+                        'sender' => $item->pharmacy ? $item->pharmacy->name : 'صيدلية',
+                        'receiver' => $item->pharmacy && $item->pharmacy->hospital ? $item->pharmacy->hospital->name : 'مخزن',
+                        'date' => $item->created_at->format('Y-m-d'),
+                        'status' => $item->status,
+                        'statusArabic' => $this->translateStatus($item->status),
+                        'itemsCount' => $item->items()->count(),
+                    ];
+                });
+
+            // 2. External Requests (Hospital -> Supplier)
+            $external = ExternalSupplyRequest::with(['hospital', 'supplier', 'requester'])
+                ->whereYear('created_at', $year)
+                ->whereMonth('created_at', $monthNum)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'displayId' => 'EXT-' . $item->id,
+                        'type' => 'external',
+                        'typeArabic' => 'طلب خارجي',
+                        'sender' => $item->hospital ? $item->hospital->name : 'مستشفى',
+                        'receiver' => $item->supplier ? $item->supplier->name : 'مورد',
+                        'date' => $item->created_at->format('Y-m-d'),
+                        'status' => $item->status,
+                        'statusArabic' => $this->translateStatus($item->status),
+                        'itemsCount' => $item->items()->count(),
+                    ];
+                });
+
+             // 3. Transfer Requests
+             $transfers = PatientTransferRequest::with(['fromHospital', 'toHospital'])
+                ->whereYear('created_at', $year)
+                ->whereMonth('created_at', $monthNum)
+                ->get()
+                ->map(function ($item) {
+                     return [
+                        'id' => $item->id,
+                        'displayId' => 'TRF-' . $item->id,
+                        'type' => 'transfer',
+                        'typeArabic' => 'طلب تحويل',
+                        'sender' => $item->fromHospital ? $item->fromHospital->name : '-',
+                        'receiver' => $item->toHospital ? $item->toHospital->name : '-',
+                        'date' => $item->created_at->format('Y-m-d'),
+                        'status' => $item->status,
+                        'statusArabic' => $this->translateStatus($item->status),
+                        'itemsCount' => 1,
+                     ];
+                });
+
+            $all = $internal->concat($external)->concat($transfers)->sortByDesc('date')->values();
+
+            return $this->sendSuccess($all, 'تم جلب تفاصيل الطلبات');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Error fetching monthly details');
+        }
+    }
+
+    /**
+     * FR-102-Items: جلب عناصر الطلب
+     * GET /api/super-admin/reports/request-items
+     */
+    public function getRequestItems(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $type = $request->input('type');
+            $id = $request->input('id');
+
+            if (!$type || !$id) {
+                return $this->sendError('بيانات غير مكتملة', null, 400);
+            }
+
+            $items = [];
+
+            if ($type === 'internal') {
+                $requestModel = InternalSupplyRequest::with('items.drug')->find($id);
+                if ($requestModel) {
+                    $items = $requestModel->items->map(function($item) {
+                        return [
+                            'id' => $item->id,
+                            'name' => $item->drug ? $item->drug->name : 'دواء غير معروف',
+                            'type' => 'drug',
+                            'qty' => $item->requested_qty,
+                            'approved_qty' => $item->approved_qty ?? '-',
+                            'status' => 'success' 
+                        ];
+                    });
+                }
+            } elseif ($type === 'external') {
+                $requestModel = ExternalSupplyRequest::with('items.drug')->find($id);
+                if ($requestModel) {
+                    $items = $requestModel->items->map(function($item) {
+                        return [
+                            'id' => $item->id,
+                            'name' => $item->drug ? $item->drug->name : 'دواء غير معروف',
+                            'type' => 'drug',
+                            'qty' => $item->requested_qty,
+                            'approved_qty' => $item->approved_qty ?? '-',
+                        ];
+                    });
+                }
+            } elseif ($type === 'transfer') {
+                $requestModel = PatientTransferRequest::with('patient')->find($id);
+                if ($requestModel && $requestModel->patient) {
+                    $items[] = [
+                        'id' => $requestModel->patient->id,
+                        'name' => $requestModel->patient->full_name,
+                        'type' => 'patient',
+                        'qty' => 1,
+                        'details' => 'تحويل مريض: ' . ($requestModel->reason ?? 'لا يوجد سبب'),
+                    ];
+                }
+            }
+
+            return $this->sendSuccess($items, 'تم جلب العناصر بنجاح');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Error fetching request items');
+        }
+    }
+
+    /**
      * FR-103: تقرير الأنشطة (Audit Log)
      * GET /api/super-admin/reports/activities
      */
@@ -427,6 +570,8 @@ class DashboardSuperController extends BaseApiController
                     'audit_logs.action',
                     'audit_logs.table_name',
                     'audit_logs.record_id',
+                    'audit_logs.old_values',
+                    'audit_logs.new_values',
                     'audit_logs.created_at',
                     'users.full_name as user_name',
                     'users.type as user_type'
@@ -465,6 +610,10 @@ class DashboardSuperController extends BaseApiController
                         'userType' => $activity->user_type,
                         'userTypeArabic' => $this->translateUserType($activity->user_type),
                         'createdAt' => Carbon::parse($activity->created_at)->format('Y-m-d H:i:s'),
+                        'details' => [
+                            'old' => json_decode($activity->old_values, true),
+                            'new' => json_decode($activity->new_values, true)
+                        ]
                     ];
                 });
 
@@ -579,5 +728,79 @@ class DashboardSuperController extends BaseApiController
 
             default => $action,
         };
+    }
+
+    /**
+     * تفاصيل أقسام المستشفى
+     */
+    public function getHospitalDepartments(Request $request)
+    {
+        try {
+            $hospitalId = $request->input('hospital_id');
+            if (!$hospitalId) {
+                return $this->sendError('Hospital ID is required');
+            }
+
+            $departments = Department::where('hospital_id', $hospitalId)
+                ->with('head')
+                ->get()
+                ->map(function($dept) {
+                    return [
+                        'id' => $dept->id,
+                        'name' => $dept->name,
+                        'status' => $dept->status,
+                        'head' => ($dept->head && $dept->head->name) ? $dept->head->name : 'غير محدد',
+                    ];
+                });
+
+            return $this->sendSuccess($departments, 'Department details retrieved successfully');
+        } catch (\Exception $e) {
+            return $this->sendError('Error retrieving departments: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * تفاصيل صيدليات المستشفى ومخزونها
+     */
+    public function getHospitalPharmacies(Request $request)
+    {
+        try {
+            $hospitalId = $request->input('hospital_id');
+            if (!$hospitalId) {
+                return $this->sendError('Hospital ID is required');
+            }
+
+            $pharmacies = Pharmacy::where('hospital_id', $hospitalId)
+                ->with(['inventories.drug'])
+                ->get()
+                ->map(function($pharmacy) {
+                   
+                    // تحضير قائمة الجرد
+                    $inventoryItems = $pharmacy->inventories->map(function($inv) {
+                         // Check for trade_name first, then fallback to name, then generic_name
+                         $drugName = 'Unknown Drug';
+                         if ($inv->drug) {
+                             $drugName = $inv->drug->trade_name ?? $inv->drug->name ?? $inv->drug->generic_name ?? 'Unknown Drug';
+                         }
+                         
+                         return [
+                            'drug_name' => $drugName,
+                            'quantity' => $inv->current_quantity ?? $inv->quantity ?? 0,
+                            'batch_number' => $inv->batch_number ?? '-',
+                            'expiry_date' => $inv->drug ? $inv->drug->expiry_date : '-',
+                         ];
+                    })->values(); // Reset keys to ensure JSON array
+
+                    return [
+                        'id' => $pharmacy->id,
+                        'name' => $pharmacy->name,
+                        'inventory' => $inventoryItems
+                    ];
+                });
+
+            return $this->sendSuccess($pharmacies, 'Pharmacy details retrieved successfully');
+        } catch (\Exception $e) {
+            return $this->sendError('Error retrieving pharmacies: ' . $e->getMessage());
+        }
     }
 }

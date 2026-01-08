@@ -600,9 +600,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('dashboard/stats', [DashboardSuperController::class, 'stats']);
         Route::get('reports/hospitals', [DashboardSuperController::class, 'hospitalsReport']);
         Route::get('reports/drugs', [DashboardSuperController::class, 'drugsReport']);
-        Route::get('reports/users', [DashboardSuperController::class, 'usersReport']);
+        Route::get('reports/dispensings', [DashboardSuperController::class, 'dispensingsReport']);
         Route::get('reports/requests-monthly', [DashboardSuperController::class, 'requestsMonthlyReport']);
+        Route::get('reports/requests-monthly/details', [DashboardSuperController::class, 'requestsMonthlyDetails']);
+        Route::get('reports/request-items', [DashboardSuperController::class, 'getRequestItems']);
         Route::get('reports/activities', [DashboardSuperController::class, 'activitiesReport']);
+        Route::get('reports/hospital-departments', [DashboardSuperController::class, 'getHospitalDepartments']);
+        Route::get('reports/hospital-pharmacies', [DashboardSuperController::class, 'getHospitalPharmacies']);
         
          Route::get('/patients', [PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
          

@@ -112,18 +112,9 @@
                                             class="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                                         >
                                             <div class="flex justify-between items-center">
-                                                <div class="flex flex-col gap-1">
-                                                    <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
-                                                    <div class="flex items-center gap-2 text-xs text-gray-600">
-                                                        <span v-if="drug.strength">
-                                                            القوة: {{ drug.strength }}
-                                                        </span>
-                                                        <span v-if="drug.strength && (drug.unit || getDrugUnit(drug))"></span>
-                                                      
-                                                    </div>
-                                                </div>
-                                                <span v-if="drug.unit || getDrugUnit(drug)" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
-                                                    {{ drug.unit || getDrugUnit(drug) }}
+                                                <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
+                                                <span v-if="getDrugUnit(drug)" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
+                                                    {{ getDrugUnit(drug) }}
                                                 </span>
                                             </div>
                                         </li>
@@ -206,12 +197,7 @@
                                     </div>
                                     <div>
                                         <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
-                                        <div class="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
-                                            <span>الكمية: {{ item.quantity }} {{ item.unit }}</span>
-                                            <span v-if="item.strength" class="text-[#4DA1A9] font-medium">
-                                                • القوة: {{ item.strength }}
-                                            </span>
-                                        </div>
+                                        <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }}</p>
                                     </div>
                                 </div>
                                 <button 
@@ -262,7 +248,7 @@
                     class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#2E5077]/20 flex items-center gap-2 transition-all duration-200"
                     :class="(!isReadyToConfirm || isSubmitting)
                         ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                        : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
+                        : 'bg-[#2E5077] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
                 >
                     <Icon v-if="isSubmitting" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                     <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
@@ -577,9 +563,8 @@ const addNewDrug = () => {
             id: drugInfo.id,
             name: selectedDrugName.value,
             quantity: dailyQuantity.value,
-            unit: drugInfo.unit || quantityUnit.value,
+            unit: quantityUnit.value,
             type: selectedDrugType.value,
-            strength: drugInfo.strength || drugInfo.dosage || null,
         });
 
         emit('show-alert', `✅ تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
@@ -614,9 +599,8 @@ const confirmAddition = () => {
                 id: drugInfo.id,
                 name: selectedDrugName.value,
                 quantity: dailyQuantity.value,
-                unit: drugInfo.unit || quantityUnit.value,
+                unit: quantityUnit.value,
                 type: selectedDrugType.value,
-                strength: drugInfo.strength || drugInfo.dosage || null,
             });
         }
         
@@ -713,7 +697,7 @@ watch(() => props.isOpen, (isOpen) => {
                     }
                     
                     const drugType = drugInfo.type || 'Tablet';
-                    const unit = drugInfo.unit || getDrugUnit({ type: drugType });
+                    const unit = getDrugUnit({ type: drugType });
                     
                     drugsNeedingSupply.push({
                         drugId: drugInfo.id, // استخدام ID من allDrugsData وليس من inventories
@@ -725,7 +709,6 @@ watch(() => props.isOpen, (isOpen) => {
                         quantity: neededSupply,
                         unit: unit,
                         type: drugType,
-                        strength: drugInfo.strength || drugInfo.dosage || null,
                         expiryDate: drug.expiryDate
                     });
                 }

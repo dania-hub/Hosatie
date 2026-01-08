@@ -150,6 +150,9 @@ class PrescriptionDoctorController extends BaseApiController
 
             DB::commit();
             
+            // تحديث updated_at للمريض ليظهر في بداية القائمة
+            $patient->touch();
+            
             if (!empty($createdDrugs)) {
                 $prescription->loadMissing('patient');
                 Log::info('✅ Drugs created successfully');
@@ -257,6 +260,9 @@ class PrescriptionDoctorController extends BaseApiController
             $item->save();
             Log::info('✅ Prescription drug updated successfully');
             
+            // تحديث updated_at للمريض ليظهر في بداية القائمة
+            $patient->touch();
+            
             // Trigger Push Notification
             $item->loadMissing('drug');
             $notificationService->notifyDrugUpdated($patient, $prescription, $item->drug);
@@ -336,6 +342,9 @@ class PrescriptionDoctorController extends BaseApiController
             // 1. Delete the Drug
             $item->delete();
             Log::info('✅ Drug deleted successfully');
+
+            // تحديث updated_at للمريض ليظهر في بداية القائمة
+            $patient->touch();
 
             // Trigger Push Notification
             $notificationService->notifyDrugDeleted($patient, $prescription, $item->drug);

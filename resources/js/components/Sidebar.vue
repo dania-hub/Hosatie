@@ -162,9 +162,10 @@ const links = {
     ],
     pharmacist: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/pharmacist/statistics" },
+                { name: "قائمة المرضى", icon: "line-md:account", to: "/pharmacist/patients" },
+
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/pharmacist/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/pharmacist/operations" },
-        { name: "قائمة المرضى", icon: "line-md:account", to: "/pharmacist/patients" },
         { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/pharmacist/requests" },
     ],
     doctor: [

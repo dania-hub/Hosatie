@@ -370,7 +370,7 @@ const validateDispensingQuantity = (med) => {
             >
                 <div
                     @click="cancelConfirmation"
-                    class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                    class="absolute inset-0 bg-black/0 backdrop-blur-sm"
                 ></div>
 
                 <div

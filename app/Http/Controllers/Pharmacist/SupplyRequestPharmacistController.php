@@ -59,7 +59,24 @@ class SupplyRequestPharmacistController extends BaseApiController
             $supplyRequest->status = 'pending';
             $supplyRequest->save();
 
+            // دمج الأدوية المكررة قبل الحفظ (حماية إضافية)
+            $mergedItems = [];
             foreach ($request->items as $item) {
+                $drugId = $item['drugId'];
+                if (isset($mergedItems[$drugId])) {
+                    // إذا كان الدواء موجوداً مسبقاً، نضيف الكمية
+                    $mergedItems[$drugId]['quantity'] += $item['quantity'];
+                } else {
+                    // إذا لم يكن موجوداً، نضيفه كعنصر جديد
+                    $mergedItems[$drugId] = [
+                        'drugId' => $drugId,
+                        'quantity' => $item['quantity']
+                    ];
+                }
+            }
+
+            // حفظ العناصر المدمجة
+            foreach ($mergedItems as $item) {
                 $requestItem = new InternalSupplyRequestItem();
                 $requestItem->request_id = $supplyRequest->id; 
                 $requestItem->drug_id = $item['drugId'];

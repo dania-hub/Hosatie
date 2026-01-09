@@ -203,7 +203,7 @@ h1 { text-align: center; color: #dc2626; margin-bottom: 10px; }
   } else {
     tableHtml += `
 <div class="no-data">
-  <p>لا توجد أدوية مُصفرة حالياً</p>
+  <p>لا توجد أدوية منهية حالياً</p>
 </div>
 `;
   }

@@ -572,83 +572,50 @@ class InternalSupplyRequestController extends BaseApiController
             // التحقق من جميع الأدوية قبل البدء في المعالجة
             $inventoryChecks = [];
             foreach ($validated['items'] as $index => $itemData) {
-                \Log::info("Processing item {$index}", ['item_id' => $itemData['id'], 'qty' => $itemData['sentQuantity']]);
-                
                 $item = $req->items->firstWhere('id', $itemData['id']);
                 if (!$item) {
-                    \Log::warning("Item not found", ['item_id' => $itemData['id']]);
                     continue;
                 }
 
-                $drugId = $item->drug_id;
-                $qty    = (int) $itemData['sentQuantity'];
-                if ($qty <= 0) {
-                    \Log::info("Skipping item with zero quantity", ['item_id' => $itemData['id']]);
-                    continue;
-                }
-
-                \Log::info("Checking inventory", ['drug_id' => $drugId, 'warehouse_id' => $warehouseId]);
+                $qty = (int) $itemData['sentQuantity'];
                 
-                // التحقق من المخزون بدون lock (أسرع)
-                $warehouseInventory = Inventory::where('warehouse_id', $warehouseId)
-                    ->where('drug_id', $drugId)
-                    ->first();
+                if ($qty > 0) {
+                    $drugId = $item->drug_id;
+                    $warehouseInventory = Inventory::where('warehouse_id', $warehouseId)
+                        ->where('drug_id', $drugId)
+                        ->first();
 
-                if (!$warehouseInventory) {
-                    \Log::error("Inventory not found", ['drug_id' => $drugId, 'warehouse_id' => $warehouseId]);
-                    DB::rollBack();
-                    return response()->json([
-                        'message' => "لا يوجد مخزون للمستودع لهذا الدواء (ID: {$drugId})"
-                    ], 404);
-                }
+                    if (!$warehouseInventory) {
+                        DB::rollBack();
+                        return response()->json([
+                            'message' => "لا يوجد مخزون للمستودع لهذا الدواء (ID: {$drugId})"
+                        ], 404);
+                    }
 
-                if ($warehouseInventory->current_quantity < $qty) {
-                    \Log::error("Insufficient inventory", [
-                        'drug_id' => $drugId,
-                        'available' => $warehouseInventory->current_quantity,
-                        'required' => $qty
-                    ]);
-                    DB::rollBack();
-                    $drugName = $item->drug ? $item->drug->name : "ID: {$drugId}";
-                    return response()->json([
-                        'message' => "الكمية غير متوفرة في المخزن للدواء: {$drugName} (المتاح: {$warehouseInventory->current_quantity}, المطلوب: {$qty})",
-                    ], 409);
-                }
+                    if ($warehouseInventory->current_quantity < $qty) {
+                        DB::rollBack();
+                        $drugName = $item->drug ? $item->drug->name : "ID: {$drugId}";
+                        return response()->json([
+                            'message' => "الكمية غير متوفرة في المخزن للدواء: {$drugName} (المتاح: {$warehouseInventory->current_quantity}, المطلوب: {$qty})",
+                        ], 409);
+                    }
 
-                $inventoryChecks[] = [
-                    'inventory' => $warehouseInventory,
-                    'item' => $item,
-                    'qty' => $qty
-                ];
-            }
+                    // خصم من المستودع
+                    $warehouseInventory->current_quantity -= $qty;
+                    $warehouseInventory->save();
 
-            \Log::info('Updating inventory and items', ['count' => count($inventoryChecks)]);
-            
-            // الآن نقوم بالخصم والتحديث
-            foreach ($inventoryChecks as $checkIndex => $check) {
-                \Log::info("Updating inventory {$checkIndex}", [
-                    'drug_id' => $check['item']->drug_id,
-                    'qty' => $check['qty']
-                ]);
-                
-                // خصم من المستودع
-                $check['inventory']->current_quantity -= $check['qty'];
-                $check['inventory']->save();
-
-                // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
-                try {
-                    $this->notifications->checkAndNotifyLowStock($check['inventory']);
-                } catch (\Exception $e) {
-                    \Log::error('Stock alert notification failed', ['error' => $e->getMessage()]);
+                    // التنبيه في حالة انخفاض المخزون
+                    try {
+                        $this->notifications->checkAndNotifyLowStock($warehouseInventory);
+                    } catch (\Exception $e) {
+                        \Log::error('Stock alert notification failed', ['error' => $e->getMessage()]);
+                    }
                 }
 
                 // تثبيت الكميات في عناصر الطلب الداخلي
-                // ملاحظة: requested_qty لا يتم تعديله (يحتوي على الكمية المطلوبة الأصلية من pharmacist/department)
-                // approved_qty: الكمية التي يتم إرسالها من storekeeper
-                // fulfilled_qty: الكمية التي استلمتها pharmacist/department (سيتم تحديثها لاحقاً عند الاستلام)
-                $check['item']->approved_qty  = $check['qty']; // الكمية المرسلة من storekeeper
-                $check['item']->fulfilled_qty = 0; // لم تستلم الصيدلية بعد، سيتم تحديثها عند الاستلام
-                $check['item']->save();
+                $item->approved_qty  = $qty; // الكمية المرسلة من storekeeper (حتى لو كانت 0)
+                $item->fulfilled_qty = 0; 
+                $item->save();
             }
 
             \Log::info('Updating request status');

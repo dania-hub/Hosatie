@@ -74,6 +74,19 @@ class ShipmentSuperController extends BaseApiController
                 return $this->sendError('تم استلام هذه الشحنة مسبقاً', null, 400);
             }
 
+            // تحقق من وجود نقص
+            $hasShortage = false;
+            foreach ($shipment->items as $item) {
+                if (($item->received_quantity ?? 0) < ($item->quantity ?? 0)) {
+                    $hasShortage = true;
+                    break;
+                }
+            }
+
+            if ($hasShortage && empty(trim($request->input('notes', '')))) {
+                return $this->sendError('يجب إدخال ملاحظات لتوضيح سبب النقص في الكمية المستلمة.', null, 400);
+            }
+
             // تحديث الحالة
             $shipment->update([
                 'status' => 'fulfilled',

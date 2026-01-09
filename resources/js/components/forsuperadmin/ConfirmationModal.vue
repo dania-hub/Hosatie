@@ -120,7 +120,27 @@
                     </div>
                 </div>
 
-              
+                <!-- Notes Container -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
+                        <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        ملاحظات القبول
+                        <span v-if="isShortageDetected" class="text-red-500 font-bold">* (إجباري لوجود نقص)</span>
+                        <span v-else class="text-sm font-normal text-gray-400">(اختياري)</span>
+                    </h3>
+                    <div class="relative">
+                        <textarea
+                            v-model="additionalNotes"
+                            rows="3"
+                            placeholder="أدخل أي ملاحظات حول القبول (مثل: نقص في الكمية، ملاحظات جودة، إلخ)..."
+                            class="w-full p-4 bg-white border border-gray-200 rounded-2xl text-gray-700 focus:ring-2 focus:ring-[#4DA1A9]/20 focus:border-[#4DA1A9] transition-all resize-none shadow-sm"
+                            :class="{ 'border-red-500 focus:border-red-500': noteError }"
+                            :disabled="isConfirming"
+                            @input="noteError = false"
+                        ></textarea>
+                        <p v-if="noteError" class="text-red-500 text-xs mt-1 mr-2 font-medium">يجب إدخال ملاحظات التبرير عند وجود نقص في الكمية.</p>
+                    </div>
+                </div>
 
                 <!-- رسالة الخطأ -->
                 <div v-if="errorMessage" class="bg-red-50 border border-red-200 rounded-2xl p-4">
@@ -156,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from 'axios';
 
@@ -188,6 +208,16 @@ const emit = defineEmits(["close", "confirm"]);
 const isConfirming = ref(false);
 const additionalNotes = ref("");
 const errorMessage = ref("");
+const noteError = ref(false);
+
+const isShortageDetected = computed(() => {
+    return props.requestData.items?.some(item => {
+        const requested = Number(item.quantity || item.requestedQuantity || 0);
+        const received = Number((item.receivedQuantity !== null && item.receivedQuantity !== undefined) ? item.receivedQuantity : 0);
+        // في حال كانت الكمية المستلمة أقل من المطلوبة
+        return received < requested;
+    }) || false;
+});
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
     headers: {
@@ -235,6 +265,15 @@ const confirmReceipt = async () => {
 
     isConfirming.value = true;
     errorMessage.value = "";
+    noteError.value = false;
+
+    // التحقق من الملاحظات في حال وجود نقص
+    if (isShortageDetected.value && !additionalNotes.value.trim()) {
+        noteError.value = true;
+        errorMessage.value = "يجب إدخال ملاحظات القبول لتوضيح سبب النقص في الكمية.";
+        isConfirming.value = false;
+        return;
+    }
     
     try {
         // تحضير البيانات لتأكيد الاستلام

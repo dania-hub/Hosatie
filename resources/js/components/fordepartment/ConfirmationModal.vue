@@ -236,7 +236,7 @@ const showLocalAlert = (msg) => {
 // اكتشاف وجود نقص في الكميات المستلمة مقارنة بالمرسلة
 const isShortageDetected = computed(() => {
     return receivedItems.value.some(item => {
-        const sent = Number(item.sentQuantity || item.originalQuantity || 0);
+        const sent = Number((item.sentQuantity !== null && item.sentQuantity !== undefined) ? item.sentQuantity : (item.originalQuantity || 0));
         const received = Number(item.receivedQuantity || 0);
         return received < sent;
     });

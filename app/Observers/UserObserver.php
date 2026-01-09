@@ -31,10 +31,16 @@ class UserObserver
             // 👈 تعيين الصيدلية الرئيسية للمرضى فقط
             if ($user->type === 'patient' && $creator->hospital_id) {
                 $mainPharmacy = Pharmacy::where('hospital_id', $creator->hospital_id)
-                    ->where('is_main', true)
-                    ->orWhere('name', 'LIKE', '%رئيس%')
-                    ->orWhere('name', 'LIKE', '%رئيسية%')
+                    ->where(function($q) {
+                        $q->where('name', 'LIKE', '%رئيس%')
+                          ->orWhere('name', 'LIKE', '%رئيسية%');
+                    })
                     ->first();
+
+                // إذا لم يتم العثور على صيدلية باسم "رئيسية"، نأخذ أول صيدلية للمستشفى
+                if (!$mainPharmacy) {
+                    $mainPharmacy = Pharmacy::where('hospital_id', $creator->hospital_id)->first();
+                }
 
                 if ($mainPharmacy) {
                     $user->pharmacy_id = $mainPharmacy->id;

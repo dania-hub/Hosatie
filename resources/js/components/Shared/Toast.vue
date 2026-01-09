@@ -12,7 +12,7 @@
         v-if="show"
         class="pointer-events-auto min-w-[300px] max-w-sm overflow-hidden rounded-2xl shadow-xl shadow-[#2E5077]/10 border-2"
         :class="[
-          type === 'success' ? 'bg-[#98c1c4] border-[#9dc0c3] text-white' :
+          type === 'success' ? 'bg-[#10b981] border-[#10b981] text-white' :
           type === 'error' ? 'bg-red-500 border-red-500 text-white' :
           type === 'warning' ? 'bg-amber-500 border-amber-500 text-white' : 
           'bg-[#2E5077] border-[#2E5077] text-white'

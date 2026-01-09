@@ -861,59 +861,57 @@ onMounted(async () => {
                                                 {{ drug.expiryDate }}
                                             </td>
                                            
-                                            <td class="actions-col">
-                                                <div
-                                                    class="flex gap-2 justify-center"
-                                                >
-                                                     <!-- زر المعاينة -->
-                                                    <button
-                                                        @click="showDrugDetails(drug)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
-                                                        title="معاينة"
-                                                    >
-                                                        <Icon
-                                                            icon="solar:eye-broken"
-                                                            class="w-5 h-5"
-                                                        />
-                                                    </button>
+                                                    <td class="actions-col">
+                                                        <div class="flex gap-3 justify-center items-center">
+                                                            <!-- زر المعاينة -->
+                                                            <button 
+                                                                @click="showDrugDetails(drug)"
+                                                                class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                                title="معاينة"
+                                                            >
+                                                                <Icon
+                                                                    icon="tabler:eye-minus"
+                                                                    class="w-4 h-4 text-green-600"
+                                                                />
+                                                            </button>
 
-                                                    <!-- زر التعديل -->
-                                                    <button
-                                                        @click="openEditDrugModal(drug)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 hover:scale-105 active:scale-95"
-                                                        title="تعديل"
-                                                    >
-                                                        <Icon
-                                                            icon="solar:pen-new-square-linear"
-                                                            class="w-5 h-5"
-                                                        />
-                                                    </button>
+                                                            <!-- زر التعديل -->
+                                                            <button 
+                                                                @click="openEditDrugModal(drug)"
+                                                                class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                                title="تعديل"
+                                                            >
+                                                                <Icon
+                                                                    icon="line-md:pencil"
+                                                                    class="w-4 h-4 text-yellow-500"
+                                                                />
+                                                            </button>
 
-                                                    <!-- زر التفعيل/الإيقاف -->
-                                                     <button
-                                                        v-if="drug.is_discontinued"
-                                                        @click="reactivateDrug(drug.id)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
-                                                        title="إعادة تفعيل"
-                                                    >
-                                                        <Icon
-                                                            icon="solar:power-bold"
-                                                            class="w-5 h-5"
-                                                        />
-                                                    </button>
-                                                    <button
-                                                        v-else
-                                                        @click="confirmDeleteDrug(drug.id)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 hover:scale-105 active:scale-95"
-                                                        title="إيقاف"
-                                                    >
-                                                        <Icon
-                                                            icon="solar:forbidden-circle-linear"
-                                                            class="w-5 h-5"
-                                                        />
-                                                    </button>
-                                                </div>
-                                            </td>
+                                                            <!-- زر التفعيل/الإيقاف -->
+                                                            <button 
+                                                                v-if="drug.is_discontinued"
+                                                                @click="reactivateDrug(drug.id)"
+                                                                class="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                                title="إعادة تفعيل"
+                                                            >
+                                                                <Icon
+                                                                    icon="line-md:rotate-270"
+                                                                    class="w-4 h-4 text-blue-600"
+                                                                />
+                                                            </button>
+                                                            <button 
+                                                                v-else
+                                                                @click="confirmDeleteDrug(drug.id)"
+                                                                class="p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                                title="إيقاف"
+                                                            >
+                                                                <Icon
+                                                                    icon="line-md:close-circle"
+                                                                    class="w-4 h-4 text-red-600"
+                                                                />
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                         </tr>
 
                                         <tr v-if="filteredDrugss.length === 0">

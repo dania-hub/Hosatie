@@ -88,6 +88,19 @@ class UserObserver
 
         // 1. Log Patient Update
         if ($user->type === 'patient') {
+            // التحقق من أن التحديث ليس حذفاً (تغيير status إلى 'deleted')
+            // إذا كان التغيير الوحيد هو status إلى 'deleted'، لا نسجل عملية تعديل
+            // لأن عملية الحذف يتم تسجيلها يدوياً في PatientDataEntryController
+            $changes = $user->getChanges();
+            $original = $user->getOriginal();
+            
+            // إذا كان التغيير الوحيد هو status إلى 'deleted'، نتجاهل هذا التحديث
+            if (isset($changes['status']) && 
+                $changes['status'] === 'deleted' && 
+                count($changes) === 1) {
+                return; // لا نسجل عملية تعديل، لأن الحذف يتم تسجيله يدوياً
+            }
+            
             AuditLog::create([
                 'user_id'    => $currentUser->id,
                 'hospital_id' => $currentUser->hospital_id ?? null,

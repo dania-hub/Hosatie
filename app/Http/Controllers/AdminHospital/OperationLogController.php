@@ -163,9 +163,21 @@ class OperationLogController extends BaseApiController
             }
             
             // محاولة استخراج اسم المريض من JSON إذا كان محذوفاً
-            $values = json_decode($log->new_values ?? $log->old_values, true);
-            if (is_array($values) && isset($values['full_name']) && isset($values['type']) && $values['type'] === 'patient') {
-                return $values['full_name'];
+            // في حالة الحذف، نستخدم old_values (لأن new_values = null)
+            $values = json_decode($log->old_values ?? $log->new_values, true);
+            if (is_array($values)) {
+                // إذا كان هناك full_name في old_values، استخدمه (خاصة في حالة الحذف)
+                if (isset($values['full_name'])) {
+                    // للتحقق من أنه مريض، نتحقق من action أو من وجود حقول خاصة بالمرضى
+                    if ($log->action === 'delete_patient' || 
+                        $log->action === 'create_patient' || 
+                        $log->action === 'update_patient' ||
+                        isset($values['national_id']) || 
+                        isset($values['birth_date']) ||
+                        (isset($values['type']) && $values['type'] === 'patient')) {
+                        return $values['full_name'];
+                    }
+                }
             }
             
             return '-';

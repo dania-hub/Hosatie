@@ -8,6 +8,9 @@ use App\Http\Requests\DataEntry\UpdatePatientRequest;
 use App\Http\Resources\PatientResource;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\Prescription;
+use App\Models\Dispensing;
+use App\Models\PatientTransferRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -136,14 +139,12 @@ class PatientDataEntryController extends BaseApiController
             ], 400);
         }
 
-        // جلب سجلات المرضى فقط للمستشفى المحدد
-        $patientIds = User::where('type', 'patient')
-            ->where('hospital_id', $hospitalId)
-            ->pluck('id');
-
+        // جلب جميع سجلات العمليات المتعلقة بالمرضى في هذا المستشفى
+        // حتى لو تم حذف المريض، نحتفظ بسجلات العمليات
         $logs = AuditLog::where('user_id', $user->id)
             ->where('table_name', 'users')
-            ->whereIn('record_id', $patientIds)
+            ->where('hospital_id', $hospitalId)
+            ->whereIn('action', ['create_patient', 'update_patient', 'delete_patient'])
             ->latest()
             ->get();
 
@@ -270,6 +271,35 @@ class PatientDataEntryController extends BaseApiController
             return $this->sendError('المريض غير موجود.', [], 404);
         }
 
+        // التحقق من وجود عمليات نشطة قبل الحذف
+        // 1. التحقق من وجود وصفات طبية نشطة
+        $activePrescriptions = Prescription::where('patient_id', $patient->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($activePrescriptions) {
+            return $this->sendError('لا يمكن حذف هذا الملف لديه عمليات نشطة عالج العمليات اولا', [], 500);
+        }
+
+        // 2. التحقق من وجود عمليات صرف نشطة (dispensings)
+        $activeDispensings = Dispensing::where('patient_id', $patient->id)
+            ->where('reverted', false)
+            ->exists();
+
+        if ($activeDispensings) {
+            return $this->sendError('لا يمكن حذف هذا الملف لديه عمليات نشطة عالج العمليات اولا', [], 500);
+        }
+
+        // 3. التحقق من وجود طلبات نقل معلقة
+        $pendingTransfers = PatientTransferRequest::where('patient_id', $patient->id)
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($pendingTransfers) {
+            return $this->sendError('لا يمكن حذف هذا الملف لديه عمليات نشطة عالج العمليات اولا', [], 500);
+        }
+
+        // إذا لم تكن هناك عمليات نشطة، يمكن الحذف
         $patient->delete();
 
         // يتم تسجيل العملية تلقائياً من خلال UserObserver

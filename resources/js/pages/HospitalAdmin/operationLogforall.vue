@@ -398,14 +398,18 @@ const getOperationDescription = (op) => {
         
         // التحقق من بداية operationType (قبل أي تفاصيل إضافية)
         if (opType.startsWith('إضافة مريض')) {
+            // استخراج اسم المريض من patientName أو من changes.new.full_name
+            const patientName = op.patientName || op.changes?.new?.full_name || 'غير معروف';
             return {
                 title: 'إضافة',
-                detail: `تم اضافة ملف مريض ${op.patientName || op.name} رقم الملف ${op.fileNumber}`
+                detail: `تم اضافة ملف مريض ${patientName} رقم الملف ${op.fileNumber}`
             };
         } else if (opType.startsWith('حذف مريض')) {
+            // استخراج اسم المريض من patientName أو من changes.old.full_name
+            const patientName = op.patientName || op.changes?.old?.full_name || 'غير معروف';
             return {
                 title: 'حذف',
-                detail: `تم حذف ملف المريض ${op.patientName || op.name} رقم ملفه ${op.fileNumber}`
+                detail: `تم حذف ملف المريض ${patientName} رقم ملفه ${op.fileNumber}`
             };
         } else if (opType.startsWith('تعديل مريض')) {
             // تحليل التغييرات
@@ -646,7 +650,9 @@ const getOperationDescription = (op) => {
                                                 <span class="text-sm text-[#4DA1A9] font-medium">{{ op.role || '-' }}</span>
                                             </div>
                                         </td>
-                                        <td class="patient-name-col">{{ op.patientName || '-' }}</td>
+                                        <td class="patient-name-col">
+                                            {{ op.patientName || op.changes?.old?.full_name || op.changes?.new?.full_name || '-' }}
+                                        </td>
                                         <td class="operation-type-col">
                                             <template v-if="getOperationDescription(op).detail">
                                                 <div class="flex flex-col">

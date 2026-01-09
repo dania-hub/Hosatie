@@ -7,49 +7,40 @@ import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
 
-import Navbar from "@/components/Navbar.vue";
-import Sidebar from "@/components/Sidebar.vue";
+import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import DrugPreviewModal from "@/components/forsuperadmin/DrugPreviewModal.vue";
 import AddDrugModal from "@/components/forsuperadmin/AddDrugModal.vue";
 import EditDrugModal from "@/components/forsuperadmin/EditDrugModal.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 0. نظام التنبيهات - يجب تعريفه قبل الاستخدام
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isErrorAlertVisible = ref(false);
-const successMessage = ref("");
-const errorMessage = ref("");
-let alertTimeout = null;
+const toast = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
 
 const showSuccessAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  successMessage.value = message;
-  isSuccessAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isSuccessAlertVisible.value = false;
-    successMessage.value = "";
-  }, 4000);
+  toast.value = {
+    show: true,
+    type: 'success',
+    title: 'نجاح',
+    message: message
+  };
 };
 
 const showErrorAlert = (message) => {
-  if (alertTimeout) {
-    clearTimeout(alertTimeout);
-  }
-
-  errorMessage.value = message;
-  isErrorAlertVisible.value = true;
-
-  alertTimeout = setTimeout(() => {
-    isErrorAlertVisible.value = false;
-    errorMessage.value = "";
-  }, 4000);
+  toast.value = {
+    show: true,
+    type: 'error',
+    title: 'خطأ',
+    message: message
+  };
 };
 
 // ----------------------------------------------------
@@ -591,12 +582,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
-        <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
-
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
-
+    <DefaultLayout>
             <main class="flex-1 p-4 sm:p-5 pt-3">
                 <!-- المحتوى الرئيسي -->
                 <div>
@@ -762,7 +748,7 @@ onMounted(async () => {
                                 class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-32 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
                                 @click="openAddDrugModal"
                             >
-                                <Icon icon="tabler:plus" class="w-5 h-5 ml-2" />
+                                <Icon icon="solar:add-circle-bold" class="w-5 h-5 ml-2" />
                                 إضافة دواء
                             </button>
                            
@@ -877,42 +863,53 @@ onMounted(async () => {
                                            
                                             <td class="actions-col">
                                                 <div
-                                                    class="flex gap-3 justify-center"
+                                                    class="flex gap-2 justify-center"
                                                 >
+                                                     <!-- زر المعاينة -->
                                                     <button
-                                                        @click="
-                                                            showDrugDetails(drug)
-                                                        "
-                                                        class="p-1 hover:bg-green-50 rounded-lg transition-colors"
+                                                        @click="showDrugDetails(drug)"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
                                                         title="معاينة"
                                                     >
                                                         <Icon
-                                                            icon="tabler:eye-minus"
-                                                            class="w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-green-700"
+                                                            icon="solar:eye-broken"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
+
+                                                    <!-- زر التعديل -->
                                                     <button
-                                                        @click="
-                                                            openEditDrugModal(drug)
-                                                        "
-                                                        class="p-1 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        @click="openEditDrugModal(drug)"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 hover:scale-105 active:scale-95"
                                                         title="تعديل"
                                                     >
                                                         <Icon
-                                                            icon="tabler:edit"
-                                                            class="w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-blue-600"
+                                                            icon="solar:pen-new-square-linear"
+                                                            class="w-5 h-5"
+                                                        />
+                                                    </button>
+
+                                                    <!-- زر التفعيل/الإيقاف -->
+                                                     <button
+                                                        v-if="drug.is_discontinued"
+                                                        @click="reactivateDrug(drug.id)"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
+                                                        title="إعادة تفعيل"
+                                                    >
+                                                        <Icon
+                                                            icon="solar:power-bold"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
                                                     <button
-                                                        @click="
-                                                            confirmDeleteDrug(drug.id)
-                                                        "
-                                                        class="p-1 hover:bg-red-50 rounded-lg transition-colors"
+                                                        v-else
+                                                        @click="confirmDeleteDrug(drug.id)"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 hover:scale-105 active:scale-95"
                                                         title="إيقاف"
                                                     >
                                                         <Icon
-                                                            icon="tabler:ban"
-                                                            class="w-5 h-5 cursor-pointer hover:scale-110 transition-transform text-red-600"
+                                                            icon="solar:forbidden-circle-linear"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
                                                 </div>
@@ -932,9 +929,6 @@ onMounted(async () => {
                     </div>
                 </div>
             </main>
-        </div>
-
-        <Sidebar />
 
         <!-- نماذج الإدارة -->
         <DrugPreviewModal 
@@ -995,7 +989,7 @@ onMounted(async () => {
                             @click="discontinueDrug" 
                             class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-red-500/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-red-500 to-red-600 hover:shadow-xl hover:-translate-y-0.5"
                         >
-                            <Icon icon="tabler:ban" class="w-5 h-5" />
+                            <Icon icon="solar:forbidden-circle-bold" class="w-5 h-5" />
                             إيقاف الدواء
                         </button>
                     </div>
@@ -1003,48 +997,14 @@ onMounted(async () => {
             </div>
         </Transition>
        
-        <!-- تنبيه النجاح -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                <div class="flex items-center gap-2">
-                    <Icon icon="tabler:circle-check" class="w-5 h-5" />
-                    {{ successMessage }}
-                </div>
-            </div>
-        </Transition>
-
-        <!-- تنبيه الخطأ -->
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isErrorAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-red-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                <div class="flex items-center gap-2">
-                    <Icon icon="tabler:alert-circle" class="w-5 h-5" />
-                    {{ errorMessage }}
-                </div>
-            </div>
-        </Transition>
-    </div>
+    <Toast 
+        :show="toast.show" 
+        :type="toast.type" 
+        :title="toast.title" 
+        :message="toast.message" 
+        @close="toast.show = false" 
+    />
+    </DefaultLayout>
 </template>
 
 <style>

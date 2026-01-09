@@ -52,7 +52,7 @@ const routeNames = {
     '/superAdmin/statistics': 'الإحصائيات',
     '/superAdmin/employees': 'المدراء و الموردين',
     '/superAdmin/AllemployeesList': 'الموظفين',
-    '/superAdmin/requests': 'طلبات التوريد الداخلي',
+    '/superAdmin/requests': 'طلبات الموردين',
     '/superAdmin/inventory': 'مخزون',
     '/superAdmin/hospital': 'المستشفيات',
     '/superAdmin/Supply': 'شركات التوريد',
@@ -247,7 +247,7 @@ onMounted(() => {
       
       <!-- اسم الصفحة الحالية -->
       <div class="flex items-center gap-2">
-        <Icon icon="mdi:file-document-outline" class="w-5 h-5 text-[#2E5077]" />
+        <!-- Icon Removed -->
         <h2 class="text-base md:text-lg font-bold text-[#2E5077]">{{ currentPageName }}</h2>
       </div>
     </div>

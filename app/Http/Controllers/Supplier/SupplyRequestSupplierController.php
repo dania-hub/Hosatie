@@ -10,9 +10,14 @@ use App\Models\AuditLog;
 use App\Http\Requests\Supplier\CreateSupplyRequestRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\StaffNotificationService; // Added
 
 class SupplyRequestSupplierController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
+
     /**
      * عرض قائمة طلبات التوريد التي أنشأها المورد
      * GET /api/supplier/supply-requests
@@ -158,9 +163,12 @@ class SupplyRequestSupplierController extends BaseApiController
                 'supplier_id' => $user->supplier_id,
                 'requested_by' => $user->id,
                 'status' => 'pending',
-                'notes' => $request->input('notes'),
-                'priority' => $request->input('priority', 'normal'),
+                // 'notes' => $request->input('notes'), // Column does not exist
+                // 'priority' => $request->input('priority', 'normal'),
             ]);
+            
+            // Attach notes temporarily for notification
+            $supplyRequest->notes = $request->input('notes');
 
             // إضافة الأدوية المطلوبة
             $items = $request->input('items', []);
@@ -211,6 +219,12 @@ class SupplyRequestSupplierController extends BaseApiController
                 \Log::warning('Failed to create audit log for supplier supply request', [
                     'error' => $e->getMessage()
                 ]);
+            }
+
+            try {
+                $this->notifications->notifySuperAdminNewExternalRequest($supplyRequest);
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify super admin about new external request from supplier', ['error' => $e->getMessage()]);
             }
 
             DB::commit();

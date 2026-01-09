@@ -726,6 +726,36 @@ class DashboardSuperController extends BaseApiController
             'approve_order' => 'الموافقة على طلب',
             'reject_order' => 'رفض طلب',
 
+             // External Supply Requests (General/StoreKeeper)
+            'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+            'update_external_supply_request' => 'تعديل طلب توريد خارجي',
+            'delete_external_supply_request' => 'حذف طلب توريد خارجي',
+            'approve_external_supply_request' => 'الموافقة على طلب توريد خارجي',
+            'reject_external_supply_request' => 'رفض طلب توريد خارجي',
+            'cancel_external_supply_request' => 'إلغاء طلب توريد خارجي',
+
+            // Supplier Specific Actions
+            'supplier_create_external_supply_request' => 'إنشاء طلب توريد (مورد)',
+            'supplier_update_external_supply_request' => 'تعديل طلب توريد (مورد)',
+            'supplier_cancel_external_supply_request' => 'إلغاء طلب توريد (مورد)',
+            'supplier_ship_external_supply_request' => 'شحن طلب توريد',
+            'super_admin_confirm_external_supply_request' => 'تأكيد استلام طلب توريد (إدارة)',
+
+            // Internal Supply Requests
+            'create_internal_supply_request' => 'إنشاء طلب صرف داخلي',
+            'update_internal_supply_request' => 'تعديل طلب صرف داخلي',
+            'delete_internal_supply_request' => 'حذف طلب صرف داخلي',
+            'approve_internal_supply_request' => 'الموافقة على طلب صرف داخلي',
+            'reject_internal_supply_request' => 'رفض طلب صرف داخلي',
+            'dispense_internal_supply_request' => 'صرف طلب داخلي',
+            'acknowledge_internal_supply_request' => 'استلام طلب صرف داخلي',
+
+            // Patient Transfer Requests
+            'create_patient_transfer_request' => 'إنشاء طلب نقل مريض',
+            'update_patient_transfer_request' => 'تعديل طلب نقل مريض',
+            'approve_patient_transfer_request' => 'الموافقة على نقل مريض',
+            'reject_patient_transfer_request' => 'رفض نقل مريض',
+
             default => $action,
         };
     }
@@ -749,7 +779,7 @@ class DashboardSuperController extends BaseApiController
                         'id' => $dept->id,
                         'name' => $dept->name,
                         'status' => $dept->status,
-                        'head' => ($dept->head && $dept->head->name) ? $dept->head->name : 'غير محدد',
+                        'head' => ($dept->head && $dept->head->full_name) ? $dept->head->full_name : 'غير محدد',
                     ];
                 });
 

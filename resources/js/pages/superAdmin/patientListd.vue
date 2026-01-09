@@ -14,6 +14,7 @@ import btnprint from "@/components/btnprint.vue";
 import PatientViewModal from "@/components/forsuperadmin/PatientViewModal.vue";
 import DispensationModal from "@/components/forsuperadmin/DispensationModal.vue";
 import DefaultLayout from "@/components/DefaultLayout.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. تكوين Axios
@@ -83,7 +84,8 @@ const fetchHospitals = async () => {
   
   try {
     const response = await api.get('/super-admin/hospitals');
-    hospitals.value = response.data.map(hospital => ({
+    const hospitalsData = response.data.data || response.data || [];
+    hospitals.value = hospitalsData.map(hospital => ({
       id: hospital.id,
       name: hospital.name,
       code: hospital.code
@@ -369,38 +371,30 @@ const filterStats = computed(() => {
 // ----------------------------------------------------
 // 5. منطق الرسائل التنبيهية
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const isInfoAlertVisible = ref(false);
-const successMessage = ref("");
-const infoMessage = ref("");
-let alertTimeout = null;
+const toast = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
 
 const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
+    const isError = message.startsWith('❌') || message.includes('فشل');
+    toast.value = {
+        show: true,
+        type: isError ? 'error' : 'success',
+        title: isError ? 'خطأ' : 'نجاح',
+        message: message.replace(/^❌ |^✅ /, '')
+    };
 };
 
 const showInfoAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    infoMessage.value = message;
-    isInfoAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isInfoAlertVisible.value = false;
-        infoMessage.value = "";
-    }, 4000);
+    toast.value = {
+        show: true,
+        type: 'info',
+        title: 'تنبيه',
+        message: message
+    };
 };
 
 // ----------------------------------------------------
@@ -912,46 +906,13 @@ onMounted(async () => {
   />
 
   <!-- Success Alert -->
-  <Transition
-    enter-active-class="transition duration-300 ease-out transform"
-    enter-from-class="translate-x-full opacity-0"
-    enter-to-class="translate-x-0 opacity-100"
-    leave-active-class="transition duration-200 ease-in transform"
-    leave-from-class="translate-x-0 opacity-100"
-    leave-to-class="translate-x-full opacity-0"
-  >
-    <div 
-      v-if="isSuccessAlertVisible" 
-      class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-      dir="rtl"
-    >
-      <div class="flex items-center">
-        <Icon icon="mdi:check-circle-outline" class="w-5 h-5 ml-2" />
-        <span>{{ successMessage }}</span>
-      </div>
-    </div>
-  </Transition>
-
-  <!-- Info Alert -->
-  <Transition
-    enter-active-class="transition duration-300 ease-out transform"
-    enter-from-class="translate-x-full opacity-0"
-    enter-to-class="translate-x-0 opacity-100"
-    leave-active-class="transition duration-200 ease-in transform"
-    leave-from-class="translate-x-0 opacity-100"
-    leave-to-class="translate-x-full opacity-0"
-  >
-    <div 
-      v-if="isInfoAlertVisible" 
-      class="fixed top-4 right-55 z-[1000] p-4 text-right bg-blue-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-      dir="rtl"
-    >
-      <div class="flex items-center">
-        <Icon icon="mdi:information-outline" class="w-5 h-5 ml-2" />
-        <span>{{ infoMessage }}</span>
-      </div>
-    </div>
-  </Transition>
+    <Toast 
+        :show="toast.show" 
+        :type="toast.type" 
+        :title="toast.title" 
+        :message="toast.message" 
+        @close="toast.show = false" 
+    />
 </template>
 
 <style>

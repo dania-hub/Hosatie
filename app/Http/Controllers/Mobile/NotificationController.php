@@ -22,7 +22,7 @@ class NotificationController extends BaseApiController
                     'type'        => $n->type,               
                     'title'       => $n->title ?? 'إشعار',
                     'body'        => $n->message ?? '',     
-                    'created_at' => $n->created_at->format('Y-m-d\TH:i:s.v\Z'),  
+                    'created_at' => $n->created_at->setTimezone('Africa/Tripoli')->toIso8601String(),  
                     'is_read'     => (bool) $n->is_read, 
                 ];
             });

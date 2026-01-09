@@ -238,7 +238,19 @@ const getMonthlyQuantityDisplay = (med) => {
                                             {{ med.dosage }}
                                         </span>
                                     </td>
-                                    <td class="p-4 text-gray-600">{{ getMonthlyQuantityDisplay(med) }}</td>
+                                    <td class="p-4 text-gray-600">
+                                        <div class="flex flex-col space-y-2">
+                                            <div class="font-medium">{{ getMonthlyQuantityDisplay(med) }}</div>
+                                            <div class="text-xs space-y-1">
+                                                <div class="text-orange-600">
+                                                    <span class="font-semibold">مصروف:</span> {{ med.totalDispensedThisMonth || 0 }} {{ med.unit || 'حبة' }}
+                                                </div>
+                                                <div class="text-green-600">
+                                                    <span class="font-semibold">متبقي:</span> {{ med.remainingQuantity !== undefined ? Math.max(0, med.remainingQuantity) : Math.max(0, (med.monthlyQuantityNum || 0) - (med.totalDispensedThisMonth || 0)) }} {{ med.unit || 'حبة' }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td class="p-4 text-gray-500 text-sm">{{ med.assignmentDate }}</td>
                                     <td class="p-4 text-gray-500 text-sm">{{ med.assignedBy }}</td>
                                     <td class="p-4">

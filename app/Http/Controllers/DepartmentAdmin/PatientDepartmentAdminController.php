@@ -175,9 +175,27 @@ class PatientDepartmentAdminController extends BaseApiController
                     ? $latestLog->user->full_name 
                     : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
 
-                $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                $currentMonthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
                 $dailyQty = (int)($drug->pivot->daily_quantity ?? 0);
                 $unit = $this->getDrugUnit($drug);
+                
+                // حساب الكمية المصروفة في الشهر الحالي
+                $startOfMonth = Carbon::now()->startOfMonth();
+                $endOfMonth = Carbon::now()->endOfMonth();
+                
+                $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $patient->id)
+                    ->where('drug_id', $drug->id)
+                    ->where('reverted', false) // استبعاد السجلات الملغاة
+                    ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                    ->sum('quantity_dispensed');
+                
+                // حساب الكمية الشهرية الأصلية (الكمية الحالية + المصروفة هذا الشهر)
+                // لأن monthly_quantity يتم خصمه عند الصرف، نحتاج لإعادة حساب القيمة الأصلية
+                $monthlyQty = $currentMonthlyQty + $totalDispensedThisMonth;
+                
+                // حساب الكمية المتبقية
+                $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
+                
                 // استخدام daily_quantity مباشرة للجرعة اليومية
                 $dosageText = $dailyQty > 0 
                     ? $dailyQty . ' ' . $unit . ' يومياً'
@@ -198,6 +216,8 @@ class PatientDepartmentAdminController extends BaseApiController
                     'assignedBy' => $assignedBy,
                     'note' => $drug->pivot->note ?? null,
                     'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
+                    'totalDispensedThisMonth' => $totalDispensedThisMonth, // الكمية المصروفة هذا الشهر
+                    'remainingQuantity' => $remainingQuantity, // الكمية المتبقية
                 ]);
             }
         }

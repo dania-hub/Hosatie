@@ -70,6 +70,7 @@ const routeNames = {
     '/admin/patients': 'قائمة المرضى',
     // Pharmacist
     '/pharmacist/medications': 'قائمة الأدوية',
+    '/pharmacist/expired-drugs': 'الأدوية المُصفرة',
     '/pharmacist/operations': 'سجل العمليات',
     '/pharmacist/patients': 'قائمة المرضى',
     '/pharmacist/statistics': 'الإحصائيات',
@@ -89,11 +90,14 @@ const routeNames = {
     '/department/requests': 'طلبات التوريد الداخلي',
     // Storekeeper
     '/storekeeper/medications': 'قائمة الأدوية',
+    '/storekeeper/expired-drugs': 'الأدوية المُصفرة',
     '/storekeeper/operations': 'سجل العمليات',
     '/storekeeper/requests': 'طلبات التوريد الداخلي',
     '/storekeeper/statistics': 'الإحصائيات',
     '/storekeeper/supply-requests': 'طلبات التوريد',
     // Supplier
+    '/Supplier/medications': 'قائمة الأدوية',
+    '/Supplier/expired-drugs': 'الأدوية المُصفرة',
     '/Supplier/statistics': 'الإحصائيات',
     '/Supplier/medications': 'قائمة الأدوية',
     '/Supplier/operations': 'سجل العمليات',

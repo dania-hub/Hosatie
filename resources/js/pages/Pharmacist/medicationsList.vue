@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
+import { router } from "@inertiajs/vue3";
 import axios from "axios";
 
 import Navbar from "@/components/Navbar.vue";
@@ -53,6 +54,7 @@ api.interceptors.response.use(
 const drugsData = ref([]);
 const categories = ref([]);
 const allDrugsData = ref([]);
+const expiredDrugs = ref([]); // قائمة الأدوية المُصفرة (مخزنة في audit_log)
 
 // ----------------------------------------------------
 // 3. حالة المكونات المنبثقة
@@ -322,7 +324,17 @@ const fetchDrugs = async () => {
     const response = await api.get("/drugs");
     const data = response.data?.data ?? response.data;
 
-    drugsData.value = Array.isArray(data) ? data : [];
+    // التحقق من أن البيانات تحتوي على قائمة الأدوية والأدوية المُصفرة
+    if (data && typeof data === 'object' && 'drugs' in data) {
+      drugsData.value = Array.isArray(data.drugs) ? data.drugs : [];
+      // الأدوية المُصفرة تأتي من audit_log (دائمة)
+      expiredDrugs.value = Array.isArray(data.expiredDrugs) ? data.expiredDrugs : [];
+    } else {
+      // للتوافق مع الاستجابات القديمة
+      drugsData.value = Array.isArray(data) ? data : [];
+      expiredDrugs.value = [];
+    }
+    
     hasData.value = drugsData.value.length > 0;
 
   } catch (err) {
@@ -330,6 +342,9 @@ const fetchDrugs = async () => {
     drugsData.value = [];
     hasData.value = false;
     error.value = "تعذر تحميل قائمة الأدوية.";
+    
+    // في حالة الخطأ، لا يوجد أدوية مُصفرة
+    expiredDrugs.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -977,6 +992,13 @@ onMounted(async () => {
                             class="flex items-center gap-5 w-full sm:w-auto justify-end"
                         >
                             <button
+                                class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-red-600 hover:border hover:border-[#a8a8a8] hover:bg-red-700"
+                                @click="router.visit('/pharmacist/expired-drugs')"
+                            >
+                                <Icon icon="solar:danger-triangle-bold" class="w-5 h-5 ml-2" />
+                                الأدوية المُصفرة
+                            </button>
+                            <button
                                 class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-29 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
                                 @click="openSupplyRequestModal"
                             >
@@ -1153,6 +1175,8 @@ onMounted(async () => {
                             </div>
                         </div>
                     </div>
+
+                   
                 </div>
             </main>
         </div>

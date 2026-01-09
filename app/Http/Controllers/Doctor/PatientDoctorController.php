@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Prescription;
+use App\Models\Dispensing;
 use Carbon\Carbon;
 
 class PatientDoctorController extends BaseApiController
@@ -142,11 +143,28 @@ class PatientDoctorController extends BaseApiController
                     : ($prescription->doctor ? $prescription->doctor->full_name : 'غير محدد');
                 
                 // الحصول على الكمية الشهرية والجرعة اليومية
-                $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                $currentMonthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
                 $dailyQty = (int)($drug->pivot->daily_quantity ?? 0);
                 
                 // تحديد وحدة القياس من بيانات الدواء
                 $unit = $this->getDrugUnit($drug);
+                
+                // حساب الكمية المصروفة في الشهر الحالي
+                $startOfMonth = Carbon::now()->startOfMonth();
+                $endOfMonth = Carbon::now()->endOfMonth();
+                
+                $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $patient->id)
+                    ->where('drug_id', $drug->id)
+                    ->where('reverted', false) // استبعاد السجلات الملغاة
+                    ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                    ->sum('quantity_dispensed');
+                
+                // حساب الكمية الشهرية الأصلية (الكمية الحالية + المصروفة هذا الشهر)
+                // لأن monthly_quantity يتم خصمه عند الصرف، نحتاج لإعادة حساب القيمة الأصلية
+                $monthlyQty = $currentMonthlyQty + $totalDispensedThisMonth;
+                
+                // حساب الكمية المتبقية
+                $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
                 
                 // استخدام daily_quantity مباشرة للجرعة اليومية
                 $dosageText = $dailyQty > 0 
@@ -170,6 +188,8 @@ class PatientDoctorController extends BaseApiController
                     'assignedBy' => $assignedBy,
                     'note'     => $drug->pivot->note,
                     'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
+                    'totalDispensedThisMonth' => $totalDispensedThisMonth, // الكمية المصروفة هذا الشهر
+                    'remainingQuantity' => $remainingQuantity, // الكمية المتبقية
                 ]);
             }
         }

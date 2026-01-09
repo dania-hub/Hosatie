@@ -56,6 +56,7 @@ Route::prefix('admin')->group(function () {
 // Pharmacist
 Route::prefix('pharmacist')->group(function () {
     Route::get('/medications', function () { return Inertia::render('Pharmacist/medicationsList'); });
+    Route::get('/expired-drugs', function () { return Inertia::render('Pharmacist/expiredDrugsList'); });
     Route::get('/operations', function () { return Inertia::render('Pharmacist/operationLogd'); });
     Route::get('/patients', function () { return Inertia::render('Pharmacist/patientListd'); });
     Route::get('/statistics', function () { return Inertia::render('Pharmacist/statisticsd'); });
@@ -92,6 +93,7 @@ Route::prefix('department-head')->group(function () {
 // Storekeeper
 Route::prefix('storekeeper')->group(function () {
     Route::get('/medications', function () { return Inertia::render('storekeeper/medicationsList'); });
+    Route::get('/expired-drugs', function () { return Inertia::render('storekeeper/expiredDrugsList'); });
     Route::get('/operations', function () { return Inertia::render('storekeeper/operationLogd'); });
     Route::get('/requests', function () { return Inertia::render('storekeeper/Requests'); });
     Route::get('/statistics', function () { return Inertia::render('storekeeper/statistics'); });
@@ -101,6 +103,7 @@ Route::prefix('storekeeper')->group(function () {
 //Supplier
 Route::prefix('Supplier')->group(function () {
     Route::get('/medications', function () { return Inertia::render('Supplier/medicationsList'); });
+    Route::get('/expired-drugs', function () { return Inertia::render('Supplier/expiredDrugsList'); });
     Route::get('/operations', function () { return Inertia::render('Supplier/operationLogd'); });
     Route::get('/requests', function () { return Inertia::render('Supplier/Requests'); });
     Route::get('/statistics', function () { return Inertia::render('Supplier/statistics'); });

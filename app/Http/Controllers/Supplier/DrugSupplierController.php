@@ -7,6 +7,9 @@ use App\Models\Drug;
 use App\Models\Inventory;
 use App\Models\ExternalSupplyRequest;
 use App\Models\ExternalSupplyRequestItem;
+use App\Models\AuditLog;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class DrugSupplierController extends BaseApiController
@@ -31,6 +34,73 @@ class DrugSupplierController extends BaseApiController
 
             if (!$user->hospital_id) {
                 return $this->sendError('المستخدم غير مرتبط بمستشفى', null, 403);
+            }
+
+            // جمع معلومات الأدوية المنتهية قبل التصفير وحفظها في audit_log
+            $today = Carbon::now()->format('Y-m-d');
+            
+            // جلب الأدوية المنتهية الصلاحية من المخزون قبل التصفير
+            $expiredInventories = DB::table('inventories')
+                ->join('drugs', 'inventories.drug_id', '=', 'drugs.id')
+                ->where('inventories.supplier_id', $user->supplier_id)
+                ->whereNull('inventories.warehouse_id')
+                ->whereNull('inventories.pharmacy_id')
+                ->where('inventories.current_quantity', '>', 0)
+                ->whereRaw("DATE(drugs.expiry_date) <= ?", [$today])
+                ->select(
+                    'inventories.id as inventory_id',
+                    'drugs.id as drug_id',
+                    'drugs.name as drug_name',
+                    'drugs.strength',
+                    'inventories.current_quantity',
+                    'drugs.expiry_date'
+                )
+                ->get();
+            
+            // حفظ الأدوية المُصفرة في audit_log (إذا لم تكن محفوظة مسبقاً)
+            foreach ($expiredInventories as $expired) {
+                $drugExpiryDate = $expired->expiry_date ? date('Y/m/d', strtotime($expired->expiry_date)) : null;
+                
+                // جلب جميع السجلات المتعلقة بهذا الدواء والمورد
+                $existingLogs = AuditLog::where('action', 'drug_expired_zeroed')
+                    ->where('hospital_id', $user->hospital_id)
+                    ->where('table_name', 'inventories')
+                    ->get();
+                
+                $exists = false;
+                foreach ($existingLogs as $log) {
+                    $newValues = json_decode($log->new_values, true);
+                    if ($newValues && 
+                        isset($newValues['drugId']) && $newValues['drugId'] == $expired->drug_id &&
+                        isset($newValues['supplierId']) && $newValues['supplierId'] == $user->supplier_id &&
+                        isset($newValues['expiryDate']) && $newValues['expiryDate'] == $drugExpiryDate) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                
+                if (!$exists) {
+                    // حفظ في audit_log
+                    AuditLog::create([
+                        'user_id' => $user->id,
+                        'hospital_id' => $user->hospital_id,
+                        'action' => 'drug_expired_zeroed',
+                        'table_name' => 'inventories',
+                        'record_id' => $expired->inventory_id,
+                        'old_values' => json_encode([
+                            'quantity' => $expired->current_quantity,
+                        ]),
+                        'new_values' => json_encode([
+                            'drugName' => $expired->drug_name,
+                            'drugId' => $expired->drug_id,
+                            'strength' => $expired->strength ?? null,
+                            'quantity' => $expired->current_quantity,
+                            'expiryDate' => $drugExpiryDate,
+                            'supplierId' => $user->supplier_id,
+                        ]),
+                        'ip_address' => $request->ip() ?? request()->ip(),
+                    ]);
+                }
             }
 
             // جلب طلبات التوريد الخارجية المعتمدة والمُرسلة للمورد من نفس المستشفى
@@ -488,6 +558,223 @@ class DrugSupplierController extends BaseApiController
             return $this->sendSuccess($registeredItems, 'تم تسجيل الاستلام وإضافة الأدوية للمخزون بنجاح');
         } catch (\Exception $e) {
             return $this->handleException($e, 'Supplier Register Error');
+        }
+    }
+
+    /**
+     * دالة مساعدة لجلب الأدوية المُصفرة من audit_log
+     */
+    private function getExpiredDrugsFromAuditLog($hospitalId, $supplierId)
+    {
+        // جلب جميع inventory_ids التي تنتمي لنفس المورد
+        $supplierInventoryIds = Inventory::where('supplier_id', $supplierId)
+            ->whereNull('warehouse_id')
+            ->whereNull('pharmacy_id')
+            ->pluck('id')
+            ->toArray();
+        
+        if (empty($supplierInventoryIds)) {
+            return collect();
+        }
+        
+        $expiredDrugsLogs = AuditLog::where('action', 'drug_expired_zeroed')
+            ->where('hospital_id', $hospitalId)
+            ->whereIn('record_id', $supplierInventoryIds) // الأدوية من نفس المورد فقط
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+            // 1. تجميع معرفات الأدوية التي تفتقد للتركيز (strength)
+        $drugIdsToFetch = [];
+        foreach ($expiredDrugsLogs as $log) {
+            $newValues = json_decode($log->new_values, true);
+            if ($newValues && isset($newValues['drugName'])) {
+                // إذا كان التركيز غير موجود أو فارغ ولكن لدينا drugId
+                if (empty($newValues['strength']) && !empty($newValues['drugId'])) {
+                    $drugIdsToFetch[] = $newValues['drugId'];
+                }
+            }
+        }
+
+        // 2. جلب التركيزات الناقصة من قاعدة البيانات دفعة واحدة
+        $drugStrengths = [];
+        if (!empty($drugIdsToFetch)) {
+            $drugStrengths = Drug::whereIn('id', array_unique($drugIdsToFetch))
+                 ->pluck('strength', 'id')
+                 ->toArray();
+        }
+
+        $expiredDrugs = collect();
+        
+        foreach ($expiredDrugsLogs as $log) {
+            $newValues = json_decode($log->new_values, true);
+            
+            if ($newValues && isset($newValues['drugName'])) {
+                // التحقق من أن الدواء لا يحتوي على pharmacyId أو warehouseId (لأنها للصيدلية والمستودع)
+                // إذا كان record_id ينتمي لنفس المورد (تم التحقق منه مسبقاً في whereIn)،
+                // فإن الدواء من نفس المورد، بغض النظر عن وجود supplierId في audit_log
+                $hasPharmacyId = isset($newValues['pharmacyId']) && $newValues['pharmacyId'] !== null;
+                $hasWarehouseId = isset($newValues['warehouseId']) && $newValues['warehouseId'] !== null;
+                
+                // نعرض الأدوية التي:
+                // 1. لا تحتوي على pharmacyId (لأنها للصيدلية)
+                // 2. لا تحتوي على warehouseId (لأنها للمستودع)
+                // 3. record_id ينتمي لنفس المورد (تم التحقق منه مسبقاً في whereIn)
+                if (!$hasPharmacyId && !$hasWarehouseId) {
+                    // تجنب التكرار (نفس الدواء وتاريخ الانتهاء)
+                    $exists = $expiredDrugs->contains(function ($existing) use ($newValues) {
+                        return $existing['drugName'] === $newValues['drugName'] && 
+                               $existing['expiryDate'] === ($newValues['expiryDate'] ?? null);
+                    });
+                    
+                    if (!$exists) {
+                         $strength = $newValues['strength'] ?? null;
+                        
+                        // محاولة استكمال التركيز الناقص
+                        if (empty($strength) && !empty($newValues['drugId']) && isset($drugStrengths[$newValues['drugId']])) {
+                            $strength = $drugStrengths[$newValues['drugId']];
+                        }
+
+                        $expiredDrugs->push([
+                            'drugName' => $newValues['drugName'] ?? null,
+                             'strength' => $strength,
+                            'quantity' => $newValues['quantity'] ?? 0,
+                            'expiryDate' => $newValues['expiryDate'] ?? null,
+                            'zeroedDate' => $log->created_at ? date('Y/m/d H:i', strtotime($log->created_at)) : null,
+                        ]);
+                    }
+                }
+            }
+        }
+
+        return $expiredDrugs;
+    }
+
+    /**
+     * GET /api/supplier/drugs/expired
+     * جلب قائمة الأدوية المُصفرة من audit_log (للصفحة المخصصة)
+     */
+    public function expired(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $hospitalId = $user->hospital_id;
+            $supplierId = $user->supplier_id;
+
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', null, 400);
+            }
+
+            if (!$supplierId) {
+                return $this->sendError('المستخدم غير مرتبط بمورد.', null, 400);
+            }
+
+            // جمع معلومات الأدوية المنتهية قبل التصفير وحفظها في audit_log
+            $today = Carbon::now()->format('Y-m-d');
+            
+            // جلب جميع الأدوية المنتهية الصلاحية من المخزون (سواء كانت كميتها > 0 أو = 0)
+            // هذا يضمن أننا نلتقط الأدوية التي تم تصفيرها سابقاً
+            $expiredInventories = DB::table('inventories')
+                ->join('drugs', 'inventories.drug_id', '=', 'drugs.id')
+                ->where('inventories.supplier_id', $supplierId)
+                ->whereNull('inventories.warehouse_id')
+                ->whereNull('inventories.pharmacy_id')
+                ->whereRaw("DATE(drugs.expiry_date) <= ?", [$today])
+                ->select(
+                    'inventories.id as inventory_id',
+                    'drugs.id as drug_id',
+                    'drugs.name as drug_name',
+                    'drugs.strength',
+                    'inventories.current_quantity',
+                    'drugs.expiry_date'
+                )
+                ->get();
+            
+            // جلب جميع الأدوية المُصفرة من audit_log أولاً (للتأكد من عدم التكرار)
+            $expiredDrugsFromLog = $this->getExpiredDrugsFromAuditLog($hospitalId, $supplierId);
+            
+            // حفظ الأدوية المُصفرة الجديدة في audit_log
+            foreach ($expiredInventories as $expired) {
+                $drugExpiryDate = $expired->expiry_date ? date('Y/m/d', strtotime($expired->expiry_date)) : null;
+                
+                // التحقق من عدم وجود هذا الدواء في audit_log
+                $exists = $expiredDrugsFromLog->contains(function ($existing) use ($expired, $drugExpiryDate) {
+                    return $existing['drugName'] === $expired->drug_name && 
+                           $existing['expiryDate'] === $drugExpiryDate;
+                });
+                
+                // إذا كان موجوداً في audit_log، نتخطاه
+                if ($exists) {
+                    continue;
+                }
+                
+                // تحديد الكمية الأصلية
+                $originalQuantity = $expired->current_quantity;
+                
+                // إذا كانت الكمية = 0 (تم تصفيرها سابقاً)، نحاول الحصول على الكمية الأصلية من audit_log
+                if ($originalQuantity == 0) {
+                    // البحث في audit_log عن آخر تحديث لهذا المخزون
+                    $lastUpdate = AuditLog::where('table_name', 'inventories')
+                        ->where('record_id', $expired->inventory_id)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    if ($lastUpdate) {
+                        // محاولة الحصول على الكمية من old_values
+                        if ($lastUpdate->old_values) {
+                            $oldValues = json_decode($lastUpdate->old_values, true);
+                            if (isset($oldValues['current_quantity']) && $oldValues['current_quantity'] > 0) {
+                                $originalQuantity = $oldValues['current_quantity'];
+                            } elseif (isset($oldValues['quantity']) && $oldValues['quantity'] > 0) {
+                                $originalQuantity = $oldValues['quantity'];
+                            }
+                        }
+                        
+                        // إذا لم نجد الكمية من old_values، نحاول الحصول عليها من new_values
+                        if ($originalQuantity == 0 && $lastUpdate->new_values) {
+                            $newValues = json_decode($lastUpdate->new_values, true);
+                            if (isset($newValues['current_quantity']) && $newValues['current_quantity'] > 0) {
+                                $originalQuantity = $newValues['current_quantity'];
+                            } elseif (isset($newValues['quantity']) && $newValues['quantity'] > 0) {
+                                $originalQuantity = $newValues['quantity'];
+                            }
+                        }
+                    }
+                    
+                    // إذا لم نتمكن من الحصول على الكمية الأصلية، نتخطى هذا الدواء
+                    // لأننا لا نعرف الكمية الأصلية التي تم تصفيرها
+                    if ($originalQuantity == 0) {
+                        continue;
+                    }
+                }
+                
+                // حفظ في audit_log
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'drug_expired_zeroed',
+                    'table_name' => 'inventories',
+                    'record_id' => $expired->inventory_id,
+                    'old_values' => json_encode([
+                        'quantity' => $originalQuantity,
+                    ]),
+                    'new_values' => json_encode([
+                        'drugName' => $expired->drug_name,
+                        'drugId' => $expired->drug_id,
+                        'strength' => $expired->strength ?? null,
+                        'quantity' => $originalQuantity,
+                        'expiryDate' => $drugExpiryDate,
+                        'supplierId' => $supplierId,
+                    ]),
+                    'ip_address' => $request->ip() ?? request()->ip(),
+                ]);
+            }
+
+            // جلب جميع الأدوية المُصفرة من audit_log (بعد الحفظ)
+            $allExpiredDrugs = $this->getExpiredDrugsFromAuditLog($hospitalId, $supplierId);
+
+            return $this->sendSuccess($allExpiredDrugs->values(), 'تم جلب قائمة الأدوية المُصفرة بنجاح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Supplier Expired Drugs Error');
         }
     }
 }

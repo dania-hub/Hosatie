@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { router } from "@inertiajs/vue3";
 import axios from "axios";
 
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
@@ -658,6 +659,13 @@ onMounted(async () => {
                                 @click="openSupplyRequestModal"
                             >
                                 طلب التوريد
+                            </button>
+                            <button
+                                class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-auto rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-red-600 hover:border hover:border-[#a8a8a8] hover:bg-red-700"
+                                @click="router.visit('/Supplier/expired-drugs')"
+                            >
+                                <Icon icon="solar:danger-triangle-bold" class="w-5 h-5 ml-2" />
+                                الأدوية المُصفرة
                             </button>
                             <btnprint @click="printTable" />
                         </div>

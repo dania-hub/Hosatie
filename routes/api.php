@@ -375,6 +375,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('drugs', [DrugPharmacistController::class, 'index']);
         Route::get('drugs/all', [DrugPharmacistController::class, 'searchAll']);
+        Route::get('drugs/expired', [DrugPharmacistController::class, 'expired']);
         Route::get('drugs/{id}', [DrugPharmacistController::class, 'show']);
         Route::post('drugs', [DrugPharmacistController::class, 'store']);
         Route::put('drugs/{id}', [DrugPharmacistController::class, 'update']);
@@ -407,6 +408,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('drugs', [WarehouseInventoryController::class, 'index']);
         Route::get('drugs/all', [WarehouseInventoryController::class, 'allDrugs']);
+        Route::get('drugs/expired', [WarehouseInventoryController::class, 'expired']);
         Route::get('drugs/{id}', [WarehouseInventoryController::class, 'show']);
 
         Route::post('drugs', [WarehouseInventoryController::class, 'store']);
@@ -542,6 +544,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // 2. Drugs & Categories (الأدوية والفئات)
         Route::get('drugs', [DrugSupplierController::class, 'index']);
         Route::get('drugs/all', [DrugSupplierController::class, 'all']);
+        Route::get('drugs/expired', [DrugSupplierController::class, 'expired']);
         Route::get('drugs/{id}', [DrugSupplierController::class, 'show']);
         Route::get('drugs/search', [DrugSupplierController::class, 'search']);
         Route::post('drugs/register', [DrugSupplierController::class, 'register']);

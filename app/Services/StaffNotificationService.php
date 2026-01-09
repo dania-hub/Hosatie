@@ -266,6 +266,47 @@ class StaffNotificationService
         }
     }
 
+    // Notify Super Admin about New External Request
+    public function notifySuperAdminNewExternalRequest(ExternalSupplyRequest $request)
+    {
+        $superAdmins = User::where('type', 'super_admin')->get();
+
+        if (!$request->relationLoaded('supplier')) $request->load('supplier');
+        if (!$request->relationLoaded('items.drug')) $request->load('items.drug');
+
+        $supplierName = $request->supplier->name ?? 'مورد غير محدد';
+
+        $message = "قام المورد [{$supplierName}] بإرسال طلب توريد جديد (رقم #{$request->id}) إلى الإدارة.";
+        
+        // Include Items Summary
+        if ($request->items && $request->items->count() > 0) {
+            $message .= "\n\nالمواد المطلوبة:";
+            foreach($request->items->take(5) as $item) {
+                $drugName = $item->drug->name ?? 'دواء غير معروف';
+                $qty = $item->requested_qty ?? 0;
+                $message .= "\n- {$drugName} (الكمية: {$qty})";
+            }
+            if ($request->items->count() > 5) {
+                $remaining = $request->items->count() - 5;
+                $message .= "\n...و {$remaining} مواد أخرى.";
+            }
+        }
+        
+        // If notes are passed via a temporary property (not in DB)
+        if (isset($request->notes) && !empty($request->notes)) {
+             $message .= "\n\nملاحظات الطلب:\n{$request->notes}";
+        }
+
+        foreach ($superAdmins as $admin) {
+            $this->createNotification(
+                $admin,
+                'طلب توريد جديد من مورد',
+                $message,
+                'عادي'
+            );
+        }
+    }
+
     // Notify about Patient Transfer (To the source hospital admin)
     public function notifyAdminTransferRequest(PatientTransferRequest $request)
     {
@@ -431,6 +472,28 @@ class StaffNotificationService
 
         foreach ($superAdmins as $admin) {
             $this->createNotification($admin, $title, $message, 'مستعجل');
+        }
+    }
+
+    // Notify Supplier about Super Admin Response
+    public function notifySupplierAboutSuperAdminResponse(ExternalSupplyRequest $request, string $status, ?string $notes = null)
+    {
+        if (!$request->supplier_id) return;
+
+        $supplierAdmins = User::where('type', 'supplier_admin')
+            ->where('supplier_id', $request->supplier_id)
+            ->get();
+
+        $title = 'رد من الإدارة على طلب التوريد';
+        $message = "قامت الإدارة بالرد على طلب التوريد (رقم #{$request->id}).";
+        $message .= "\nالحالة الجديدة: [{$status}].";
+        
+        if ($notes) {
+            $message .= "\n\nملاحظات الإدارة:\n{$notes}";
+        }
+
+        foreach ($supplierAdmins as $admin) {
+            $this->createNotification($admin, $title, $message, 'عادي');
         }
     }
 

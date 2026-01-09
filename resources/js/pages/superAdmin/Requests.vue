@@ -201,25 +201,25 @@
                                             {{ shipment.status }}
                                         </td>
                                         <td class="actions-col">
-                                            <div class="flex gap-3 justify-center">
+                                            <div class="flex gap-2 justify-center">
                                                 <button 
                                                     @click="openRequestViewModal(shipment)"
-                                                    class="tooltip" 
+                                                    class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95 tooltip" 
                                                     data-tip="معاينة تفاصيل الشحنة">
                                                     <Icon
-                                                        icon="famicons:open-outline"
-                                                        class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        icon="solar:eye-broken"
+                                                        class="w-5 h-5"
                                                     />
                                                 </button>
                                                 
                                                 <template v-if="shipment.status === 'تم الإستلام'">
                                                     <button 
                                                         @click="openReviewModal(shipment)"
-                                                        class="tooltip" 
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 hover:scale-105 active:scale-95 tooltip" 
                                                         data-tip="مراجعة تفاصيل الشحنة">
                                                         <Icon
-                                                            icon="healthicons:yes-outline"
-                                                            class="w-5 h-5 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            icon="solar:check-circle-linear"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
                                                 </template>
@@ -227,11 +227,11 @@
                                                 <template v-else>
                                                     <button
                                                         @click="openResponseModal(shipment)" 
-                                                        class="tooltip"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 hover:scale-105 active:scale-95 tooltip"
                                                         data-tip="الرد على الطلب">
                                                         <Icon
-                                                            icon="fluent:box-checkmark-24-regular"
-                                                            class="w-5 h-5 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
+                                                            icon="solar:pen-new-square-linear"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
                                                 </template>
@@ -265,22 +265,13 @@
             @submit="handleResponseSubmit"
         />
 
-        <Transition
-            enter-active-class="transition duration-300 ease-out transform"
-            enter-from-class="translate-x-full opacity-0"
-            enter-to-class="translate-x-0 opacity-100"
-            leave-active-class="transition duration-200 ease-in transform"
-            leave-from-class="translate-x-0 opacity-100"
-            leave-to-class="translate-x-full opacity-0"
-        >
-            <div
-                v-if="isSuccessAlertVisible"
-                class="fixed top-4 right-55 z-[1000] p-4 text-right bg-green-500 text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-                dir="rtl"
-            >
-                {{ successMessage }}
-            </div>
-        </Transition>
+    <Toast 
+        :show="toast.show" 
+        :type="toast.type" 
+        :title="toast.title" 
+        :message="toast.message" 
+        @close="toast.show = false" 
+    />
     </DefaultLayout>
 </template>
 
@@ -298,6 +289,7 @@ import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue"; 
 import btnprint from "@/components/btnprint.vue";
 import RequestViewModal from "@/components/forsuperadmin/RequestViewModal.vue"; 
+import Toast from "@/components/Shared/Toast.vue"; 
 import RequestResponseModal from "@/components/forsuperadmin/RequestResponseModal.vue"; 
 
 // ----------------------------------------------------
@@ -594,7 +586,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .print-date { text-align: left; color: #666; font-size: 14px; margin-bottom: 10px; }
 </style>
 
-<h1>قائمة طلبات التوريد (تقرير طباعة)</h1>
+<h1>قائمة طلبات الموردين (تقرير طباعة)</h1>
 <p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
 <p class="results-info">عدد النتائج: ${resultsCount}</p>
 
@@ -644,22 +636,21 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 // ----------------------------------------------------
 // 9. نظام التنبيهات
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
-let alertTimeout = null;
+const toast = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
 
 const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
+    const isError = message.startsWith('❌') || message.includes('فشل');
+    toast.value = {
+        show: true,
+        type: isError ? 'error' : 'success',
+        title: isError ? 'خطأ' : 'نجاح',
+        message: message.replace(/^❌ |^✅ /, '')
+    };
 };
 
 // ----------------------------------------------------

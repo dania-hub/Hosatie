@@ -13,6 +13,7 @@ import btnprint from "@/components/btnprint.vue";
 import employeeAddModel from "@/components/forsuperadmin/employeeAddModel.vue";
 import employeeEditModel from "@/components/forsuperadmin/employeeEditModel.vue";
 import employeeViewModel from "@/components/forsuperadmin/employeeViewModel.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // إعداد axios مع interceptor لإضافة التوكن
 const api = axios.create({
@@ -445,22 +446,21 @@ const filteredEmployees = computed(() => {
 // ----------------------------------------------------
 // 9. منطق رسالة النجاح
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
-let alertTimeout = null;
+const toast = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
 
 const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
+    const isError = message.startsWith('❌') || message.includes('فشل');
+    toast.value = {
+        show: true,
+        type: isError ? 'error' : 'success',
+        title: isError ? 'خطأ' : 'نجاح',
+        message: message.replace(/^❌ |^✅ /, '')
+    };
 };
 
 // ----------------------------------------------------
@@ -1321,22 +1321,13 @@ const printTable = () => {
         </div>
     </div>
 
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div
-            v-if="isSuccessAlertVisible"
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-            dir="rtl"
-        >
-            {{ successMessage }}
-        </div>
-    </Transition>
+    <Toast 
+        :show="toast.show" 
+        :type="toast.type" 
+        :title="toast.title" 
+        :message="toast.message" 
+        @close="toast.show = false" 
+    />
 </template>
 
 <style>

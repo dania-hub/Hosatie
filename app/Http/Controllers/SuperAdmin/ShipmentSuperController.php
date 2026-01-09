@@ -5,9 +5,14 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\BaseApiController;
 use App\Models\ExternalSupplyRequest;
 use Illuminate\Http\Request;
+use App\Services\StaffNotificationService; // Added
 
 class ShipmentSuperController extends BaseApiController
 {
+    public function __construct(
+        private StaffNotificationService $notifications
+    ) {}
+
     /**
      * عرض قائمة الشحنات (طلبات التوريد الخارجية)
      */
@@ -70,9 +75,37 @@ class ShipmentSuperController extends BaseApiController
             }
 
             // تحديث الحالة
-            $shipment->update(['status' => 'fulfilled']);
+            $shipment->update([
+                'status' => 'fulfilled',
+                'notes' => $request->input('notes') // Save notes if provided
+            ]);
+
+            // تسجيل في AuditLog
+             \App\Models\AuditLog::create([
+                'user_id'     => $request->user()->id,
+                'hospital_id' => $shipment->hospital_id,
+                'action'      => 'super_admin_confirm_external_supply_request',
+                'table_name'  => 'external_supply_request',
+                'record_id'   => $shipment->id,
+                'new_values'  => json_encode([
+                    'status' => 'fulfilled',
+                    'notes' => $request->input('notes'),
+                    'request_id' => $shipment->id,
+                    'supplier_id' => $shipment->supplier_id
+                ]),
+                'old_values' => json_encode(['status' => $shipment->getOriginal('status')]),
+                'ip_address'  => $request->ip(),
+            ]);
 
             // هنا يمكنك إضافة منطق تحديث المخزون إذا لزم الأمر
+
+            // إشعار المورد
+            try {
+                $statusArabic = 'تم الإستلام';
+                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, $statusArabic, $request->input('notes'));
+            } catch (\Exception $e) {
+                \Log::error('Failed to notify supplier', ['error' => $e->getMessage()]);
+            }
             
             // Return with translated status for consistency
             $shipment->status = 'تم الإستلام';

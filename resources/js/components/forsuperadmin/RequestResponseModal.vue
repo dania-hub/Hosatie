@@ -188,7 +188,7 @@ const submitResponse = async () => {
         const responseData = {
             status: 'تم الرد',
             response: responseText.value.trim(),
-            notes: '',
+            notes: responseText.value.trim(),
             date: new Date().toISOString(),
             requestDetails: {
                 id: props.requestData?.id,

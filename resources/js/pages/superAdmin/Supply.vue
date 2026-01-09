@@ -13,6 +13,7 @@ import btnprint from "@/components/btnprint.vue";
 import supplyAddModel from "@/components/forsuperadmin/supplyAddModel.vue";
 import supplyEditModel from "@/components/forsuperadmin/supplyEditModel.vue";
 import supplyViewModel from "@/components/forsuperadmin/supplyViewModel.vue";
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -257,22 +258,21 @@ const filteredSuppliers = computed(() => {
 // ----------------------------------------------------
 // 7. منطق رسالة النجاح
 // ----------------------------------------------------
-const isSuccessAlertVisible = ref(false);
-const successMessage = ref("");
-let alertTimeout = null;
+const toast = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
 
 const showSuccessAlert = (message) => {
-    if (alertTimeout) {
-        clearTimeout(alertTimeout);
-    }
-
-    successMessage.value = message;
-    isSuccessAlertVisible.value = true;
-
-    alertTimeout = setTimeout(() => {
-        isSuccessAlertVisible.value = false;
-        successMessage.value = "";
-    }, 4000);
+    const isError = message.startsWith('❌') || message.includes('فشل');
+    toast.value = {
+        show: true,
+        type: isError ? 'error' : 'success',
+        title: isError ? 'خطأ' : 'نجاح',
+        message: message.replace(/^❌ |^✅ /, '')
+    };
 };
 
 // ----------------------------------------------------
@@ -816,26 +816,28 @@ const printTable = () => {
                                             </td>
 
                                             <td class="actions-col">
-                                                <div class="flex gap-3 justify-center items-center">
+                                                <div class="flex gap-2 justify-center items-center">
+                                                    <!-- زر العرض -->
                                                     <button
                                                         @click="openViewModal(supplier)"
-                                                        class="p-1 rounded-full hover:bg-green-100 transition-colors"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
                                                         title="عرض البيانات"
                                                     >
                                                         <Icon
-                                                            icon="tabler:eye-minus"
-                                                            class="w-5 h-5 text-green-600"
+                                                            icon="solar:eye-broken"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
 
+                                                    <!-- زر التعديل -->
                                                     <button
                                                         @click="openEditModal(supplier)"
-                                                        class="p-1 rounded-full hover:bg-yellow-100 transition-colors"
+                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 hover:scale-105 active:scale-95"
                                                         title="تعديل البيانات"
                                                     >
                                                         <Icon
-                                                            icon="line-md:pencil"
-                                                            class="w-5 h-5 text-yellow-500"
+                                                            icon="solar:pen-new-square-linear"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
 
@@ -843,22 +845,22 @@ const printTable = () => {
                                                     <button
                                                         @click="openStatusConfirmationModal(supplier)"
                                                         :class="[
-                                                            'p-1 rounded-full transition-colors',
+                                                            'w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 border hover:scale-105 active:scale-95',
                                                             supplier.isActive
-                                                                ? 'hover:bg-red-100'
-                                                                : 'hover:bg-green-100',
+                                                                ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+                                                                : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100',
                                                         ]"
                                                         :title="getStatusTooltip(supplier.isActive)"
                                                     >
                                                         <Icon
                                                             v-if="supplier.isActive"
-                                                            icon="pepicons-pop:power-off"
-                                                            class="w-5 h-5 text-red-600"
+                                                            icon="solar:forbidden-circle-linear"
+                                                            class="w-5 h-5"
                                                         />
                                                         <Icon
                                                             v-else
-                                                            icon="quill:off"
-                                                            class="w-5 h-5 text-green-600"
+                                                            icon="solar:power-bold"
+                                                            class="w-5 h-5"
                                                         />
                                                     </button>
                                                 </div>
@@ -950,22 +952,13 @@ const printTable = () => {
         </div>
     </div>
 
-    <Transition
-        enter-active-class="transition duration-300 ease-out transform"
-        enter-from-class="translate-x-full opacity-0"
-        enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition duration-200 ease-in transform"
-        leave-from-class="translate-x-0 opacity-100"
-        leave-to-class="translate-x-full opacity-0"
-    >
-        <div
-            v-if="isSuccessAlertVisible"
-            class="fixed top-4 right-55 z-[1000] p-4 text-right bg-[#a2c4c6] text-white rounded-lg shadow-xl max-w-xs transition-all duration-300"
-            dir="rtl"
-        >
-            {{ successMessage }}
-        </div>
-    </Transition>
+    <Toast 
+        :show="toast.show" 
+        :type="toast.type" 
+        :title="toast.title" 
+        :message="toast.message" 
+        @close="toast.show = false" 
+    />
 </template>
 
 <style>

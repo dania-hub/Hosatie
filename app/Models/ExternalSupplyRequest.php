@@ -18,6 +18,7 @@ class ExternalSupplyRequest extends Model
         'status',
         'handeled_by',
         'handeled_at',
+        'priority',
     ];
 protected $casts = [
         'handeled_at' => 'datetime',

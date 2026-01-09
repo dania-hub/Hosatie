@@ -32,37 +32,26 @@
 
             <div class="p-8 space-y-8">
                 
-                <!-- Info Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500 font-medium mb-1">الجهة الطالبة</p>
-                            <p class="text-[#2E5077] font-bold text-lg">{{ requestData.department || "غير محدد" }}</p>
+                <!-- Shipment Info -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:info-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        بيانات الشحنة
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">الجهة الطالبة</span>
+                            <span class="font-bold text-[#2E5077]">{{ requestData.department || "غير محدد" }}</span>
                         </div>
-                        <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
-                            <Icon icon="solar:hospital-bold-duotone" class="w-6 h-6 text-blue-600" />
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">تاريخ الطلب</span>
+                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestData.date) || "غير محدد" }}</span>
                         </div>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500 font-medium mb-1">تاريخ الطلب</p>
-                            <p class="text-[#2E5077] font-bold text-lg">{{ formatDate(requestData.date) || "غير محدد" }}</p>
-                        </div>
-                        <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center">
-                            <Icon icon="solar:calendar-bold-duotone" class="w-6 h-6 text-purple-600" />
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-500 font-medium mb-1">الحالة</p>
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">الحالة</span>
                             <span class="inline-block px-3 py-1 rounded-lg text-sm font-bold bg-orange-100 text-orange-600">
                                 {{ requestData.status || "قيد الاستلام" }}
                             </span>
-                        </div>
-                        <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
-                            <Icon icon="solar:clock-circle-bold-duotone" class="w-6 h-6 text-orange-600" />
                         </div>
                     </div>
                 </div>
@@ -70,7 +59,7 @@
                 <!-- Items Section -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                        <Icon icon="solar:pill-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        <Icon icon="solar:checklist-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         <span v-if="isProcessing">الكميات المستلمة</span>
                         <span v-else>الأدوية المطلوبة والمخزون المتاح</span>
                     </h3>
@@ -92,29 +81,21 @@
                                             </span>
                                         </div>
                                         
-                                        <div class="flex items-center gap-4 text-sm mt-2">
-                                            <div class="flex items-center gap-1 text-gray-600 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                                                <span class="font-medium">مطلوب:</span>
-                                                <span class="font-bold text-[#2E5077]">{{ item.originalQuantity }} {{ item.unit }}</span>
-                                            </div>
-                                            
-                                            <!-- عرض "مرسل" عند تأكيد الاستلام -->
-                                            <div v-if="isProcessing" class="flex items-center gap-1 bg-green-50 px-2 py-1 rounded-lg border border-green-100 text-green-700">
-                                                <span class="font-medium">مرسل:</span>
-                                                <span class="font-bold">{{ item.sentQuantity || 0 }} {{ item.unit }}</span>
-                                            </div>
+                                        <div class="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                                            <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">مطلوب: {{ item.originalQuantity }} {{ item.unit }}</span>
+                                            <span v-if="item.sentQuantity !== null && item.sentQuantity !== undefined && !isNaN(item.sentQuantity)" class="bg-green-50 text-green-600 px-2 py-0.5 rounded-md font-medium">مرسل: {{ item.sentQuantity }} {{ item.unit }}</span>
                                             
                                             <div 
                                                 v-if="!isProcessing"
-                                                class="flex items-center gap-1 px-2 py-1 rounded-lg border"
+                                                class="flex items-center gap-1 px-2 py-0.5 rounded-md border"
                                                 :class="{
                                                     'bg-green-50 border-green-100 text-green-700': item.availableQuantity >= item.originalQuantity,
                                                     'bg-red-50 border-red-100 text-red-700': item.availableQuantity < item.originalQuantity
                                                 }"
                                             >
-                                                <span class="font-medium">متوفر:</span>
-                                                <span class="font-bold">{{ item.availableQuantity }} {{ item.unit }}</span>
-                                                <Icon v-if="item.availableQuantity < item.originalQuantity" icon="solar:danger-circle-bold" class="w-4 h-4" />
+                                                <span class="font-medium text-xs">متوفر:</span>
+                                                <span class="font-bold text-xs">{{ item.availableQuantity }} {{ item.unit }}</span>
+                                                <Icon v-if="item.availableQuantity < item.originalQuantity" icon="solar:danger-circle-bold" class="w-3 h-3" />
                                             </div>
                                         </div>
                                     </div>
@@ -123,31 +104,44 @@
                                     <div class="flex flex-col md:flex-row items-start md:items-center gap-3 w-full md:w-auto">
                                         <!-- عند تأكيد الاستلام: عرض حقل "مستلم" فقط -->
                                         <template v-if="isProcessing">
-                                            <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
-                                                <label :for="`received-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
-                                                    مستلم:
-                                                </label>
-                                                <input
-                                                    :id="`received-qty-${index}`"
-                                                    type="number"
-                                                    v-model.number="item.receivedQuantity"
-                                                    :max="item.sentQuantity || item.originalQuantity"
-                                                    :min="0"
-                                                    class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
+                                            <div class="flex items-center gap-4 w-full md:w-auto justify-end">
+                                                <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                                                    <span class="text-sm text-gray-500 font-medium px-2">مستلم:</span>
+                                                    <input
+                                                        type="number"
+                                                        v-model.number="item.receivedQuantity"
+                                                        :max="item.sentQuantity"
+                                                        :min="0"
+                                                        class="w-20 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
+                                                        :class="{
+                                                            'text-green-600': item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0,
+                                                            'text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.sentQuantity,
+                                                            'text-red-600': item.receivedQuantity === 0 || item.sentQuantity === 0,
+                                                            'bg-gray-100 cursor-not-allowed opacity-70': item.sentQuantity === 0
+                                                        }"
+                                                        @input="validateReceivedQuantity(index, item.sentQuantity)"
+                                                        :disabled="props.isLoading || isConfirming || item.sentQuantity === 0"
+                                                    />
+                                                </div>
+                                                
+                                                <div 
+                                                    class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
                                                     :class="{
-                                                        'border-green-300 focus:border-green-500': item.receivedQuantity === (item.sentQuantity || item.originalQuantity),
-                                                        'border-orange-300 focus:border-orange-500': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity || item.originalQuantity),
-                                                        'border-gray-200 focus:border-[#4DA1A9]': item.receivedQuantity === 0
+                                                        'bg-green-100 text-green-600': item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0,
+                                                        'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.sentQuantity,
+                                                        'bg-red-100 text-red-600': item.receivedQuantity === 0 || item.sentQuantity === 0
                                                     }"
-                                                    @input="validateReceivedQuantity(index, item.sentQuantity || item.originalQuantity)"
-                                                    :disabled="props.isLoading || isConfirming"
-                                                />
+                                                >
+                                                    <Icon v-if="item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0" icon="solar:check-circle-bold" class="w-6 h-6" />
+                                                    <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
+                                                    <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
+                                                </div>
                                             </div>
                                         </template>
                                         
                                         <!-- عند الإرسال: عرض الكمية المقترحة والمرسلة -->
                                         <template v-else>
-                                            <!-- الكمية المقترحة -->
+                                            <!-- الكمية المقترجة -->
                                             <div class="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-200">
                                                 <label class="text-sm font-bold text-blue-600 px-2">
                                                     الكمية المقترحة:
@@ -222,7 +216,7 @@
                 </div>
 
                 <!-- Additional Notes -->
-                <div v-if="!showRejectionNote" class="space-y-2">
+                <div v-else class="space-y-2">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         <span v-if="isProcessing">ملاحظات الاستلام</span>
@@ -296,7 +290,7 @@
                                 :disabled="props.isLoading || isConfirming"
                             >
                                 <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
-                                <Icon v-else icon="solar:check-circle-bold" class="w-5 h-5" />
+                                <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
                                 {{ isConfirming ? "جاري التأكيد..." : "تأكيد الاستلام" }}
                             </button>
                         </template>
@@ -643,7 +637,7 @@ const confirmReceipt = async () => {
             item.receivedQuantity === null ||
             item.receivedQuantity === undefined ||
             item.receivedQuantity < 0 ||
-            item.receivedQuantity > (item.sentQuantity || item.originalQuantity)
+            item.receivedQuantity > item.sentQuantity
     );
     
     if (hasInvalidQuantity) {
@@ -723,7 +717,6 @@ const sendShipment = async () => {
     
     try {
         const itemsToSend = receivedItems.value
-            .filter(item => item.sentQuantity > 0)
             .map((item) => ({
                 id: item.id,
                 name: item.name,
@@ -765,12 +758,6 @@ const closeModal = () => {
 </script>
 
 <style scoped>
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
 input[type="number"] {
     -moz-appearance: textfield;
 }

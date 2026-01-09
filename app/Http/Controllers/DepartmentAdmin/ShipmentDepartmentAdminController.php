@@ -398,6 +398,21 @@ class ShipmentDepartmentAdminController extends BaseApiController
         
         $shortageItems = [];
 
+        // تحقق من وجود نقص قبل المتابعة لإلزامية الملاحظات
+        $hasShortageBefore = false;
+        foreach ($shipment->items as $item) {
+            $sentQty = $item->approved_qty ?? $item->requested_qty ?? 0;
+            $receivedQty = isset($receivedItemsMap[(int)$item->id]) ? $receivedItemsMap[(int)$item->id] : $sentQty;
+            if ($receivedQty < $sentQty) {
+                $hasShortageBefore = true;
+                break;
+            }
+        }
+
+        if ($hasShortageBefore && empty(trim($request->input('notes', '')))) {
+            return $this->sendError('يجب إدخال ملاحظات لتوضيح سبب النقص في الكمية المستلمة.');
+        }
+
         // تحديث fulfilled_qty لكل عنصر
         foreach ($shipment->items as $item) {
             // أولوية: الكمية المستلمة من الطلب > approved_qty > requested_qty

@@ -266,6 +266,22 @@ class ShipmentPharmacistController extends BaseApiController
                 }
             }
 
+            // تحقق من وجود نقص قبل المتابعة لإلزامية الملاحظات
+            $hasShortageBefore = false;
+            foreach ($shipment->items as $item) {
+                $sentQty = $item->approved_qty ?? $item->requested_qty ?? 0;
+                $receivedQty = isset($receivedItemsMap[(int)$item->id]) ? $receivedItemsMap[(int)$item->id] : $sentQty;
+                if ($receivedQty < $sentQty) {
+                    $hasShortageBefore = true;
+                    break;
+                }
+            }
+
+            if ($hasShortageBefore && empty(trim($request->input('notes', '')))) {
+                DB::rollBack();
+                return $this->sendError('يجب إدخال ملاحظات لتوضيح سبب النقص في الكمية المستلمة.');
+            }
+
             foreach ($shipment->items as $item) {
                 // الكمية التي ستضاف للصيدلية:
                 // أولوية: الكمية المستلمة من الطلب > approved_qty > requested_qty

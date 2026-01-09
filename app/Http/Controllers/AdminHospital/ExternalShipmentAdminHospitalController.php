@@ -543,8 +543,8 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
     {
         return match ($status) {
             'pending'   => 'جديد',
-            'approved'  => 'معتمدة مبدئياً', // معتمدة من HospitalAdmin، في انتظار Supplier
-            'fulfilled' => 'تم الإرسال', // أرسلها Supplier، في انتظار StoreKeeper
+            'approved'  => 'قيد الاستلام', // معتمدة من HospitalAdmin، في انتظار StoreKeeper/Supplier
+            'fulfilled' => 'قيد الاستلام', // أرسلها Supplier، في انتظار StoreKeeper
             'rejected'  => 'مرفوضة',
             default     => $status,
         };

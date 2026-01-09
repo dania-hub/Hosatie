@@ -65,10 +65,7 @@ class ExternalSupplyRequestController extends BaseApiController
             $displayStatus = $req->status;
             $isDelivered = false;
             
-            if ($req->status === 'approved' && $req->requested_by === $user->id) {
-                // طلب المستخدم معتمد من HospitalAdmin، في انتظار Supplier
-                $displayStatus = 'partially_approved'; // "تمت الموافقة عليه جزئياً"
-            } elseif ($req->status === 'fulfilled' && $req->requested_by === $user->id) {
+            if ($req->status === 'fulfilled' && $req->requested_by === $user->id) {
                 // طلب المستخدم أرسله Supplier
                 // نحتاج التمييز بين "أرسلها Supplier" و "استلمها StoreKeeper"
                 // الحل: نتحقق من أن updated_at للـ items تم تحديثه بعد أن أرسله Supplier
@@ -78,12 +75,12 @@ class ExternalSupplyRequestController extends BaseApiController
                 
                 // أولاً: نتحقق من أن fulfilled_qty موجود (أرسله Supplier)
                 $hasFulfilledQty = $req->items->every(function($item) {
-                    return $item->fulfilled_qty !== null && $item->fulfilled_qty > 0;
+                    return $item->fulfilled_qty !== null;
                 });
                 
                 if (!$hasFulfilledQty || $req->items->count() === 0) {
                     // لا يوجد fulfilled_qty، يعني لم يرسله Supplier بعد
-                    $displayStatus = 'approved'; // "تمت الموافقة عليه جزئياً"
+                    $displayStatus = 'approved'; 
                 } else {
                     // يوجد fulfilled_qty، يعني أرسله Supplier
                     // الآن نتحقق من أن items تم تحديثها بعد أن أرسله Supplier
@@ -551,10 +548,10 @@ class ExternalSupplyRequestController extends BaseApiController
                 ->where('requested_by', $user->id)
                 ->findOrFail($id);
 
-            // يجب أن تكون الحالة 'fulfilled' (أرسلها Supplier)
-            if ($externalRequest->status !== 'fulfilled') {
+            // يجب أن تكون الحالة 'fulfilled' (أرسلها Supplier) أو 'approved' (موافقة Admin)
+            if (!in_array($externalRequest->status, ['fulfilled', 'approved'])) {
                 return response()->json([
-                    'message' => 'لا يمكن تأكيد الاستلام. يجب أن تكون الشحنة في حالة "قيد الاستلام" (أرسلها المورد).',
+                    'message' => 'لا يمكن تأكيد الاستلام. يجب أن تكون الشحنة في حالة "قيد الاستلام".',
                     'current_status' => $externalRequest->status
                 ], 400);
             }
@@ -599,6 +596,12 @@ class ExternalSupplyRequestController extends BaseApiController
                 $originalSentQuantities[$item->id] = $originalSentQty;
 
                 $receivedQty = (float)($itemData['receivedQuantity'] ?? 0);
+                
+                // تحديث fulfilled_qty بالكمية المستلمة الفعلية
+                $item->fulfilled_qty = $receivedQty;
+                $item->touch(); 
+                $item->save();
+
                 if ($receivedQty <= 0) {
                     continue;
                 }
@@ -752,8 +755,8 @@ class ExternalSupplyRequestController extends BaseApiController
     {
         return match ($status) {
             'pending'           => 'قيد الانتظار', // في انتظار موافقة HospitalAdmin
-            'approved'          => 'تمت الموافقة عليه جزئياً', // معتمدة من HospitalAdmin، في انتظار Supplier
-            'partially_approved'=> 'تمت الموافقة عليه جزئياً', // حالة خاصة للعرض
+            'approved'          => 'قيد الاستلام', // معتمدة من HospitalAdmin، في انتظار StoreKeeper
+            'partially_approved'=> 'قيد الاستلام', // حالة خاصة للعرض
             'fulfilled'         => 'قيد الاستلام', // أرسلها Supplier، يمكن تأكيد الاستلام
             'delivered'         => 'تم الاستلام', // تم تأكيد الاستلام من StoreKeeper
             'rejected'          => 'مرفوضة', // مرفوضة من HospitalAdmin أو Supplier

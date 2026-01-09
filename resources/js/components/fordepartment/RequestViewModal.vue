@@ -57,15 +57,7 @@
                             <span class="text-gray-500 font-medium">حالة الطلب</span>
                             <span :class="statusClass" class="px-3 py-1 rounded-lg text-sm font-bold">{{ requestDetails.status || 'جديد' }}</span>
                         </div>
-                        <div v-if="requestDetails.confirmation" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">تاريخ الاستلام</span>
-                            <span class="font-bold text-[#2E5077]">
-                                {{ requestDetails.confirmation.confirmedDate || 'غير محدد' }}
-                                <span v-if="requestDetails.confirmation.confirmedTime" class="text-xs text-gray-400 block mt-1">
-                                    {{ requestDetails.confirmation.confirmedTime }}
-                                </span>
-                            </span>
-                        </div>
+                       
                     </div>
                 </div>
 

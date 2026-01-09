@@ -115,7 +115,7 @@ onMounted(() => {
                             <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
                                 <Icon icon="solar:users-group-rounded-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">المرضى المخدمين هذا الأسبوع</p>
+                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">المرضى الذين تمت خدمتهم هذا الأسبوع</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.weekRegistered }}</p>
                     </div>

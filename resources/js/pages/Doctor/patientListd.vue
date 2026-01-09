@@ -136,7 +136,7 @@
                     </div>
 
                     <!-- جدول المرضى -->
-                    <div class="bg-white rounded-2xl shadow overflow-hidden flex flex-col min-h-[500px]">
+                    <div class="bg-white rounded-2xl shadow h-107 overflow-hidden flex flex-col">
                         <div
                             class="overflow-y-auto flex-1"
                             style="scrollbar-width: auto; scrollbar-color: grey transparent; direction: ltr;"
@@ -794,7 +794,13 @@ const addMedicationToPatient = async (medicationsData) => {
         
         const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
         if (patientIndex !== -1) {
+          // تحديث lastUpdated إلى الوقت الحالي لضمان انتقال المريض إلى البداية
+          updatedPatient.lastUpdated = new Date().toISOString();
           patients.value[patientIndex] = updatedPatient;
+          
+          // إعادة تعيين الترتيب إلى lastUpdated descending لضمان ظهور المريض المعدل في البداية
+          sortKey.value = 'lastUpdated';
+          sortOrder.value = 'desc';
         }
       }
 
@@ -852,7 +858,13 @@ const handleEditMedication = async (medIndex, newDosage) => {
         
         const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
         if (patientIndex !== -1) {
+          // تحديث lastUpdated إلى الوقت الحالي لضمان انتقال المريض إلى البداية
+          updatedPatient.lastUpdated = new Date().toISOString();
           patients.value[patientIndex] = updatedPatient;
+          
+          // إعادة تعيين الترتيب إلى lastUpdated descending لضمان ظهور المريض المعدل في البداية
+          sortKey.value = 'lastUpdated';
+          sortOrder.value = 'desc';
         }
       }
 
@@ -888,7 +900,13 @@ const handleDeleteMedication = async (medIndex) => {
         
         const patientIndex = patients.value.findIndex(p => p.fileNumber === selectedPatient.value.fileNumber);
         if (patientIndex !== -1) {
+          // تحديث lastUpdated إلى الوقت الحالي لضمان انتقال المريض إلى البداية
+          updatedPatient.lastUpdated = new Date().toISOString();
           patients.value[patientIndex] = updatedPatient;
+          
+          // إعادة تعيين الترتيب إلى lastUpdated descending لضمان ظهور المريض المعدل في البداية
+          sortKey.value = 'lastUpdated';
+          sortOrder.value = 'desc';
         }
       }
 

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use App\Models\AuditLog;
+use App\Models\User;
 use Carbon\Carbon;
 
 class DashboardDoctorController extends BaseApiController
@@ -26,11 +27,9 @@ class DashboardDoctorController extends BaseApiController
 
         // 1. إجمالي عدد المرضى (خاصة بهذا الطبيب فقط)
         // Count unique patients who have EVER had a prescription from THIS doctor
-        $totalPatients = Prescription::where('doctor_id', $doctorId)
-            ->where('hospital_id', $hospitalId) // للتحقق من الأمان
-            ->distinct('patient_id')
-            ->count();
-
+        $totalPatients = User::where('type', 'patient')
+        ->where('hospital_id', $hospitalId)
+        ->count();
         // 2. عدد الكشوفات اليومية (خاصة بهذا الطبيب فقط)
         // نحسب عدد المرضى الفريدين الذين قام هذا الطبيب بعمليات على أدويتهم اليوم (إضافة/تعديل/حذف)
         // من خلال AuditLog للطبيب المعين فقط (user_id = doctor_id)

@@ -15,40 +15,61 @@ class DashboardStoreKeeperController extends BaseApiController
     public function stats(Request $request)
     {
         $user = $request->user();
+        
+        // التحقق من نوع المستخدم
         if ($user->type !== 'warehouse_manager') {
-            return response()->json(['message' => 'غير مصرح'], 403);
+            return $this->sendError('غير مصرح', [], 403);
+        }
+
+        // التحقق من وجود hospital_id للمستخدم
+        if (!$user->hospital_id) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى', [], 403);
         }
 
         $hospitalId = $user->hospital_id;
 
-        // 1) إجمالي عدد الطلبات (داخلية + خارجية) لهذه المستشفى
+        // 1) عدد الطلبات الداخلية لهذه المستشفى
         $totalInternal = InternalSupplyRequest::whereHas('pharmacy', function ($q) use ($hospitalId) {
                 $q->where('hospital_id', $hospitalId);
             })
             ->count();
 
-        $totalExternal = ExternalSupplyRequest::where('hospital_id', $hospitalId)->count();
+        // 2) عدد الطلبات الخارجية لهذه المستشفى
+        // الطلبات الخارجية هي الطلبات التي يطلبها StoreKeeper (warehouse_manager) من المورد الخارجي
+        // يجب أن تكون مرتبطة بنفس المستشفى وأن تكون من نوع warehouse_manager
+        $totalExternal = ExternalSupplyRequest::where('hospital_id', $hospitalId)
+            ->whereNotNull('hospital_id') // التأكد من أن hospital_id موجود
+            ->whereHas('requester', function ($q) {
+                // فقط الطلبات التي أنشأها warehouse_manager
+                $q->where('type', 'warehouse_manager');
+            })
+            ->count();
 
-        $totalRegistered = $totalInternal + $totalExternal;
-
-        // 2) عدد الأصناف التي وصلت للحد الحرج في مخزن هذه المستشفى
-        // نفترض أن warehouse لهذه المستشفى نميّزه بـ warehouse_id مرتبط بها،
-        // أو مؤقتاً نجلب كل inventory للمستودعات التابعة لها.
+        // 3) عدد الأصناف التي وصلت للحد الحرج في مخزن هذه المستشفى
+        // التحقق من أن المستودع (warehouse) مرتبط بنفس المستشفى
         $criticalItems = Inventory::whereNotNull('warehouse_id')
+            ->whereHas('warehouse', function ($q) use ($hospitalId) {
+                $q->where('hospital_id', $hospitalId);
+            })
             ->whereColumn('current_quantity', '<=', 'minimum_level')
             ->count();
 
-        // 3) عدد طلبات قيد الاستلام (internal)
+        // 4) عدد طلبات قيد الاستلام (internal)
+        // الطلبات التي تمت الموافقة عليها من storekeeper وتم الإرسال لكن لم يتم استلامها بعد
+        // pending: قيد الانتظار (لم تتم الموافقة بعد)
+        // approved: قيد الاستلام (تمت الموافقة وتم الإرسال لكن لم يتم الاستلام بعد)
+        // fulfilled: تم الاستلام
         $preparingRequests = InternalSupplyRequest::whereHas('pharmacy', function ($q) use ($hospitalId) {
                 $q->where('hospital_id', $hospitalId);
             })
-            ->whereIn('status', ['approved', 'pending']) // اعتبرتها "قيد الاستلام"
+            ->where('status', 'approved') // فقط الطلبات التي تمت الموافقة عليها ولم يتم استلامها بعد
             ->count();
 
-        return response()->json([
-            'totalRegistered' => $totalRegistered,
-            'todayRegistered' => $criticalItems,
-            'weekRegistered'  => $preparingRequests,
-        ]);
+        return $this->sendSuccess([
+            'totalInternal' => $totalInternal,
+            'totalExternal' => $totalExternal,
+            'criticalItems' => $criticalItems,
+            'preparingRequests'  => $preparingRequests,
+        ], 'تم جلب الإحصائيات بنجاح');
     }
 }

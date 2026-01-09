@@ -422,8 +422,24 @@ class ExternalSupplyRequestController extends BaseApiController
                 throw new \Exception("فشل في إنشاء سجل الطلب في قاعدة البيانات");
             }
 
-            // عناصر الطلب
+            // دمج الأدوية المكررة قبل الحفظ (حماية إضافية)
+            $mergedItems = [];
             foreach ($validated['items'] as $item) {
+                $drugId = $item['drug_id'];
+                if (isset($mergedItems[$drugId])) {
+                    // إذا كان الدواء موجوداً مسبقاً، نضيف الكمية
+                    $mergedItems[$drugId]['requested_qty'] += $item['requested_qty'];
+                } else {
+                    // إذا لم يكن موجوداً، نضيفه كعنصر جديد
+                    $mergedItems[$drugId] = [
+                        'drug_id' => $drugId,
+                        'requested_qty' => $item['requested_qty']
+                    ];
+                }
+            }
+
+            // حفظ العناصر المدمجة
+            foreach ($mergedItems as $item) {
                 $itemCreated = ExternalSupplyRequestItem::create([
                     'request_id'    => $externalRequest->id,
                     'drug_id'       => $item['drug_id'],

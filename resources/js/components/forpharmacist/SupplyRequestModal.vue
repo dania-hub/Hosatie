@@ -114,13 +114,9 @@
                                             <div class="flex justify-between items-center">
                                                 <div class="flex flex-col gap-1">
                                                     <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
-                                                    <div class="flex items-center gap-2 text-xs text-gray-600">
-                                                        <span v-if="drug.strength">
-                                                            القوة: {{ drug.strength }}
-                                                        </span>
-                                                        <span v-if="drug.strength && (drug.unit || getDrugUnit(drug))"></span>
-                                                      
-                                                    </div>
+                                                    <span v-if="drug.strength || drug.dosage" class="text-xs text-gray-600">
+                                                        القوة: {{ drug.strength || drug.dosage }}
+                                                    </span>
                                                 </div>
                                                 <span v-if="drug.unit || getDrugUnit(drug)" class="text-xs bg-[#EAF3F4] text-[#4DA1A9] px-2 py-1 rounded-lg font-medium">
                                                     {{ drug.unit || getDrugUnit(drug) }}
@@ -206,12 +202,7 @@
                                     </div>
                                     <div>
                                         <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
-                                        <div class="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
-                                            <span>الكمية: {{ item.quantity }} {{ item.unit }}</span>
-                                            <span v-if="item.strength" class="text-[#4DA1A9] font-medium">
-                                                • القوة: {{ item.strength }}
-                                            </span>
-                                        </div>
+                                        <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }}</p>
                                     </div>
                                 </div>
                                 <button 
@@ -262,7 +253,7 @@
                     class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#2E5077]/20 flex items-center gap-2 transition-all duration-200"
                     :class="(!isReadyToConfirm || isSubmitting)
                         ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                        : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
+                        : 'bg-[#2E5077] hover:bg-[#1a2f4d] hover:-translate-y-0.5'"
                 >
                     <Icon v-if="isSubmitting" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
                     <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
@@ -568,21 +559,36 @@ const addNewDrug = () => {
         });
         
         if (!drugInfo || !drugInfo.id) {
-            emit('show-alert', `❌ فشل: لم يتم العثور على معرف الدواء ${selectedDrugName.value}`);
+            emit('show-alert', ` فشل: لم يتم العثور على معرف الدواء ${selectedDrugName.value}`);
             return;
         }
         
-        dailyDosageList.value.push({
-            drugId: drugInfo.id,
-            id: drugInfo.id,
-            name: selectedDrugName.value,
-            quantity: dailyQuantity.value,
-            unit: drugInfo.unit || quantityUnit.value,
-            type: selectedDrugType.value,
-            strength: drugInfo.strength || drugInfo.dosage || null,
-        });
+        // التحقق من وجود الدواء في القائمة مسبقاً
+        const existingDrugIndex = dailyDosageList.value.findIndex(item => 
+            item.drugId === drugInfo.id || item.id === drugInfo.id
+        );
+        
+        if (existingDrugIndex !== -1) {
+            // إذا كان الدواء موجوداً، نحدّث الكمية بدلاً من إضافة نسخة جديدة
+            const existingQuantity = dailyDosageList.value[existingDrugIndex].quantity || 0;
+            const newQuantity = dailyQuantity.value || 0;
+            dailyDosageList.value[existingDrugIndex].quantity = existingQuantity + newQuantity;
+            
+            emit('show-alert', ` تم تحديث كمية الدواء **${selectedDrugName.value}** في قائمة التوريد (الكمية الجديدة: ${existingQuantity + newQuantity})`);
+        } else {
+            // إذا لم يكن موجوداً، نضيفه كعنصر جديد
+            dailyDosageList.value.push({
+                drugId: drugInfo.id,
+                id: drugInfo.id,
+                name: selectedDrugName.value,
+                quantity: dailyQuantity.value,
+                unit: drugInfo.unit || quantityUnit.value,
+                type: selectedDrugType.value,
+                strength: drugInfo.strength || drugInfo.dosage || null,
+            });
 
-        emit('show-alert', `✅ تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
+            emit('show-alert', ` تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
+        }
 
         searchTermDrug.value = "";
         selectedCategory.value = "";
@@ -592,7 +598,7 @@ const addNewDrug = () => {
         filteredDrugs.value = [];
     } else {
         const errorMessage = quantityError.value || "الرجاء تحديد دواء وإدخال كمية صحيحة";
-        emit('show-alert', `❌ فشل الإضافة: ${errorMessage}`);
+        emit('show-alert', ` فشل الإضافة: ${errorMessage}`);
     }
 };
 
@@ -609,15 +615,28 @@ const confirmAddition = () => {
         });
         
         if (drugInfo && drugInfo.id) {
-            dailyDosageList.value.push({
-                drugId: drugInfo.id,
-                id: drugInfo.id,
-                name: selectedDrugName.value,
-                quantity: dailyQuantity.value,
-                unit: drugInfo.unit || quantityUnit.value,
-                type: selectedDrugType.value,
-                strength: drugInfo.strength || drugInfo.dosage || null,
-            });
+            // التحقق من وجود الدواء في القائمة مسبقاً
+            const existingDrugIndex = dailyDosageList.value.findIndex(item => 
+                item.drugId === drugInfo.id || item.id === drugInfo.id
+            );
+            
+            if (existingDrugIndex !== -1) {
+                // إذا كان الدواء موجوداً، نحدّث الكمية بدلاً من إضافة نسخة جديدة
+                const existingQuantity = dailyDosageList.value[existingDrugIndex].quantity || 0;
+                const newQuantity = dailyQuantity.value || 0;
+                dailyDosageList.value[existingDrugIndex].quantity = existingQuantity + newQuantity;
+            } else {
+                // إذا لم يكن موجوداً، نضيفه كعنصر جديد
+                dailyDosageList.value.push({
+                    drugId: drugInfo.id,
+                    id: drugInfo.id,
+                    name: selectedDrugName.value,
+                    quantity: dailyQuantity.value,
+                    unit: drugInfo.unit || quantityUnit.value,
+                    type: selectedDrugType.value,
+                    strength: drugInfo.strength || drugInfo.dosage || null,
+                });
+            }
         }
         
         searchTermDrug.value = "";
@@ -628,7 +647,7 @@ const confirmAddition = () => {
     }
 
     if (dailyDosageList.value.length === 0) {
-        emit('show-alert', "⚠️ لا يمكنك التأكيد دون إضافة دواء واحد على الأقل");
+        emit('show-alert', " لا يمكنك التأكيد دون إضافة دواء واحد على الأقل");
         return;
     }
 
@@ -652,7 +671,7 @@ const confirmAddition = () => {
         
     } catch (error) {
         console.error('Error submitting supply request:', error);
-        emit('show-alert', `❌ فشل في إرسال طلب التوريد: ${error.message}`);
+        emit('show-alert', ` فشل في إرسال طلب التوريد: ${error.message}`);
     } finally {
         isSubmitting.value = false;
     }
@@ -713,7 +732,7 @@ watch(() => props.isOpen, (isOpen) => {
                     }
                     
                     const drugType = drugInfo.type || 'Tablet';
-                    const unit = drugInfo.unit || getDrugUnit({ type: drugType });
+                    const unit = getDrugUnit({ type: drugType });
                     
                     drugsNeedingSupply.push({
                         drugId: drugInfo.id, // استخدام ID من allDrugsData وليس من inventories
@@ -725,7 +744,6 @@ watch(() => props.isOpen, (isOpen) => {
                         quantity: neededSupply,
                         unit: unit,
                         type: drugType,
-                        strength: drugInfo.strength || drugInfo.dosage || null,
                         expiryDate: drug.expiryDate
                     });
                 }
@@ -744,13 +762,13 @@ watch(() => props.isOpen, (isOpen) => {
                     const totalQuantity = validDrugs.reduce((sum, drug) => sum + drug.quantity, 0);
                     
                     emit('show-alert', 
-                        `📋 تم إدراج ${totalItems} دواء ناقص تلقائياً (إجمالي ${totalQuantity} وحدة)`
+                        ` تم إدراج ${totalItems} دواء ناقص تلقائياً (إجمالي ${totalQuantity} وحدة)`
                     );
                 } else {
-                    emit('show-alert', "⚠️ لم يتم العثور على أدوية صالحة للتوريد");
+                    emit('show-alert', " لم يتم العثور على أدوية صالحة للتوريد");
                 }
             } else {
-                emit('show-alert', "✅ جميع الأدوية متوفرة بالكميات المطلوبة حالياً");
+                emit('show-alert', " جميع الأدوية متوفرة بالكميات المطلوبة حالياً");
             }
         }
     }

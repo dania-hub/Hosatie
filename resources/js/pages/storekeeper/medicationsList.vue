@@ -368,7 +368,7 @@ const submitSupplyRequest = async (requestData) => {
   }
 };
 
-// ----------------------------------------------------
+// -----------------------------------------------------
 // 7. دالة تحديد لون الصف والخط
 // ----------------------------------------------------
 const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {

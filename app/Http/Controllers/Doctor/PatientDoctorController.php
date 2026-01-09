@@ -21,8 +21,10 @@ class PatientDoctorController extends BaseApiController
 
         // 1. Query Patients (with Search support)
         // عرض المرضى الذين لديهم نفس hospital_id فقط
+        // ترتيب المرضى حسب آخر تحديث (الأحدث أولاً)
         $query = User::where('type', 'patient')
-            ->where('hospital_id', $hospitalId);
+            ->where('hospital_id', $hospitalId)
+            ->orderBy('updated_at', 'desc');
 
         if ($request->has('search')) {
             $search = $request->search;

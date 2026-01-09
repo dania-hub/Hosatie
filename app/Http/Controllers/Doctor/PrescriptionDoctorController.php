@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
+use App\Models\Dispensing;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Observers\PrescriptionDrugObserver;
@@ -339,15 +340,33 @@ class PrescriptionDoctorController extends BaseApiController
                 'skipNotification' => PrescriptionDrugObserver::$skipNotification
             ]);
             
-            // 1. Delete the Drug
-            $item->delete();
-            Log::info('✅ Drug deleted successfully');
+            // حفظ معلومات الدواء قبل الحذف (للمرجعية)
+            $prescriptionId = $item->prescription_id;
+            $drugId = $item->drug_id;
+            $drug = $item->drug; // حفظ معلومات الدواء قبل الحذف
+            
+            // إزالة الـ foreign key constraint مؤقتاً لمنع حذف سجلات الصرف
+            try {
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+                
+                // 1. Delete the Drug
+                $item->delete();
+                
+                // إعادة تفعيل الـ foreign key constraint
+                DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                
+                Log::info('✅ Drug deleted successfully without affecting dispensings');
+            } catch (\Exception $e) {
+                // في حالة الخطأ، إعادة تفعيل الـ foreign key constraint
+                DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                throw $e;
+            }
 
             // تحديث updated_at للمريض ليظهر في بداية القائمة
             $patient->touch();
 
-            // Trigger Push Notification
-            $notificationService->notifyDrugDeleted($patient, $prescription, $item->drug);
+            // Trigger Push Notification (استخدام معلومات الدواء المحفوظة)
+            $notificationService->notifyDrugDeleted($patient, $prescription, $drug);
 
             // 2. Check if Prescription is empty -> Delete it (End of lifecycle)
             if ($prescription->drugs()->count() == 0) {

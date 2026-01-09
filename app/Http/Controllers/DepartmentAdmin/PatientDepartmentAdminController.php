@@ -673,19 +673,48 @@ class PatientDepartmentAdminController extends BaseApiController
 
         $prescription = $item->prescription;
         $drug = $item->drug;
- 
-        // حذف الدواء
-        $item->delete();
 
-        // Trigger Push Notification
-        $notificationService->notifyDrugDeleted($patient, $prescription, $drug);
+        DB::beginTransaction();
+        try {
+            // حفظ معلومات الدواء قبل الحذف
+            $prescriptionId = $item->prescription_id;
+            $drugId = $item->drug_id;
 
-        // التحقق من أن الروشتة ليست فارغة، وإذا كانت فارغة يمكن حذفها
-        if ($prescription->drugs()->count() == 0) {
-            $prescription->delete();
+            // إزالة الـ foreign key constraint مؤقتاً لمنع حذف سجلات الصرف
+            try {
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+                
+                // حذف الدواء
+                $item->delete();
+                
+                // إعادة تفعيل الـ foreign key constraint
+                DB::statement('SET FOREIGN_KEY_CHECKS=1');
+            } catch (\Exception $e) {
+                // في حالة الخطأ، إعادة تفعيل الـ foreign key constraint
+                DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                throw $e;
+            }
+
+            // تحديث updated_at للمريض ليظهر في بداية القائمة
+            $patient->touch();
+
+            // Trigger Push Notification
+            $notificationService->notifyDrugDeleted($patient, $prescription, $drug);
+
+            // التحقق من أن الروشتة ليست فارغة، وإذا كانت فارغة يمكن حذفها
+            if ($prescription->drugs()->count() == 0) {
+                $prescription->delete();
+            }
+
+            DB::commit();
+            
+            return $this->sendSuccess([], 'تم حذف الدواء بنجاح.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('حدث خطأ أثناء حذف الدواء.', [
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الحذف'
+            ], 500);
         }
-
-        return $this->sendSuccess([], 'تم حذف الدواء بنجاح.');
     }
 
     /**

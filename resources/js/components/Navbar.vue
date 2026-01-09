@@ -62,12 +62,12 @@ const routeNames = {
     '/admin/all-operations': 'سجل العمليات الشامل',
     '/admin/statistics': 'الإحصائيات',
     '/admin/employees': 'الموظفين',
-    '/admin/requests': 'طلبات التوريد الداخلي',
+    '/admin/requests': 'طلبات التوريد الخارجية',
     '/admin/departments': 'الأقسام',
-    '/admin/supply-requests': 'طلبات التوريد',
-    '/admin/transfer-requests': 'طلبات النقل',
-    '/admin/complaints': 'الشكاوي',
-    '/hospital-admin/patients': 'قائمة المرضى',
+   
+    '/admin/transfer-requests': 'طلبات النقل المرسلة',
+    '/admin/complaints': 'طلبات المرضى',
+    '/admin/patients': 'قائمة المرضى',
     // Pharmacist
     '/pharmacist/medications': 'قائمة الأدوية',
     '/pharmacist/operations': 'سجل العمليات',
@@ -97,8 +97,8 @@ const routeNames = {
     '/Supplier/statistics': 'الإحصائيات',
     '/Supplier/medications': 'قائمة الأدوية',
     '/Supplier/operations': 'سجل العمليات',
-    '/Supplier/requests': 'طلبات التوريد الداخلي',
-    '/Supplier/supply-requests': 'طلبات التوريد',
+    '/Supplier/requests': 'طلبات التوريد الخارجية',
+    '/Supplier/supply-requests': 'طلبات التوريد ',
 };
 
 // 🆕 خاصية محوسبة للحصول على اسم الصفحة الحالية

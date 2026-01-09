@@ -436,7 +436,7 @@ const isSubmittingSupply = ref(false);
 const isConfirming = ref(false);
 
 // ----------------------------------------------------
-// 3. جلب البيانات من API
+// 3. جلب البيانات من API 
 // ----------------------------------------------------
 const fetchAllData = async () => {
     isLoading.value = true;

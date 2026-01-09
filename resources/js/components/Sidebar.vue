@@ -151,13 +151,14 @@ const links = {
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/admin/statistics" },
         { name: "قائمة المرضى", icon: "line-md:account", to: "/admin/patients" },
          { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/admin/medications" },
-        { name: "سجل العمليات", icon: "line-md:document-report", to: "/admin/operations" },
-        { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/admin/all-operations" },
         { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/admin/employees" },
-        { name: "طلبات التوريد الخارجية", icon: "carbon:request-quote", to: "/admin/requests" },
         { name: "الاقسام", icon: "mingcute:department-fill", to: "/admin/departments" },
-        { name: "طلبات المرضى", icon: "fluent:person-feedback-24-regular", to: "/admin/complaints" },
-        { name: "طلبات النقل الخارجية", icon: "mdi:transfer", to: "/admin/transfer-requests" },
+ { name: "طلبات المرضى", icon: "fluent:person-feedback-24-regular", to: "/admin/complaints" },
+
+        { name: "طلبات التوريد الخارجية", icon: "carbon:request-quote", to: "/admin/requests" },
+               { name: "طلبات النقل المرسلة", icon: "mdi:transfer", to: "/admin/transfer-requests" },
+                       { name: "سجل العمليات", icon: "line-md:document-report", to: "/admin/operations" },
+        { name: "سجل العمليات الشامل", icon: "mdi:home-report", to: "/admin/all-operations" },
     
     ],
     pharmacist: [
@@ -166,7 +167,7 @@ const links = {
 
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/pharmacist/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/pharmacist/operations" },
-        { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/pharmacist/requests" },
+        { name: "طلبات التوريد الداخلية", icon: "carbon:request-quote", to: "/pharmacist/requests" },
     ],
     doctor: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/doctor/statistics" },
@@ -182,20 +183,20 @@ const links = {
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/department/statistics" },
         { name: "قائمة المرضى", icon: "line-md:account", to: "/department/patients" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/department/operations" },
-        { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/department/requests" },
+        { name: "طلبات التوريد الداخلية", icon: "carbon:request-quote", to: "/department/requests" },
     ],
     warehouse_manager: [
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/storekeeper/statistics" },
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/storekeeper/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/storekeeper/operations" },
-        { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/storekeeper/requests" },
-        { name: "طلبات التوريد", icon: "icon-park-outline:buy", to: "/storekeeper/supply-requests" },
+        { name: "طلبات التوريد الداخلية", icon: "carbon:request-quote", to: "/storekeeper/requests" },
+        { name: "طلبات التوريد الخارجية", icon: "icon-park-outline:buy", to: "/storekeeper/supply-requests" },
     ],
     supplier_admin:[
        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/Supplier/statistics" },
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/Supplier/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/Supplier/operations" },
-        { name: "طلبات التوريد الداخلي", icon: "carbon:request-quote", to: "/Supplier/requests" },
+        { name: "طلبات التوريد الخارجية", icon: "carbon:request-quote", to: "/Supplier/requests" },
         { name: "طلبات التوريد الخارجية", icon: "icon-park-outline:buy", to: "/Supplier/supply-requests" },
      
     ]

@@ -84,9 +84,10 @@ const API_URL = '/storekeeper/dashboard/stats';
 
 // متغير لتخزين الإحصائيات
 const stats = ref({
-    totalRegistered: 0,
-    todayRegistered: 0,
-    weekRegistered: 0
+    totalInternal: 0,
+    totalExternal: 0,
+    criticalItems: 0,
+    preparingRequests: 0
 });
 
 const isLoading = ref(true);
@@ -102,10 +103,18 @@ const fetchStats = async () => {
     try {
         const response = await api.get(API_URL);
         
+        // BaseApiController::sendSuccess يلف البيانات في response.data
+        // والـ interceptor يعيد response.data من axios، لذا response يحتوي على {success, message, data}
+        // نحتاج للوصول إلى response.data للحصول على البيانات الفعلية
+        const data = response?.data || response;
+        
         // تحديث متغير stats بالبيانات الواردة من الـ API
-        stats.value.totalRegistered = response.totalRegistered || 0;
-        stats.value.todayRegistered = response.todayRegistered || 0;
-        stats.value.weekRegistered = response.weekRegistered || 0;
+        stats.value.totalInternal = data?.totalInternal ?? 0;
+        stats.value.totalExternal = data?.totalExternal ?? 0;
+        stats.value.criticalItems = data?.criticalItems ?? 0;
+        stats.value.preparingRequests = data?.preparingRequests ?? 0;
+        
+        console.log('Statistics data:', { response, data, stats: stats.value }); // للتصحيح
         
     } catch (err) {
         console.error("Error fetching dashboard statistics:", err);
@@ -143,27 +152,41 @@ onMounted(() => {
                     <Icon icon="solar:chart-2-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
                     الإحصائيات
                 </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- كارد الطلبات الداخلية -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:document-text-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                                <Icon icon="solar:home-smile-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي عدد الطلبات</p>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">الطلبات الداخلية</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.totalRegistered }}</p>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.totalInternal }}</p>
                     </div>
 
+                    <!-- كارد الطلبات الخارجية -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                                <Icon icon="solar:document-text-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">عدد الأصناف التي وصلت للحد الحرج</p>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">الطلبات الخارجية</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.todayRegistered }}</p>
+                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.totalExternal }}</p>
                     </div>
 
+                    <!-- كارد الأصناف الحرجة -->
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
+                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">عدد الأصناف التي وصلت للحد الحرج</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.criticalItems }}</p>
+                    </div>
+
+                    <!-- كارد طلبات قيد الاستلام -->
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
@@ -171,7 +194,7 @@ onMounted(() => {
                             </div>
                             <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">عدد طلبات قيد الاستلام</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.weekRegistered }}</p>
+                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.preparingRequests }}</p>
                     </div>
                 </div>
             </div>

@@ -248,10 +248,10 @@
                                                     shipment.requestStatus === 'تم الإستلام' ||
                                                     shipment.requestStatus === 'تم الاستلام',
                                                 'text-blue-500 font-semibold':
-                                                    shipment.requestStatus === 'قيد الاستلام' ||
-                                                    shipment.requestStatus === 'تمت الموافقة عليه جزئياً' ,
+                                                    shipment.requestStatus === 'قيد الاستلام' ,
                                                     'text-yellow-600 font-semibold':
-                                                    shipment.requestStatus === 'قيد الانتظار',
+                                                    shipment.requestStatus === 'قيد الانتظار' ||
+                                                    shipment.requestStatus === 'تمت الموافقة عليه جزئياً' ,
                                             }"
                                         >
                                             {{ shipment.requestStatus }}

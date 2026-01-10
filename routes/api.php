@@ -283,7 +283,8 @@ Route::get('check-otp-cache', function (Request $request) {
     ]);
 });
 Route::post('forgot-password/dashboard', [ForgotPasswordController::class, 'sendOtpDashboard']);
-//Route::post('verify-otp/dashboard', [ForgotPasswordController::class, 'verifyOtpDashboard']);
+Route::post('resend-otp/dashboard', [ForgotPasswordController::class, 'resendOtpDashboard']);
+Route::post('verify-otp/dashboard', [ForgotPasswordController::class, 'verifyOtpDashboard']);
 Route::post('reset-password/dashboard', [ForgotPasswordController::class, 'resetPasswordDashboard']);
 // Staff Account Activation (Email Link)
 Route::post('activate-account', [AuthController::class, 'activateAccount']);

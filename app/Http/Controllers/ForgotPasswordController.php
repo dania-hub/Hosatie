@@ -315,6 +315,28 @@ public function testResala(Request $request)
     return $this->sendSuccess(['dev_otp' => $otp], 'تم إرسال رمز التحقق إلى البريد الإلكتروني.');
 }
 
+public function resendOtpDashboard(ForgotDashboardPasswordRequest $request)
+{
+    return $this->sendOtpDashboard($request);
+}
+
+public function verifyOtpDashboard(\Illuminate\Http\Request $request)
+{
+    $request->validate([
+        'email' => 'required|email|exists:users,email',
+        'otp' => 'required|string|size:4',
+    ]);
+
+    $key = 'otp_dashboard_' . $request->email;
+    $cachedOtp = \Illuminate\Support\Facades\Cache::get($key);
+
+    if (!$cachedOtp || $cachedOtp != $request->otp) {
+        return $this->sendError('رمز التحقق غير صالح أو منتهي الصلاحية.', [], 400);
+    }
+
+    return $this->sendSuccess([], 'تم التحقق من الرمز بنجاح.');
+}
+
 
 
     public function resetPasswordDashboard(ResetDashboardPasswordRequest $request)

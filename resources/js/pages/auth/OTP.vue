@@ -68,9 +68,11 @@
                         <div class="text-center text-sm mt-1">
                             <a
                                 href="#"
+                                @click.prevent="handleResendOtp"
                                 class="inline-block text-[#2E5077] hover:underline transition duration-200 pt-4"
+                                :class="{ 'opacity-50 pointer-events-none': isResending }"
                             >
-                                إعادة إرسال رمز التحقق
+                                {{ isResending ? 'جاري الإرسال...' : 'إعادة إرسال رمز التحقق' }}
                             </a>
                         </div>
                         <p
@@ -109,11 +111,13 @@
 import { Stethoscope } from "lucide-vue-next";
 import { Icon } from "@iconify/vue";
 import { reactive, ref, onMounted, nextTick } from "vue";
+import { router } from "@inertiajs/vue3";
 
 const otp = reactive(Array(4).fill(""));
 const otpInputs = ref([]);
 const otpError = ref(null);
 const isSubmitting = ref(false);
+const isResending = ref(false);
 
 onMounted(() => {
     if (otpInputs.value.length > 0) {
@@ -180,13 +184,80 @@ const handleVerifyOtp = async () => {
     otpError.value = null;
     isSubmitting.value = true;
 
-    // محاكاة لعملية إرسال
-    setTimeout(() => {
+    try {
+        const email = localStorage.getItem('reset_password_email');
+        if (!email) {
+            throw new Error('لم يتم العثور على البريد الإلكتروني. يرجى البدء من جديد.');
+        }
+
+        const response = await fetch('/api/verify-otp/dashboard', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email,
+                otp: otpCode
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'رمز التحقق غير صحيح');
+        }
+
+        // حفظ الرمز في localStorage لاستخدامه في صفحة إعادة تعيين كلمة المرور
+        localStorage.setItem('reset_password_otp', otpCode);
+        
+        // الانتقال لصفحة إعادة تعيين كلمة المرور
+        router.visit('/reset-password');
+    } catch (error) {
+        console.error("خطأ في التحقق من الرمز:", error);
+        otpError.value = error.message || 'فشل الاتصال بالخادم';
+    } finally {
         isSubmitting.value = false;
-        alert(
-            `تم التحقق من الرمز: ${otpCode}. يمكنك الآن المتابعة لخطوة كلمة المرور.`
-        );
-    }, 1500);
+    }
+};
+
+const handleResendOtp = async () => {
+    const email = localStorage.getItem('reset_password_email');
+    if (!email) {
+        otpError.value = "لم يتم العثور على البريد الإلكتروني. يرجى البدء من جديد.";
+        return;
+    }
+
+    isResending.value = true;
+    otpError.value = null;
+
+    try {
+        const response = await fetch('/api/resend-otp/dashboard', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'حدث خطأ أثناء إعادة إرسال الرمز');
+        }
+
+        alert('✅ تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني.');
+        // مسح الحقول الحالية
+        otp.fill("");
+        if (otpInputs.value[0]) otpInputs.value[0].focus();
+        
+    } catch (error) {
+        console.error("خطأ في إعادة إرسال الرمز:", error);
+        otpError.value = error.message || 'فشل الاتصال بالخادم';
+    } finally {
+        isResending.value = false;
+    }
 };
 </script>
 

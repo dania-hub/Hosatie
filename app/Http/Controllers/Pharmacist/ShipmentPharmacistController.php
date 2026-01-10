@@ -97,24 +97,16 @@ class ShipmentPharmacistController extends BaseApiController
     {
         $user = $request->user();
         
-        // جلب معرفات الشحنات التي استلمها هذا المستخدم من AuditLog
-        $receivedShipmentIds = AuditLog::where('user_id', $user->id)
-            ->where('action', 'pharmacist_confirm_internal_receipt')
-            ->where('table_name', 'internal_supply_request')
-            ->pluck('record_id')
-            ->unique()
-            ->toArray();
-        
-        // بناء الاستعلام: الشحنات التي طلبها المستخدم أو استلمها
+        // بناء الاستعلام: الشحنات التابعة لمستشفى المستخدم
+        // نعرض كل الطلبات الخاصة بالمستشفى التي قام بها "صيدلي" فقط
         $query = InternalSupplyRequest::with('items.drug')
-            ->where(function($q) use ($user, $receivedShipmentIds) {
-                // الشحنات التي طلبها المستخدم
-                $q->where('requested_by', $user->id);
-                
-                // أو الشحنات التي استلمها المستخدم
-                if (!empty($receivedShipmentIds)) {
-                    $q->orWhereIn('id', $receivedShipmentIds);
-                }
+            ->whereHas('pharmacy', function ($q) use ($user) {
+                // نفترض أن المستخدم لديه hospital_id 
+                // وأن الصيدلية تابعة لنفس المستشفى
+                $q->where('hospital_id', $user->hospital_id);
+            })
+            ->whereHas('requester', function ($q) {
+                $q->where('type', 'pharmacist');
             })
             ->orderBy('created_at', 'desc');
 
@@ -149,7 +141,7 @@ class ShipmentPharmacistController extends BaseApiController
     {
         $user = $request->user();
         
-        $shipment = InternalSupplyRequest::with('items.drug')
+        $shipment = InternalSupplyRequest::with(['items.drug', 'pharmacy'])
             ->where('id', $id)
             ->first();
 
@@ -157,16 +149,11 @@ class ShipmentPharmacistController extends BaseApiController
             return $this->sendError('الشحنة غير موجودة.', [], 404);
         }
 
-        // التحقق من أن الشحنة تخص المستخدم (طلبها أو استلمها)
-        $isRequestedByUser = $shipment->requested_by === $user->id;
-        $isReceivedByUser = AuditLog::where('user_id', $user->id)
-            ->where('action', 'pharmacist_confirm_internal_receipt')
-            ->where('table_name', 'internal_supply_request')
-            ->where('record_id', $shipment->id)
-            ->exists();
+        // التحقق من أن الشحنة تخص مستشفى المستخدم (نفس الـ hospital_id)
+        $isInSameHospital = $shipment->pharmacy && $shipment->pharmacy->hospital_id == $user->hospital_id;
         
-        if (!$isRequestedByUser && !$isReceivedByUser) {
-            return $this->sendError('هذه الشحنة لا تخصك. يمكنك فقط عرض الشحنات التي طلبتها أو استلمتها.', [], 403);
+        if (!$isInSameHospital) {
+            return $this->sendError('هذه الشحنة لا تخص المستشفى الذي تعمل فيه.', [], 403);
         }
 
         // جلب الملاحظات من audit_log

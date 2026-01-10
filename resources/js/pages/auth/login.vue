@@ -84,7 +84,7 @@
           عمليات صرف الأدوية المدعومة، وضمان وصولها للمستحقين بكل شفافية وعدالة.
         </p>
         <p class="text-lg font-semibold text-right">
-          سجّل دخولك للوصول إلى أدوات الإدارة والتحكم.
+          سجّل دخولك للوصول لحسابك.
         </p>
       </div>
     </div>
@@ -96,9 +96,9 @@
         class="w-full max-w-[470px] grid gap-6 text-center relative custom-container mx-auto"
       >
         <div
-          class="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+          class="sm:w-20 sm:h-18 rounded-full flex items-center justify-center border-3  shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
         >
-          <Stethoscope class="w-8 h-8 sm:w-12 sm:h-12 text-[#2E5077]" />
+          <img src="/assets/logo.png" class="w-8 h-8 sm:w-30 sm:h-30 object-cover" alt="Logo" />
         </div>
 
         <div class="flex flex-col items-center gap-2 mt-4 sm:mt-0">
@@ -207,7 +207,7 @@
             </div>
 
             <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
-              2024© حصتي. جميع الحقوق محفوظة
+              2026© حصتي. جميع الحقوق محفوظة
             </p>
           </div>
         </form>

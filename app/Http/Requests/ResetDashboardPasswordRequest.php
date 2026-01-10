@@ -9,7 +9,7 @@ class ResetDashboardPasswordRequest extends FormRequest
     public function rules(): array {
         return [
             'email'    => 'required|email|exists:users,email',
-            'otp'      => 'required|string|size:6',
+            'otp'      => 'required|string|size:4',
             'password' => 'required|string|min:8|confirmed',
         ];
     }

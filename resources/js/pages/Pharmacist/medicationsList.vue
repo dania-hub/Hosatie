@@ -1213,7 +1213,7 @@ onMounted(async () => {
 </template>
 
 <style>
-/* نفس الأنماط السابقة */
+/* .نفس الأنماط السابقة */
 ::-webkit-scrollbar {
     width: 8px;
 }

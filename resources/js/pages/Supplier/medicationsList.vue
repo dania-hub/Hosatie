@@ -646,8 +646,16 @@ onMounted(async () => {
                         </div>
 
                         <div
-                            class="flex items-center gap-5 w-full sm:w-auto justify-end"
+                            class="flex items-center gap-1 w-full sm:w-auto justify-end"
                         >
+                             <button
+                                class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-auto rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-red-600 hover:border hover:border-[#a8a8a8] hover:bg-red-700"
+                                @click="router.visit('/Supplier/expired-drugs')"
+                                 title="الأدوية منتهية الصلاحية"
+                            >
+                                <Icon icon="solar:danger-triangle-bold" class="w-5 h-5 " />
+                               
+                            </button>
                          <button
                                 class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-29 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
                                  @click="openRegistrationModal"
@@ -660,13 +668,7 @@ onMounted(async () => {
                             >
                                 طلب التوريد
                             </button>
-                            <button
-                                class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11 w-auto rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-red-600 hover:border hover:border-[#a8a8a8] hover:bg-red-700"
-                                @click="router.visit('/Supplier/expired-drugs')"
-                            >
-                                <Icon icon="solar:danger-triangle-bold" class="w-5 h-5 ml-2" />
-                                الأدوية المُصفرة
-                            </button>
+                       
                             <btnprint @click="printTable" />
                         </div>
                     </div>

@@ -20,12 +20,12 @@ class UpdatePatientRequest extends FormRequest
             'full_name'  => 'required|string|max:255|min:3',
             'birth_date' => 'required|date|before:today',
             'phone'      => [
-                'required',
+               'required',
                 'regex:/^(002189|09|\+2189)[1-6]\d{7}$/',
                 Rule::unique('users', 'phone')->ignore($id),
             ],
             'email'      => [
-                'nullable',
+                'required',
                 'email',
                 Rule::unique('users', 'email')->ignore($id),
             ],

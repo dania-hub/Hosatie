@@ -69,12 +69,15 @@ class PatientOperationLogController extends BaseApiController
                 'operation_body'  => $formatted['body'],
                 'operation_type'  => $formatted['label'],
                 'date'            => $log->created_at->format('Y/m/d'),
+                'time'            => $log->created_at->format('H:i'),
+                'hospital_name'   => $log->hospital ? $log->hospital->name : 'N/A',
                 
                 // Fields for search
                 'searchable_text' => strtolower(
                     $fullName . ' ' . $fileNumber . ' ' . 
                     ($formatted['label'] ?? '') . ' ' . 
-                    ($formatted['body'] ?? '')
+                    ($formatted['body'] ?? '') . ' ' .
+                    ($log->hospital->name ?? '')
                 ),
             ];
         })
@@ -185,6 +188,7 @@ class PatientOperationLogController extends BaseApiController
             'create' => 'إضافة',
             'update' => 'تعديل',
             'delete' => 'حذف',
+            'drug_expired_zeroed' => 'تصفير كمية دواء منتهية',
         ];
         
         if (isset($map[$log->action])) {

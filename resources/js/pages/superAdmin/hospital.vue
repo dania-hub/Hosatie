@@ -873,24 +873,24 @@ const printTable = () => {
                                                     <!-- زر العرض -->
                                                     <button
                                                         @click="openViewModal(hospital)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
+                                                        class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="عرض البيانات"
                                                     >
                                                         <Icon
-                                                            icon="solar:eye-broken"
-                                                            class="w-5 h-5"
+                                                            icon="tabler:eye-minus"
+                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
 
                                                     <!-- زر التعديل -->
                                                     <button
                                                         @click="openEditModal(hospital)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 hover:scale-105 active:scale-95"
+                                                        class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="تعديل البيانات"
                                                     >
                                                         <Icon
-                                                            icon="solar:pen-new-square-linear"
-                                                            class="w-5 h-5"
+                                                            icon="line-md:pencil"
+                                                            class="w-4 h-4 text-yellow-500"
                                                         />
                                                     </button>
 
@@ -898,22 +898,22 @@ const printTable = () => {
                                                     <button
                                                         @click="openStatusConfirmationModal(hospital)"
                                                         :class="[
-                                                            'w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 border hover:scale-105 active:scale-95',
+                                                            'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                             hospital.isActive
-                                                                ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
-                                                                : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100',
+                                                                ? 'bg-red-50 hover:bg-red-100 border-red-200'
+                                                                : 'bg-green-50 hover:bg-green-100 border-green-200',
                                                         ]"
                                                         :title="getStatusTooltip(hospital.isActive)"
                                                     >
                                                         <Icon
                                                             v-if="hospital.isActive"
-                                                            icon="solar:forbidden-circle-linear"
-                                                            class="w-5 h-5"
+                                                            icon="pepicons-pop:power-off"
+                                                            class="w-5 h-5 text-red-600"
                                                         />
                                                         <Icon
                                                             v-else
-                                                            icon="solar:power-bold"
-                                                            class="w-5 h-5"
+                                                            icon="quill:off"
+                                                            class="w-5 h-5 text-green-600"
                                                         />
                                                     </button>
                                                 </div>

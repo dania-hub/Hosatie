@@ -820,12 +820,12 @@ const printTable = () => {
                                                     <!-- زر العرض -->
                                                     <button
                                                         @click="openViewModal(supplier)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95"
+                                                        class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="عرض البيانات"
                                                     >
                                                         <Icon
-                                                            icon="solar:eye-broken"
-                                                            class="w-5 h-5"
+                                                            icon="tabler:eye-minus"
+                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
 

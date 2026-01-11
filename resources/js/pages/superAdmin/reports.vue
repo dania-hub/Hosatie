@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import axios from 'axios';
 import { Icon } from "@iconify/vue";
@@ -63,6 +63,22 @@ const selectedRequestForItems = ref(null);
 // تفاصيل النشاط (Activity Modal)
 const isActivityModalOpen = ref(false);
 const selectedActivity = ref(null);
+
+// قاموس الأدوية للترجمة
+const drugsMap = ref({});
+const fetchDrugs = async () => {
+    try {
+        const response = await api.get('/super-admin/drugs');
+        const drugs = response.data.data || response.data || [];
+        const map = {};
+        drugs.forEach(d => {
+            map[d.id] = d.drug_name || d.name || d.name_ar;
+        });
+        drugsMap.value = map;
+    } catch (e) {
+        console.error('Failed to fetch drugs map:', e);
+    }
+};
 
 // الطباعة
 const isPrinting = ref(false);
@@ -257,12 +273,314 @@ const formatTableName = (name) => {
     return tableNameTranslations[name] || name;
 };
 
+const escapeHtml = (value) => {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+const normalizeDetails = (details) => {
+    if (!details) return null;
+    if (typeof details === 'string') {
+        try {
+            return JSON.parse(details);
+        } catch {
+            return null;
+        }
+    }
+    return details;
+};
+
+const buildActivityDetailsSection = (title, details, toneClass) => {
+    if (!details || typeof details !== 'object') return '';
+    const rows = Object.entries(details)
+        .filter(([key]) => isVisibleField(key))
+        .map(([key, value]) => {
+            const label = escapeHtml(formatKey(key));
+            const formatted = escapeHtml(formatValue(key, value));
+            return `<div class="detail-row"><span class="detail-key">${label}</span><span class="detail-value">${formatted}</span></div>`;
+        })
+        .join('');
+
+    if (!rows) return '';
+
+    return `
+        <div class="details-block ${toneClass}">
+            <div class="details-title">${escapeHtml(title)}</div>
+            <div class="details-body">${rows}</div>
+        </div>
+    `;
+};
+
+const buildActivitiesPrintHtml = (logs, meta) => {
+    const metaInfo = [
+        `التاريخ: ${meta.printedAt}`,
+        `العدد الإجمالي: ${meta.recordCount} سجل`
+    ];
+    if (meta.dateRange) metaInfo.push(`الفترة: ${meta.dateRange}`);
+    if (meta.queryText) metaInfo.push(`البحث: ${meta.queryText}`);
+
+    const logsHtml = logs.map((log) => {
+        const details = normalizeDetails(log.details) || {};
+        const oldDetails = normalizeDetails(details.old);
+        const newDetails = normalizeDetails(details.new);
+
+        const detailSections = [
+            buildActivityDetailsSection('القيم السابقة', oldDetails, 'old'),
+            buildActivityDetailsSection('القيم الجديدة', newDetails, 'new')
+        ].filter(Boolean);
+        
+        const detailsRow = detailSections.length
+            ? `
+                <tr class="details-row">
+                    <td colspan="5">
+                        <div class="details-grid">${detailSections.join('')}</div>
+                    </td>
+                </tr>
+              `
+            : '';
+
+        const createdAt = log.createdAt || log.created_at || log.date || '';
+
+        return `
+            <tbody class="log-entry">
+                <tr class="data-row">
+                    <td class="col-user">${escapeHtml(log.userName || 'غير معروف')}</td>
+                    <td class="col-type">${escapeHtml(log.userTypeArabic || log.userType || '-')}</td>
+                    <td class="col-hosp">${escapeHtml(log.hospitalName || '-')}</td>
+                    <td class="col-act">${escapeHtml(log.actionArabic || log.action || '-')}</td>
+                    <td class="col-date" dir="ltr">${escapeHtml(createdAt)}</td>
+                </tr>
+                ${detailsRow}
+            </tbody>
+        `;
+    }).join('');
+
+    return `
+        <!doctype html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="utf-8">
+            <title>${escapeHtml(meta.title)}</title>
+            <style>
+                @page { size: A4 landscape; margin: 10mm; }
+                * { box-sizing: border-box; }
+                body { 
+                    font-family: Arial, Tahoma, sans-serif; 
+                    margin: 0; 
+                    color: #1e293b; 
+                    background: white;
+                    line-height: 1.4;
+                    direction: rtl;
+                }
+                
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    font-size: 10pt; 
+                    table-layout: fixed;
+                }
+                
+                thead { display: table-header-group; }
+                
+                /* Repeating Header Row */
+                .report-header-th {
+                    padding: 0 !important;
+                    border: none !important;
+                    background: white !important;
+                }
+                
+                .title-bar {
+                    background: #4DA1A9;
+                    color: white;
+                    padding: 15px 20px;
+                    border-radius: 8px 8px 0 0;
+                    margin-bottom: 0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border: 1px solid #3d8188;
+                }
+                
+                .title-bar h1 {
+                    margin: 0;
+                    font-size: 18pt;
+                    font-weight: bold;
+                }
+                
+                .title-meta {
+                    font-size: 9pt;
+                    text-align: left;
+                    opacity: 0.9;
+                }
+
+                /* Column Headers */
+                .column-headers th { 
+                    background: #F8FAFC; 
+                    color: #334155; 
+                    font-weight: bold; 
+                    border: 1px solid #e2e8f0; 
+                    padding: 10px; 
+                    text-align: right;
+                    font-size: 10pt;
+                }
+                
+                .col-user { width: 16%; }
+                .col-type { width: 14%; }
+                .col-hosp { width: 18%; }
+                .col-act { width: 37%; }
+                .col-date { width: 15%; }
+
+                /* Rows */
+                .log-entry { page-break-inside: avoid; }
+                .data-row td { 
+                    border: 1px solid #e2e8f0; 
+                    padding: 8px 10px; 
+                    vertical-align: middle;
+                    font-weight: 500;
+                    word-wrap: break-word;
+                }
+                .data-row td.col-act { color: #0f172a; font-weight: bold; }
+                
+                .details-row td { 
+                    background: #f8fafc; 
+                    border: 1px solid #e2e8f0;
+                    padding: 12px; 
+                    border-top: none;
+                }
+                
+                .details-grid { 
+                    display: grid; 
+                    grid-template-columns: 1fr 1fr; 
+                    gap: 15px; 
+                }
+                
+                .details-block { 
+                    border: 1px solid #e2e8f0; 
+                    border-radius: 6px; 
+                    background: white; 
+                }
+                .details-title { 
+                    font-weight: bold; 
+                    padding: 6px 10px; 
+                    font-size: 9pt; 
+                    border-bottom: 1px solid #e2e8f0;
+                }
+                .details-block.old .details-title { background: #fee2e2; color: #991b1b; }
+                .details-block.new .details-title { background: #dcfce7; color: #166534; }
+                
+                .details-body { padding: 8px; }
+                .detail-row { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    border-bottom: 1px solid #f1f5f9; 
+                    padding: 3px 0; 
+                }
+                .detail-row:last-child { border-bottom: none; }
+                .detail-key { color: #64748b; font-size: 8.5pt; font-weight: normal; }
+                .detail-value { color: #1e293b; font-weight: bold; font-size: 8.5pt; max-width: 70%; word-break: break-all; }
+
+                .details-empty { text-align: center; padding: 30px; color: #94a3b8; }
+                
+                @media print {
+                    body { -webkit-print-color-adjust: exact; }
+                    .title-bar { -webkit-print-color-adjust: exact; background-color: #4DA1A9 !important; color: white !important; }
+                    @page { size: A4 landscape; margin: 10mm; }
+                }
+            </style>
+        </head>
+        <body>
+            <table>
+                <thead>
+                    <tr>
+                        <th colspan="5" class="report-header-th">
+                            <div class="title-bar">
+                                <h1>نظام حُصتي - ${escapeHtml(meta.title)}</h1>
+                                <div class="title-meta">
+                                    ${metaInfo.join(' | ')}
+                                </div>
+                            </div>
+                        </th>
+                    </tr>
+                    <tr class="column-headers">
+                        <th class="col-user">المستخدم</th>
+                        <th class="col-type">نوع المستخدم</th>
+                        <th class="col-hosp">المؤسسة الصحية</th>
+                        <th class="col-act">العملية</th>
+                        <th class="col-date">التاريخ</th>
+                    </tr>
+                </thead>
+                ${logsHtml || `<tbody><tr><td colspan="5" class="details-empty">لا توجد سجلات لعرضها</td></tr></tbody>`}
+            </table>
+        </body>
+        </html>
+    `;
+};
+
+const printActivitiesReport = () => {
+    const logs = isSelectionMode.value
+        ? filteredReportData.value.filter(log => selectedIds.value.has(log.id))
+        : filteredReportData.value;
+
+    isPrinting.value = true;
+    printProgress.value = 'جاري تجهيز سجل العمليات للطباعة...';
+
+    const printWindow = window.open('', '_blank', 'height=900,width=1200');
+    if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+        showToast('error', 'تعذر الطباعة', 'الرجاء السماح بفتح نافذة الطباعة ثم المحاولة مرة أخرى.');
+        isPrinting.value = false;
+        printProgress.value = '';
+        return;
+    }
+
+    const now = new Date();
+    const meta = {
+        title: tabs.find(t => t.id === currentTab.value)?.name || 'سجل العمليات',
+        printedAt: now.toLocaleString('ar-SA'),
+        recordCount: logs.length,
+        dateRange: dateFrom.value || dateTo.value
+            ? `${dateFrom.value || 'غير محدد'} - ${dateTo.value || 'غير محدد'}`
+            : '',
+        queryText: searchQuery.value || '',
+        selectedOnly: isSelectionMode.value
+    };
+
+    const html = buildActivitiesPrintHtml(logs, meta);
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+    const finishPrinting = () => {
+        isPrinting.value = false;
+        printProgress.value = '';
+    };
+
+    printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+    };
+
+    printWindow.onafterprint = () => {
+        finishPrinting();
+        printWindow.close();
+    };
+};
+
 const printFullReport = async () => {
     if (isPrinting.value) return;
     
     // Validation if in selection mode
     if (isSelectionMode.value && selectedIds.value.size === 0) {
         showToast('warning', 'تنبيه', 'يرجى تحديد صف واحد على الأقل للطباعة');
+        return;
+    }
+
+    if (currentTab.value === 'activities') {
+        printActivitiesReport();
         return;
     }
 
@@ -293,7 +611,7 @@ const printFullReport = async () => {
                         });
                         hospital.fullDepartments = deptRes.data.data || [];
                     } catch (e) {
-                         console.error(e);
+                         console.error('Failed to load departments:', e);
                          hospital.fullDepartments = [];
                     }
                 }
@@ -306,7 +624,7 @@ const printFullReport = async () => {
                         });
                         hospital.fullPharmacies = pharmRes.data.data || [];
                     } catch (e) {
-                         console.error(e);
+                         console.error('Failed to load pharmacies:', e);
                          hospital.fullPharmacies = [];
                     }
                 }
@@ -328,20 +646,86 @@ const printFullReport = async () => {
                             params: { type: req.type, id: req.id }
                         });
                         req.fullItems = itemsRes.data.data || [];
+                        // ترجمة أسماء الأدوية
+                        req.fullItems.forEach(item => {
+                            if (item.drug_id && drugsMap.value[item.drug_id]) {
+                                item.drug_name = drugsMap.value[item.drug_id];
+                            }
+                        });
                     } catch (e) {
-                        console.error(e);
+                        console.error('Failed to load request items:', e);
                         req.fullItems = [];
                     }
                 }
             }
         }
 
-        printProgress.value = '';
+        // 3. توسيع بيانات العمليات للطباعة
+        if (currentTab.value === 'dispensings') {
+            const total = reportData.value.length;
+            for (let i = 0; i < total; i++) {
+                const dispensing = reportData.value[i];
+                if (!shouldProcess(dispensing)) continue;
+
+                printProgress.value = `جاري تحميل تفاصيل العمليات (${i + 1}/${total})`;
+                
+                if (!dispensing.fullDetails) {
+                    try {
+                        const detailRes = await api.get('/super-admin/reports/dispensing-details', {
+                            params: { dispensing_id: dispensing.id }
+                        });
+                        dispensing.fullDetails = detailRes.data.data || [];
+                        // ترجمة أسماء الأدوية
+                        dispensing.fullDetails.forEach(detail => {
+                            if (detail.drug_id && drugsMap.value[detail.drug_id]) {
+                                detail.drug_name = drugsMap.value[detail.drug_id];
+                            }
+                        });
+                    } catch (e) {
+                        console.error('Failed to load dispensing details:', e);
+                        dispensing.fullDetails = [];
+                    }
+                }
+            }
+        }
+
+        // 4. توسيع بيانات النشاطات للطباعة (التفاصيل موجودة بالفعل)
+        if (currentTab.value === 'activities') {
+            // التفاصيل موجودة بالفعل في البيانات، لا نحتاج تحميل إضافي
+            printProgress.value = 'جاري تحضير تفاصيل النشاطات...';
+        }
+
+        printProgress.value = 'جاري تهيئة التقرير للطباعة...';
         
         // إعطاء وقت للـ DOM ليتم تحديثه
         setTimeout(() => {
+            // إضافة رأس التقرير للطباعة
+            const printHeader = document.createElement('div');
+            printHeader.id = 'print-header';
+            const tabName = tabs.find(t => t.id === currentTab.value)?.name || 'التقرير';
+            const recordCount = isSelectionMode.value ? selectedIds.value.size : 
+                (currentTab.value === 'requests' && viewMode.value === 'details' ? filteredMonthDetails.value.length : filteredReportData.value.length);
+            
+            printHeader.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #4DA1A9; padding-bottom: 10px;">
+                    <h1 style="color: #4DA1A9; font-size: 18pt; margin: 0; font-weight: bold;">تقرير ${tabName}</h1>
+                    <p style="color: #666; font-size: 10pt; margin: 5px 0;">تاريخ التقرير: ${new Date().toLocaleDateString('ar-SA')} - ${new Date().toLocaleTimeString('ar-SA')}</p>
+                    <p style="color: #666; font-size: 10pt; margin: 0;">عدد السجلات: ${recordCount}</p>
+                    ${dateFrom.value || dateTo.value ? `<p style="color: #666; font-size: 9pt; margin: 2px 0;">الفترة الزمنية: ${dateFrom.value || 'غير محدد'} - ${dateTo.value || 'غير محدد'}</p>` : ''}
+                </div>
+            `;
+            printHeader.style.cssText = 'display: none;';
+            document.body.insertBefore(printHeader, document.body.firstChild);
+
             window.print();
-            // إلغاء وضع الطباعة بعد الطباعة (سيحدث هذا بعد إغلاق نافذة الطباعة)
+            
+            // إزالة رأس التقرير بعد الطباعة
+            setTimeout(() => {
+                const header = document.getElementById('print-header');
+                if (header) header.remove();
+            }, 1000);
+            
+            // إلغاء وضع الطباعة بعد الطباعة
              isPrinting.value = false;
         }, 500);
 
@@ -353,64 +737,376 @@ const printFullReport = async () => {
 };
 
 const fieldTranslations = {
+    // الأساسيات (Common Fields)
+    'id': 'المعرف',
+    'uuid': 'المعرف الفريد',
     'name': 'الاسم',
     'name_ar': 'الاسم (عربي)',
     'name_en': 'الاسم (إنجليزي)',
     'full_name': 'الاسم الكامل',
     'first_name': 'الاسم الأول',
+    'middle_name': 'الاسم الأوسط',
     'last_name': 'اسم العائلة',
+    'username': 'اسم المستخدم',
+    'userName': 'اسم المستخدم',
     'email': 'البريد الإلكتروني',
     'phone': 'رقم الهاتف',
+    'phone_number': 'رقم الهاتف',
     'mobile': 'رقم الجوال',
+    'mobile_number': 'رقم الجوال',
     'address': 'العنوان',
-    'status': 'الحالة',
-    'type': 'النوع',
-    'role': 'الدور الوظيفي',
-    'password': 'كلمة المرور',
-    'hospital_id': 'مؤسسة صحية',
-    'supplier_id': 'مورد',
-    'pharmacy_id': 'صيدلية',
-    'warehouse_id': 'مخزن',
-    'department_id': 'قسم',
-    'created_at': 'تاريخ الإنشاء',
-    'updated_at': 'تاريخ التحديث',
-    'deleted_at': 'تاريخ الحذف',
-    'description': 'الوصف',
-    'notes': 'ملاحظات',
-    'qty': 'الكمية',
-    'stock': 'المخزون',
-    'price': 'السعر',
-    'cost': 'التكلفة',
-    'expiry_date': 'تاريخ الصلاحية',
-    'batch_number': 'رقم التشغيلة',
-    'national_id': 'الرقم الوطني',
-    'license_number': 'رقم الترخيص',
+    'address_line_1': 'العنوان 1',
+    'address_line_2': 'العنوان 2',
     'city': 'المدينة',
     'region': 'المنطقة',
-    // Additional fields
-    'requested_qty': 'الكمية المطلوبة',
-    'approved_qty': 'الكمية الموافق عليها',
+    'country': 'الدولة',
+    'postal_code': 'الرمز البريدي',
+    'status': 'الحالة',
+    'type': 'النوع',
+    'userType': 'نوع المستخدم',
+    'role': 'الدور الوظيفي',
+    'password': 'كلمة المرور',
+    'national_id': 'الرقم الوطني',
+    'license_number': 'رقم الترخيص',
+    'license_no': 'رقم الترخيص',
+    'license_expiry': 'تاريخ انتهاء الترخيص',
+    'description': 'الوصف',
+    'notes': 'ملاحظات',
+    'remarks': 'ملاحظات إضافية',
+    'reason': 'السبب',
     'priority': 'الأولوية',
-    'request_id': 'رقم الطلب',
-    'drug_id': 'معرف الدواء',
+    'active': 'نشط',
+    'is_active': 'نشط؟',
+    'is_verified': 'مؤكد؟',
+    
+    // التواريخ (Dates & Timestamps)
+    'created_at': 'تاريخ الإضافة',
+    'updated_at': 'تاريخ التحديث',
+    'deleted_at': 'تاريخ الحذف',
+    'createdAt': 'تاريخ الإضافة',
+    'updatedAt': 'تاريخ التحديث',
+    'deletedAt': 'تاريخ الحذف',
+    'dob': 'تاريخ الميلاد',
+    'birth_date': 'تاريخ الميلاد',
+    'expiry_date': 'تاريخ الصلاحية',
+    'expiryDate': 'تاريخ الصلاحية',
+    'delivery_date': 'تاريخ التسليم',
+    'shipped_at': 'تاريخ الشحن',
+    'approved_at': 'تاريخ الموافقة',
+    'start_date': 'تاريخ البدء',
+    'Start Date': 'تاريخ البدء',
+    'startDate': 'تاريخ البدء',
+    'end_date': 'تاريخ الانتهاء',
+    'End Date': 'تاريخ الانتهاء',
+    'endDate': 'تاريخ الانتهاء',
+    'cancelled_at': 'تاريخ الإلغاء',
+    'Cancelled At': 'تاريخ الإلغاء',
+    'cancelledAt': 'تاريخ الإلغاء',
+    'rejected_at': 'تاريخ الرفض',
+    'rejectedAt': 'تاريخ الرفض',
+    'Rejected At': 'تاريخ الرفض',
+    'rejection_reason': 'سبب الرفض',
+    'rejectionReason': 'سبب الرفض',
+    'Rejection Reason': 'سبب الرفض',
+    'rejected_by': 'تم الرفض بواسطة',
+    'rejectedBy': 'تم الرفض بواسطة',
+    'Rejected By': 'تم الرفض بواسطة',
+    
+    // المؤسسات (Entities: Hospital, Pharmacy, Warehouse)
+    'hospital_id': 'المؤسسة الصحية',
+    'hospital_name': 'اسم المؤسسة',
+    'hospitalName': 'اسم المؤسسة',
+    'pharmacy_id': 'الصيدلية',
+    'pharmacy_name': 'اسم الصيدلية',
+    'pharmacyName': 'اسم الصيدلية',
+    'pharmacy_code': 'كود الصيدلية',
+    'warehouse_id': 'المخزن',
+    'warehouse_name': 'اسم المخزن',
+    'warehouseName': 'اسم المخزن',
+    'warehouse_code': 'كود المخزن',
+    'Warehouse Id': 'معرف المخزن',
+    'Drug Id': 'معرف الدواء',
+    'supplier_id': 'المورد',
     'supplier_name': 'اسم المورد',
-    'user_id': 'معرف المستخدم',
+    'supplierName': 'اسم المورد',
+    'supplier_code': 'كود المورد',
+    'department_id': 'القسم',
+    'department_name': 'اسم القسم',
+    'department': 'القسم',
+    'prescription_id': 'معرف الوصفة',
+    'prescriptionId': 'معرف الوصفة',
+    'Prescription Id': 'معرف الوصفة',
+    'item_count': 'عدد العناصر',
+    'itemCount': 'عدد العناصر',
+    'Item Count': 'عدد العناصر',
+    
+    // الأدوية (Drugs & Medical)
+    'drug_id': 'الدواء',
+    'drug_name': 'اسم الدواء',
+    'drugName': 'اسم الدواء',
+    'generic_name': 'الاسم العلمي',
+    'genericName': 'الاسم العلمي',
+    'strength': 'القوة/التركيز',
+    'dosage_form': 'الشكل الدوائي',
+    'form': 'الشكل الدوائي',
+    'formulation': 'التركيبة',
+    'unit': 'الوحدة',
+    'category': 'الفئة',
+    'manufacturer': 'الشركة المصنعة',
+    'origin_country': 'بلد المنشأ',
+    'indications': 'دواعي الاستعمال',
+    'warnings': 'تحذيرات',
+    'contraindications': 'موانع الاستعمال',
+    'side_effects': 'الأعراض الجانبية',
+    'max_monthly_dose': 'أقصى جرعة شهرية',
+    'maxMonthlyDose': 'أقصى جرعة شهرية',
+    'utilization_type': 'نوع الاستخدام',
+    'utilizationType': 'نوع الاستخدام',
+    'is_controlled': 'خاضع للرقابة؟',
+    'is_cold_chain': 'سلسلة تبريد؟',
+    'is_emergency': 'طوارئ؟',
+    'storage_requirements': 'شروط التخزين',
+    'composition': 'التركيب',
+    'dosage': 'الجرعة',
+    'route': 'طريقة الاستعطاء',
+
+    // المخزون والطلبات (Inventory, Stock & Requests)
+    'qty': 'الكمية',
+    'quantity': 'الكمية',
+    'qty_received': 'الكمية المستلمة',
+    'qty_shipped': 'الكمية الموفرة',
+    'requested_qty': 'الكمية المطلوبة',
+    'requestedQuantity': 'الكمية المطلوبة',
+    'approved_qty': 'الكمية الموافق عليها',
+    'approvedQuantity': 'الكمية الموافق عليها',
+    'needed_qty': 'الكمية المحتاجة',
+    'neededQuantity': 'الكمية المحتاجة',
+    'stock': 'المخزون',
+    'current_quantity': 'الكمية الحالية',
+    'minimum_level': 'الحد الأدنى للمخزون',
+    'refill_level': 'مستوى إعادة الطلب',
+    'price': 'السعر',
+    'cost': 'التكلفة',
+    'batch_number': 'رقم التشغيلة',
+    'batch_no': 'رقم التشغيلة',
+    'serial_number': 'الرقم التسلسلي',
+    'invoice_no': 'رقم الفاتورة',
+    'request_id': 'رقم الطلب',
+    'tracking_number': 'رقم التتبع',
+    'shipment_id': 'رقم الشحنة',
+    'daily_quantity': 'الكمية اليومية',
+    'dailyQuantity': 'الكمية اليومية',
+    'Daily Quantity': 'الكمية اليومية',
+    'monthly_quantity': 'الكمية الشهرية',
+    'monthlyQuantity': 'الكمية الشهرية',
+    'Monthly Quantity': 'الكمية الشهرية',
+    
+    // المرضى والتشخيص (Patients & Diagnosis)
+    'patient_id': 'المريض',
+    'patient_name': 'اسم المريض',
+    'gender': 'الجنس',
+    'blood_type': 'فصيلة الدم',
+    'blood_group': 'فصيلة الدم',
+    'nationality': 'الجنسية',
+    'occupation': 'المهنة',
+    'marital_status': 'الحالة الاجتماعية',
+    'diagnosis': 'التشخيص',
+    'clinical_notes': 'ملاحظات سريرية',
+    'file_number': 'رقم الملف',
+    'insurance_id': 'رقم التأمين',
+    'doctor_id': 'الطبيب',
+    'doctor_name': 'اسم الطبيب',
+    'doctor_info': 'بيانات الطبيب',
+    'patient_info': 'بيانات المريض',
+    
+    // سجلات النظام (Activity Logs & System)
     'action': 'الإجراء',
+    'ip_address': 'عنوان IP',
+    'user_agent': 'متصفح المستخدم',
+    'table_name': 'الجدول',
+    'record_id': 'رقم السجل',
+    'old_values': 'القيم السابقة',
+    'new_values': 'القيم الجديدة',
+    'manager_id': 'معرف المدير',
+    'managerId': 'معرف المدير',
+    'manager id': 'معرف المدير',
+    'head_user_id': 'معرف المستخدم المسؤول',
+    'headUserId': 'معرف المستخدم المسؤول',
+    'Head User Id': 'معرف المستخدم المسؤول',
+    'item': 'عنصر',
+    'items': 'العناصر',
+    'Item': 'عنصر',
+    'Items': 'العناصر',
+    'item_id': 'معرف العنصر',
+    'itemId': 'معرف العنصر',
+    'Item Id': 'معرف العنصر',
+    'fulfilled_qty': 'الكمية الموفرة',
+    'fulfilledQty': 'الكمية الموفرة',
+    'Fulfilled Qty': 'الكمية الموفرة',
+    'metadata': 'بيانات إضافية',
+    'Drug': 'الدواء',
+    'Patient': 'المريض',
+    'Hospital': 'المستشفى',
+    'Pharmacy': 'الصيدلية',
+    'Warehouse': 'المخزن',
+    'User': 'المستخدم',
+    'Doctor': 'الطبيب',
+    'Supplier': 'المورد',
+    'Prescription': 'الوصفة الطبية',
+};
+
+const valueTranslations = {
+    'male': 'ذكر',
+    'female': 'أنثى',
+    'active': 'نشط',
+    'inactive': 'غير نشط',
+    'pending': 'قيد الانتظار',
+    'approved': 'مقبول',
+    'rejected': 'مرفوض',
+    'completed': 'مكتمل',
+    'cancelled': 'ملغى',
+    'yes': 'نعم',
+    'no': 'لا',
+    'true': 'نعم',
+    'false': 'لا',
+    // Drug Forms
+    'tablet': 'قرص',
+    'capsule': 'كبسولة',
+    'injection': 'حقنة',
+    'syrup': 'شراب',
+    'inhaler': 'بخاخ',
+    'ointment': 'مرهم',
+    'cream': 'كريم',
+    'drops': 'قطرات',
+    'vial': 'فيال',
+    'ampoule': 'أمبول',
+    // Categories
+    'thyroid hormone': 'هرمون الغدة الدرقية',
+    'antibiotic': 'مضاد حيوي',
+    'analgesic': 'مسكن آلام',
+    'antihypertensive': 'خافض لضغط الدم',
+    'antidiabetic': 'مضاد للسكري',
+    // Routes
+    'oral': 'عن طريق الفم',
+    'intravenous': 'وريدي (IV)',
+    'intramuscular': 'عضلي (IM)',
+    'topical': 'موضعي',
+    'subcutaneous': 'تحت الجلد',
+    'respiratory': 'تنفسي',
+    // Roles & User Types
+    'super_admin': 'مدير النظام',
+    'hospital_admin': 'مدير مستشفى',
+    'warehouse_manager': 'أمين مخزن',
+    'pharmacist': 'صيدلي',
+    'doctor': 'طبيب',
+    'supplier': 'مورد',
+    'data_entry': 'مدخل بيانات',
+    'department_manager': 'مدير قسم',
+    'staff': 'موظف',
+    'storekeeper': 'أمين مخزن',
 };
 
 const formatKey = (key) => {
-    return fieldTranslations[key] || key;
+    if (fieldTranslations[key]) return fieldTranslations[key];
+    
+    // Humanize if no translation
+    return key.replace(/_/g, ' ')
+              .replace(/([A-Z])/g, ' $1')
+              .trim()
+              .replace(/\b\w/g, l => l.toUpperCase());
 };
 
 const formatValue = (key, value) => {
     if (value === null || value === undefined || value === '') return '-';
     if (key === 'password') return '********';
-    if ((key.includes('_at') || key.includes('date')) && value) {
+
+    // Handle Objects & JSON strings
+    if (typeof value === 'object' || (typeof value === 'string' && (value.trim().startsWith('{') || value.trim().startsWith('[')))) {
         try {
-            return new Date(value).toLocaleString('ar-LY');
-        } catch (e) { return value; }
+            const obj = typeof value === 'string' ? JSON.parse(value) : value;
+            
+            // 1. Specific Handlers
+            const lowerKey = key.toLowerCase();
+            const isEntityKey = lowerKey.includes('drug') || 
+                               lowerKey.includes('patient') || 
+                               lowerKey.includes('hospital') || 
+                               lowerKey.includes('pharmacy') || 
+                               lowerKey.includes('warehouse') || 
+                               lowerKey.includes('doctor') ||
+                               lowerKey.includes('prescription') ||
+                               lowerKey.includes('user');
+
+            if (isEntityKey && obj) {
+                 // Try to find a human-readable identifier
+                 const name = obj.full_name || obj.name_ar || obj.name || obj.drug_name || obj.drugName || obj.pharmacy_name || obj.pharmacyName || obj.hospital_name || obj.hospitalName || obj.warehouse_name || obj.warehouseName;
+                 
+                 // Special for prescriptions: try to get patient name if available
+                 if (lowerKey.includes('prescription')) {
+                     const patientName = obj.patient_name || (obj.Patient && typeof obj.Patient === 'string' ? obj.Patient : null) || (obj.patient && obj.patient.full_name);
+                     if (patientName) return `وصفة طبية: ${patientName}`;
+                     if (obj.id) return `وصفة طبية رقم #${obj.id}`;
+                 }
+
+                  const extra = obj.strength || obj.code || obj.id || '';
+                  if (name) return `${name}${extra ? ' (' + formatValue('', extra) + ')' : ''}`;
+            }
+            
+            // Auto-translate ID to Name if it's a drug object but only has ID
+            if (lowerKey === 'drug' || lowerKey === 'drug_id') {
+                if (drugsMap.value[obj.id || obj]) return drugsMap.value[obj.id || obj];
+            }
+            
+            // 2. Generic Object Handler
+            if (obj && typeof obj === 'object') {
+                if (Array.isArray(obj)) {
+                    // Optimized for list of items (e.g., [ {drug: "Adv", qty: 5}, ... ])
+                    return obj.map(v => formatValue('item_in_list', v))
+                              .join(', ');
+                }
+                
+                const entries = Object.entries(obj).filter(([k]) => isVisibleField(k));
+                
+                // Specific Logic for "Item" objects (like in requested items list)
+                const nameField = entries.find(([k]) => ['name', 'drug_name', 'drugName', 'drug', 'drug_id'].includes(k));
+                const qtyField = entries.find(([k]) => k.toLowerCase().includes('qty') || k.toLowerCase().includes('quantity'));
+                
+                if (nameField && qtyField && key === 'item_in_list') {
+                    const nameVal = nameField[1];
+                    const qtyVal = qtyField[1];
+                    const translatedName = drugsMap.value[nameVal] || formatValue('', nameVal);
+                    return `${translatedName} = ${formatValue('', qtyVal)}`;
+                }
+
+                return entries
+                    .map(([k, v]) => {
+                         const formattedV = formatValue(k, v);
+                         return `${formatKey(k)}: ${formattedV}`;
+                    })
+                    .join(key === 'item_in_list' ? ' | ' : ', ');
+            }
+        } catch (e) { }
     }
+
+    // Date formatting
+    if ((key.toLowerCase().includes('_at') || key.toLowerCase().includes('date') || key === 'dob') && value) {
+        try {
+            const date = new Date(value);
+            if (!isNaN(date)) return date.toLocaleDateString('ar-LY');
+        } catch (e) { }
+    }
+    
+    // Value Translations
+    const stringValue = String(value).toLowerCase();
+    
+    // Check drugsMap for IDs
+    if ((key.toLowerCase().includes('drug_id') || key.toLowerCase() === 'drug') && drugsMap.value[value]) {
+        return drugsMap.value[value];
+    }
+    
+    if (valueTranslations[stringValue]) return valueTranslations[stringValue];
+    
     if (key === 'status') return getStatusText(value);
+
     // Boolean mapping
     if (typeof value === 'boolean') return value ? 'نعم' : 'لا';
     if (value === 1 || value === '1') {
@@ -442,6 +1138,7 @@ watch(currentTab, () => {
 
 onMounted(() => {
     fetchReport();
+    fetchDrugs();
 });
 
 // ----------------------------------------------------
@@ -521,11 +1218,19 @@ const isRowSelected = (id) => selectedIds.value.has(id);
    Filters Logic
 ---------------------------------------------------------------- */
 const searchQuery = ref('');
-const dateFilter = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
+const showDateFilter = ref(false);
 
 const clearFilters = () => {
     searchQuery.value = '';
-    dateFilter.value = '';
+    dateFrom.value = '';
+    dateTo.value = '';
+};
+
+const clearDateFilter = () => {
+    dateFrom.value = '';
+    dateTo.value = '';
 };
 
 // Filtered Data Computation
@@ -558,18 +1263,40 @@ const filteredReportData = computed(() => {
     }
 
     // 2. Date Filter
-    if (dateFilter.value) {
+    if (dateFrom.value || dateTo.value) {
         data = data.filter(item => {
              // Date logic based on tab
              // Most items have 'created_at' or 'date' field
              const itemDate = item.date || item.created_at || item.createdAt || item.month; // month is YYYY-MM
              if (!itemDate) return true;
              
+             let itemDateObj;
              if (currentTab.value === 'requests' && viewMode.value === 'list') {
-                 return item.month === dateFilter.value.substring(0, 7); // Compare YYYY-MM
+                 // For requests list, item.month is YYYY-MM
+                 const [year, month] = item.month.split('-');
+                 itemDateObj = new Date(year, month - 1, 1);
+             } else {
+                 itemDateObj = new Date(itemDate);
              }
              
-             return itemDate.toString().startsWith(dateFilter.value);
+             if (isNaN(itemDateObj.getTime())) return true;
+             
+             let matchesFrom = true;
+             let matchesTo = true;
+             
+             if (dateFrom.value) {
+                 const fromDate = new Date(dateFrom.value);
+                 fromDate.setHours(0, 0, 0, 0);
+                 matchesFrom = itemDateObj >= fromDate;
+             }
+             
+             if (dateTo.value) {
+                 const toDate = new Date(dateTo.value);
+                 toDate.setHours(23, 59, 59, 999);
+                 matchesTo = itemDateObj <= toDate;
+             }
+             
+             return matchesFrom && matchesTo;
         });
     }
 
@@ -589,8 +1316,29 @@ const filteredMonthDetails = computed(() => {
         );
     }
 
-    if (dateFilter.value) {
-        data = data.filter(req => req.date && req.date.startsWith(dateFilter.value));
+    if (dateFrom.value || dateTo.value) {
+        data = data.filter(req => {
+            if (!req.date) return true;
+            const reqDate = new Date(req.date);
+            if (isNaN(reqDate.getTime())) return true;
+            
+            let matchesFrom = true;
+            let matchesTo = true;
+            
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = reqDate >= fromDate;
+            }
+            
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(23, 59, 59, 999);
+                matchesTo = reqDate <= toDate;
+            }
+            
+            return matchesFrom && matchesTo;
+        });
     }
 
     return data;
@@ -601,6 +1349,26 @@ const displayedData = computed(() => {
         return []; // We use specific loop for details
     }
     return filteredReportData.value;
+});
+
+// إحصائيات عمليات الصرف
+const totalDispensedQuantity = computed(() => {
+    if (currentTab.value !== 'dispensings') return 0;
+    return filteredReportData.value.reduce((total, dispensing) => {
+        return total + (parseInt(dispensing.quantity) || 0);
+    }, 0);
+});
+
+const uniqueDrugsCount = computed(() => {
+    if (currentTab.value !== 'dispensings') return 0;
+    const drugs = new Set(filteredReportData.value.map(d => d.drug));
+    return drugs.size;
+});
+
+const uniquePatientsCount = computed(() => {
+    if (currentTab.value !== 'dispensings') return 0;
+    const patients = new Set(filteredReportData.value.map(d => d.patient));
+    return patients.size;
 });
 
 </script>
@@ -661,19 +1429,65 @@ const displayedData = computed(() => {
                      </div>
                      <div class="h-6 w-px bg-gray-200 mx-1"></div>
                      <div class="flex items-center gap-1">
-                        <input 
-                            type="date" 
-                            v-model="dateFilter"
-                            class="py-1.5 px-3 text-sm rounded-lg border-none bg-gray-50 focus:ring-1 focus:ring-[#4DA1A9]/20 focus:bg-white transition-all text-[#4DA1A9] cursor-pointer"
+                        <!-- زر إظهار/إخفاء فلتر التاريخ -->
+                        <button
+                            @click="showDateFilter = !showDateFilter"
+                            class="h-9 w-9 flex items-center justify-center border border-gray-300 rounded-4xl bg-gray-50 text-gray-600 hover:bg-gray-100 hover:border-[#4DA1A9] transition-all duration-200"
+                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                         >
-                        <button 
-                            v-if="dateFilter || searchQuery" 
-                            @click="clearFilters"
-                            class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="تفريغ التصفية"
-                        >
-                            <Icon icon="solar:trash-bin-trash-bold" class="w-4 h-4" />
+                            <Icon
+                                icon="solar:calendar-bold"
+                                class="w-4 h-4"
+                            />
                         </button>
+
+                        <!-- فلتر التاريخ -->
+                        <Transition
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="opacity-0 scale-95"
+                            enter-to-class="opacity-100 scale-100"
+                            leave-active-class="transition duration-150 ease-in"
+                            leave-from-class="opacity-0 scale-95"
+                            leave-to-class="opacity-100 scale-100"
+                        >
+                            <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateFrom"
+                                        class="py-1.5 px-3 pr-8 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] cursor-pointer"
+                                        placeholder="من تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-4 h-4 text-[#4DA1A9] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <span class="text-gray-600 font-medium text-sm">إلى</span>
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateTo"
+                                        class="py-1.5 px-3 pr-8 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] cursor-pointer"
+                                        placeholder="إلى تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-4 h-4 text-[#4DA1A9] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <button 
+                                    v-if="dateFrom || dateTo"
+                                    @click="clearDateFilter"
+                                    class="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                    title="مسح فلتر التاريخ"
+                                >
+                                    <Icon icon="solar:trash-bin-trash-bold" class="w-5 h-5" />
+                                </button>
+                            </div>
+                        </Transition>
+
+                      
                      </div>
                 </div>
 
@@ -688,14 +1502,7 @@ const displayedData = computed(() => {
                     {{ isPrinting ? 'جاري التحضير...' : 'طباعة الصفوف' }}
                 </button>
 
-                <button 
-                    @click="fetchReport" 
-                    class="px-4 py-2 bg-white border border-gray-200 text-[#4DA1A9] rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm font-medium"
-                    :disabled="isLoading"
-                >
-                    <Icon icon="solar:refresh-linear" class="w-5 h-5" :class="{ 'animate-spin': isLoading }" />
-                    تحديث البيانات
-                </button>
+              
             </div>
         </div>
 
@@ -740,6 +1547,17 @@ const displayedData = computed(() => {
                      <EmptyState v-if="reportData.length === 0" title="لا توجد بيانات" message="لم يتم العثور على مؤسسات مسجلة" />
                      <table v-else class="w-full text-right border-collapse">
                         <thead>
+                            <tr v-if="isPrinting" class="hidden print:table-row">
+                                <th colspan="9" class="p-0 border-none">
+                                    <div class="text-center mb-6 pb-4 border-b-2 border-[#4DA1A9]">
+                                        <h1 class="text-[#4DA1A9] text-2xl font-bold mb-2">تقرير المؤسسات الصحية</h1>
+                                        <div class="flex justify-center gap-6 text-sm text-gray-600">
+                                            <span>تاريخ الطباعة: {{ new Date().toLocaleString('ar-SA') }}</span>
+                                            <span>عدد المسجلين: {{ reportData.length }}</span>
+                                        </div>
+                                    </div>
+                                </th>
+                            </tr>
                             <tr class="bg-gray-50 text-[#4DA1A9]">
                                 <th v-if="isSelectionMode" class="p-4 w-10 text-center no-print">
                                     <input type="checkbox" :checked="selectedIds.size > 0 && selectedIds.size === filteredReportData.length" @change="toggleSelectAll" class="rounded border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9]">
@@ -747,6 +1565,7 @@ const displayedData = computed(() => {
                                 <th class="p-4 rounded-r-xl">المؤسسة</th>
                                 <th class="p-4">عدد الأقسام</th>
                                 <th class="p-4">عدد الصيدليات</th>
+                                <th class="p-4">عدد المرضى</th>
                                 <th class="p-4">عدد الموظفين</th>
                                 <th class="p-4">المخازن</th>
                                 <th class="p-4">الوصفات النشطة</th>
@@ -773,6 +1592,7 @@ const displayedData = computed(() => {
                                         {{ hospital.statistics?.pharmaciesCount || 0 }}
                                     </button>
                                 </td>
+                                <td class="p-4 font-bold">{{ hospital.statistics?.patientsCount || 0 }}</td>
                                 <td class="p-4 font-bold">{{ hospital.statistics?.staffCount || 0 }}</td>
                                 <td class="p-4 font-bold">{{ hospital.statistics?.warehousesCount || 0 }}</td>
                                 <td class="p-4 font-bold text-[#4DA1A9]">{{ hospital.statistics?.activePrescriptions || 0 }}</td>
@@ -784,7 +1604,7 @@ const displayedData = computed(() => {
                             </tr>
                             <!-- بيانات الطباعة الإضافية: الأقسام -->
                             <tr v-if="isPrinting && hospital.fullDepartments && hospital.fullDepartments.length > 0" class="print-row bg-blue-50/20">
-                                <td colspan="7" class="p-4 border-t border-blue-100">
+                                <td colspan="9" class="p-4 border-t border-blue-100">
                                     <div class="text-sm font-bold text-blue-800 mb-2">الأقسام التابعة لـ {{ hospital.name }}:</div>
                                     <table class="w-full text-right text-xs border border-blue-200 bg-white">
                                         <thead class="bg-blue-50">
@@ -806,7 +1626,7 @@ const displayedData = computed(() => {
                             </tr>
                             <!-- بيانات الطباعة الإضافية: الصيدليات -->
                             <tr v-if="isPrinting && hospital.fullPharmacies && hospital.fullPharmacies.length > 0" class="print-row bg-green-50/20">
-                                <td colspan="7" class="p-4 border-t border-green-100">
+                                <td colspan="9" class="p-4 border-t border-green-100">
                                     <div class="text-sm font-bold text-green-800 mb-2">الصيدليات التابعة لـ {{ hospital.name }}:</div>
                                     <div v-for="pharm in hospital.fullPharmacies" :key="pharm.id" class="mb-4 last:mb-0 border border-green-200 rounded p-2 bg-white">
                                         <div class="font-bold text-green-700 mb-1 border-b pb-1">{{ pharm.name }}</div>
@@ -839,21 +1659,131 @@ const displayedData = computed(() => {
                 <!-- 3. Dispensings Report -->
                 <div v-if="currentTab === 'dispensings'" class="overflow-x-auto">
                     <EmptyState v-if="reportData.length === 0" title="لا توجد عمليات صرف" message="سجل الصرف فارغ" />
-                    <table v-else class="w-full text-right border-collapse">
-                        <thead>
-                            <tr class="bg-gray-50 text-[#4DA1A9]">
-                                <th v-if="isSelectionMode" class="p-4 w-10 text-center no-print">
-                                    <input type="checkbox" :checked="selectedIds.size > 0 && selectedIds.size === filteredReportData.length" @change="toggleSelectAll" class="rounded border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9]">
-                                </th>
-                                <th class="p-4 rounded-r-xl">الصيدلية</th>
-                                <th class="p-4">المريض</th>
-                                <th class="p-4">الدواء</th>
-                                <th class="p-4">الكمية</th>
-                                <th class="p-4">الصيدلي</th>
-                                <th class="p-4">التاريخ</th>
-                                <th class="p-4 rounded-l-xl">الحالة</th>
-                            </tr>
-                        </thead>
+                    
+                    <!-- طباعة محسنة - تظهر فقط أثناء الطباعة -->
+                    <div v-if="isPrinting && reportData.length > 0" class="print-only-dispensings">
+                        <div class="print-header">
+                            <h1 class="print-title">تقرير عمليات الصرف الدوائي</h1>
+                            <div class="print-meta">
+                                <span>تاريخ التقرير: {{ new Date().toLocaleDateString('ar-SA') }}</span>
+                                <span>عدد العمليات: {{ filteredReportData.length }}</span>
+                                <span v-if="dateFrom || dateTo">الفترة: {{ dateFrom || 'غير محدد' }} - {{ dateTo || 'غير محدد' }}</span>
+                            </div>
+                        </div>
+
+                        <!-- ملخص الإحصائيات -->
+                        <div class="print-summary">
+                            <h2>ملخص الإحصائيات</h2>
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <div class="summary-value">{{ filteredReportData.length }}</div>
+                                    <div class="summary-label">إجمالي العمليات</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-value">{{ totalDispensedQuantity }}</div>
+                                    <div class="summary-label">إجمالي الكميات المصروفة</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-value">{{ uniqueDrugsCount }}</div>
+                                    <div class="summary-label">أنواع الأدوية المختلفة</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-value">{{ uniquePatientsCount }}</div>
+                                    <div class="summary-label">عدد المرضى</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- تفاصيل العمليات -->
+                        <div class="operations-details">
+                            <h2>تفاصيل عمليات الصرف</h2>
+                            
+                            <div v-for="(dispensing, index) in filteredReportData" :key="dispensing.id" 
+                                 v-show="!isSelectionMode || isRowSelected(dispensing.id)"
+                                 class="operation-card">
+                                
+                                <div class="operation-header">
+                                    <div class="operation-number">عملية رقم {{ index + 1 }}</div>
+                                    <div class="operation-status">مكتملة</div>
+                                </div>
+                                
+                                <div class="operation-info">
+                                    <div class="info-row">
+                                        <span class="info-label">الصيدلية:</span>
+                                        <span class="info-value">{{ dispensing.pharmacy }}</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">المريض:</span>
+                                        <span class="info-value">{{ dispensing.patient }}</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">الصيدلي:</span>
+                                        <span class="info-value">{{ dispensing.pharmacist }}</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">تاريخ العملية:</span>
+                                        <span class="info-value">{{ dispensing.date }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- جدول الأدوية المصروفة -->
+                                <div v-if="dispensing.fullDetails && dispensing.fullDetails.length > 0" class="medications-table">
+                                    <h3>الأدوية المصروفة</h3>
+                                    <table class="medications-table-content">
+                                        <thead>
+                                            <tr>
+                                                <th>اسم الدواء</th>
+                                                <th>الكمية المصروفة</th>
+                                                <th>تاريخ الصلاحية</th>
+                                                <th>رقم الدفعة</th>
+                                                <th>ملاحظات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="(detail, idx) in dispensing.fullDetails" :key="idx">
+                                                <td class="drug-name">{{ detail.drug_name || detail.drug || 'غير محدد' }}</td>
+                                                <td class="quantity">{{ detail.quantity || detail.dispensed_quantity || 0 }}</td>
+                                                <td class="expiry">{{ detail.expiry_date || detail.expiration_date || '-' }}</td>
+                                                <td class="batch">{{ detail.batch_number || detail.lot_number || '-' }}</td>
+                                                <td class="notes">{{ detail.notes || detail.remarks || '-' }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- إذا لم تكن هناك تفاصيل -->
+                                <div v-else class="simple-medication">
+                                    <div class="medication-item">
+                                        <span class="drug-name">{{ dispensing.drug }}</span>
+                                        <span class="quantity">الكمية: {{ dispensing.quantity }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- تذييل التقرير -->
+                        <div class="print-footer">
+                            <div class="footer-line"></div>
+                            <p>تم إنشاء هذا التقرير بواسطة نظام إدارة المستشفيات - {{ new Date().toLocaleString('ar-SA') }}</p>
+                        </div>
+                    </div>
+
+                    <!-- الجدول العادي - يظهر في الشاشة فقط -->
+                    <table v-if="!isPrinting && reportData.length > 0" class="w-full text-right border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 text-[#4DA1A9]">
+                                    <th v-if="isSelectionMode" class="p-4 w-10 text-center no-print">
+                                        <input type="checkbox" :checked="selectedIds.size > 0 && selectedIds.size === filteredReportData.length" @change="toggleSelectAll" class="rounded border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9]">
+                                    </th>
+                                    <th class="p-4 rounded-r-xl">الصيدلية</th>
+                                    <th class="p-4">المريض</th>
+                                    <th class="p-4">الدواء</th>
+                                    <th class="p-4">الكمية</th>
+                                    <th class="p-4">الصيدلي</th>
+                                    <th class="p-4">التاريخ</th>
+                                    <th class="p-4 rounded-l-xl">الحالة</th>
+                                </tr>
+                            </thead>
                         <tbody class="divide-y divide-gray-100">
                             <tr v-for="dispensing in filteredReportData" :key="dispensing.id" class="hover:bg-[#F8FAFC] transition-colors" :class="{ 'no-print': isSelectionMode && !isRowSelected(dispensing.id) }">
                                 <td v-if="isSelectionMode" class="p-4 text-center no-print">
@@ -866,12 +1796,47 @@ const displayedData = computed(() => {
                                 <td class="p-4 text-gray-500 text-sm">{{ dispensing.pharmacist }}</td>
                                 <td class="p-4 text-gray-500 font-mono text-sm" dir="ltr">{{ dispensing.date }}</td>
                                 <td class="p-4">
-                                     <span class="px-3 py-1 rounded-lg text-xs font-bold" 
-                                        :class="getStatusClass(dispensing.status)">
-                                         {{ getStatusText(dispensing.status) }}
-                                     </span>
+                                    <span class="px-3 py-1 rounded-lg text-xs font-bold bg-green-50 text-green-700 border border-green-200">
+                                        مكتملة
+                                    </span>
                                 </td>
                             </tr>
+                            <!-- بيانات الطباعة الإضافية: تفاصيل العملية -->
+                             <tr v-if="isPrinting && (!isSelectionMode || isRowSelected(dispensing.id)) && dispensing.fullDetails && dispensing.fullDetails.length > 0" class="print-row bg-gray-50/50">
+                                 <td colspan="7" class="p-4 border-t border-gray-200">
+                                     <div class="text-sm font-bold text-gray-700 mb-2">تفاصيل عملية الصرف للمريض {{ dispensing.patient }}:</div>
+                                     <table class="w-full text-right text-xs border border-gray-200 bg-white">
+                                         <thead class="bg-gray-100">
+                                             <tr>
+                                                 <th class="p-2 border border-gray-200">الدواء</th>
+                                                 <th class="p-2 border border-gray-200">الكمية المصروفة</th>
+                                                 <th class="p-2 border border-gray-200">تاريخ الصلاحية</th>
+                                                 <th class="p-2 border border-gray-200">رقم الدفعة</th>
+                                                 <th class="p-2 border border-gray-200">ملاحظات</th>
+                                             </tr>
+                                         </thead>
+                                         <tbody>
+                                             <tr v-for="(detail, idx) in dispensing.fullDetails" :key="idx">
+                                                 <td class="p-2 border border-gray-200 font-medium">
+                                                     {{ detail.drug_name || detail.drug || 'غير محدد' }}
+                                                 </td>
+                                                 <td class="p-2 border border-gray-200 font-mono font-bold text-[#4DA1A9]">
+                                                     {{ detail.quantity || detail.dispensed_quantity || 0 }}
+                                                 </td>
+                                                 <td class="p-2 border border-gray-200 font-mono text-gray-600" dir="ltr">
+                                                     {{ detail.expiry_date || detail.expiration_date || '-' }}
+                                                 </td>
+                                                 <td class="p-2 border border-gray-200 font-mono text-gray-500">
+                                                     {{ detail.batch_number || detail.lot_number || '-' }}
+                                                 </td>
+                                                 <td class="p-2 border border-gray-200 text-gray-600">
+                                                     {{ detail.notes || detail.remarks || '-' }}
+                                                 </td>
+                                             </tr>
+                                         </tbody>
+                                     </table>
+                                 </td>
+                             </tr>
                         </tbody>
                     </table>
                 </div>
@@ -1040,6 +2005,7 @@ const displayedData = computed(() => {
                                 </th>
                                 <th class="p-4 rounded-r-xl">المستخدم</th>
                                 <th class="p-4">نوع المستخدم</th>
+                                <th class="p-4">المؤسسة الصحية</th>
                                 <th class="p-4">النشاط</th>
                                 <th class="p-4">تفاصيل النشاط</th>
                                 <th class="p-4 rounded-l-xl">التوقيت</th>
@@ -1054,6 +2020,11 @@ const displayedData = computed(() => {
                                 <td class="p-4 font-bold text-[#2C5282]">{{ log.userName || 'غير معروف' }}</td>
                                 <td class="p-4 text-gray-600 text-sm">{{ log.userTypeArabic || log.userType }}</td>
                                 <td class="p-4">
+                                     <span class="px-2 py-1  text-[#2C5282]">
+                                         {{ log.hospitalName }}
+                                     </span>
+                                </td>
+                                <td class="p-4">
                                     <span class="font-medium inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 text-gray-700">
                                         {{ log.actionArabic || log.action }}
                                     </span>
@@ -1065,14 +2036,14 @@ const displayedData = computed(() => {
                                     >
                                         <Icon icon="solar:document-text-bold-duotone" class="w-4 h-4" />
                                         <span>عرض التفاصيل</span>
-                                        <span class="text-xs text-gray-400 font-normal font-mono group-hover:text-white/80">({{ formatTableName(log.tableName) }} #{{ log.recordId }})</span>
+                                        <!-- <span class="text-xs text-gray-400 font-normal font-mono group-hover:text-white/80">({{ formatTableName(log.tableName) }} #{{ log.recordId }})</span> -->
                                     </button>
                                 </td>
                                 <td class="p-4 text-gray-500 font-mono text-sm" dir="ltr">{{ log.createdAt }}</td>
                             </tr>
                             <!-- بيانات الطباعة الإضافية: النشاط -->
-                             <tr v-if="isPrinting && (log.details?.old || log.details?.new)" class="print-row bg-gray-50/50">
-                                 <td colspan="5" class="p-4 border-t border-gray-100">
+                             <tr v-if="isPrinting && (!isSelectionMode || isRowSelected(log.id)) && (log.details?.old || log.details?.new)" class="print-row bg-gray-50/50">
+                                 <td colspan="6" class="p-4 border-t border-gray-100">
                                      <div class="grid grid-cols-2 gap-4 text-xs">
                                          <!-- القيم القديمة -->
                                          <div v-if="log.details.old" class="border border-red-200 rounded bg-white">
@@ -1173,7 +2144,7 @@ const displayedData = computed(() => {
         <!-- Activity Details Modal -->
         <div v-if="isActivityModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
              <div @click="closeActivityModal" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
-            <div class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto transform transition-all scale-100" dir="rtl">
+            <div class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-y-auto transform transition-all scale-100" dir="rtl">
                 <div class="bg-[#2C5282] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                     <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#2C5282]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
@@ -1402,8 +2373,16 @@ const displayedData = computed(() => {
 <style>
 @media print {
     @page {
-        size: landscape;
-        margin: 5mm;
+        size: A4 landscape;
+        margin: 10mm;
+    }
+
+    /* Print Header */
+    #print-header {
+        display: block !important;
+        position: static !important;
+        margin-bottom: 20px !important;
+        page-break-after: avoid;
     }
 
     /* 1. Global Resets & Visibility */
@@ -1414,10 +2393,14 @@ const displayedData = computed(() => {
         padding: 0 !important;
         background-color: white !important;
         overflow: visible !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 10pt !important;
+        line-height: 1.4 !important;
+        color: black !important;
     }
 
     /* Hide standard UI elements */
-    nav, aside, header, footer, .drawer-side, .drawer-toggle, .no-print, button {
+    nav, aside, header, footer, .drawer-side, .drawer-toggle, .no-print, button, input, select, textarea {
         display: none !important;
     }
 
@@ -1430,6 +2413,8 @@ const displayedData = computed(() => {
         position: static !important;
         overflow: visible !important;
         background-color: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     /* Reset Main Content Area */
@@ -1459,7 +2444,7 @@ const displayedData = computed(() => {
         display: none !important;
     }
 
-    /* Hide Modals (using specific selector to avoid hiding structural fixed elements) */
+    /* Hide Modals */
     .fixed.inset-0 { 
         display: none !important; 
     }
@@ -1467,14 +2452,13 @@ const displayedData = computed(() => {
     /* 4. Visual Styling (White Paper, Dark Text) */
     
     /* Force white backgrounds */
-    .bg-[#F8FAFC], .bg-gray-50, .bg-white, .bg-blue-50, .bg-green-50, [class*="bg-"] {
+    * {
         background-color: white !important;
-        box-shadow: none !important;
-        border: none !important; /* Remove borders from containers/cards */
+        background-image: none !important;
     }
 
     /* Force dark text */
-    body, p, div, span, td, th, h1, h2, h3, h4 {
+    body, p, div, span, td, th, h1, h2, h3, h4, li, ul, ol {
         color: black !important;
         fill: black !important; /* For icons */
     }
@@ -1485,21 +2469,68 @@ const displayedData = computed(() => {
         border-collapse: collapse !important;
         font-size: 9pt !important;
         background-color: white !important;
+        margin-bottom: 20px !important;
+        page-break-inside: avoid;
     }
     
     th, td {
-        border: 1px solid #ccc !important; /* Restore borders for tables only */
-        padding: 4px 8px !important;
+        border: 1px solid #ccc !important;
+        padding: 6px 8px !important;
         text-align: right !important;
+        vertical-align: top !important;
     }
 
     th {
-        background-color: white !important;
-        border-bottom: 2px solid #000 !important;
+        background-color: #f5f5f5 !important;
+        border-bottom: 2px solid #4DA1A9 !important;
         font-weight: bold !important;
+        font-size: 10pt !important;
     }
 
-    /* Print Logic Helpers */
+    tbody tr:nth-child(even) {
+        background-color: #fafafa !important;
+    }
+
+    /* 6. Page Breaks */
+    .page-break {
+        page-break-before: always;
+    }
+
+    .no-page-break {
+        page-break-inside: avoid;
+    }
+
+    /* Avoid breaking rows across pages */
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    /* 7. Typography */
+    h1, h2, h3, h4, h5, h6 {
+        color: #4DA1A9 !important;
+        font-weight: bold !important;
+        margin: 10px 0 !important;
+        page-break-after: avoid;
+    }
+
+    p {
+        margin: 5px 0 !important;
+    }
+
+    /* 8. Spacing */
+    .bg-white.rounded-3xl {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .p-6 {
+        padding: 0 !important;
+    }
+
+    /* 9. Print Logic Helpers */
     .print-row {
         display: table-row !important;
         background-color: white !important;
@@ -1509,9 +2540,270 @@ const displayedData = computed(() => {
         border-top: none !important;
         padding: 0 8px 8px 8px !important;
     }
-    
-    tr {
-        break-inside: avoid;
+
+    /* Print Summary Styling */
+    .print-summary {
+        background-color: #f9f9f9 !important;
+        border: 1px solid #ddd !important;
+        page-break-inside: avoid;
+        margin-bottom: 20px !important;
+    }
+
+    .print-summary h3 {
+        color: #4DA1A9 !important;
+        font-size: 14pt !important;
+        margin-bottom: 10px !important;
+    }
+
+    .print-summary .grid {
+        display: table !important;
+        width: 100% !important;
+    }
+
+    .print-summary .grid > div {
+        display: table-cell !important;
+        width: 25% !important;
+        padding: 10px !important;
+        vertical-align: top !important;
+    }
+
+    /* Enhanced Dispensings Print Layout */
+    .print-only-dispensings {
+        display: block !important;
+        background-color: white !important;
+        color: black !important;
+        font-family: 'Arial', sans-serif !important;
+        font-size: 12pt !important;
+        line-height: 1.4 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .print-header {
+        text-align: center !important;
+        border-bottom: 3px solid #4DA1A9 !important;
+        padding-bottom: 15px !important;
+        margin-bottom: 20px !important;
+        page-break-after: avoid !important;
+    }
+
+    .print-title {
+        color: #4DA1A9 !important;
+        font-size: 20pt !important;
+        font-weight: bold !important;
+        margin: 0 0 10px 0 !important;
+    }
+
+    .print-meta {
+        display: flex !important;
+        justify-content: center !important;
+        gap: 20px !important;
+        font-size: 10pt !important;
+        color: #666 !important;
+        flex-wrap: wrap !important;
+    }
+
+    .print-summary {
+        background-color: #f8f9fa !important;
+        border: 2px solid #4DA1A9 !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+        margin-bottom: 25px !important;
+        page-break-inside: avoid !important;
+    }
+
+    .print-summary h2 {
+        color: #4DA1A9 !important;
+        font-size: 16pt !important;
+        font-weight: bold !important;
+        margin: 0 0 15px 0 !important;
+        text-align: center !important;
+        border-bottom: 1px solid #4DA1A9 !important;
+        padding-bottom: 5px !important;
+    }
+
+    .summary-grid {
+        display: table !important;
+        width: 100% !important;
+        border-collapse: separate !important;
+        border-spacing: 10px !important;
+    }
+
+    .summary-item {
+        display: table-cell !important;
+        background-color: white !important;
+        border: 1px solid #ddd !important;
+        border-radius: 6px !important;
+        padding: 15px !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+        width: 25% !important;
+    }
+
+    .summary-value {
+        font-size: 18pt !important;
+        font-weight: bold !important;
+        color: #4DA1A9 !important;
+        margin-bottom: 5px !important;
+    }
+
+    .summary-label {
+        font-size: 9pt !important;
+        color: #666 !important;
+        font-weight: normal !important;
+    }
+
+    .operations-details {
+        margin-top: 20px !important;
+    }
+
+    .operations-details h2 {
+        color: #4DA1A9 !important;
+        font-size: 16pt !important;
+        font-weight: bold !important;
+        margin: 20px 0 15px 0 !important;
+        border-bottom: 2px solid #4DA1A9 !important;
+        padding-bottom: 5px !important;
+    }
+
+    .operation-card {
+        border: 1px solid #ddd !important;
+        border-radius: 8px !important;
+        margin-bottom: 20px !important;
+        background-color: white !important;
+        page-break-inside: avoid !important;
+    }
+
+    .operation-header {
+        background-color: #4DA1A9 !important;
+        color: white !important;
+        padding: 10px 15px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        border-radius: 8px 8px 0 0 !important;
+    }
+
+    .operation-number {
+        font-weight: bold !important;
+        font-size: 12pt !important;
+    }
+
+    .operation-status {
+        background-color: rgba(255,255,255,0.2) !important;
+        padding: 3px 8px !important;
+        border-radius: 4px !important;
+        font-size: 9pt !important;
+    }
+
+    .operation-info {
+        padding: 15px !important;
+        background-color: #f8f9fa !important;
+    }
+
+    .info-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        margin-bottom: 8px !important;
+        padding: 5px 0 !important;
+        border-bottom: 1px solid #eee !important;
+    }
+
+    .info-row:last-child {
+        border-bottom: none !important;
+        margin-bottom: 0 !important;
+    }
+
+    .info-label {
+        font-weight: bold !important;
+        color: #333 !important;
+        min-width: 100px !important;
+    }
+
+    .info-value {
+        color: #666 !important;
+        text-align: right !important;
+    }
+
+    .medications-table {
+        padding: 15px !important;
+    }
+
+    .medications-table h3 {
+        color: #4DA1A9 !important;
+        font-size: 12pt !important;
+        font-weight: bold !important;
+        margin: 0 0 10px 0 !important;
+    }
+
+    .medications-table-content {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 9pt !important;
+        background-color: white !important;
+    }
+
+    .medications-table-content th {
+        background-color: #4DA1A9 !important;
+        color: white !important;
+        padding: 8px !important;
+        text-align: center !important;
+        font-weight: bold !important;
+        border: 1px solid #ddd !important;
+    }
+
+    .medications-table-content td {
+        padding: 6px 8px !important;
+        border: 1px solid #ddd !important;
+        text-align: center !important;
+    }
+
+    .medications-table-content .drug-name {
+        text-align: right !important;
+        font-weight: bold !important;
+    }
+
+    .medications-table-content .quantity {
+        font-weight: bold !important;
+        color: #4DA1A9 !important;
+    }
+
+    .simple-medication {
+        padding: 15px !important;
+        background-color: #f8f9fa !important;
+        border-top: 1px solid #ddd !important;
+    }
+
+    .medication-item {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 8px 0 !important;
+    }
+
+    .medication-item .drug-name {
+        font-weight: bold !important;
+        color: #4DA1A9 !important;
+    }
+
+    .medication-item .quantity {
+        color: #666 !important;
+        font-weight: bold !important;
+    }
+
+    .print-footer {
+        margin-top: 30px !important;
+        text-align: center !important;
+        font-size: 9pt !important;
+        color: #666 !important;
+        border-top: 1px solid #ddd !important;
+        padding-top: 15px !important;
+    }
+
+    .footer-line {
+        height: 2px !important;
+        background-color: #4DA1A9 !important;
+        margin-bottom: 10px !important;
     }
 }
 </style>

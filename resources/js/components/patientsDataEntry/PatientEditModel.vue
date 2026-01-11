@@ -41,7 +41,10 @@ const openEditDatePicker = () => {
 };
 
 import axios from 'axios';
-const duplicateError = ref("");
+const duplicateErrors = ref({
+    phone: "",
+    email: "",
+});
 let debounceTimeout = null;
 
 // Helper to get headers with token
@@ -54,41 +57,35 @@ const getAuthHeaders = () => {
     };
 };
 
-const checkUniqueness = async () => {
-    if (debounceTimeout) clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(async () => {
-        try {
-            // Only check if we have enough chars to be checking
-            const nationalId = editForm.value.nationalId;
-            const phone = editForm.value.phone;
-            
-            // Basic length check to avoid spamming on short inputs
-             if ((nationalId && nationalId.length < 12) && (phone && phone.length < 10)) {
-                 duplicateError.value = "";
-                 return;
-             }
-             
-             // If completely empty, clear error
-             if (!nationalId && !phone) {
-                 duplicateError.value = "";
-                 return;
-             }
+const checkFieldUniqueness = async (field) => {
+    const value = editForm.value[field];
+    
+    // إعادة تعيين الخطأ الخاص بهذا الحقل
+    duplicateErrors.value[field] = "";
 
-            const response = await axios.post('/api/data-entry/patients/check-unique', {
-                national_id: nationalId,
-                phone: phone,
-                exclude_id: props.patient.id // Exclude self
-            }, getAuthHeaders());
+    // شروط مبدئية قبل الفحص
+    if (field === 'phone' && (!value || value.length < 10)) return;
+    if (field === 'email' && (!value || !value.includes('@'))) return;
 
-            if (response.data.exists) {
-                duplicateError.value = response.data.message;
-            } else {
-                duplicateError.value = "";
-            }
-        } catch (error) {
-            console.error("Check unique error", error);
+    try {
+        const payload = {
+            phone: field === 'phone' ? value : null,
+            email: field === 'email' ? value : null,
+            exclude_id: props.patient.id // استبعاد المريض الحالي
+        };
+
+        const response = await axios.post('/api/data-entry/patients/check-unique', payload, getAuthHeaders());
+
+        if (response.data.exists) {
+            duplicateErrors.value[field] = response.data.message;
         }
-    }, 500);
+    } catch (error) {
+        console.error("Check unique error", error);
+    }
+};
+
+const checkUniqueness = async () => {
+    // ترك الدالة القديمة فارغة
 };
 
 // التحقق من صحة رقم الهاتف أثناء الكتابة
@@ -102,7 +99,7 @@ const validateEditPhoneInput = () => {
     }
     
     // Trigger check
-    checkUniqueness();
+    checkFieldUniqueness('phone');
     
     // Local format validation for error display
     const phone = editForm.value.phone;
@@ -130,14 +127,16 @@ const validateEditForm = () => {
         phone: false,
         email: false,
     };
-
     if (!editForm.value.birthDate) {
-        editErrors.value.birthDate = true;
+        editErrors.value.birthDate = 'تاريخ الميلاد مطلوب';
         isValid = false;
     }
 
     const phoneRegex = /^(09[1-4])\d{7}$/;
-    if (!editForm.value.phone || !phoneRegex.test(editForm.value.phone)) {
+    if (!editForm.value.phone || editForm.value.phone.trim() === "") {
+        editErrors.value.phone = 'رقم الهاتف مطلوب';
+        isValid = false;
+    } else if (!phoneRegex.test(editForm.value.phone.trim())) {
         editErrors.value.phone = 'رقم الهاتف غير صحيح (يجب أن يبدأ بـ 091-094 ويتكون من 10 أرقام)';
         isValid = false;
     }
@@ -149,7 +148,7 @@ const validateEditForm = () => {
     }
 
     // Block if duplicate
-    if (duplicateError.value) return false;
+    if (duplicateErrors.value.phone || duplicateErrors.value.email) return false;
 
     return isValid;
 };
@@ -216,6 +215,10 @@ watch(() => props.isOpen, (newVal) => {
             birthDate: false,
             phone: false,
             email: false,
+        };
+        duplicateErrors.value = { 
+            phone: "", 
+            email: "" 
         };
         
         // تحديث مرجع حقل التاريخ بعد تهيئة البيانات
@@ -364,14 +367,15 @@ const maxDate = computed(() => {
                             placeholder="09XXXXXXXX"
                             maxlength="10"
                             @input="validateEditPhoneInput"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': editErrors.phone || duplicateError.includes('رقم الهاتف') }"
+                            @blur="checkFieldUniqueness('phone')"
+                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': editErrors.phone || duplicateErrors.phone }"
                             class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right"
                         />
-                        <div v-if="duplicateError && duplicateError.includes('رقم الهاتف')" class="text-xs text-red-500 flex items-center gap-1 font-bold animate-pulse">
+                        <div v-if="duplicateErrors.phone" class="text-xs text-red-500 flex items-center gap-1 font-bold animate-pulse">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            {{ duplicateError }}
+                            {{ duplicateErrors.phone }}
                         </div>
-                        <p v-else-if="editErrors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                        <p v-else-if="editErrors.phone" class="text-xs text-red-500 mt-1 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             {{ editErrors.phone }}
                         </p>
@@ -388,10 +392,18 @@ const maxDate = computed(() => {
                             type="email"
                             v-model="editForm.email"
                             placeholder="example@domain.com"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': editErrors.email }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            @input="duplicateErrors.email = ''"
+                            @blur="checkFieldUniqueness('email')"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
+                                (editErrors.email || duplicateErrors.email) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
                         />
-                        <p v-if="editErrors.email" class="text-xs text-red-500 flex items-center gap-1">
+                         <div v-if="duplicateErrors.email" class="text-xs text-red-500 flex items-center gap-1 font-bold animate-pulse">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ duplicateErrors.email }}
+                        </div>
+                        <p v-else-if="editErrors.email" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             البريد الإلكتروني غير صحيح
                         </p>

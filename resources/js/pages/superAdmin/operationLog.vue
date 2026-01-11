@@ -69,7 +69,9 @@ const operationTypes = computed(() => {
 // ----------------------------------------------------
 const searchTerm = ref("");
 const operationTypeFilter = ref("الكل");
-const selectedDate = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 
 // حالة الفرز الحالية
 const sortKey = ref('date');
@@ -87,6 +89,11 @@ const parseDate = (dateString) => {
 const sortOperations = (key, order) => {
     sortKey.value = key;
     sortOrder.value = order;
+};
+
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
 };
 
 // دالة محسوبة لتطبيق البحث والتصفية والفرز
@@ -109,15 +116,30 @@ const filteredOperations = computed(() => {
 
         // تصفية حسب التاريخ
         let dateMatch = true;
-        if (selectedDate.value) {
-            const [y, m, d] = selectedDate.value.split('-').map(Number);
-            // إنشاء تاريخ من المدخل (توقيت محلي 00:00:00)
-            const inputTime = new Date(y, m - 1, d).getTime();
-            
-            // إنشاء تاريخ من البيانات (توقيت محلي 00:00:00)
-            const opTime = parseDate(op.date).getTime();
-            
-            dateMatch = inputTime === opTime;
+        if (dateFrom.value || dateTo.value) {
+            const opDate = parseDate(op.date);
+            if (isNaN(opDate.getTime())) {
+                dateMatch = false;
+            } else {
+                opDate.setHours(0, 0, 0, 0);
+
+                let matchesFrom = true;
+                let matchesTo = true;
+
+                if (dateFrom.value) {
+                    const fromDate = new Date(dateFrom.value);
+                    fromDate.setHours(0, 0, 0, 0);
+                    matchesFrom = opDate >= fromDate;
+                }
+
+                if (dateTo.value) {
+                    const toDate = new Date(dateTo.value);
+                    toDate.setHours(23, 59, 59, 999);
+                    matchesTo = opDate <= toDate;
+                }
+
+                dateMatch = matchesFrom && matchesTo;
+            }
         }
 
         return searchMatch && typeMatch && dateMatch;
@@ -227,6 +249,7 @@ const printTable = () => {
             <thead>
                 <tr>
                     <th>رقم الملف</th>
+                    <th>المستشفى</th>
                     <th>الإسم الرباعي</th>
                     <th>نوع العملية</th>
                     <th>تاريخ العملية</th>
@@ -239,6 +262,7 @@ const printTable = () => {
         tableHtml += `
             <tr>
                 <td>${op.file_number || '-'}</td>
+                <td>${op.hospital_name || '-'}</td>
                 <td>${op.full_name || '-'}</td>
                 <td>
                     <strong>${op.operation_label || '-'}</strong><br>
@@ -282,13 +306,59 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                             <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
                         </div>
 
-                         <div class="relative">
-                            <input 
-                                type="date" 
-                                v-model="selectedDate"
-                                class="h-11 px-4 rounded-[30px] border-2 border-gray-200 outline-none text-sm text-gray-600 focus:border-[#4DA1A9] transition-all bg-white"
-                            />
-                        </div>
+                        <button
+                            @click="showDateFilter = !showDateFilter"
+                            class="h-11 w-23 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                        >
+                            <Icon icon="solar:calendar-bold" class="w-5 h-5" />
+                        </button>
+
+                        <Transition
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="opacity-0 scale-95"
+                            enter-to-class="opacity-100 scale-100"
+                            leave-active-class="transition duration-150 ease-in"
+                            leave-from-class="opacity-100 scale-100"
+                            leave-to-class="opacity-0 scale-95"
+                        >
+                            <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateFrom"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="من تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <span class="text-gray-600 font-medium">إلى</span>
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateTo"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="إلى تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <button
+                                    v-if="dateFrom || dateTo"
+                                    @click="clearDateFilter"
+                                    class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    title="مسح فلتر التاريخ"
+                                >
+                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                    مسح
+                                </button>
+                            </div>
+                        </Transition>
                         
                         <div class="dropdown dropdown-start">
                             <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
@@ -378,20 +448,20 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
                                     <tr>
                                         <th class="file-number-col">رقم الملف</th>
-                                        <th class="name-col">المفعول به</th>
-                                        <th class="operation-type-col">التفاصيل</th>
+                                        <th class="name-col"> الاسم</th>
+                                        <th class="operation-type-col">نوع العملية</th>
                                         <th class="operation-date-col">تاريخ العملية</th>
                                         </tr>
                                 </thead>
 
                                 <tbody class="text-gray-800">
                                     <tr v-if="isLoading">
-                                        <td colspan="4" class="p-4">
+                                        <td colspan="5" class="p-4">
                                             <TableSkeleton :rows="10" />
                                         </td>
                                     </tr>
                                     <tr v-else-if="error">
-                                        <td colspan="4" class="py-12">
+                                        <td colspan="5" class="py-12">
                                             <ErrorState :message="error" :retry="fetchOperations" />
                                         </td>
                                     </tr>
@@ -402,6 +472,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
                                             <td class="file-number-col">{{ op.file_number }}</td>
+                                            
                                             <td class="name-col">{{ op.full_name }}</td>
                                             <td class="operation-type-col">
                                                 <div class="flex flex-col">
@@ -412,7 +483,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             <td class="operation-date-col">{{ op.date }}</td>
                                         </tr>
                                         <tr v-if="filteredOperations.length === 0">
-                                            <td colspan="4" class="py-12">
+                                            <td colspan="5" class="py-12">
                                                 <EmptyState message="لا توجد عمليات حالياً" />
                                             </td>
                                         </tr>
@@ -467,6 +538,10 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
 }
 .name-col {
     width: 170px;
+    min-width: 150px;
+}
+.hospital-col {
+    width: 150px;
     min-width: 150px;
 }
 </style>

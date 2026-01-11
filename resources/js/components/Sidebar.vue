@@ -2,7 +2,7 @@
     <aside
         :class="[
             'bg-[#2E5077] text-white rounded-l-3xl h-full flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
-            'overflow-y-auto custom-scrollbar-hide',
+            'overflow-y-auto overflow-x-hidden custom-scrollbar-hide',
             isCollapsed ? 'w-20' : 'w-55',
         ]"
     >
@@ -135,15 +135,15 @@ const links = {
         { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/superAdmin/statistics" },
         { name: "قائمة المرضى", icon: "line-md:account", to: "/superAdmin/patients" },
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/superAdmin/medications" },
-        { name: "المدراء و الموردين", icon: "clarity:employee-group-solid", to: "/superAdmin/employees" },
+        { name: "المدراء و الموردين", icon: "mdi:account-tie", to: "/superAdmin/employees" },
          { name: "الموظفين", icon: "clarity:employee-group-solid", to: "/superAdmin/AllemployeesList" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/superAdmin/operations" },
         { name: "طلبات الموردين", icon: "carbon:request-quote", to: "/superAdmin/requests" },
         { name: "المستشفيات", icon: "fa:hospital-o", to: "/superAdmin/hospital" },
-        { name: "شركات التوريد", icon: "fa:hospital-o", to: "/superAdmin/Supply" },
-        { name: "مخزون الموردين", icon: "ic:outline-inventory-2", to: "/superAdmin/supplier-inventory" },
-        { name:    " مخزون المستشفيات", icon: "ic:outline-inventory-2", to: "/superAdmin/inventory" },
-        { name: "التقارير", icon: "carbon:report-data", to: "/superAdmin/reports" },
+        { name: "شركات التوريد", icon: "mdi:truck-delivery", to: "/superAdmin/Supply" },
+        { name: "مخزون الموردين", icon: "mdi:warehouse", to: "/superAdmin/supplier-inventory" },
+        { name:    " مخزون المستشفيات", icon: "mdi:package-variant", to: "/superAdmin/inventory" },
+        { name: "التقارير", icon: "mdi:file-chart", to: "/superAdmin/reports" },
     ],
 
 

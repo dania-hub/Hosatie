@@ -373,6 +373,7 @@ class OperationLogSuperController extends BaseApiController
             
             // عمليات طلبات التوريد الخارجية
             'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
+          
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام توريد خارجي',
             'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
             'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',

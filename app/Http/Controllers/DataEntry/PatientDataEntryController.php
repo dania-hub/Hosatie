@@ -309,49 +309,73 @@ class PatientDataEntryController extends BaseApiController
     // 8. Check Uniqueness (للتحقق الفوري)
     public function checkUnique(Request $request)
     {
-        $user = $request->user();
-        $hospitalId = $user->hospital_id;
-
         $request->validate([
             'national_id' => 'nullable|string',
             'phone'       => 'nullable|string',
+            'email'       => 'nullable|string',
             'exclude_id'  => 'nullable|integer',
         ]);
 
-        $exists = false;
-        $msg = '';
-
         if ($request->filled('national_id')) {
-            $query = User::where('national_id', $request->national_id)
-                         ->where('type', 'patient');
+            $query = User::where('national_id', $request->national_id);
             
             if ($request->filled('exclude_id')) {
                 $query->where('id', '!=', $request->exclude_id);
             }
 
             if ($query->exists()) {
-                $exists = true;
-                $msg = 'الرقم الوطني مسجل بالفعل';
+                return response()->json([
+                    'exists' => true,
+                    'message' => 'الرقم الوطني موجود بالفعل في النظام',
+                    'field' => 'national_id'
+                ]);
             }
         }
 
-        if (!$exists && $request->filled('phone')) {
-            $query = User::where('phone', $request->phone)
-                         ->where('type', 'patient');
+        if ($request->filled('phone')) {
+            $phone = $request->phone;
+            // التحقق من الرقم كما هو، أو مع البادئات الشائعة إذا كان يبدأ بـ 09
+            $query = User::where(function($q) use ($phone) {
+                $q->where('phone', $phone);
+                if (str_starts_with($phone, '09')) {
+                    $suffix = substr($phone, 1); // 9xxxxxxxx
+                    $q->orWhere('phone', '00218' . $suffix)
+                      ->orWhere('phone', '+218' . $suffix);
+                }
+            });
 
             if ($request->filled('exclude_id')) {
                 $query->where('id', '!=', $request->exclude_id);
             }
 
             if ($query->exists()) {
-                $exists = true;
-                $msg = 'رقم الهاتف مسجل بالفعل';
+                return response()->json([
+                    'exists' => true,
+                    'message' => 'رقم الهاتف موجود بالفعل في النظام',
+                    'field' => 'phone'
+                ]);
+            }
+        }
+
+        if ($request->filled('email')) {
+            $query = User::where('email', $request->email);
+
+            if ($request->filled('exclude_id')) {
+                $query->where('id', '!=', $request->exclude_id);
+            }
+
+            if ($query->exists()) {
+                return response()->json([
+                    'exists' => true,
+                    'message' => 'البريد الإلكتروني موجود بالفعل في النظام',
+                    'field' => 'email'
+                ]);
             }
         }
 
         return response()->json([
-            'exists' => $exists,
-            'message' => $msg
+            'exists' => false,
+            'message' => ''
         ]);
     }
 }

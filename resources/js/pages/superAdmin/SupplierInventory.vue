@@ -43,6 +43,7 @@ const inventories = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
 const searchTerm = ref("");
+const quantitySort = ref("");
 
 // ----------------------------------------------------
 // 3. جلب البيانات
@@ -70,13 +71,35 @@ const fetchInventory = async () => {
 // 4. التصفية والبحث
 // ----------------------------------------------------
 const filteredInventories = computed(() => {
-    if (!searchTerm.value) return inventories.value;
-    
-    const search = searchTerm.value.toLowerCase();
-    return inventories.value.filter(item => 
-        (item.drug_name && item.drug_name.toLowerCase().includes(search)) ||
-        (item.hospital_name && item.hospital_name.toLowerCase().includes(search)) // Note: hospital_name here holds the Supplier Name
-    );
+    let list = [...inventories.value];
+
+    if (searchTerm.value && searchTerm.value.trim()) {
+        const search = searchTerm.value.toLowerCase().trim();
+        list = list.filter((item) => {
+            const fields = [
+                item.drug_name,
+                item.strength,
+                item.current_quantity,
+                item.needed_quantity,
+                item.hospital_name // Note: hospital_name here holds the Supplier Name
+            ];
+
+            return fields.some((field) => {
+                if (field === null || field === undefined) return false;
+                return String(field).toLowerCase().includes(search);
+            });
+        });
+    }
+
+    if (quantitySort.value) {
+        list.sort((a, b) => {
+            const qtyA = Number(a.current_quantity) || 0;
+            const qtyB = Number(b.current_quantity) || 0;
+            return quantitySort.value === 'asc' ? qtyA - qtyB : qtyB - qtyA;
+        });
+    }
+
+    return list;
 });
 
 // ----------------------------------------------------
@@ -143,6 +166,45 @@ onMounted(() => {
             <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
                 <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     <search v-model="searchTerm" class="flex-1 min-w-[150px] sm:min-w-[200px]" />
+                    <div class="dropdown dropdown-start">
+                        <div
+                            tabindex="0"
+                            role="button"
+                            class="inline-flex items-center px-4 py-3 border-2 border-[#ffffff8d] rounded-full bg-[#4DA1A9] text-white text-sm font-medium cursor-pointer hover:bg-[#5e8c90f9] transition-all duration-200"
+                        >
+                            <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
+                            فرز الكمية
+                        </div>
+                        <ul
+                            tabindex="0"
+                            class="dropdown-content z-50 menu p-2 shadow-lg bg-white border rounded-2xl w-52 text-right"
+                        >
+                            <li>
+                                <a
+                                    @click="quantitySort = ''"
+                                    :class="{'font-bold text-[#4DA1A9]': quantitySort === ''}"
+                                >
+                                    بدون فرز
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    @click="quantitySort = 'desc'"
+                                    :class="{'font-bold text-[#4DA1A9]': quantitySort === 'desc'}"
+                                >
+                                    الكمية الأعلى أولاً
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    @click="quantitySort = 'asc'"
+                                    :class="{'font-bold text-[#4DA1A9]': quantitySort === 'asc'}"
+                                >
+                                    الكمية الأقل أولاً
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                     <p class="text-sm font-semibold text-gray-600 ml-2">
                         عدد النتائج: <span class="text-[#4DA1A9] text-lg font-bold">{{ filteredInventories.length }}</span>
                     </p>

@@ -188,17 +188,19 @@ class DashboardSuperController extends BaseApiController
 
             $hospitals = Hospital::with(['supplier'])
                 ->withCount([
-                    'users as staff_count',
+                    'users as staff_count' => function ($query) {
+                        $query->where('type', '!=', 'patient');
+                    },
+                    'users as patients_count' => function ($query) {
+                        $query->where('type', 'patient');
+                    },
                     'warehouses as warehouses_count',
                     'departments as departments_count',
                     'pharmacies as pharmacies_count'
                 ])
                 ->get()
                 ->map(function ($hospital) {
-                    // عدد المرضى في المستشفى
-                    $patientsCount = Prescription::where('hospital_id', $hospital->id)
-                        ->distinct('patient_id')
-                        ->count();
+                    $patientsCount = $hospital->patients_count;
 
                     // عدد الوصفات النشطة
                     $activePrescriptions = Prescription::where('hospital_id', $hospital->id)
@@ -565,6 +567,7 @@ class DashboardSuperController extends BaseApiController
 
             $query = DB::table('audit_logs')
                 ->join('users', 'audit_logs.user_id', '=', 'users.id')
+                ->leftJoin('hospitals', 'audit_logs.hospital_id', '=', 'hospitals.id')
                 ->select(
                     'audit_logs.id',
                     'audit_logs.action',
@@ -573,8 +576,10 @@ class DashboardSuperController extends BaseApiController
                     'audit_logs.old_values',
                     'audit_logs.new_values',
                     'audit_logs.created_at',
+                    'audit_logs.hospital_id',
                     'users.full_name as user_name',
-                    'users.type as user_type'
+                    'users.type as user_type',
+                    'hospitals.name as hospital_name'
                 );
 
             // Filter by date range
@@ -609,6 +614,7 @@ class DashboardSuperController extends BaseApiController
                         'userName' => $activity->user_name,
                         'userType' => $activity->user_type,
                         'userTypeArabic' => $this->translateUserType($activity->user_type),
+                        'hospitalName' => $activity->hospital_name ?? 'غير محدد',
                         'createdAt' => Carbon::parse($activity->created_at)->format('Y-m-d H:i:s'),
                         'details' => [
                             'old' => json_decode($activity->old_values, true),
@@ -650,6 +656,7 @@ class DashboardSuperController extends BaseApiController
             'pharmacist' => 'صيدلي',
             'doctor' => 'طبيب',
             'department_head' => 'مدير القسم',
+            'data_entry' => 'مدخل بيانات',
             'patient' => 'مريض',
             default => $type,
         };
@@ -706,6 +713,7 @@ class DashboardSuperController extends BaseApiController
             'update_drug' => 'تعديل بيانات دواء',
             'delete_drug' => 'حذف دواء',
             'dispense_drug' => 'صرف دواء',
+            'drug_expired_zeroed' => 'تصفير كمية دواء منتهية',
             
             // User Actions
             'create_user' => 'إضافة مستخدم',
@@ -749,6 +757,13 @@ class DashboardSuperController extends BaseApiController
             'reject_internal_supply_request' => 'رفض طلب صرف داخلي',
             'dispense_internal_supply_request' => 'صرف طلب داخلي',
             'acknowledge_internal_supply_request' => 'استلام طلب صرف داخلي',
+
+            // Pharmacist and Department specific actions
+            'pharmacist_create_supply_request' => 'إنشاء طلب توريد داخلي (صيدلي)',
+            'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (صيدلي)',
+            'department_create_supply_request' => 'إنشاء طلب توريد داخلي (قسم)',
+            'department_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (قسم)',
+            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (إدارة)',
 
             // Patient Transfer Requests
             'create_patient_transfer_request' => 'إنشاء طلب نقل مريض',

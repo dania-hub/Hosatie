@@ -28,7 +28,11 @@ const errors = ref({
     email: false,
 });
 
-const duplicateError = ref("");
+const duplicateErrors = ref({
+    nationalId: "",
+    phone: "",
+    email: "",
+});
 let debounceTimeout = null;
 
 // Helper to get headers with token
@@ -48,34 +52,40 @@ const maxDate = computed(() => {
     return today.toISOString().split('T')[0];
 });
 
-const checkUniqueness = async () => {
-    // Clear previous timeout
+const checkFieldUniqueness = async (field) => {
+    const value = form.value[field];
+    
+    // إعادة تعيين الخطأ الخاص بهذا الحقل
+    duplicateErrors.value[field] = "";
+
+    // شروط مبدئية قبل الفحص
+    if (field === 'nationalId' && (!value || value.length < 12)) return;
+    if (field === 'phone' && (!value || value.length < 10)) return;
+    if (field === 'email' && (!value || !value.includes('@') || value.length < 5)) return;
+
     if (debounceTimeout) clearTimeout(debounceTimeout);
     
-    // Clear error initially
-    duplicateError.value = "";
-
-    // Validation prerequisites for check
-    const nationalId = form.value.nationalId;
-    const phone = form.value.phone;
-    
-    // Quick invalid check
-    if ((!nationalId || nationalId.length < 12) && (!phone || phone.length < 10)) return;
-
     debounceTimeout = setTimeout(async () => {
         try {
-            const response = await axios.post('/api/data-entry/patients/check-unique', {
-                national_id: nationalId.length === 12 ? nationalId : null,
-                phone: phone.length === 10 ? phone : null
-            }, getAuthHeaders());
+            const payload = {
+                national_id: field === 'nationalId' ? value : null,
+                phone: field === 'phone' ? value : null,
+                email: field === 'email' ? value : null
+            };
+
+            const response = await axios.post('/api/data-entry/patients/check-unique', payload, getAuthHeaders());
 
             if (response.data.exists) {
-                duplicateError.value = response.data.message;
+                duplicateErrors.value[field] = response.data.message;
             }
         } catch (error) {
             console.error("Check unique error", error);
         }
-    }, 500); // 500ms debounce
+    }, 500);
+};
+
+const checkUniqueness = async () => {
+    // ترك الدالة القديمة فارغة أو إزالتها إذا لزم الأمر، لكننا سنعتمد على checkFieldUniqueness
 };
 
 // حالة نافذة التأكيد
@@ -103,10 +113,9 @@ const validateNationalIdInput = () => {
         errors.value.nationalId = "";
     }
 
-    checkUniqueness();
+    checkFieldUniqueness('nationalId');
 };
 
-// التحقق من صحة رقم الهاتف أثناء الكتابة
 const validatePhoneInput = () => {
     // إزالة جميع الأحرف غير الرقمية
     form.value.phone = form.value.phone.replace(/\D/g, '');
@@ -129,10 +138,11 @@ const validatePhoneInput = () => {
             errors.value.phone = "";
         }
     } else {
+        // نتركها فارغة لكي تتولى validateForm إظهار رسالة "مطلوب" عند الضغط على حفظ
         errors.value.phone = "";
     }
 
-    checkUniqueness();
+    checkFieldUniqueness('phone');
 };
 
 const validateNameInput = () => {
@@ -149,6 +159,23 @@ const validateNameInput = () => {
     } else {
         errors.value.name = "";
     }
+};
+
+const validateEmailInput = () => {
+    const emailValue = form.value.email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (emailValue.length > 0) {
+        if (!emailRegex.test(emailValue)) {
+            errors.value.email = 'البريد الإلكتروني غير صحيح';
+        } else {
+            errors.value.email = "";
+        }
+    } else {
+        errors.value.email = "";
+    }
+    
+    checkFieldUniqueness('email');
 };
 
 // التحقق من صحة البيانات النهائية
@@ -191,9 +218,19 @@ const validateForm = () => {
         errors.value.birthDate = 'تاريخ الميلاد مطلوب';
         isValid = false;
     }
-// ...
-    // Prevent submit if duplicate found
-    if (duplicateError.value) return false;
+   
+    const phoneValue = data.phone ? data.phone.trim() : "";
+    const phoneRegex = /^(09[1-4])\d{7}$/;
+    if (!phoneValue) {
+        errors.value.phone = 'رقم الهاتف مطلوب';
+        isValid = false;
+    } else if (!phoneRegex.test(phoneValue)) {
+        errors.value.phone = 'رقم الهاتف يجب أن يبدأ بـ 091, 092, 093, 094 ويتكون من 10 أرقام';
+        isValid = false;
+    }
+    
+    // Block if duplicate found
+    if (duplicateErrors.value.nationalId || duplicateErrors.value.phone || duplicateErrors.value.email) return false;
 
     return isValid;
 };
@@ -212,13 +249,14 @@ const isFormValid = computed(() => {
 
     if (!data.birthDate) return false;
 
+
     const phoneRegex = /^(09[1-4])\d{7}$/; 
-    if (!phoneRegex.test(data.phone.trim())) return false;
+   if (!phoneRegex.test(data.phone.trim())) return false;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (data.email && data.email.trim() !== '' && !emailRegex.test(data.email.trim())) return false;
 
-    if (duplicateError.value) return false;
+    if (duplicateErrors.value.nationalId || duplicateErrors.value.phone || duplicateErrors.value.email) return false;
 
     return true;
 });
@@ -237,6 +275,11 @@ const resetForm = () => {
         birthDate: false, 
         phone: false, 
         email: false 
+    };
+    duplicateErrors.value = { 
+        nationalId: "", 
+        phone: "", 
+        email: "" 
     };
 };
 // ...
@@ -324,14 +367,15 @@ watch(() => props.isOpen, (newVal) => {
                             placeholder="XXXXXXXXXXXX"
                             maxlength="12"
                             @input="validateNationalIdInput"
+                            @blur="checkFieldUniqueness('nationalId')"
                             :class="[
                                 'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
-                                (errors.nationalId || (duplicateError && duplicateError.includes('الرقم'))) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                (errors.nationalId || duplicateErrors.nationalId) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
                             ]"
                         />
-                        <div v-if="duplicateError && duplicateError.includes('الرقم')" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
+                        <div v-if="duplicateErrors.nationalId" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            {{ duplicateError }}
+                            {{ duplicateErrors.nationalId }}
                         </div>
                         <p v-else-if="errors.nationalId" class="text-xs text-red-500 mt-1 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -350,8 +394,10 @@ watch(() => props.isOpen, (newVal) => {
                             v-model="form.name"
                             placeholder="أدخل الاسم الرباعي"
                             @input="validateNameInput"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.name }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
+                                errors.name ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
                         />
                         <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -375,7 +421,7 @@ watch(() => props.isOpen, (newVal) => {
             :min="minDate"
             v-model="form.birthDate"
             :class="[
-                'h-9 text-right w-full pl-3 pr-10 appearance-none rounded-2xl bg-white cursor-pointer',
+                'h-9 text-right w-full pl-3 pr-10 appearance-none rounded-xl bg-white cursor-pointer',
                 'border focus:outline-none transition-colors duration-200',
                 errors.birthDate 
                     ? 'border-red-500 hover:border-red-500 focus:border-red-500' 
@@ -408,27 +454,27 @@ watch(() => props.isOpen, (newVal) => {
         <Icon icon="solar:phone-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
         رقم الهاتف
     </label>
-    <Input
-        id="phone"
-        v-model="form.phone"
-        type="text"
-        placeholder="09XXXXXXXX"
-        maxlength="10"
-        @input="validatePhoneInput"
-        :class="[
-            'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
-            (errors.phone || (duplicateError && duplicateError.includes('الهاتف'))) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
-        ]"
-    />
-    <div v-if="duplicateError && duplicateError.includes('الهاتف')" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
-        <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-        {{ duplicateError }}
-    </div>
-    <p v-else-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
-        <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-        {{ errors.phone }}
-    </p>
-</div>
+                        <Input
+                            id="phone"
+                            v-model="form.phone"
+                            placeholder="09XXXXXXXX"
+                            maxlength="10"
+                            @input="validatePhoneInput"
+                            @blur="checkFieldUniqueness('phone')"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
+                                (errors.phone || duplicateErrors.phone) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
+                        />
+                        <div v-if="duplicateErrors.phone" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ duplicateErrors.phone }}
+                        </div>
+                        <p v-else-if="errors.phone" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.phone }}
+                        </p>
+                    </div>
 
                     <!-- Email -->
                     <div class="space-y-2 md:col-span-2">
@@ -441,10 +487,18 @@ watch(() => props.isOpen, (newVal) => {
                             type="email"
                             v-model="form.email"
                             placeholder="example@domain.com"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.email }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            @input="validateEmailInput"
+                            @blur="checkFieldUniqueness('email')"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
+                                (errors.email || duplicateErrors.email) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
                         />
-                        <p v-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
+                        <div v-if="duplicateErrors.email" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ duplicateErrors.email }}
+                        </div>
+                        <p v-else-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             {{ errors.email }}
                         </p>
@@ -461,8 +515,9 @@ watch(() => props.isOpen, (newVal) => {
                     إلغاء
                 </button>
                 <button 
-                    @click="submitForm" 
+                                       @click="submitForm" 
                     class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-0.5"
+
                 >
                     <Icon icon="solar:check-read-bold" class="w-5 h-5" />
                     حفظ البيانات

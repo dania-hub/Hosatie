@@ -238,12 +238,8 @@ const passwordTouched = ref(false);
 const validateEmail = () => {
     const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
     
-    if (!email.value) {
-        emailError.value = "حقل البريد الإلكتروني مطلوب";
-        return false;
-    } 
-    else if (!emailPattern.test(email.value)) {
-        emailError.value = "صيغة البريد الإلكتروني غير صحيحة";
+    if (!email.value || !emailPattern.test(email.value)) {
+        emailError.value = "يرجى ادخال بريد الكتروني صحيح";
         return false;
     } 
     else {
@@ -270,11 +266,7 @@ const validatePassword = () => {
 const handleBlur = (field) => {
     if (field === 'email') {
         emailTouched.value = true;
-        if (email.value.length > 0) {
-            validateEmail();
-        } else {
-            emailError.value = "";
-        }
+        validateEmail();
     } else if (field === 'password') {
         passwordTouched.value = true;
         if (password.value.length > 0) {

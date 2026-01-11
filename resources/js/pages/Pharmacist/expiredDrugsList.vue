@@ -263,13 +263,13 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="drawer lg:drawer-open" dir="rtl">
+    <div class="drawer lg:drawer-open h-screen overflow-hidden" dir="rtl">
         <input id="my-drawer" type="checkbox" class="drawer-toggle" checked />
 
-        <div class="drawer-content flex flex-col bg-gray-50 min-h-screen">
-            <Navbar />
+        <div class="drawer-content flex flex-col bg-gray-50 h-full overflow-hidden">
+            <Navbar class="flex-shrink-0" />
 
-            <main class="flex-1 p-4 sm:p-5 pt-3">
+            <main class="flex-1 p-4 sm:p-5 pt-3 overflow-y-auto">
                 <!-- المحتوى الرئيسي -->
                 <div>
                     <div
@@ -484,7 +484,7 @@ onMounted(async () => {
                             <div class="overflow-x-auto h-full">
                                 <table
                                     dir="rtl"
-                                    class="table w-full text-right min-w-[1400px] border-collapse"
+                                    class="table w-full text-right min-w-[100px] border-collapse"
                                 >
                                     <thead
                                         class="bg-red-100 text-red-900 sticky top-0 z-10 border-b border-red-300"
@@ -546,7 +546,10 @@ onMounted(async () => {
             </main>
         </div>
 
-        <Sidebar />
+        <div class="drawer-side h-full overflow-hidden">
+            <label for="my-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+            <Sidebar />
+        </div>
 
         <Toast
             :show="isAlertVisible"

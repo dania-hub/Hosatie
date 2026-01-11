@@ -19,7 +19,7 @@ class StorePatientRequest extends FormRequest
             'birth_date'  => 'required|date|before:today',
             // هاتف: 002189 أو 09 أو +2189 ثم رقم من 1 إلى 6 ثم 7 أرقام
             'phone'       => [
-                'required',
+                 'required',
                 'regex:/^(002189|09|\+2189)[1-6]\d{7}$/',
                 'unique:users,phone',
             ],

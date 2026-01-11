@@ -92,6 +92,11 @@ use App\Http\Controllers\SuperAdmin\OperationLogSuperController;
 // 1. Public Routes (No Token Required)
 // ========================================================================
 
+// Health Check
+Route::get('/health', function () {
+    return response()->json(['status' => 'ok']);
+});
+
 // Authentication
 Route::post('login/mobile', [AuthController::class, 'loginMobile']);
 Route::post('login/dashboard', [AuthController::class, 'loginDashboard']);
@@ -613,6 +618,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('reports/hospital-pharmacies', [DashboardSuperController::class, 'getHospitalPharmacies']);
         
          Route::get('/patients', [PatientSuperController::class, 'index']);//عرض جميع المرضى مع بيانات المستشفى
+         Route::get('/patients/{id}', [PatientSuperController::class, 'show']);// تفاصيل المريض
+         Route::get('/patients/{id}/dispensation-history', [PatientSuperController::class, 'dispensationHistory']);// سجل الصرف
          
          // Inventory
          Route::get('/inventory', [App\Http\Controllers\SuperAdmin\InventorySuperController::class, 'index']);

@@ -205,6 +205,7 @@
                                     <th class="shipment-number-col">
                                         رقم الشحنة
                                     </th>
+                                    <th class="department-col">الجهة الطالبة</th>
                                     <th class="request-date-col">
                                         تاريخ الطلب
                                     </th>
@@ -217,12 +218,12 @@
 
                             <tbody class="text-gray-800">
                                 <tr v-if="isLoading">
-                                    <td colspan="4" class="p-4">
+                                    <td colspan="5" class="p-4">
                                         <TableSkeleton :rows="5" />
                                     </td>
                                 </tr>
                                 <tr v-else-if="error">
-                                    <td colspan="4" class="py-12">
+                                    <td colspan="5" class="py-12">
                                         <ErrorState :message="error" :retry="fetchAllData" />
                                     </td>
                                 </tr>
@@ -235,6 +236,9 @@
                                        
                                         <td class="font-semibold text-gray-700">
                                             {{ shipment.shipmentNumber }}
+                                        </td>
+                                        <td class="font-medium text-[#2E5077]">
+                                            {{ shipment.requestingDepartment }}
                                         </td>
                                         <td>
                                             {{ formatDate(shipment.requestDate) }}
@@ -329,7 +333,7 @@
                                         </td>
                                     </tr>
                                     <tr v-if="filteredShipments.length === 0">
-                                        <td colspan="4" class="py-12">
+                                        <td colspan="5" class="py-12">
                                             <EmptyState message="لا توجد شحنات لعرضها" />
                                         </td>
                                     </tr>

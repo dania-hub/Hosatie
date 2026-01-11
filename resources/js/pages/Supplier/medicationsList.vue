@@ -367,11 +367,41 @@ const closeSupplyRequestModal = () => {
   isSupplyRequestModalOpen.value = false;
 };
 
-const handleSupplyConfirm = async (requestData) => {
+const handleSupplyConfirm = async (data) => {
   try {
-    await submitSupplyRequest(requestData);
+    // جلب hospitals أولاً للحصول على hospital_id (نفس منطق SuRequests.vue)
+    const hospitalsResponse = await api.get("/supplier/hospitals");
+    const hospitalsData = hospitalsResponse.data?.data ?? hospitalsResponse.data ?? [];
+    
+    // استخدام أول مستشفى كافتراضي
+    const hospitalId = hospitalsData.length > 0 ? hospitalsData[0].id : null;
+    
+    if (!hospitalId) {
+        showErrorAlert(" لا توجد مستشفيات متاحة لإرسال الطلب إليها.");
+        return;
+    }
+    
+    const requestData = {
+        hospital_id: hospitalId,
+        items: data.items.map(item => ({
+            drug_id: item.drugId || item.id || null,
+            quantity: item.quantity
+        })),
+        notes: data.notes || '',
+        priority: data.priority || 'normal'
+    };
+    
+    const response = await api.post("/supplier/supply-requests", requestData);
+    showSuccessAlert(" تم إرسال طلب التوريد بنجاح");
+    
     closeSupplyRequestModal();
+    
+    // تحديث كميات الأدوية بعد الطلب
+    await fetchDrugs();
+    
   } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'فشل في إرسال طلب التوريد';
+    showErrorAlert(` ${errorMessage}`);
     console.error("Error handling supply confirm:", error);
   }
 };

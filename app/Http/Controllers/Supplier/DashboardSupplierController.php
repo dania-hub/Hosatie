@@ -113,13 +113,19 @@ class DashboardSupplierController extends BaseApiController
            'supplier_confirm_external_delivery'
             ];
 
-            $operations = AuditLog::with('user:id,full_name')
-                ->where(function ($q) use ($externalRequestIds, $allowedActions) {
-                    // العمليات المتعلقة بـ external_supply_requests الخاصة بهذا المورد فقط
+            $operationsQuery = AuditLog::with('user:id,full_name')
+                ->whereIn('action', $allowedActions);
+
+            $operations = $operationsQuery->where(function ($q) use ($user, $externalRequestIds) {
+                    // 1. العمليات التي قام بها المستخدم الحالي نفسه
+                    $q->where('user_id', $user->id);
+                    
+                    // 2. العمليات المتعلقة بطلبات هذا المورد (حتى لو قام بها مستخدم آخر مثل الـ Super Admin)
                     if (!empty($externalRequestIds)) {
-                        $q->where('table_name', 'external_supply_request')
-                          ->whereIn('record_id', $externalRequestIds)
-                          ->whereIn('action', $allowedActions); // فلترة العمليات المسموح بها فقط
+                        $q->orWhere(function($subQ) use ($externalRequestIds) {
+                            $subQ->where('table_name', 'external_supply_request')
+                                 ->whereIn('record_id', $externalRequestIds);
+                        });
                     }
                 })
                 ->orderBy('created_at', 'desc')

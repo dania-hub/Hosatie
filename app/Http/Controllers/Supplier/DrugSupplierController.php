@@ -262,14 +262,12 @@ class DrugSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            // التأكد من وجود supplier_id و hospital_id
+            // التأكد من وجود supplier_id
             if (!$user->supplier_id) {
                 return $this->sendError('المستخدم غير مرتبط بمورد', null, 403);
             }
 
-            if (!$user->hospital_id) {
-                return $this->sendError('المستخدم غير مرتبط بمستشفى', null, 403);
-            }
+            $hospital_id = $user->hospital_id;
 
             // التحقق من أن المعرف هو معرف Inventory أو معرف Drug
             // إذا كان يبدأ بـ "unregistered_"، فهو دواء غير مسجل
@@ -283,10 +281,14 @@ class DrugSupplierController extends BaseApiController
                 }
 
                 // حساب الكمية المحتاجة من الطلبات
-                $externalRequests = ExternalSupplyRequest::where('hospital_id', $user->hospital_id)
-                    ->where('status', 'approved')
-                    ->where('supplier_id', $user->supplier_id)
-                    ->with(['items' => function($query) use ($drugId) {
+                $reqQuery = ExternalSupplyRequest::where('status', 'approved')
+                    ->where('supplier_id', $user->supplier_id);
+                
+                if ($hospital_id) {
+                    $reqQuery->where('hospital_id', $hospital_id);
+                }
+
+                $externalRequests = $reqQuery->with(['items' => function($query) use ($drugId) {
                         $query->where('drug_id', $drugId);
                     }])
                     ->get();
@@ -342,10 +344,14 @@ class DrugSupplierController extends BaseApiController
                 $drug = $inventory->drug;
 
                 // حساب الكمية المحتاجة من الطلبات
-                $externalRequests = ExternalSupplyRequest::where('hospital_id', $user->hospital_id)
-                    ->where('status', 'approved')
-                    ->where('supplier_id', $user->supplier_id)
-                    ->with(['items' => function($query) use ($drug) {
+                $reqQuery = ExternalSupplyRequest::where('status', 'approved')
+                    ->where('supplier_id', $user->supplier_id);
+                
+                if ($hospital_id) {
+                    $reqQuery->where('hospital_id', $hospital_id);
+                }
+
+                $externalRequests = $reqQuery->with(['items' => function($query) use ($drug) {
                         $query->where('drug_id', $drug->id);
                     }])
                     ->get();
@@ -686,10 +692,6 @@ class DrugSupplierController extends BaseApiController
             $user = $request->user();
             $hospitalId = $user->hospital_id;
             $supplierId = $user->supplier_id;
-
-            if (!$hospitalId) {
-                return $this->sendError('المستخدم غير مرتبط بمستشفى.', null, 400);
-            }
 
             if (!$supplierId) {
                 return $this->sendError('المستخدم غير مرتبط بمورد.', null, 400);

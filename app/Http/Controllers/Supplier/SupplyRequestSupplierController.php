@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Supplier;
 
 use App\Http\Controllers\BaseApiController;
+use App\Models\Drug;
 use App\Models\ExternalSupplyRequest;
 use App\Models\ExternalSupplyRequestItem;
 use App\Models\Hospital;

@@ -11,6 +11,7 @@ use App\Models\InternalSupplyRequestItem;
 use App\Models\Pharmacy;
 use App\Models\AuditLog;
 use App\Models\Warehouse;
+use App\Models\Hospital;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -23,17 +24,24 @@ class WarehouseInventoryController extends BaseApiController
         $user = $request->user();
 
         // نتأكد أن المستخدم مدير مخزن
-        if ($user->type !== 'warehouse_manager') {
+        if ($user->type !== 'warehouse_manager' && $user->type !== 'super_admin') {
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
-        // التأكد من وجود warehouse_id للمستخدم
-        if (!$user->warehouse_id) {
+        // التأكد من وجود warehouse_id و hospital_id
+        $warehouse_id = $user->warehouse_id;
+        $hospital_id = $user->hospital_id;
+
+        if ($user->type === 'super_admin') {
+            $warehouse_id = $warehouse_id ?: $request->input('warehouse_id') ?: (\App\Models\Warehouse::first()?->id);
+            $hospital_id = $hospital_id ?: $request->input('hospital_id') ?: (\App\Models\Hospital::first()?->id);
+        }
+
+        if (!$warehouse_id) {
             return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
         }
 
-        // التأكد من وجود hospital_id للمستخدم
-        if (!$user->hospital_id) {
+        if (!$hospital_id) {
             return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
         }
 
@@ -43,7 +51,7 @@ class WarehouseInventoryController extends BaseApiController
         // جلب الأدوية المنتهية الصلاحية من المخزون قبل التصفير
         $expiredInventories = DB::table('inventories')
             ->join('drugs', 'inventories.drug_id', '=', 'drugs.id')
-            ->where('inventories.warehouse_id', $user->warehouse_id)
+            ->where('inventories.warehouse_id', $warehouse_id)
             ->where('inventories.current_quantity', '>', 0)
             ->whereRaw("DATE(drugs.expiry_date) <= ?", [$today])
             ->select(
@@ -62,7 +70,7 @@ class WarehouseInventoryController extends BaseApiController
             
             // جلب جميع السجلات المتعلقة بهذا الدواء والمستودع
             $existingLogs = AuditLog::where('action', 'drug_expired_zeroed')
-                ->where('hospital_id', $user->hospital_id)
+                ->where('hospital_id', $hospital_id)
                 ->where('table_name', 'inventories')
                 ->get();
             
@@ -71,7 +79,7 @@ class WarehouseInventoryController extends BaseApiController
                 $newValues = json_decode($log->new_values, true);
                 if ($newValues && 
                     isset($newValues['drugId']) && $newValues['drugId'] == $expired->drug_id &&
-                    isset($newValues['warehouseId']) && $newValues['warehouseId'] == $user->warehouse_id &&
+                    isset($newValues['warehouseId']) && $newValues['warehouseId'] == $warehouse_id &&
                     isset($newValues['expiryDate']) && $newValues['expiryDate'] == $drugExpiryDate) {
                     $exists = true;
                     break;
@@ -82,7 +90,7 @@ class WarehouseInventoryController extends BaseApiController
                 // حفظ في audit_log
                 AuditLog::create([
                     'user_id' => $user->id,
-                    'hospital_id' => $user->hospital_id,
+                    'hospital_id' => $hospital_id,
                     'action' => 'drug_expired_zeroed',
                     'table_name' => 'inventories',
                     'record_id' => $expired->inventory_id,
@@ -95,7 +103,7 @@ class WarehouseInventoryController extends BaseApiController
                         'strength' => $expired->strength ?? null,
                         'quantity' => $expired->current_quantity,
                         'expiryDate' => $drugExpiryDate,
-                        'warehouseId' => $user->warehouse_id,
+                        'warehouseId' => $warehouse_id,
                     ]),
                     'ip_address' => $request->ip() ?? request()->ip(),
                 ]);
@@ -104,8 +112,8 @@ class WarehouseInventoryController extends BaseApiController
 
         // جلب طلبات التوريد الداخلية من نفس المستشفى والتي حالتها "جديد" فقط
         $internalRequests = InternalSupplyRequest::where('status', 'pending') // فقط الطلبات بحالة "جديد"
-            ->whereHas('pharmacy', function($query) use ($user) {
-                $query->where('hospital_id', $user->hospital_id);
+            ->whereHas('pharmacy', function($query) use ($hospital_id) {
+                $query->where('hospital_id', $hospital_id);
             })
             ->with(['items.drug'])
             ->get();
@@ -133,9 +141,12 @@ class WarehouseInventoryController extends BaseApiController
                 ];
             });
 
-        // عرض الأدوية التي تنتمي فقط لمخزن الـ storekeeper
+        // عرض الأدوية التي تنتمي فقط لمخزن الـ storekeeper وتليست مؤرشفة
         $items = Inventory::with('drug')
-            ->where('warehouse_id', $user->warehouse_id)
+            ->where('warehouse_id', $warehouse_id)
+            ->whereHas('drug', function($q) {
+                $q->where('status', '!=', Drug::STATUS_ARCHIVED);
+            })
             ->get();
 
         // جلب معرفات الأدوية المسجلة في المستودع
@@ -233,7 +244,29 @@ class WarehouseInventoryController extends BaseApiController
             return response()->json(['message' => 'غير مصرح'], 403);
         }
 
+        $hospital = Hospital::find($user->hospital_id);
+        $supplierId = $hospital->supplier_id ?? null;
+
         $drugs = Drug::select('id', 'id as drugCode', 'name as drugName', 'generic_name as genericName', 'strength', 'category', 'form', 'unit', 'max_monthly_dose as maxMonthlyDose', 'status', 'manufacturer', 'country', 'utilization_type as utilizationType')
+            ->where('status', '!=', Drug::STATUS_ARCHIVED)
+            ->where(function($query) use ($supplierId) {
+                $query->where('status', Drug::STATUS_AVAILABLE)
+                    ->orWhere(function($q) use ($supplierId) {
+                        $q->where('status', Drug::STATUS_PHASING_OUT);
+                        if ($supplierId) {
+                            $q->whereHas('inventories', function($inv) use ($supplierId) {
+                                $inv->where('supplier_id', $supplierId)
+                                    ->where('current_quantity', '>', 0);
+                            });
+                        } else {
+                            // If no specific supplier, check if ANY supplier has it
+                            $q->whereHas('inventories', function($inv) {
+                                $inv->whereNotNull('supplier_id')
+                                    ->where('current_quantity', '>', 0);
+                            });
+                        }
+                    });
+            })
             ->orderBy('name')
             ->get();
 
@@ -428,6 +461,16 @@ class WarehouseInventoryController extends BaseApiController
         }
 
         $item->save();
+
+        // التحقق من الأرشفة التلقائية بعد التحديث
+        try {
+            $drug = $item->drug;
+            if ($drug && $drug->status === Drug::STATUS_PHASING_OUT) {
+                $drug->checkAndArchiveIfNoStock();
+            }
+        } catch (\Exception $e) {
+            \Log::error('Auto-archiving check failed in WarehouseInventoryController@update', ['error' => $e->getMessage()]);
+        }
 
         return response()->json([
             'id'             => $item->id,

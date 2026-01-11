@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\Drug;
+use App\Models\ExternalSupplyRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -298,16 +299,62 @@ class DrugSuperController extends BaseApiController
 
             $drug = Drug::findOrFail($id);
 
-            if ($drug->status === 'غير متوفر') {
-                return $this->sendError('الدواء متوقف بالفعل', null, 400);
+            if ($drug->status === Drug::STATUS_UNAVAILABLE || $drug->status === Drug::STATUS_ARCHIVED) {
+                return $this->sendError('الدواء متوقف أو مؤرشف بالفعل', null, 400);
             }
 
-            $drug->update(['status' => 'غير متوفر']);
+            $policy = $request->input('policy', 'immediate'); // default to immediate (old behavior)
+
+            if ($policy === 'dispense_until_zero') {
+                $drug->update(['status' => Drug::STATUS_PHASING_OUT]);
+                
+                // 1. Trigger role-specific notifications
+                $notificationService = app(\App\Services\StaffNotificationService::class);
+                $notificationService->notifyDrugPhasingOut($drug);
+                
+                // 2. Automatically cancel all pending or future ExternalSupplyRequests
+                $pendingRequests = ExternalSupplyRequest::whereIn('status', ['pending', 'approved'])
+                    ->whereHas('items', function($query) use ($drug) {
+                        $query->where('drug_id', $drug->id);
+                    })->get();
+
+                foreach ($pendingRequests as $request) {
+                    $request->update(['status' => 'cancelled']);
+                    // Optionally log this action
+                }
+
+                // 3. Notify patients who have active prescriptions for this drug
+                try {
+                    $patients = \App\Models\User::where('type', 'patient')
+                        ->whereHas('prescriptionsAsPatient', function ($query) use ($drug) {
+                            $query->where('status', 'active')
+                                ->whereHas('drugs', function ($q) use ($drug) {
+                                    $q->where('drug_id', $drug->id);
+                                });
+                        })
+                        ->get();
+
+                    if ($patients->isNotEmpty()) {
+                        $patientNotificationService = app(\App\Services\PatientNotificationService::class);
+                        $patientNotificationService->notifyDrugPhasingOut($drug, $patients);
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Patient notification failed during phasing out', ['error' => $e->getMessage()]);
+                }
+                
+                return $this->sendSuccess([
+                    'id' => $drug->id,
+                    'name' => $drug->name,
+                    'status' => Drug::STATUS_PHASING_OUT,
+                ], 'تم البدء في الإيقاف التدريجي للدواء. سيظل متاحاً للصرف حتى نفاذ الكمية.');
+            }
+
+            $drug->update(['status' => Drug::STATUS_UNAVAILABLE]);
 
             return $this->sendSuccess([
                 'id' => $drug->id,
                 'name' => $drug->name,
-                'status' => 'غير متوفر',
+                'status' => Drug::STATUS_UNAVAILABLE,
             ], 'تم إيقاف دعم الدواء بنجاح');
 
         } catch (\Exception $e) {
@@ -330,16 +377,24 @@ class DrugSuperController extends BaseApiController
 
             $drug = Drug::findOrFail($id);
 
-            if ($drug->status === 'متوفر') {
+            if ($drug->status === Drug::STATUS_AVAILABLE) {
                 return $this->sendError('الدواء مفعّل بالفعل', null, 400);
             }
 
-            $drug->update(['status' => 'متوفر']);
+            $drug->update(['status' => Drug::STATUS_AVAILABLE]);
+
+            // إرسال إشعارات لجميع الجهات المعنية
+            try {
+                $notificationService = app(\App\Services\StaffNotificationService::class);
+                $notificationService->notifyDrugReactivated($drug);
+            } catch (\Exception $e) {
+                \Log::error('Drug reactivation notification failed', ['error' => $e->getMessage()]);
+            }
 
             return $this->sendSuccess([
                 'id' => $drug->id,
                 'name' => $drug->name,
-                'status' => 'متوفر',
+                'status' => Drug::STATUS_AVAILABLE,
             ], 'تم إعادة تفعيل الدواء بنجاح');
 
         } catch (\Exception $e) {

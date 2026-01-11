@@ -9,6 +9,12 @@ class Drug extends Model
 {
     use HasFactory;
 
+    // Drug Statuses
+    public const STATUS_AVAILABLE = 'متوفر';
+    public const STATUS_UNAVAILABLE = 'غير متوفر';
+    public const STATUS_PHASING_OUT = 'قيد الإيقاف التدريجي';
+    public const STATUS_ARCHIVED = 'مؤرشف';
+
     protected $table = 'drugs';
 
     protected $fillable = [
@@ -101,6 +107,64 @@ class Drug extends Model
     public function dispensings()
     {
         return $this->hasMany(Dispensing::class);
+    }
+
+    /**
+     * التحقق من إجمالي المخزون وأرشفة الدواء إذا كانت الكمية صفراً وهو في مرحلة الإيقاف التدريجي.
+     * 
+     * @param int|null $hospitalId معرف المستشفى للتحقق من مخزونها المحلي (اختياري)
+     */
+    public function checkAndArchiveIfNoStock($hospitalId = null)
+    {
+        if ($this->status !== self::STATUS_PHASING_OUT) {
+            return;
+        }
+
+        $staffNotificationService = app(\App\Services\StaffNotificationService::class);
+
+        // إذا تم تحديد hospital_id، نتحقق من مخزون هذه المستشفى فقط
+        if ($hospitalId) {
+            $hospitalStock = \App\Models\Inventory::where('drug_id', $this->id)
+                ->where(function($query) use ($hospitalId) {
+                    // مخزون المستودعات التابعة لهذا المستشفى
+                    $query->whereHas('warehouse', function($q) use ($hospitalId) {
+                        $q->where('hospital_id', $hospitalId);
+                    })
+                    // أو مخزون الصيدليات التابعة لهذا المستشفى
+                    ->orWhereHas('pharmacy', function($q) use ($hospitalId) {
+                        $q->where('hospital_id', $hospitalId);
+                    });
+                })
+                ->sum('current_quantity');
+
+            // إذا وصل مخزون هذه المستشفى إلى صفر، نرسل إشعار لمديرها
+            if ($hospitalStock <= 0) {
+                try {
+                    $staffNotificationService->notifyHospitalStockZero($this, $hospitalId);
+                } catch (\Exception $e) {
+                    \Log::error('Hospital stock zero notification failed', [
+                        'drug_id' => $this->id,
+                        'hospital_id' => $hospitalId,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
+        // دائماً نتحقق من المخزون الكلي عبر جميع المواقع
+        $totalStock = \App\Models\Inventory::where('drug_id', $this->id)->sum('current_quantity');
+
+        // إذا وصل المخزون الكلي (جميع المستشفيات والموردين) إلى صفر
+        if ($totalStock <= 0) {
+            $this->update(['status' => self::STATUS_ARCHIVED]);
+            
+            // إرسال إشعار نهائي بالأرشفة للمدير الأعلى فقط
+            try {
+                $staffNotificationService->notifyDrugArchived($this);
+            } catch (\Exception $e) {
+                \Log::error('Archived notification failed during auto-archiving', ['error' => $e->getMessage()]);
+            }
+        }
     }
 
     public function prescriptions()

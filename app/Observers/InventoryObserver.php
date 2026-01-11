@@ -42,12 +42,19 @@ class InventoryObserver
         $drug = Drug::find($inventory->drug_id);
         if (!$drug) return;
 
+        // CRITICAL: Do not override STATUS_PHASING_OUT or STATUS_ARCHIVED
+        // These statuses are set by Super Admin and should not be changed automatically
+        if ($drug->status === Drug::STATUS_PHASING_OUT || $drug->status === Drug::STATUS_ARCHIVED) {
+            return;
+        }
+
+        // Only toggle between Available/Unavailable if drug is not in a protected state
         // متوفر إذا كان موجود في أي صيدلية وكميتها > 0
         $isAvailable = Inventory::where('drug_id', $drug->id)
             ->whereNotNull('pharmacy_id')
             ->where('current_quantity', '>', 0)
             ->exists();
 
-        $drug->update(['status' => $isAvailable ? 'متوفر' : 'غير متوفر']);
+        $drug->update(['status' => $isAvailable ? Drug::STATUS_AVAILABLE : Drug::STATUS_UNAVAILABLE]);
     }
 }

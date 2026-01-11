@@ -15,7 +15,33 @@ class DrugDepartmentAdminController extends BaseApiController
      */
     public function index(Request $request)
     {
-        $query = Drug::query();
+        $hospitalId = $request->user()->hospital_id;
+        $query = Drug::where('status', '!=', Drug::STATUS_ARCHIVED);
+
+        $query->where(function($q) use ($hospitalId) {
+            $q->where('status', Drug::STATUS_AVAILABLE)
+                ->orWhere(function($sub) use ($hospitalId) {
+                    $sub->where('status', Drug::STATUS_PHASING_OUT);
+                    if ($hospitalId) {
+                        $sub->whereHas('inventories', function($inv) use ($hospitalId) {
+                            $inv->where('current_quantity', '>', 0)
+                                ->where(function($qinv) use ($hospitalId) {
+                                    $qinv->where(function($wh) use ($hospitalId) {
+                                        $wh->whereNotNull('warehouse_id')
+                                           ->whereHas('warehouse', function($w) use ($hospitalId) {
+                                               $w->where('hospital_id', $hospitalId);
+                                           });
+                                    })->orWhere(function($ph) use ($hospitalId) {
+                                        $ph->whereNotNull('pharmacy_id')
+                                           ->whereHas('pharmacy', function($p) use ($hospitalId) {
+                                               $p->where('hospital_id', $hospitalId);
+                                           });
+                                    });
+                                });
+                        });
+                    }
+                });
+        });
 
         // Search by Name
         if ($request->has('search')) {
@@ -30,6 +56,14 @@ class DrugDepartmentAdminController extends BaseApiController
 
         $drugs = $query->paginate($request->limit ?? 50);
 
+        $drugs->getCollection()->transform(function($drug) {
+            $drug->isPhasingOut = $drug->status === Drug::STATUS_PHASING_OUT;
+            $drug->phasingOutWarning = $drug->isPhasingOut 
+                ? "هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل المريض أو القسم إلى بديل مناسب."
+                : null;
+            return $drug;
+        });
+
         return $this->sendSuccess($drugs, 'تم جلب قائمة الأدوية بنجاح.');
     }
 
@@ -41,18 +75,42 @@ class DrugDepartmentAdminController extends BaseApiController
     {
         $request->validate(['q' => 'required|string']);
 
-        // Join with inventory and sum current_quantity as stock
-        $drugs = Drug::leftJoin('inventory', 'drug.id', '=', 'inventory.drug_id')
-            ->where('drug.name', 'like', '%' . $request->q . '%')
-            ->select(
-                'drug.id',
-                'drug.name',
-                'drug.strength',
-                DB::raw('COALESCE(SUM(inventory.current_quantity), 0) as stock')
-            )
-            ->groupBy('drug.id', 'drug.name', 'drug.strength')
-            ->limit(10)
-            ->get();
+        $hospitalId = $request->user()->hospital_id;
+        $query = Drug::where('status', '!=', Drug::STATUS_ARCHIVED)
+            ->where('name', 'like', '%' . $request->q . '%');
+
+        $query->where(function($q) use ($hospitalId) {
+            $q->where('status', Drug::STATUS_AVAILABLE)
+                ->orWhere(function($sub) use ($hospitalId) {
+                    $sub->where('status', Drug::STATUS_PHASING_OUT);
+                    if ($hospitalId) {
+                        $sub->whereHas('inventories', function($inv) use ($hospitalId) {
+                            $inv->where('current_quantity', '>', 0)
+                                ->where(function($qinv) use ($hospitalId) {
+                                    $qinv->where(function($wh) use ($hospitalId) {
+                                        $wh->whereNotNull('warehouse_id')
+                                           ->whereHas('warehouse', function($w) use ($hospitalId) {
+                                               $w->where('hospital_id', $hospitalId);
+                                           });
+                                    })->orWhere(function($ph) use ($hospitalId) {
+                                        $ph->whereNotNull('pharmacy_id')
+                                           ->whereHas('pharmacy', function($p) use ($hospitalId) {
+                                               $p->where('hospital_id', $hospitalId);
+                                           });
+                                    });
+                                });
+                        });
+                    }
+                });
+        });
+
+        $drugs = $query->limit(10)->get()->map(function($drug) {
+            $drug->isPhasingOut = $drug->status === Drug::STATUS_PHASING_OUT;
+            $drug->phasingOutWarning = $drug->isPhasingOut 
+                ? "هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل القسم إلى بديل مناسب."
+                : null;
+            return $drug;
+        });
 
         return $this->sendSuccess($drugs, 'نتائج البحث.');
     }

@@ -20,7 +20,7 @@ class PrescriptionDoctorController extends BaseApiController
     /**
      * Add Drugs (Auto-create Prescription if missing)
      */
-    public function store(Request $request, $patientId, ResalaService $resalaService, PatientNotificationService $notificationService)
+    public function store(Request $request, $patientId, ResalaService $resalaService, PatientNotificationService $notificationService, \App\Services\StaffNotificationService $staffNotificationService)
     {
         Log::info('🔄 ========== START store() ==========', ['patientId' => $patientId]);
         
@@ -118,6 +118,77 @@ class PrescriptionDoctorController extends BaseApiController
                 
                 if (!$exists) {
                     try {
+                        $drug = \App\Models\Drug::find($med['drug_id']);
+                        
+                        // 1. Block Archived Drugs
+                        if ($drug->status === \App\Models\Drug::STATUS_ARCHIVED) {
+                            DB::rollBack();
+                            return $this->sendError("عفواً، الدواء '{$drug->name}' مؤرشف وغير متاح للوصف الطبي حالياً.", [], 400);
+                        }
+
+                        // 2. Block Phasing Out Drugs if no warehouse stock or if it's a new patient for this drug
+                        if ($drug->status === \App\Models\Drug::STATUS_PHASING_OUT) {
+                            $hospitalStock = \App\Models\Inventory::where('drug_id', $drug->id)
+                                ->where(function($q) use ($hospitalId) {
+                                    $q->where(function($wh) use ($hospitalId) {
+                                        $wh->whereNotNull('warehouse_id')
+                                           ->whereHas('warehouse', function($w) use ($hospitalId) {
+                                               $w->where('hospital_id', $hospitalId);
+                                           });
+                                    })->orWhere(function($ph) use ($hospitalId) {
+                                        $ph->whereNotNull('pharmacy_id')
+                                           ->whereHas('pharmacy', function($p) use ($hospitalId) {
+                                               $p->where('hospital_id', $hospitalId);
+                                           });
+                                    });
+                                })->sum('current_quantity');
+                            
+                            if ($hospitalStock <= 0) {
+                                DB::rollBack();
+                                // Blocking message updated to mention hospital stock generally
+                                return $this->sendError("الدواء '{$drug->name}' قيد الإيقاف التدريجي ونفذ مخزون المستشفى، لا يمكن وصفه حالياً.", [], 400);
+                            }
+
+                            // Check if patient already has this drug in an active prescription
+                            $currentPatientId = $prescription->patient_id;
+                            $hasExisting = \App\Models\Prescription::where('patient_id', $currentPatientId)
+                                ->where('status', 'active')
+                                ->where('id', '!=', $prescription->id) 
+                                ->whereHas('drugs', function($sub) use ($drug) {
+                                    $sub->where('drug_id', $drug->id);
+                                })->exists();
+
+                            if (!$hasExisting) {
+                                DB::rollBack();
+                                return $this->sendError("هذا الدواء غير مدعوم للوصفات الجديدة. يرجى اختيار بديل", [], 400);
+                            }
+
+                            // Notify HOD
+                            try {
+                                $doctor = $request->user();
+                                if ($doctor->department_id) {
+                                    // Simplified HOD lookup
+                                    $dept = \App\Models\Department::find($doctor->department_id);
+                                    if ($dept && $dept->head_user_id) {
+                                        $hod = \App\Models\User::find($dept->head_user_id);
+                                    }
+                                    
+                                    if (!$hod) {
+                                        // Try finding any user of type department_admin linked to this dept
+                                        $hod = \App\Models\User::where('type', 'department_admin')
+                                            ->where('department_id', $doctor->department_id)
+                                            ->first();
+                                    }
+
+                                    if ($hod) {
+                                        $staffNotificationService->notifyHODDrugPhasingOutAssigned($hod, $doctor, $patient, $drug);
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                Log::error('Failed to notify HOD about phasing out drug prescription', ['error' => $e->getMessage()]);
+                            }
+                        }
+
                         $monthlyQuantity = $med['quantity'];
                         $dailyQuantity = isset($med['daily_quantity']) && $med['daily_quantity'] !== null 
                             ? (int)$med['daily_quantity'] 
@@ -171,7 +242,27 @@ class PrescriptionDoctorController extends BaseApiController
             Log::info('🔧 skipNotification after resetting', ['value' => PrescriptionDrugObserver::$skipNotification]);
             
             Log::info('✅ ========== END store() - SUCCESS ==========');
-            return $this->sendSuccess([], 'تم إضافة الأدوية بنجاح.');
+            
+            // Prepare success response with potential warnings
+            $warnings = [];
+            $prescription->load('drugs');
+            foreach ($prescription->drugs as $d) {
+                if ($d->status === \App\Models\Drug::STATUS_PHASING_OUT) {
+                    $warnings[] = "تنبيه للدواء '{$d->name}': هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل المريض إلى بديل مناسب.";
+                }
+            }
+
+            $responseData = [
+                'id' => $prescription->id,
+            ];
+
+            $message = 'تم إضافة الأدوية بنجاح.';
+            if (!empty($warnings)) {
+                $responseData['warnings'] = $warnings;
+                $message .= ' (يوجد تنبيهات للأدوية)';
+            }
+
+            return $this->sendSuccess($responseData, $message);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             if (DB::transactionLevel() > 0) {
@@ -271,7 +362,21 @@ class PrescriptionDoctorController extends BaseApiController
             DB::commit();
             
             Log::info('✅ ========== END update() - SUCCESS ==========');
-            return $this->sendSuccess($item, 'تم تحديث جرعة الدواء بنجاح.');
+            
+            // Prepare success response with potential warnings
+            $warnings = [];
+            $item->load('drug');
+            if ($item->drug->status === \App\Models\Drug::STATUS_PHASING_OUT) {
+                $warnings[] = "تنبيه للدواء '{$item->drug->name}': هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل المريض إلى بديل مناسب.";
+            }
+
+            $message = 'تم تحديث جرعة الدواء بنجاح.';
+            if (!empty($warnings)) {
+                $item->warnings = $warnings;
+                $message .= ' (يوجد تنبيهات للأدوية)';
+            }
+
+            return $this->sendSuccess($item, $message);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -373,15 +478,12 @@ class PrescriptionDoctorController extends BaseApiController
                 $prescription->delete();
                 Log::info('✅ Prescription deleted (empty)');
             }
-            
-            DB::commit();
-            
             Log::info('✅ ========== END destroy() - SUCCESS ==========');
             return $this->sendSuccess([], 'تم حذف الدواء بنجاح.');
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('❌ Error deleting prescription drug: ' . e->getMessage(), [
+            Log::error('❌ Error deleting prescription drug: ' . $e->getMessage(), [
                 'pivot_id' => $pivotId,
                 'patient_id' => $patientId,
                 'error' => $e->getMessage(),

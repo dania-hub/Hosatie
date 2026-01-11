@@ -62,7 +62,11 @@ class PatientDoctorController extends BaseApiController
                         'strength' => $drug->strength ?? null,
                         'dosage'   => $drug->pivot->monthly_quantity,
                         'note'     => $drug->pivot->note,
-                        'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
+                        'maxMonthlyDose' => $drug->max_monthly_dose ?? null,
+                        'isPhasingOut' => $drug->status === \App\Models\Drug::STATUS_PHASING_OUT,
+                        'phasingOutWarning' => $drug->status === \App\Models\Drug::STATUS_PHASING_OUT 
+                            ? "هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل المريض إلى بديل مناسب." 
+                            : null,
                     ]);
                 }
             }
@@ -187,9 +191,13 @@ class PatientDoctorController extends BaseApiController
                     'assignmentDate' => $assignmentDate,
                     'assignedBy' => $assignedBy,
                     'note'     => $drug->pivot->note,
-                    'maxMonthlyDose' => $drug->max_monthly_dose ?? null, // الحد الأقصى الشهري
-                    'totalDispensedThisMonth' => $totalDispensedThisMonth, // الكمية المصروفة هذا الشهر
-                    'remainingQuantity' => $remainingQuantity, // الكمية المتبقية
+                    'maxMonthlyDose' => $drug->max_monthly_dose ?? null,
+                    'totalDispensedThisMonth' => $totalDispensedThisMonth,
+                    'remainingQuantity' => $remainingQuantity,
+                    'isPhasingOut' => $drug->status === \App\Models\Drug::STATUS_PHASING_OUT,
+                    'phasingOutWarning' => $drug->status === \App\Models\Drug::STATUS_PHASING_OUT 
+                        ? "هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل المريض إلى بديل مناسب." 
+                        : null,
                 ]);
             }
         }

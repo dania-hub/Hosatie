@@ -188,6 +188,20 @@ class SupplyRequestSupplierController extends BaseApiController
             }
 
             foreach ($grouped as $drugId => $totalQty) {
+                // التحقق من حالة الدواء قبل الإضافة
+                $drug = Drug::find($drugId);
+                if (!$drug) {
+                    throw new \Exception("الدواء رقم #{$drugId} غير موجود.");
+                }
+
+                if ($drug->status === Drug::STATUS_ARCHIVED) {
+                    throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' لأنه مؤرشف وغير مدعوم.");
+                }
+
+                if ($drug->status === Drug::STATUS_PHASING_OUT) {
+                    throw new \Exception("لا يمكن إنشاء طلب جديد للدواء '{$drug->name}' لأنه في مرحلة الإيقاف التدريجي.");
+                }
+
                 ExternalSupplyRequestItem::create([
                     'request_id' => $supplyRequest->id,
                     'drug_id' => $drugId,

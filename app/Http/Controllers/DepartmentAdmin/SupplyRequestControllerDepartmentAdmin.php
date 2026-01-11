@@ -81,6 +81,27 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
 
             // حفظ العناصر المدمجة
             foreach ($mergedItems as $item) {
+                $drug = \App\Models\Drug::findOrFail($item['drugId']);
+                
+                // Block Archived Drugs
+                if ($drug->status === \App\Models\Drug::STATUS_ARCHIVED) {
+                    throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' لأنه مؤرشف وغير متاح للطلب.");
+                }
+
+                // Block Phasing Out Drugs if no warehouse stock
+                if ($drug->status === \App\Models\Drug::STATUS_PHASING_OUT) {
+                    $warehouseInventory = \App\Models\Inventory::where('drug_id', $drug->id)
+                        ->whereNotNull('warehouse_id')
+                        ->whereHas('warehouse', function($q) use ($user) {
+                            $q->where('hospital_id', $user->hospital_id);
+                        })
+                        ->first();
+
+                    if (!$warehouseInventory || $warehouseInventory->current_quantity <= 0) {
+                        throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' لأنه في مرحلة الإيقاف التدريجي ونفذ من المستودع.");
+                    }
+                }
+
                 InternalSupplyRequestItem::create([
                     'request_id' => $supplyRequest->id,
                     'drug_id' => $item['drugId'],

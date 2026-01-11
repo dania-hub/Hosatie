@@ -299,6 +299,9 @@ class PatientPharmacistController extends BaseApiController
                     'drugName' => $drug->name,
                     'strength' => $drug->strength ?? null,
                     'dosage' => $dosageText,
+                    'is_phasing_out' => $drug->status === Drug::STATUS_PHASING_OUT,
+                    'is_archived' => $drug->status === Drug::STATUS_ARCHIVED,
+                    'status' => $drug->status,
                     'dailyQuantity' => $dailyQty,
                     'monthlyQuantity' => $monthlyQuantityText,
                     'monthlyQuantityNum' => $monthlyQty,
@@ -528,6 +531,13 @@ class PatientPharmacistController extends BaseApiController
                     $this->patientNotifications->notifyDrugDispensed($patient, $drug, (int)$item['quantity']);
                 } catch (\Exception $e) {
                     \Log::error('Patient notification failed for drug ' . ($drug->name ?? 'unknown'), ['error' => $e->getMessage()]);
+                }
+
+                // ح. التحقق من أرشفة الدواء (خاص بسياسة الإيقاف التدريجي)
+                try {
+                    $drug->checkAndArchiveIfNoStock($hospitalId);
+                } catch (\Exception $e) {
+                    \Log::error('Auto-archiving check failed in PatientPharmacistController', ['error' => $e->getMessage()]);
                 }
             }
 

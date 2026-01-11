@@ -17,9 +17,11 @@ class PrescriptionController extends BaseApiController
         try {
             $user = $request->user();
 
-            $prescriptions = Prescription::with(['doctor', 'drugs'])
-                ->where('patient_id', $user->id) // <--- Changed to patient_id
-                ->where('status', 'active')      // <--- FR-12 Logic
+            $prescriptions = Prescription::with(['doctor', 'drugs' => function($q) {
+                    $q->where('drugs.status', '!=', \App\Models\Drug::STATUS_ARCHIVED);
+                }])
+                ->where('patient_id', $user->id) 
+                ->where('status', 'active')      
                 ->latest()
                 ->get();
 
@@ -41,7 +43,9 @@ class PrescriptionController extends BaseApiController
         try {
             $user = $request->user();
 
-            $prescription = Prescription::with(['doctor', 'drugs'])
+            $prescription = Prescription::with(['doctor', 'drugs' => function($q) {
+                    $q->where('drugs.status', '!=', \App\Models\Drug::STATUS_ARCHIVED);
+                }])
                 ->where('patient_id', $user->id)
                 ->where('id', $id)
                 ->first();

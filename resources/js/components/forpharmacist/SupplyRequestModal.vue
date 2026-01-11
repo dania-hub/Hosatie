@@ -113,7 +113,12 @@
                                         >
                                             <div class="flex justify-between items-center">
                                                 <div class="flex flex-col gap-1">
-                                                    <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="font-bold text-[#2E5077]">{{ drug.name || drug.drugName }}</span>
+                                                        <span v-if="drug.status === 'قيد الإيقاف التدريجي'" class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">
+                                                            قيد الإيقاف التدريجي
+                                                        </span>
+                                                    </div>
                                                     <span v-if="drug.strength || drug.dosage" class="text-xs text-gray-600">
                                                         القوة: {{ drug.strength || drug.dosage }}
                                                     </span>

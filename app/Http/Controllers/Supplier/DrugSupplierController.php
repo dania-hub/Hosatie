@@ -23,17 +23,21 @@ class DrugSupplierController extends BaseApiController
         try {
             $user = $request->user();
 
-            if ($user->type !== 'supplier_admin') {
+            if ($user->type !== 'supplier_admin' && $user->type !== 'super_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
             // التأكد من وجود supplier_id و hospital_id
-            if (!$user->supplier_id) {
-                return $this->sendError('المستخدم غير مرتبط بمورد', null, 403);
+            $supplier_id = $user->supplier_id;
+            $hospital_id = $user->hospital_id ?: $request->input('hospital_id');
+
+            if ($user->type === 'super_admin') {
+                $supplier_id = $supplier_id ?: $request->input('supplier_id') ?: (\App\Models\Supplier::first()?->id);
+                $hospital_id = $hospital_id ?: $request->input('hospital_id') ?: (\App\Models\Hospital::first()?->id);
             }
 
-            if (!$user->hospital_id) {
-                return $this->sendError('المستخدم غير مرتبط بمستشفى', null, 403);
+            if (!$supplier_id) {
+                return $this->sendError('المستخدم غير مرتبط بمورد', null, 403);
             }
 
             // جمع معلومات الأدوية المنتهية قبل التصفير وحفظها في audit_log
@@ -42,7 +46,7 @@ class DrugSupplierController extends BaseApiController
             // جلب الأدوية المنتهية الصلاحية من المخزون قبل التصفير
             $expiredInventories = DB::table('inventories')
                 ->join('drugs', 'inventories.drug_id', '=', 'drugs.id')
-                ->where('inventories.supplier_id', $user->supplier_id)
+                ->where('inventories.supplier_id', $supplier_id)
                 ->whereNull('inventories.warehouse_id')
                 ->whereNull('inventories.pharmacy_id')
                 ->where('inventories.current_quantity', '>', 0)
@@ -62,17 +66,21 @@ class DrugSupplierController extends BaseApiController
                 $drugExpiryDate = $expired->expiry_date ? date('Y/m/d', strtotime($expired->expiry_date)) : null;
                 
                 // جلب جميع السجلات المتعلقة بهذا الدواء والمورد
-                $existingLogs = AuditLog::where('action', 'drug_expired_zeroed')
-                    ->where('hospital_id', $user->hospital_id)
-                    ->where('table_name', 'inventories')
-                    ->get();
+                $logQuery = AuditLog::where('action', 'drug_expired_zeroed')
+                    ->where('table_name', 'inventories');
+                
+                if ($hospital_id) {
+                    $logQuery->where('hospital_id', $hospital_id);
+                }
+                
+                $existingLogs = $logQuery->get();
                 
                 $exists = false;
                 foreach ($existingLogs as $log) {
                     $newValues = json_decode($log->new_values, true);
                     if ($newValues && 
                         isset($newValues['drugId']) && $newValues['drugId'] == $expired->drug_id &&
-                        isset($newValues['supplierId']) && $newValues['supplierId'] == $user->supplier_id &&
+                        isset($newValues['supplierId']) && $newValues['supplierId'] == $supplier_id &&
                         isset($newValues['expiryDate']) && $newValues['expiryDate'] == $drugExpiryDate) {
                         $exists = true;
                         break;
@@ -83,7 +91,7 @@ class DrugSupplierController extends BaseApiController
                     // حفظ في audit_log
                     AuditLog::create([
                         'user_id' => $user->id,
-                        'hospital_id' => $user->hospital_id,
+                        'hospital_id' => $hospital_id ?: 0, // 0 if not linked to a specific hospital context
                         'action' => 'drug_expired_zeroed',
                         'table_name' => 'inventories',
                         'record_id' => $expired->inventory_id,
@@ -96,20 +104,23 @@ class DrugSupplierController extends BaseApiController
                             'strength' => $expired->strength ?? null,
                             'quantity' => $expired->current_quantity,
                             'expiryDate' => $drugExpiryDate,
-                            'supplierId' => $user->supplier_id,
+                            'supplierId' => $supplier_id,
                         ]),
                         'ip_address' => $request->ip() ?? request()->ip(),
                     ]);
                 }
             }
 
-            // جلب طلبات التوريد الخارجية المعتمدة والمُرسلة للمورد من نفس المستشفى
+            // جلب طلبات التوريد الخارجية المعتمدة والمُرسلة للمورد
             // الطلبات المعتمدة (approved) هي التي تمت الموافقة عليها من مدير المستشفى وتم إرسالها للمورد
-            $externalRequests = ExternalSupplyRequest::where('hospital_id', $user->hospital_id)
-                ->where('status', 'approved') // فقط الطلبات المعتمدة والمُرسلة للمورد
-                ->where('supplier_id', $user->supplier_id) // التأكد من أن الطلب مُرسل لهذا المورد
-                ->with(['items.drug'])
-                ->get();
+            $reqQuery = ExternalSupplyRequest::where('status', 'approved') // فقط الطلبات المعتمدة والمُرسلة للمورد
+                ->where('supplier_id', $supplier_id); // التأكد من أن الطلب مُرسل لهذا المورد
+            
+            if ($hospital_id) {
+                $reqQuery->where('hospital_id', $hospital_id);
+            }
+
+            $externalRequests = $reqQuery->with(['items.drug'])->get();
 
             // جمع جميع الأدوية من الطلبات مع الكميات المطلوبة
             $requestItems = collect();
@@ -140,8 +151,10 @@ class DrugSupplierController extends BaseApiController
 
             // جلب الأدوية من مخزون المورد
             $items = Inventory::with(['drug'])
-                ->where('supplier_id', $user->supplier_id)
-                ->whereHas('drug')
+                ->where('supplier_id', $supplier_id)
+                ->whereHas('drug', function($q) {
+                    $q->where('status', '!=', Drug::STATUS_ARCHIVED);
+                })
                 ->get();
 
             // جلب معرفات الأدوية المسجلة في مخزون المورد
@@ -400,7 +413,7 @@ class DrugSupplierController extends BaseApiController
             }
 
             $drugs = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit', 'status')
-                ->where('status', 'متوفر')
+                ->where('status', Drug::STATUS_AVAILABLE)
                 ->get()
                 ->map(function ($drug) {
                     return [
@@ -441,7 +454,7 @@ class DrugSupplierController extends BaseApiController
             $searchTerm = $request->input('query', '');
 
             $drugs = Drug::select('id', 'name', 'category')
-                ->where('status', 'متوفر')
+                ->where('status', Drug::STATUS_AVAILABLE)
                 ->where(function ($query) use ($searchTerm) {
                     $query->where('name', 'like', "%{$searchTerm}%")
                         ->orWhere('category', 'like', "%{$searchTerm}%");
@@ -524,6 +537,20 @@ class DrugSupplierController extends BaseApiController
             $registeredItems = [];
 
             foreach ($request->items as $item) {
+                // التحقق من حالة الدواء قبل الإضافة للمخزون
+                $drug = Drug::find($item['drugId']);
+                if (!$drug) {
+                    throw new \Exception("الدواء رقم #{$item['drugId']} غير موجود.");
+                }
+
+                if ($drug->status === Drug::STATUS_ARCHIVED) {
+                    throw new \Exception("لا يمكن إضافة الدواء '{$drug->name}' للمخزون لأنه مؤرشف وغير مدعوم.");
+                }
+
+                if ($drug->status === Drug::STATUS_PHASING_OUT) {
+                    throw new \Exception("لا يمكن إضافة كميات جديدة للدواء '{$drug->name}' لأنه في مرحلة الإيقاف التدريجي.");
+                }
+
                 // البحث عن سجل المخزون الحالي
                 $inventory = Inventory::where('drug_id', $item['drugId'])
                     ->where('supplier_id', $supplierId)

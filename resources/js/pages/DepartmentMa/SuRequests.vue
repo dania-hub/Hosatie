@@ -538,7 +538,9 @@ const fetchDrugs = async () => {
             strength: drug.strength,
             type: drug.type || 'Tablet',
             unit: drug.unit || 'قرص',
-            category: drug.category
+            category: drug.category,
+            isPhasingOut: drug.isPhasingOut || false,
+            phasingOutWarning: drug.phasingOutWarning || null
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);

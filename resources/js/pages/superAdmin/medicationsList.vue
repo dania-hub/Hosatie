@@ -256,7 +256,9 @@ const transformDrugData = (drug) => {
     status: drug.status || '',
     quantity: 0, // غير متوفر في API
     neededQuantity: 0, // غير متوفر في API
-    is_discontinued: drug.status === 'غير متوفر' || drug.is_discontinued === true,
+    is_discontinued: ['غير متوفر', 'قيد الإيقاف التدريجي', 'مؤرشف'].includes(drug.status) || drug.is_discontinued === true,
+    is_phasing_out: drug.status === 'قيد الإيقاف التدريجي',
+    is_archived: drug.status === 'مؤرشف',
     // حفظ البيانات الأصلية للاستخدام في النماذج
     ...drug
   };
@@ -277,6 +279,10 @@ const fetchDrugs = async () => {
     hasData.value = drugsData.value.length > 0;
     if (drugsData.value.length > 0) {
       showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
+      // إخفاء الإشعار تلقائياً بعد 3 ثوانٍ
+      setTimeout(() => {
+        toast.value.show = false;
+      }, 3000);
     }
   } catch (err) {
     console.error("Error fetching drugs:", err);
@@ -356,6 +362,7 @@ const openSupplyRequestModal = () => {
 // ----------------------------------------------------
 const isDeleteConfirmationModalOpen = ref(false);
 const drugToDelete = ref(null);
+const selectedPolicy = ref('immediate'); // 'immediate' or 'dispense_until_zero'
 
 // ----------------------------------------------------
 // 9. وظائف CRUD
@@ -437,7 +444,9 @@ const discontinueDrug = async () => {
   isLoading.value = true;
   
   try {
-    const response = await api.patch(`/super-admin/drugs/${drugId}/discontinue`);
+    const response = await api.patch(`/super-admin/drugs/${drugId}/discontinue`, {
+      policy: selectedPolicy.value
+    });
     const rawUpdated = response.data.data || response.data;
     const updated = transformDrugData(rawUpdated);
     
@@ -453,7 +462,7 @@ const discontinueDrug = async () => {
       allDrugsData.value[allIndex] = updated;
     }
     
-    showSuccessAlert("✅ تم إيقاف الدواء بنجاح");
+    showSuccessAlert(response.data.message || "✅ تم إيقاف الدواء بنجاح");
     
     // إغلاق نافذة المعاينة إذا كانت مفتوحة
     if (isDrugPreviewModalOpen.value && selectedDrug.value.id === drugId) {
@@ -933,14 +942,18 @@ onMounted(async () => {
                                                 {{ drug.drugCode }}
                                             </td>
                                             <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
                                             >
-                                                {{ drug.drugName }}
+                                                <div class="flex flex-col">
+                                                    <span>{{ drug.drugName }}</span>
+                                                    <div class="flex gap-1 mt-1">
+                                                        <span v-if="drug.status === 'قيد الإيقاف التدريجي'" class="text-[10px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded-md font-bold w-fit">
+                                                            قيد الإيقاف التدريجي
+                                                        </span>
+                                                        <span v-if="drug.status === 'مؤرشف'" class="text-[10px] bg-gray-100 text-gray-700 px-1 py-0.5 rounded-md font-bold w-fit">
+                                                            مؤرشف
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td
                                                 :class="
@@ -1084,9 +1097,29 @@ onMounted(async () => {
                         </div>
                         <h3 class="text-xl font-bold text-[#2E5077]">تأكيد إيقاف الدواء</h3>
                         <p class="text-gray-500 leading-relaxed">
-                            هل أنت متأكد من رغبتك في إيقاف هذا الدواء؟
-                            <br>
-                            <span class="text-sm text-orange-500">يمكنك إعادة تفعيل الدواء لاحقاً</span>
+                            اختر سياسة الإيقاف المطلوبة:
+                        </p>
+                        
+                        <div class="mt-4 space-y-3 text-right" dir="rtl">
+                            <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'immediate' ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
+                                <input type="radio" value="immediate" v-model="selectedPolicy" class="w-5 h-5 text-red-600 focus:ring-red-500">
+                                <div class="flex-1">
+                                    <div class="font-bold text-gray-800">إيقاف فوري</div>
+                                    <div class="text-xs text-gray-500">يتم إخفاء الدواء ومنع استخدامه فوراً</div>
+                                </div>
+                            </label>
+
+                            <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'dispense_until_zero' ? 'border-orange-500 bg-orange-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
+                                <input type="radio" value="dispense_until_zero" v-model="selectedPolicy" class="w-5 h-5 text-orange-600 focus:ring-orange-500">
+                                <div class="flex-1">
+                                    <div class="font-bold text-gray-800">صرف حتى نفاذ الكمية</div>
+                                    <div class="text-xs text-gray-500">يظل الدواء متاحاً للصرف حتى بلوغ المخزون صفر</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <p class="text-xs text-gray-400 mt-2 italic">
+                            سيتم إشعار جميع الجهات المعنية بالقرار فور تأكيده
                         </p>
                     </div>
                     <div class="flex justify-center bg-gray-50 px-6 py-4 gap-3 border-t border-gray-100">

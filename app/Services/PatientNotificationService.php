@@ -174,6 +174,46 @@ class PatientNotificationService
         ]);
     }
 
+    /**
+     * إرسال إشعار مستعجل للمرضى عند بدء مرحلة الإيقاف التدريجي للدواء.
+     */
+    public function notifyDrugPhasingOut(Drug $drug, $patients): void
+    {
+        Log::info('🚨 === notifyDrugPhasingOut START ===', [
+            'drug_id' => $drug->id,
+            'timestamp' => now()->format('Y-m-d H:i:s.u')
+        ]);
+
+        $title = "إشعار مستعجل: إيقاف دعم دواء";
+        $message = "عزيزي المريض، نحيطك علماً بأنه سيتم إيقاف دعم دواء ({$drug->name}) تدريجياً. يرجى مراجعة الطبيب المختص لمناقشة البدائل المتاحة لخطتك العلاجية.";
+
+        foreach ($patients as $patient) {
+            $this->createNotification($patient, 'مستعجل', $title, $message);
+        }
+
+        Log::info('🚨 === notifyDrugPhasingOut END ===', [
+            'notified_count' => $patients->count()
+        ]);
+    }
+
+    /**
+     * إرسال إشعارات للمرضى عند إعادة تفعيل دواء كانوا يستخدمونه.
+     */
+    public function notifyDrugReactivated(Drug $drug, $patients): void
+    {
+        $title = "إشعار: إعادة تفعيل دواء";
+        $message = "عزيزي المريض، نحيطك علماً بأنه تم إعادة تفعيل دواء ({$drug->name}) الذي تستخدمه. الدواء أصبح متاحاً مرة أخرى.";
+
+        foreach ($patients as $patient) {
+            $this->createNotification($patient, 'عادي', $title, $message);
+        }
+
+        Log::info('Patient drug reactivation notifications sent', [
+            'drug_id' => $drug->id,
+            'notified_count' => $patients->count()
+        ]);
+    }
+
     public function notifyDrugUpdated(User $patient, Prescription $prescription, Drug $drug): Notification
     {
         Log::info('🚨 === notifyDrugUpdated START ===', [

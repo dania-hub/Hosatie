@@ -179,7 +179,11 @@ class DrugHospitalAdminController extends BaseApiController
                 return $this->sendSuccess([], 'لا توجد أدوية في مخزون المستشفى حالياً.');
             }
             
-            $drugs = Drug::whereIn('id', $allDrugIds)->orderBy('name')->get();
+            // فلترة الأدوية المؤرشفة - تظهر فقط للمدير الأعلى
+            $drugs = Drug::whereIn('id', $allDrugIds)
+                ->where('status', '!=', Drug::STATUS_ARCHIVED)
+                ->orderBy('name')
+                ->get();
 
             // دالة مساعدة لحساب الكمية المحتاجة للصيدلية بناءً على المرضى المستحقين
             $calculatePharmacyNeededQuantity = function($drugId, $availablePharmacyQuantity, $hospitalId) {
@@ -363,7 +367,8 @@ class DrugHospitalAdminController extends BaseApiController
 
             $search = $request->query('search', '');
 
-            $query = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit');
+            $query = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit')
+                ->where('status', '!=', Drug::STATUS_ARCHIVED); // إخفاء الأدوية المؤرشفة
 
             if ($search) {
                 $query->where(function($q) use ($search) {

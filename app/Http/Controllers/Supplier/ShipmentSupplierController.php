@@ -434,6 +434,21 @@ class ShipmentSupplierController extends BaseApiController
                             $inventory->current_quantity -= $item->fulfilled_qty;
                             $inventory->save();
 
+                            // التحقق من أرشفة الدواء (خاص بسياسة الإيقاف التدريجي)
+                            $drug = $item->drug;
+                            if ($drug && $drug->status === \App\Models\Drug::STATUS_PHASING_OUT) {
+                                $totalStock = \App\Models\Inventory::where('drug_id', $drug->id)->sum('current_quantity');
+                                if ($totalStock <= 0) {
+                                    $drug->update(['status' => \App\Models\Drug::STATUS_ARCHIVED]);
+                                    
+                                    try {
+                                        $this->notifications->notifyDrugArchived($drug);
+                                    } catch (\Exception $e) {
+                                        \Log::error('Archived notification failed from supplier', ['error' => $e->getMessage()]);
+                                    }
+                                }
+                            }
+
                             // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
                             try {
                                 $this->notifications->checkAndNotifyLowStock($inventory);

@@ -190,7 +190,9 @@ class DrugPharmacistController extends BaseApiController
         // سيتم التصفير التلقائي عند جلب البيانات بسبب Inventory::boot()
         $inventories = Inventory::with('drug')
             ->where('pharmacy_id', $pharmacyId)
-            ->whereHas('drug') // التأكد من وجود الدواء
+            ->whereHas('drug', function($q) {
+                $q->where('status', '!=', Drug::STATUS_ARCHIVED);
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -362,7 +364,11 @@ class DrugPharmacistController extends BaseApiController
             $drugIds = $unregisteredDrugsData->pluck('drug_id')->toArray();
             
             if (!empty($drugIds)) {
-                $drugs = Drug::whereIn('id', $drugIds)->get()->keyBy('id');
+                // فلترة الأدوية المؤرشفة - حتى لو كانت موصوفة للمرضى
+                $drugs = Drug::whereIn('id', $drugIds)
+                    ->where('status', '!=', Drug::STATUS_ARCHIVED)
+                    ->get()
+                    ->keyBy('id');
                 
                 // حساب الكمية المحتاجة للأدوية غير المسجلة بناءً على المرضى المستحقين
                 $startOfMonth = Carbon::now()->startOfMonth();
@@ -613,6 +619,8 @@ class DrugPharmacistController extends BaseApiController
      */
     public function searchAll(Request $request)
     {
+            $hospitalId = $request->user()->hospital_id;
+
         $drugs = Drug::select(
             'id',
             'name',
@@ -627,6 +635,27 @@ class DrugPharmacistController extends BaseApiController
             'country',
             'utilization_type'
         )
+            ->where('status', '!=', Drug::STATUS_ARCHIVED)
+            ->where(function($query) use ($hospitalId) {
+                $query->where('status', Drug::STATUS_AVAILABLE)
+                    ->orWhere(function($sub) use ($hospitalId) {
+                        $sub->where('status', Drug::STATUS_PHASING_OUT);
+                        if ($hospitalId) {
+                            $sub->whereHas('inventories', function($inv) use ($hospitalId) {
+                                $inv->whereNotNull('warehouse_id')
+                                    ->whereHas('warehouse', function($w) use ($hospitalId) {
+                                        $w->where('hospital_id', $hospitalId);
+                                    })
+                                    ->where('current_quantity', '>', 0);
+                            });
+                        } else {
+                            $sub->whereHas('inventories', function($inv) {
+                                $inv->whereNotNull('warehouse_id')
+                                    ->where('current_quantity', '>', 0);
+                            });
+                        }
+                    });
+            })
             ->orderBy('name')
             ->get()
             ->map(function ($drug) {
@@ -717,6 +746,16 @@ class DrugPharmacistController extends BaseApiController
         
         $inventory->save();
 
+        // التحقق من الأرشفة التلقائية بعد التحديث
+        try {
+            $drug = $inventory->drug; // جلب الدواء المرتبط
+            if ($drug && $drug->status === Drug::STATUS_PHASING_OUT) {
+                $drug->checkAndArchiveIfNoStock();
+            }
+        } catch (\Exception $e) {
+            \Log::error('Auto-archiving check failed in DrugPharmacistController@update', ['error' => $e->getMessage()]);
+        }
+
         return $this->sendSuccess($inventory, 'تم تحديث بيانات الدواء بنجاح.');
     }
 
@@ -792,11 +831,14 @@ class DrugPharmacistController extends BaseApiController
         // البحث في الأدوية الموجودة في مخزون هذه الصيدلية فقط
         $inventoriesQuery = Inventory::with('drug')
             ->where('pharmacy_id', $pharmacyId)
-            ->whereHas('drug');
+            ->whereHas('drug', function($q) {
+                $q->where('status', '!=', Drug::STATUS_ARCHIVED);
+            });
         
         // تطبيق فلاتر البحث على الأدوية
         if ($query || $catName) {
             $inventoriesQuery->whereHas('drug', function($q) use ($query, $catName) {
+                $q->where('status', '!=', Drug::STATUS_ARCHIVED); // تأكيد إضافي
                 if ($query) {
                     $q->where(function($subQ) use ($query) {
                         $subQ->where('name', 'like', "%{$query}%")

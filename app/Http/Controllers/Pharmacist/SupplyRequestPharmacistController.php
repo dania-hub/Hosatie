@@ -8,6 +8,8 @@ use App\Models\InternalSupplyRequest;
 use App\Models\InternalSupplyRequestItem;
 use App\Models\Pharmacy; // <--- إضافة موديل الصيدلية
 use App\Models\AuditLog;
+use App\Models\Drug;
+use App\Models\Inventory;
 use Illuminate\Support\Facades\DB;
 
 use App\Services\StaffNotificationService;
@@ -77,11 +79,32 @@ class SupplyRequestPharmacistController extends BaseApiController
 
             // حفظ العناصر المدمجة
             foreach ($mergedItems as $item) {
+                $drug = Drug::find($item['drugId']);
+                if (!$drug) {
+                    throw new \Exception("الدواء غير موجود.");
+                }
+
+                if ($drug->status === Drug::STATUS_ARCHIVED) {
+                    throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' لأنه مؤرشف.");
+                }
+
+                if ($drug->status === Drug::STATUS_PHASING_OUT) {
+                    // التحقق من مخزون المستودع
+                    $warehouseInventory = Inventory::where('drug_id', $drug->id)
+                        ->whereNotNull('warehouse_id')
+                        ->whereHas('warehouse', function($q) use ($user) {
+                            $q->where('hospital_id', $user->hospital_id);
+                        })
+                        ->first();
+
+                    if (!$warehouseInventory || $warehouseInventory->current_quantity <= 0) {
+                        throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' لأنه في مرحلة الإيقاف التدريجي ونفذ من المستودع.");
+                    }
+                }
+
                 $requestItem = new InternalSupplyRequestItem();
                 $requestItem->request_id = $supplyRequest->id; 
                 $requestItem->drug_id = $item['drugId'];
-                // تخزين الكمية المطلوبة من pharmacist في requested_qty
-                // approved_qty و fulfilled_qty سيتم تعيينهما لاحقاً (null في البداية)
                 $requestItem->requested_qty = $item['quantity']; 
                 $requestItem->save();
             }

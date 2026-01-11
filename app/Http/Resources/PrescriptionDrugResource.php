@@ -17,6 +17,9 @@ class PrescriptionDrugResource extends JsonResource
             // Pivot data comes from the intermediate table
             'quantity'      => $this->pivot->monthly_quantity,
             'note'          => $this->pivot->note,
+            'status'        => $this->status,
+            'is_phasing_out' => $this->status === \App\Models\Drug::STATUS_PHASING_OUT,
+            'is_archived'    => $this->status === \App\Models\Drug::STATUS_ARCHIVED,
         ];
     }
 }

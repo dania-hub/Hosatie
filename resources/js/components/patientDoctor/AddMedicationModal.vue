@@ -134,6 +134,28 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Phasing Out Warning Alert -->
+                    <Transition
+                        enter-active-class="transition duration-300 ease-out"
+                        enter-from-class="opacity-0 -translate-y-2"
+                        enter-to-class="opacity-100 translate-y-0"
+                        leave-active-class="transition duration-200 ease-in"
+                        leave-from-class="opacity-100 translate-y-0"
+                        leave-to-class="opacity-0 -translate-y-2"
+                    >
+                        <div v-if="selectedDrugPhasingOut" class="p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-start gap-3 animate-pulse-subtle">
+                            <div class="p-2 bg-amber-100 rounded-lg">
+                                <Icon icon="solar:danger-bold-duotone" class="w-6 h-6 text-amber-600" />
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-amber-800 text-sm">تنبيه هام: دواء قيد الإيقاف</h4>
+                                <p class="text-amber-700 text-sm mt-1 leading-relaxed">
+                                    {{ selectedDrugWarning || 'هذا الدواء في مرحلة الإيقاف التدريجي. يرجى التخطيط للانتقال لبديل.' }}
+                                </p>
+                            </div>
+                        </div>
+                    </Transition>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                         <!-- Quantity Input -->
@@ -189,7 +211,12 @@
                                         {{ index + 1 }}
                                     </div>
                                     <div>
-                                        <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
+                                        <p class="font-bold text-[#2E5077] flex items-center gap-2">
+                                            {{ item.name }}
+                                            <span v-if="item.isPhasingOut" class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">
+                                                قيد الإيقاف
+                                            </span>
+                                        </p>
                                         <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }} يومياً</p>
                                     </div>
                                 </div>
@@ -324,6 +351,8 @@ const selectedDrugUnit = ref('');
 const selectedDrugForm = ref('');
 const dailyQuantity = ref(null); 
 const selectedDrugMaxMonthlyDose = ref(0);
+const selectedDrugPhasingOut = ref(false);
+const selectedDrugWarning = ref('');
 const showResults = ref(false);
 const dailyDosageList = ref([]); 
 
@@ -527,6 +556,8 @@ const clearForm = () => {
     selectedDrugId.value = null;
     selectedDrugUnit.value = '';
     selectedDrugForm.value = '';
+    selectedDrugPhasingOut.value = false;
+    selectedDrugWarning.value = '';
     dailyQuantity.value = null;
     dailyDosageList.value = [];
     filteredDrugs.value = [];
@@ -555,6 +586,8 @@ const clearSelectedDrug = () => {
     selectedDrugUnit.value = '';
     selectedDrugForm.value = '';
     selectedDrugMaxMonthlyDose.value = 0;
+    selectedDrugPhasingOut.value = false;
+    selectedDrugWarning.value = '';
     dailyQuantity.value = null;
     const hadCategory = !!selectedCategory.value;
     searchTermDrug.value = '';
@@ -613,12 +646,18 @@ const selectDrug = async (drug) => {
         } else {
             selectedDrugType.value = drug.type || 'Tablet';
         }
+
+        // Set phasing out info from details
+        selectedDrugPhasingOut.value = drugDetails.isPhasingOut || false;
+        selectedDrugWarning.value = drugDetails.phasingOutWarning || '';
     } else {
         // استخدام البيانات من القائمة المباشرة
         selectedDrugForm.value = drug.form || '';
         selectedDrugUnit.value = getDrugUnit(drug);
         selectedDrugType.value = drug.type || 'Tablet';
         selectedDrugMaxMonthlyDose.value = drug.max_monthly_dose || 0;
+        selectedDrugPhasingOut.value = drug.isPhasingOut || false;
+        selectedDrugWarning.value = drug.phasingOutWarning || '';
     }
 
     // تأكد من تحديث الجرعة القصوى إذا كانت موجودة في تفاصيل الدواء
@@ -645,6 +684,8 @@ const addNewDrug = () => {
             unit: quantityUnit.value,
             type: selectedDrugType.value,
             form: selectedDrugForm.value,
+            isPhasingOut: selectedDrugPhasingOut.value,
+            phasingOutWarning: selectedDrugWarning.value,
         });
 
         searchTermDrug.value = '';
@@ -694,6 +735,8 @@ const handleConfirmation = async () => {
                 unit: quantityUnit.value,
                 type: selectedDrugType.value,
                 form: selectedDrugForm.value,
+                isPhasingOut: selectedDrugPhasingOut.value,
+                phasingOutWarning: selectedDrugWarning.value,
             });
         }
 

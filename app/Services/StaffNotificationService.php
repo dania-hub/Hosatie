@@ -498,6 +498,137 @@ class StaffNotificationService
     }
 
     /**
+     * 5. Drug Policy & Phasing Out Notifications
+     */
+
+    public function notifyDrugPhasingOut(Drug $drug)
+    {
+        $title = 'قرار إيقاف دعم دواء (إيقاف تدريجي)';
+        $message = "تم اتخاذ قرار بإيقاف دعم الدواء '{$drug->name}' مع اتباع سياسة (الصرف حتى نفاذ الكمية).";
+        
+        // 1. الموردين (Supplier Admins)
+        $supplierAdmins = User::where('type', 'supplier_admin')->get();
+        foreach ($supplierAdmins as $user) {
+            $this->createNotification($user, $title, "تنبيه إداري: " . $message, 'مستعجل');
+        }
+
+        // 2. مدراء المستشفيات (Hospital Admins / Directors)
+        $hospitalAdmins = User::where('type', 'hospital_admin')->get();
+        foreach ($hospitalAdmins as $user) {
+            $this->createNotification($user, $title, "تنبيه إداري: " . $message, 'مستعجل');
+        }
+
+        // 3. مسؤولي المستودعات (Warehouse Managers)
+        $warehouseManagers = User::where('type', 'warehouse_manager')->get();
+        foreach ($warehouseManagers as $user) {
+            $this->createNotification($user, $title, "تنبيه تشغيلي: " . $message, 'عادي');
+        }
+
+        // 4. الأطباء والصيادلة (Doctors & Pharmacists)
+        $clinicalStaff = User::whereIn('type', ['doctor', 'pharmacist'])->get();
+        foreach ($clinicalStaff as $user) {
+            $this->createNotification($user, $title, "تنبيه تشغيلي: " . $message, 'عادي');
+        }
+    }
+
+    /**
+     * إخطار رئيس القسم عند قيام طبيب بوصف دواء قيد الإيقاف التدريجي.
+     */
+    public function notifyHODDrugPhasingOutAssigned(User $hod, User $doctor, User $patient, Drug $drug)
+    {
+        $title = 'تنبيه: وصف دواء قيد الإيقاف';
+        $message = "قام الطبيب [{$doctor->full_name}] بوصف دواء قيد الإيقاف التدريجي ({$drug->name}) للمريض [{$patient->full_name}].";
+        
+        $this->createNotification($hod, $title, $message, 'عادي');
+    }
+
+    /**
+     * إخطار مدير المستشفى عندما يصل مخزون مستشفته إلى صفر لدواء قيد الإيقاف التدريجي.
+     * (لكن ليس بالضرورة أن يكون مخزون جميع المستشفيات قد وصل إلى صفر)
+     */
+    public function notifyHospitalStockZero(Drug $drug, $hospitalId)
+    {
+        $hospital = \App\Models\Hospital::find($hospitalId);
+        if (!$hospital) {
+            return;
+        }
+
+        $title = 'اكتمال السحب التدريجي للدواء';
+        $message = "اكتملت عملية السحب التدريجي للدواء '{$drug->name}' في مستشفى {$hospital->name}. وصل المخزون إلى صفر بنجاح.";
+
+        // إرسال للمدير المسؤول عن هذه المستشفى
+        $hospitalAdmin = User::where('type', 'hospital_admin')
+            ->where('hospital_id', $hospitalId)
+            ->first();
+
+        if ($hospitalAdmin) {
+            $this->createNotification($hospitalAdmin, $title, $message, 'عادي');
+        }
+    }
+
+    /**
+     * إخطار المدير الأعلى عند أرشفة دواء بشكل نهائي.
+     * يحدث فقط عندما يصل مخزون جميع المستشفيات إلى صفر.
+     */
+    public function notifyDrugArchived(Drug $drug)
+    {
+        $title = 'إتمام أرشفة دواء';
+        $message = "اكتملت عملية السحب التدريجي للدواء '{$drug->name}'. وصل المخزون إلى صفر في جميع المستشفيات وتمت أرشفته بنجاح.";
+
+        // إشعار المدير الأعلى فقط (Super Admin)
+        $superAdmins = User::where('type', 'super_admin')->get();
+        foreach ($superAdmins as $admin) {
+            $this->createNotification($admin, $title, $message, 'عادي');
+        }
+    }
+
+    /**
+     * إخطار الجهات المعنية عند إعادة تفعيل دواء بعد إيقافه أو أرشفته.
+     */
+    public function notifyDrugReactivated(Drug $drug)
+    {
+        $title = 'إعادة تفعيل دواء';
+        $message = "تم إعادة تفعيل الدواء '{$drug->name}' مرة أخرى. الدواء أصبح متاحاً للاستخدام.";
+
+        // 1. إشعار جميع مدراء المستشفيات
+        $hospitalAdmins = User::where('type', 'hospital_admin')->get();
+        foreach ($hospitalAdmins as $admin) {
+            $this->createNotification($admin, $title, $message, 'عادي');
+        }
+
+        // 2. إشعار جميع رؤساء الأقسام
+        $departmentHeads = User::where('type', 'department_admin')->get();
+        foreach ($departmentHeads as $head) {
+            $this->createNotification($head, $title, $message, 'عادي');
+        }
+
+        // 3. إشعار مدراء المخازن
+        $warehouseManagers = User::where('type', 'warehouse_manager')->get();
+        foreach ($warehouseManagers as $manager) {
+            $this->createNotification($manager, $title, $message, 'عادي');
+        }
+
+        // 4. إشعار المرضى الذين لديهم وصفات نشطة لهذا الدواء
+        try {
+            $patients = User::where('type', 'patient')
+                ->whereHas('prescriptionsAsPatient', function ($query) use ($drug) {
+                    $query->where('status', 'active')
+                        ->whereHas('drugs', function ($q) use ($drug) {
+                            $q->where('drug_id', $drug->id);
+                        });
+                })
+                ->get();
+
+            if ($patients->isNotEmpty()) {
+                $patientNotificationService = app(\App\Services\PatientNotificationService::class);
+                $patientNotificationService->notifyDrugReactivated($drug, $patients);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Patient notification failed during drug reactivation', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * Internal helper to create notification
      */
     private function createNotification(User $user, string $title, string $message, string $type = 'عادي')

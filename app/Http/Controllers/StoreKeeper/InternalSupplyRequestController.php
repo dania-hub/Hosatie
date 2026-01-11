@@ -610,6 +610,15 @@ class InternalSupplyRequestController extends BaseApiController
                     } catch (\Exception $e) {
                         \Log::error('Stock alert notification failed', ['error' => $e->getMessage()]);
                     }
+
+                    // التحقق من الأرشفة التلقائية بعد خصم المخزون
+                    try {
+                        if ($item->drug) {
+                            $item->drug->checkAndArchiveIfNoStock($user->hospital_id);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Auto-archiving check failed in InternalSupplyRequestController@confirm', ['error' => $e->getMessage()]);
+                    }
                 }
 
                 // تثبيت الكميات في عناصر الطلب الداخلي

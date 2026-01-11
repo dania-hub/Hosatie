@@ -399,11 +399,29 @@ class ExternalSupplyRequestController extends BaseApiController
         DB::beginTransaction();
 
         try {
-            // التحقق من وجود الأدوية قبل إنشاء الطلب
+            // التحقق من وجود الأدوية وصحتها قبل إنشاء الطلب
             foreach ($validated['items'] as $item) {
-                $drugExists = \App\Models\Drug::where('id', $item['drug_id'])->exists();
-                if (!$drugExists) {
+                $drug = \App\Models\Drug::find($item['drug_id']);
+                if (!$drug) {
                     throw new \Exception("الدواء برقم {$item['drug_id']} غير موجود في قاعدة البيانات");
+                }
+
+                if ($drug->status === \App\Models\Drug::STATUS_ARCHIVED) {
+                    throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' لأنه مؤرشف وغير مدعوم.");
+                }
+
+                if ($drug->status === \App\Models\Drug::STATUS_PHASING_OUT) {
+                    // التحقق من مخزون المورد إذا كان الإيقاف تدريجياً
+                    $supplierId = $validated['supplier_id'] ?? null;
+                    if ($supplierId) {
+                        $supplierInventory = \App\Models\Inventory::where('drug_id', $drug->id)
+                            ->where('supplier_id', $supplierId)
+                            ->first();
+                        
+                        if (!$supplierInventory || $supplierInventory->current_quantity <= 0) {
+                            throw new \Exception("لا يمكن طلب الدواء '{$drug->name}' (قيد الإيقاف التدريجي) لنفاذ مخزون المورد.");
+                        }
+                    }
                 }
             }
 

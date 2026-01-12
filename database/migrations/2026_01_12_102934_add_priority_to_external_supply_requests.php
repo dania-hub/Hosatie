@@ -12,8 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('external_supply_requests', function (Blueprint $table) {
-            $table->text('notes')->nullable();
-            $table->text('rejection_reason')->nullable();
+            if (!Schema::hasColumn('external_supply_requests', 'priority')) {
+                $table->enum('priority', ['low', 'normal', 'high', 'urgent'])->default('normal');
+            }
         });
     }
 
@@ -23,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('external_supply_requests', function (Blueprint $table) {
-            $table->dropColumn(['notes', 'rejection_reason']);
+             if (Schema::hasColumn('external_supply_requests', 'priority')) {
+                $table->dropColumn('priority');
+            }
         });
     }
 };

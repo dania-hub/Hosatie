@@ -590,6 +590,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Drugs (FR-90 to FR-92)
         Route::get('drugs', [DrugSuperController::class, 'index']);
+        Route::get('categories', [DrugSuperController::class, 'categories']); // Added categories route
         Route::post('drugs', [DrugSuperController::class, 'store']);
         Route::put('drugs/{id}', [DrugSuperController::class, 'update']);
         Route::patch('drugs/{id}/discontinue', [DrugSuperController::class, 'discontinue']);
@@ -632,6 +633,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
          // Shipments (External Supply Requests)
          Route::get('/shipments', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'index']);
+         Route::get('/shipments/{id}', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'show']);
          Route::put('/shipments/{id}/confirm', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'confirm']);
     });
 });

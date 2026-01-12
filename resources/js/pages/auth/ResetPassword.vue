@@ -155,8 +155,8 @@ const validatePassword = (passwordValue, errorRef, fieldName) => {
   if (!passwordValue) {
     errorRef.value = `حقل ${fieldName} مطلوب`;
     return false;
-  } else if (passwordValue.length < 6) {
-    errorRef.value = "كلمة المرور يجب أن تكون 6 أحرف على الأقل";
+  } else if (passwordValue.length < 8) {
+    errorRef.value = "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
     return false;
   } else {
     errorRef.value = "";

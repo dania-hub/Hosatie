@@ -196,8 +196,8 @@ const links = {
        { name: "الاحصائيات", icon: "material-symbols-light:bar-chart-4-bars", to: "/Supplier/statistics" },
         { name: "قائمة الأدوية", icon: "healthicons:medicines-outline", to: "/Supplier/medications" },
         { name: "سجل العمليات", icon: "line-md:document-report", to: "/Supplier/operations" },
-        { name: "طلبات التوريد الخارجية", icon: "carbon:request-quote", to: "/Supplier/requests" },
-        { name: "طلبات التوريد الخارجية", icon: "icon-park-outline:buy", to: "/Supplier/supply-requests" },
+        { name: "طلبات توريد المستشفيات", icon: "carbon:request-quote", to: "/Supplier/requests" },
+        { name: "طلبات التوريد للادارة", icon: "icon-park-outline:buy", to: "/Supplier/supply-requests" },
      
     ]
     

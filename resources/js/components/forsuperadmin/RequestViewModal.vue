@@ -86,11 +86,18 @@
                                 <span class="font-bold text-[#2E5077]">{{ formatDate(requestDetails.confirmedAt) }}</span>
                             </div>
 
-                            <div v-if="requestDetails.notes" class="p-4 bg-gray-50 rounded-xl">
-                                <span class="text-gray-500 font-medium block mb-2">ملاحظات الطلب</span>
-                                <span class="font-medium text-gray-700">{{ requestDetails.notes }}</span>
-                            </div>
                         </div>
+
+
+                    </div>
+
+                    <!-- رسالة الرفض إن وجدت -->
+                    <div v-if="requestDetails.rejection_reason || (requestDetails.status === 'rejected' && requestDetails.notes)" class="bg-red-50 p-6 rounded-2xl border border-red-100">
+                        <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
+                            سبب الرفض
+                        </h3>
+                        <p class="text-red-800">{{ requestDetails.rejection_reason || requestDetails.notes }}</p>
                     </div>
 
                     <!-- العناصر المشحونة -->
@@ -166,8 +173,20 @@
                         <p class="text-gray-500 text-lg">لا توجد عناصر في هذه الشحنة</p>
                     </div>
 
-                    
-                   
+                    <!-- رسالة المورد / ملاحظات الطلب -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            الرسالة
+                        </h3>
+                        <div v-if="requestDetails.notes" class="bg-blue-50/50 p-4 rounded-xl text-gray-700 font-medium leading-relaxed border border-blue-100 relative">
+                            <div class="absolute -right-1 top-4 w-1 h-8 bg-blue-500 rounded-l-full"></div>
+                            {{ requestDetails.notes }}
+                        </div>
+                        <div v-else class="text-gray-400 italic text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                            لا توجد رسالة مرفقة
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -217,6 +236,11 @@ const requestDetails = ref({});
 const isLoading = ref(false);
 const error = ref(null);
 
+const isSupplierMessage = computed(() => {
+    const status = requestDetails.value.status || '';
+    return ['fulfilled', 'approved', 'shipped', 'تم الإستلام', 'موافقة'].includes(status);
+});
+
 // إعداد الـ API
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
@@ -265,7 +289,8 @@ const loadRequestDetails = async () => {
                 date: response.data.date || response.data.requestDate,
                 status: response.data.status,
                 items: response.data.items || [],
-               
+                notes: response.data.notes,
+                rejection_reason: response.data.rejection_reason,
                 confirmedAt: response.data.confirmedAt
             };
         }

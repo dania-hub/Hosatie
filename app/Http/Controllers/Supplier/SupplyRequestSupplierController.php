@@ -164,8 +164,8 @@ class SupplyRequestSupplierController extends BaseApiController
                 'supplier_id' => $user->supplier_id,
                 'requested_by' => $user->id,
                 'status' => 'pending',
-                // 'notes' => $request->input('notes'), // Column does not exist
-                // 'priority' => $request->input('priority', 'normal'),
+                'notes' => $request->input('notes'),
+                'priority' => $request->input('priority', 'normal'),
             ]);
             
             // Attach notes temporarily for notification

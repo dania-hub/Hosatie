@@ -5,12 +5,12 @@
                 class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0"
             >
                 <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                    <search v-model="searchTerm" />
-
+                    <search v-model="searchTerm" placeholder="ابحث في جميع الحقول (رقم الشحنة، حالة الطلب...)" />
+                    
                     <!-- زر إظهار/إخفاء فلتر التاريخ -->
                     <button
                         @click="showDateFilter = !showDateFilter"
-                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        class="h-11 w-12 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
                         :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                     >
                         <Icon
@@ -242,13 +242,13 @@
                                         <td
                                             :class="{
                                                 'text-red-600 font-semibold':
-                                                    shipment.requestStatus === 'مرفوض',
+                                                    shipment.requestStatus ==='مرفوضة',
                                                 'text-green-600 font-semibold':
-                                                    shipment.requestStatus === 'تم التنفيذ',
-                                                'text-yellow-600 font-semibold':
-                                                    shipment.requestStatus === 'قيد الانتظار',
-                                                'text-blue-600 font-semibold':
-                                                    shipment.requestStatus === 'جديد',
+                                                    shipment.requestStatus ===
+                                                    'تم الإستلام',
+                                                'text-blue-500 font-semibold':
+                                                    shipment.requestStatus ===
+                                                    'قيد الاستلام',
                                             }"
                                         >
                                             {{ shipment.requestStatus }}
@@ -267,7 +267,7 @@
                                                 </button>
                                                 
                                                 <!-- زر الإجراء الثاني يختلف حسب الحالة -->
-                                                <template v-if="shipment.requestStatus === 'مرفوض'">
+                                                <template v-if="shipment.requestStatus === 'مرفوضة'">
                                                     <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
                                                         <Icon
                                                             icon="tabler:circle-x" 
@@ -276,21 +276,18 @@
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.requestStatus === 'تم التنفيذ'">
-                                                    <!-- إذا كانت تم التنفيذ، تظهر زر مراجعة التفاصيل -->
-                                                    <button 
-                                                        @click="openReviewModal(shipment)"
-                                                        class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
-                                                        data-tip="مراجعة تفاصيل التنفيذ">
+                                                <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
+                                                    <!-- علامة الصح عندما تكون الحالة "تم الإستلام" -->
+                                                    <button class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="تم الإستلام">
                                                         <Icon
-                                                            icon="healthicons:yes-outline"
-                                                            class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            icon="solar:check-circle-bold"
+                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.requestStatus === 'جديد' || shipment.statusOriginal === 'approved'">
-                                                    <!-- يظهر زر تأكيد الاستلام فقط للطلبات المعتمدة من super-admin -->
+                                                <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
+                                                    <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
                                                         class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
@@ -301,13 +298,23 @@
                                                         />
                                                     </button>
                                                 </template>
-                                                
-                                                <template v-else-if="shipment.requestStatus === 'قيد الانتظار'">
-                                                    <!-- إذا كانت قيد الانتظار، تظهر رسالة انتظار -->
-                                                    <button class="tooltip p-2 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="في انتظار اعتماد الطلب من المدير العام">
+
+                                                <template v-else-if="shipment.requestStatus === 'تم التنفيذ' || shipment.requestStatus === 'fulfilled'">
+                                                    <!-- زر تتبع الشحنة عندما تكون الحالة تم التنفيذ -->
+                                                    <button class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="تم التنفيذ">
                                                         <Icon
-                                                            icon="solar:clock-circle-bold"
-                                                            class="w-4 h-4 text-orange-400"
+                                                            icon="tabler:truck-delivery"
+                                                            class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else>
+                                                    <!-- زر في انتظار القبول للحالات الأخرى (مثل "قيد الانتظار") -->
+                                                    <button class="tooltip p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="في انتظار القبول">
+                                                        <Icon
+                                                            icon="solar:clock-circle-bold-duotone"
+                                                            class="w-4 h-4 text-gray-400"
                                                         />
                                                     </button>
                                                 </template>
@@ -316,7 +323,7 @@
                                     </tr>
                                     <tr v-if="filteredShipments.length === 0">
                                         <td colspan="4" class="py-12">
-                                            <EmptyState message="لا توجد طلبات توريد" />
+                                            <EmptyState message="لم يتم العثور على طلبات توريد" />
                                         </td>
                                     </tr>
                                 </template>
@@ -366,42 +373,36 @@ import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios"; // استيراد axios
 
-import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
-import ErrorState from "@/components/Shared/ErrorState.vue";
-import EmptyState from "@/components/Shared/EmptyState.vue";
-import Toast from "@/components/Shared/Toast.vue";
-
 import DefaultLayout from "@/components/DefaultLayout.vue";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
-import RequestViewModal from "@/components/fordepartment/RequestViewModal.vue"; 
+import RequestViewModal from "@/components/forSu/RequestViewModal.vue"; 
 import ConfirmationModal from "@/components/fordepartment/ConfirmationModal.vue"; 
+import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات axios
 // ----------------------------------------------------
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 30000,
+  baseURL: '/api/supplier',
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
-// إضافة interceptor لإضافة التوكن تلقائيًا
+// إضافة interceptor لإضافة التوكن تلقائياً
 api.interceptors.request.use(
-  config => {
+  (config) => {
     const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  error => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // إضافة interceptor للتعامل مع الأخطاء
@@ -415,20 +416,21 @@ api.interceptors.response.use(
 
 // تعريف جميع الـ endpoints
 const endpoints = {
-  supplyRequests: {
-    getAll: () => api.get('/supplier/supply-requests'),
-    getById: (id) => api.get(`/supplier/supply-requests/${id}`),
-    create: (data) => api.post('/supplier/supply-requests', data)
+  shipments: {
+    getAll: () => api.get('/supply-requests'),
+    getById: (id) => api.get(`/supply-requests/${id}`),
+    confirm: (id, data) => api.post(`/supply-requests/${id}/confirm`, data)
   },
   categories: {
-    getAll: () => api.get('/supplier/categories')
+    getAll: () => api.get('/categories')
   },
   drugs: {
-    getAll: () => api.get('/supplier/drugs/all'),
-    search: (params) => api.get('/supplier/drugs/search', { params })
+    getAll: () => api.get('/drugs'),
+    getAllForSupply: () => api.get('/drugs/all'),
+    search: (params) => api.get('/drugs/search', { params })
   },
-  hospitals: {
-    getAll: () => api.get('/supplier/hospitals')
+  supplyRequests: {
+    create: (data) => api.post('/supply-requests', data)
   }
 };
 
@@ -444,7 +446,7 @@ const isSubmittingSupply = ref(false);
 const isConfirming = ref(false);
 
 // ----------------------------------------------------
-// 3. جلب البيانات من API
+// 3. جلب البيانات من API 
 // ----------------------------------------------------
 const fetchAllData = async () => {
     isLoading.value = true;
@@ -467,31 +469,30 @@ const fetchAllData = async () => {
 
 const fetchShipments = async () => {
     try {
-        const response = await endpoints.supplyRequests.getAll();
-        // BaseApiController يُرجع البيانات بداخل data
-        const responseData = response.data?.data ?? response.data ?? [];
+        const response = await endpoints.shipments.getAll();
+        // Laravel Resources wrap collections in a 'data' property
+        const data = response.data?.data ?? response.data;
+        const shipments = Array.isArray(data) ? data : [];
         
-        shipmentsData.value = responseData.map(request => ({
-            id: request.id,
-            shipmentNumber: `SR-${request.id}`,
-            requestDate: request.createdAt || '',
-            requestStatus: request.status || 'جديد',
-            statusOriginal: request.statusOriginal || request.status,
-            received: request.statusOriginal === 'fulfilled',
-            hospitalName: request.hospitalName || 'غير محدد',
-            itemsCount: request.itemsCount || 0,
-            approvedBy: request.approvedBy || '',
+        shipmentsData.value = shipments.map(shipment => ({
+            id: shipment.id,
+            shipmentNumber: shipment.shipmentNumber || `SHP-${shipment.id}`,
+            requestDate: shipment.requestDate || shipment.created_at,
+            requestStatus: shipment.status || 'قيد الانتظار',
+            received: shipment.received || (shipment.status === 'تم الإستلام' || shipment.status === 'fulfilled'),
             details: {
-                id: request.id,
-                date: request.createdAt,
-                status: request.status,
-                statusOriginal: request.statusOriginal || request.status,
-                hospitalName: request.hospitalName,
-                itemsCount: request.itemsCount
+                id: shipment.id,
+                date: shipment.requestDate || shipment.created_at,
+                status: shipment.status,
+                items: shipment.items || [],
+                notes: shipment.notes || '',
+                ...(shipment.confirmationDetails && {
+                    confirmationDetails: shipment.confirmationDetails
+                })
             }
         }));
     } catch (err) {
-        console.error('Error fetching supply requests:', err);
+        console.error('Error fetching shipments:', err);
         throw err;
     }
 };
@@ -499,11 +500,13 @@ const fetchShipments = async () => {
 const fetchCategories = async () => {
     try {
         const response = await endpoints.categories.getAll();
-        // BaseApiController يُرجع البيانات بداخل data
-        const responseData = response.data?.data ?? response.data ?? [];
-        categories.value = responseData.map(cat => ({
-            id: cat.id,
-            name: cat.name
+        // Laravel Resources wrap collections in a 'data' property
+        const data = response.data?.data ?? response.data;
+        const cats = Array.isArray(data) ? data : [];
+        
+        categories.value = cats.map(cat => ({
+            id: cat.id || cat,
+            name: typeof cat === 'string' ? cat : (cat.name || cat)
         }));
     } catch (err) {
         console.error('Error fetching categories:', err);
@@ -513,23 +516,29 @@ const fetchCategories = async () => {
 
 const fetchDrugs = async () => {
     try {
-        const response = await endpoints.drugs.getAll();
-        // BaseApiController يُرجع البيانات بداخل data
-        const responseData = response.data?.data ?? response.data ?? [];
-        allDrugsData.value = responseData.map(drug => ({
+        // استخدام /drugs/all للحصول على جميع الأدوية المتاحة لإضافتها للطلب
+        const response = await endpoints.drugs.getAllForSupply();
+        // Laravel Resources wrap collections in a 'data' property
+        const data = response.data?.data ?? response.data;
+        const drugs = Array.isArray(data) ? data : [];
+        
+        allDrugsData.value = drugs.map(drug => ({
             id: drug.id,
             drugId: drug.id,
-            name: drug.name,
-            drugName: drug.name, // للتوافق
+            name: drug.drugName || drug.name,
             genericName: drug.genericName || drug.generic_name,
             strength: drug.strength,
-            dosage: drug.strength, // للتوافق
             form: drug.form,
-            type: drug.type || drug.form || 'Tablet',
-            category: drug.category || '',
-            categoryId: drug.categoryId || drug.category || null,
-            unit: drug.unit || 'قرص',
-            status: drug.status || 'متوفر'
+            category: drug.category,
+            categoryId: drug.category,
+            unit: drug.unit,
+            maxMonthlyDose: drug.maxMonthlyDose || drug.max_monthly_dose,
+            status: drug.status,
+            manufacturer: drug.manufacturer,
+            country: drug.country,
+            utilizationType: drug.utilizationType || drug.utilization_type,
+            dosage: drug.strength,
+            type: drug.form || 'Tablet'
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);
@@ -550,22 +559,7 @@ const formatDate = (dateString) => {
     }
 };
 
-// ----------------------------------------------------
-// 5. منطق البحث والفرز
-// ----------------------------------------------------
-const searchTerm = ref("");
-const dateFrom = ref("");
-const dateTo = ref("");
-const showDateFilter = ref(false);
-const sortKey = ref("requestDate");
-const sortOrder = ref("desc");
-
-const sortShipments = (key, order) => {
-    sortKey.value = key;
-    sortOrder.value = order;
-};
-
-// دالة تحويل التاريخ من صيغة مختلفة إلى Date
+// دالة تحويل التاريخ من صيغة (yyyy/mm/dd) إلى كائن Date للمقارنة
 const parseDate = (dateString) => {
     if (!dateString) return null;
     try {
@@ -589,10 +583,25 @@ const clearDateFilter = () => {
     dateTo.value = "";
 };
 
+// ----------------------------------------------------
+// 5. منطق البحث والفرز
+// ----------------------------------------------------
+const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
+const sortKey = ref("requestDate");
+const sortOrder = ref("desc");
+
+const sortShipments = (key, order) => {
+    sortKey.value = key;
+    sortOrder.value = order;
+};
+
 const filteredShipments = computed(() => {
     let list = shipmentsData.value;
     
-    // 1. التصفية حسب البحث
+    // 1. البحث
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
         list = list.filter(
@@ -602,16 +611,25 @@ const filteredShipments = computed(() => {
         );
     }
 
-    // 2. فلترة حسب التاريخ
+    // 2. فلترة حسب التاريخ (تاريخ الطلب)
     if (dateFrom.value || dateTo.value) {
         list = list.filter((shipment) => {
             const requestDate = shipment.requestDate;
             if (!requestDate) return false;
 
-            const requestDateObj = parseDate(requestDate);
-            if (!requestDateObj) return false;
+            let requestDateObj = parseDate(requestDate);
+            if (!requestDateObj) {
+                // محاولة تحويل التاريخ من صيغة ISO
+                try {
+                    const date = new Date(requestDate);
+                    if (isNaN(date.getTime())) return false;
+                    requestDateObj = date;
+                } catch {
+                    return false;
+                }
+            }
 
-            requestDateObj.setHours(0, 0, 0, 0); // إزالة الوقت للمقارنة
+            requestDateObj.setHours(0, 0, 0, 0);
 
             let matchesFrom = true;
             let matchesTo = true;
@@ -624,7 +642,7 @@ const filteredShipments = computed(() => {
 
             if (dateTo.value) {
                 const toDate = new Date(dateTo.value);
-                toDate.setHours(23, 59, 59, 999); // نهاية اليوم
+                toDate.setHours(23, 59, 59, 999);
                 matchesTo = requestDateObj <= toDate;
             }
 
@@ -678,102 +696,124 @@ const handleSupplyConfirm = async (data) => {
     isSubmittingSupply.value = true;
     try {
         // جلب hospitals أولاً للحصول على hospital_id
-        const hospitalsResponse = await endpoints.hospitals.getAll();
+        const hospitalsResponse = await api.get("/hospitals");
         const hospitalsData = hospitalsResponse.data?.data ?? hospitalsResponse.data ?? [];
         
-        // استخدام أول مستشفى كافتراضي (يمكن تحسين هذا لاحقاً)
+        // استخدام أول مستشفى كافتراضي
         const hospitalId = hospitalsData.length > 0 ? hospitalsData[0].id : null;
         
         if (!hospitalId) {
-            throw new Error('لا توجد مستشفيات متاحة');
+            showErrorAlert(" لا توجد مستشفيات متاحة لإرسال الطلب إليها.");
+            isSubmittingSupply.value = false;
+            return;
         }
-        
+
         const requestData = {
             hospital_id: hospitalId,
             items: data.items.map(item => ({
-                drug_id: item.drugId || null,
+                drug_id: item.drugId || item.id,
                 quantity: item.quantity
             })),
-            notes: data.notes || '',
-            priority: data.priority || 'normal'
+            notes: data.notes || ''
         };
         
         const response = await endpoints.supplyRequests.create(requestData);
-        
-        // BaseApiController يُرجع البيانات بداخل data
+        // Laravel Resources wrap collections in a 'data' property
         const responseData = response.data?.data ?? response.data;
         
-        showSuccessAlert(` تم إنشاء طلب التوريد بنجاح!`);
+        const requestNumber = responseData?.requestNumber || responseData?.id || 'N/A';
+        showSuccessAlert(` تم إنشاء طلب التوريد رقم ${requestNumber} بنجاح!`);
         closeSupplyRequestModal();
         
+        // إعادة تحميل الشحنات بعد إنشاء الطلب
         await fetchShipments();
         
     } catch (err) {
-        const errorMessage = err.response?.data?.message || err.message || 'فشل في إنشاء طلب التوريد';
-        showSuccessAlert(` ${errorMessage}`);
-        console.error('Error creating supply request:', err);
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
+        showSuccessAlert(` فشل في إنشاء طلب التوريد: ${errorMessage}`);
     } finally {
         isSubmittingSupply.value = false;
     }
 };
 
 const openRequestViewModal = async (shipment) => {
+    let fetchedData = null;
+    // دائماً نجلب البيانات من API لضمان الحصول على أحدث البيانات
     try {
-        // جلب تفاصيل الطلب من API
-        const response = await endpoints.supplyRequests.getById(shipment.id);
-        const responseData = response.data?.data ?? response.data;
+        const response = await endpoints.shipments.getById(shipment.id);
+        fetchedData = response.data?.data ?? response.data;
         
-        selectedRequestDetails.value = {
-            id: responseData.id,
-            date: responseData.createdAt,
-            status: responseData.status,
-            statusOriginal: responseData.statusOriginal,
-            department: responseData.department || responseData.hospital?.name || 'غير محدد',
-            hospital: responseData.hospital,
-            requestedBy: responseData.requestedBy,
-            items: (responseData.items || []).map(item => {
-                // استخراج الكمية المطلوبة - التحقق من جميع التنسيقات الممكنة
-                const requestedQty = item.requested_qty ?? item.requestedQty ?? item.requestedQuantity ?? item.quantity ?? 0;
-                
-                return {
-                    id: item.id,
-                    drugId: item.drugId,
-                    name: item.name || item.drugName,
-                    drugName: item.name || item.drugName,
-                    category: item.category,
-                    requested_qty: Number(requestedQty) || 0,
-                    requestedQty: Number(requestedQty) || 0,
-                    requestedQuantity: Number(requestedQty) || 0,
-                    approved_qty: Number(item.approved_qty ?? item.approvedQty ?? item.approvedQuantity ?? 0) || 0,
-                    approvedQty: Number(item.approvedQty ?? item.approvedQuantity ?? item.approved_qty ?? 0) || 0,
-                    approvedQuantity: Number(item.approvedQuantity ?? item.approved_qty ?? item.approvedQty ?? 0) || 0,
-                    quantity: Number(requestedQty) || 0,
-                    strength: item.strength || null,
-                    dosage: item.dosage || item.strength || null,
-                    form: item.form || null,
-                    type: item.type || item.form || 'Tablet',
-                    unit: item.unit || 'وحدة'
-                };
-            }),
-            notes: responseData.notes || '',
-            storekeeperNotes: responseData.storekeeperNotes || null,
-            supplierNotes: responseData.supplierNotes || null,
-            confirmation: responseData.confirmation || null,
-            rejectionReason: responseData.rejectionReason || null,
-            rejectedAt: responseData.rejectedAt || null
-        };
-        isRequestViewModalOpen.value = true;
+        if (fetchedData) {
+            shipment.details = {
+                id: fetchedData.id,
+                date: fetchedData.createdAt || fetchedData.requestDate || fetchedData.created_at,
+                status: fetchedData.status,
+                items: fetchedData.items || [],
+                notes: fetchedData.notes || '',
+                storekeeperNotes: fetchedData.storekeeperNotes || null,
+                supplierNotes: fetchedData.supplierNotes || null,
+                confirmationNotes: fetchedData.confirmationNotes || null,
+                rejectionReason: fetchedData.rejectionReason || null,
+                rejectedAt: fetchedData.rejectedAt || null,
+                ...(fetchedData.confirmationDetails && {
+                    confirmationDetails: fetchedData.confirmationDetails
+                })
+            };
+        }
     } catch (err) {
-        console.error('Error fetching request details:', err);
-        // في حالة الخطأ، استخدام البيانات المتاحة
-        selectedRequestDetails.value = shipment.details || {
-            id: shipment.id,
-            date: shipment.requestDate,
-            status: shipment.requestStatus,
-            items: []
-        };
-        isRequestViewModalOpen.value = true;
+        console.error('Error fetching shipment details:', err);
     }
+    
+    // تحديث البيانات مع التأكد من وجود الكميات المطلوبة والمرسلة والمستلمة
+    selectedRequestDetails.value = {
+        ...shipment.details,
+        storekeeperNotes: shipment.details.storekeeperNotes || fetchedData?.storekeeperNotes || null,
+        storekeeperNotesSource: shipment.details.storekeeperNotesSource || fetchedData?.storekeeperNotesSource || null,
+        supplierNotes: shipment.details.supplierNotes || fetchedData?.supplierNotes || null,
+        confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null,
+        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
+        rejectionReason: fetchedData?.rejectionReason || shipment.details.rejectionReason || null,
+        rejectedAt: fetchedData?.rejectedAt || shipment.details.rejectedAt || null,
+        items: (shipment.details.items || []).map(item => ({
+            ...item,
+            // الكمية المطلوبة
+            quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+            requestedQty: item.requestedQty ?? item.requested_qty ?? item.quantity ?? 0,
+            requested_qty: item.requested_qty ?? item.requestedQty ?? item.quantity ?? 0,
+            // الكمية المرسلة (المعتمدة)
+            approvedQty: item.approvedQty ?? item.approved_qty ?? null,
+            approved_qty: item.approved_qty ?? item.approvedQty ?? null,
+            sentQuantity: item.sentQuantity ?? item.approvedQty ?? item.approved_qty ?? null,
+            // الكمية المستلمة - فقط fulfilled_qty، لا نستخدم approved_qty كبديل
+            // أولوية: fulfilled_qty > fulfilledQty > receivedQuantity (فقط إذا لم يكن approved_qty)
+            fulfilledQty: item.fulfilledQty ?? item.fulfilled_qty ?? null,
+            fulfilled_qty: item.fulfilled_qty ?? item.fulfilledQty ?? null,
+            // التحقق من أن receivedQuantity ليس هو نفس approved_qty
+            receivedQuantity: (() => {
+                const fulfilled = item.fulfilled_qty ?? item.fulfilledQty ?? null;
+                if (fulfilled !== null && fulfilled !== undefined) {
+                    return fulfilled;
+                }
+                // إذا كان receivedQuantity موجوداً وليس نفس approved_qty، نستخدمه
+                const approved = item.approved_qty ?? item.approvedQty ?? null;
+                const received = item.receivedQuantity;
+                if (received !== null && received !== undefined && received !== approved) {
+                    return received;
+                }
+                return null;
+            })(),
+            // معلومات إضافية
+            unit: item.unit || 'وحدة',
+            dosage: item.dosage || item.strength || '',
+            type: item.type || item.form || ''
+        })),
+        confirmation: shipment.details.confirmationDetails || (shipment.requestStatus === 'تم الإستلام' || shipment.received || fetchedData?.status === 'تم الإستلام' ? {
+            confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString(),
+            confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null
+        } : null),
+        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null
+    };
+    isRequestViewModalOpen.value = true;
 };
 
 const closeRequestViewModal = () => {
@@ -782,56 +822,32 @@ const closeRequestViewModal = () => {
 };
 
 const openConfirmationModal = async (shipment) => {
+    let fetchedData = null;
+    // جلب البيانات من API لضمان الحصول على أحدث البيانات بما فيها الكمية المرسلة
     try {
-        // جلب تفاصيل الطلب من API
-        const response = await endpoints.supplyRequests.getById(shipment.id);
-        const responseData = response.data?.data ?? response.data;
+        const response = await endpoints.shipments.getById(shipment.id);
+        fetchedData = response.data?.data ?? response.data;
         
-        selectedShipmentForConfirmation.value = {
-            id: responseData.id,
-            date: responseData.createdAt,
-            status: responseData.status,
-            statusOriginal: responseData.statusOriginal,
-            items: (responseData.items || []).map(item => {
-                // استخراج الكمية المطلوبة - التحقق من جميع التنسيقات الممكنة
-                const requestedQty = item.requested_qty ?? item.requestedQty ?? item.requestedQuantity ?? item.quantity ?? 0;
-                const approvedQty = item.approved_qty ?? item.approvedQty ?? item.approvedQuantity ?? null;
-                
-                return {
-                    id: item.id,
-                    drugId: item.drugId,
-                    name: item.name || item.drugName,
-                    drugName: item.name || item.drugName,
-                    category: item.category,
-                    requested_qty: Number(requestedQty) || 0,
-                    requestedQty: Number(requestedQty) || 0,
-                    requestedQuantity: Number(requestedQty) || 0,
-                    approved_qty: approvedQty !== null ? Number(approvedQty) : null,
-                    approvedQty: approvedQty !== null ? Number(approvedQty) : null,
-                    approvedQuantity: approvedQty !== null ? Number(approvedQty) : null,
-                    quantity: Number(requestedQty) || 0,
-                    originalQuantity: Number(requestedQty) || 0,
-                    sentQuantity: approvedQty !== null ? Number(approvedQty) : Number(requestedQty) || 0,
-                    strength: item.strength || null,
-                    dosage: item.dosage || item.strength || null,
-                    form: item.form || null,
-                    type: item.type || item.form || 'Tablet',
-                    unit: item.unit || 'وحدة'
-                };
-            })
-        };
-        isConfirmationModalOpen.value = true;
+        if (fetchedData) {
+            shipment.details = {
+                id: fetchedData.id,
+                date: fetchedData.requestDate || fetchedData.created_at,
+                status: fetchedData.status,
+                items: fetchedData.items || [],
+                notes: fetchedData.notes || '',
+                storekeeperNotes: fetchedData.storekeeperNotes || null,
+                supplierNotes: fetchedData.supplierNotes || null,
+                ...(fetchedData.confirmationDetails && {
+                    confirmationDetails: fetchedData.confirmationDetails
+                })
+            };
+        }
     } catch (err) {
-        console.error('Error fetching request details for confirmation:', err);
-        // في حالة الخطأ، استخدام البيانات المتاحة
-        selectedShipmentForConfirmation.value = shipment.details || {
-            id: shipment.id,
-            date: shipment.requestDate,
-            status: shipment.requestStatus,
-            items: []
-        };
-        isConfirmationModalOpen.value = true;
+        console.error('Error fetching shipment details:', err);
     }
+    
+    selectedShipmentForConfirmation.value = shipment.details; 
+    isConfirmationModalOpen.value = true;
 };
 
 const closeConfirmationModal = () => {
@@ -844,34 +860,43 @@ const handleConfirmation = async (confirmationData) => {
     const shipmentId = selectedShipmentForConfirmation.value.id;
     
     try {
-        // التحقق من أن الطلب معتمد قبل تأكيد الاستلام
-        const shipment = shipmentsData.value.find(s => s.id === shipmentId);
-        if (shipment && shipment.requestStatus !== 'جديد' && shipment.statusOriginal !== 'approved') {
-            showSuccessAlert(` لا يمكن تأكيد الاستلام. يجب أن يكون الطلب معتمداً من المدير العام أولاً.`);
-            closeConfirmationModal();
-            return;
-        }
-        
-        // استخدام shipments endpoint لتأكيد الاستلام
-        const response = await api.post(`/supplier/shipments/${shipmentId}/confirm`, confirmationData);
+        // إرسال بيانات التأكيد (يمكن أن تكون فارغة أو تحتوي على ملاحظات)
+        const response = await endpoints.shipments.confirm(shipmentId, confirmationData || {});
+        // Laravel Resources wrap collections in a 'data' property
+        const responseData = response.data?.data ?? response.data;
         
         const shipmentIndex = shipmentsData.value.findIndex(
             s => s.id === shipmentId
         );
         
         if (shipmentIndex !== -1) {
-            shipmentsData.value[shipmentIndex].requestStatus = 'تم التنفيذ';
+            shipmentsData.value[shipmentIndex].requestStatus = responseData?.status || 'تم الإستلام';
             shipmentsData.value[shipmentIndex].received = true;
+            
+            // تحديث تفاصيل الشحنة مع البيانات المحدثة
+            if (responseData?.confirmationDetails) {
+                shipmentsData.value[shipmentIndex].details.confirmationDetails = responseData.confirmationDetails;
+            }
+            
+            // تحديث عناصر الشحنة بالكميات المستلمة
+            if (responseData?.items && Array.isArray(responseData.items)) {
+                shipmentsData.value[shipmentIndex].details.items = responseData.items.map(item => ({
+                    ...item,
+                    receivedQuantity: item.receivedQuantity ?? item.fulfilledQty ?? item.fulfilled_qty ?? null,
+                    quantity: item.quantity ?? item.requestedQty ?? item.requested_qty ?? 0,
+                }));
+            }
         }
         
         showSuccessAlert(` تم تأكيد استلام الشحنة بنجاح!`);
         closeConfirmationModal();
+        
+        // إعادة تحميل الشحنات لتحديث البيانات
         await fetchShipments();
         
     } catch (err) {
-        const errorMessage = err.response?.data?.message || err.message || 'فشل في تأكيد الاستلام';
-        showSuccessAlert(` ${errorMessage}`);
-        console.error('Error confirming shipment:', err);
+        const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع';
+        showSuccessAlert(` فشل في تأكيد الاستلام: ${errorMessage}`);
     } finally {
         isConfirming.value = false;
     }
@@ -911,7 +936,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 
 <h1>قائمة طلبات التوريد </h1>
 
-<p class="results-info">عدد النتائج : ${resultsCount}</p>
+<p class="results-info">عدد النتائج: ${resultsCount}</p>
 
 <table>
 <thead>
@@ -919,19 +944,19 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
-   </tr>
+    </tr>
 </thead>
 <tbody>
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '' : '';
+
         tableHtml += `
 <tr>
     <td>${shipment.shipmentNumber}</td>
     <td>${formatDate(shipment.requestDate)}</td>
     <td>${shipment.requestStatus}</td>
- 
+   
 </tr>
 `;
     });
@@ -941,7 +966,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 </table>
 `;
 
-    printWindow.document.write("<html><head><title> قائمة طلبات التوريد</title>");
+    printWindow.document.write("<html><head><title>طباعة قائمة طلبات التوريد</title>");
     printWindow.document.write("</head><body>");
     printWindow.document.write(tableHtml);
     printWindow.document.write("</body></html>");
@@ -955,7 +980,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 };
 
 // ----------------------------------------------------
-// 9. نظام التنبيهات
+// 9. نظام التنبيهات المطور (Toast System)
 // ----------------------------------------------------
 const isAlertVisible = ref(false);
 const alertMessage = ref("");
@@ -976,9 +1001,10 @@ const showAlert = (message, type = "success") => {
     }, 4000);
 };
 
-// للتوافق مع الطلبات القديمة
 const showSuccessAlert = (message) => showAlert(message, "success");
 const showErrorAlert = (message) => showAlert(message, "error");
+const showWarningAlert = (message) => showAlert(message, "warning");
+const showInfoAlert = (message) => showAlert(message, "info");
 
 // ----------------------------------------------------
 // 10. دورة الحياة

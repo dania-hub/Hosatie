@@ -143,6 +143,14 @@
                         </div>
                     </div>
                 </div>
+                 <!-- <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                            رسالة المورد
+                        </h4>
+                        <p v-if="requestDetails.notes" class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
+                        <p v-else class="text-blue-400 text-sm leading-relaxed italic">لا توجد رسالة مرفقة</p>
+                    </div> -->
                        <!-- Rejection Reason -->
                 <div v-if="requestDetails.rejectionReason" class="bg-red-50 border border-red-100 rounded-2xl p-6">
                     <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
@@ -191,12 +199,14 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.notes && !requestDetails.confirmation?.notes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <!-- Supplier Message (Always Visible) -->
+                    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                            ملاحظة الطلب الأصلية
+                            رسالة المورد
                         </h4>
-                        <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
+                        <p v-if="requestDetails.notes" class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
+                        <p v-else class="text-blue-400 text-sm leading-relaxed italic">لا توجد رسالة مرفقة</p>
                     </div>
                 </div>
                 

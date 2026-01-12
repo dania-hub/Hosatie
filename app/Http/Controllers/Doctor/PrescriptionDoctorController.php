@@ -421,9 +421,12 @@ class PrescriptionDoctorController extends BaseApiController
             return $this->sendError('الوصفة غير موجودة.', [], 404);
         }
 
+        // تأكد أن المريض موجود وفي نفس المستشفى وأن الـ ID متطابق
         $patient = $prescription->patient;
-        if (!$patient || $patient->hospital_id !== $hospitalId) {
-            Log::error('❌ Patient access error in destroy()', [
+        if (!$patient || $patient->hospital_id !== $hospitalId || $patient->id != $patientId) {
+            Log::error('❌ Patient access or ID mismatch error in destroy()', [
+                'target_patient_id' => $patientId,
+                'found_patient_id' => $patient ? $patient->id : null,
                 'patient_hospital_id' => $patient ? $patient->hospital_id : null,
                 'doctor_hospital_id' => $hospitalId
             ]);
@@ -478,6 +481,8 @@ class PrescriptionDoctorController extends BaseApiController
                 $prescription->delete();
                 Log::info('✅ Prescription deleted (empty)');
             }
+
+            DB::commit();
             Log::info('✅ ========== END destroy() - SUCCESS ==========');
             return $this->sendSuccess([], 'تم حذف الدواء بنجاح.');
             

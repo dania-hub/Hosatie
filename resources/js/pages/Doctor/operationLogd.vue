@@ -11,7 +11,7 @@ import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
 
-// تكوين Axios للطبيب
+// تكو.ين Axios للطبيب
 const API_BASE_URL = "/api/doctor";
 const api = axios.create({
   baseURL: API_BASE_URL,

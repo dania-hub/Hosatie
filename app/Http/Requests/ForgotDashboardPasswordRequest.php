@@ -9,4 +9,13 @@ class ForgotDashboardPasswordRequest extends FormRequest
     public function rules(): array {
         return ['email' => 'required|email|exists:users,email'];
     }
+
+    public function messages()
+    {
+        return [
+            'email.exists' => 'البريد الإلكتروني المدخل غير مسجل في النظام.',
+            'email.required' => 'حقل البريد الإلكتروني مطلوب.',
+            'email.email' => 'يرجى إدخال عنوان بريد إلكتروني صالح.',
+        ];
+    }
 }

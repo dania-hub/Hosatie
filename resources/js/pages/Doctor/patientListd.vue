@@ -693,15 +693,6 @@ const openViewModal = async (patient) => {
       selectedPatient.value = {
         ...patientData,
         nameDisplay: patientData.name || patientData.nameDisplay || 'غير متوفر',
-        medications: (patientData.medications || []).map(med => ({
-          ...med,
-          monthlyQuantity: med.dosage || med.monthlyQuantity || 'غير محدد',
-          assignmentDate: med.assignmentDate || new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-          assignedBy: med.assignedBy || 'غير محدد',
-          drugName: med.drugName || med.name || 'غير محدد',
-          dosage: med.dosage || med.monthlyQuantity || 'غير محدد',
-        
-        }))
       };
       isViewModalOpen.value = true;
       showSuccessAlert(`تم تحميل تفاصيل المريض: بيانات ${patient.name} جاهزة للعرض`);

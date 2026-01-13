@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1768252071355" clover="3.2.0">
+  <project timestamp="1768252071355" name="All files">
+    <metrics statements="12" coveredstatements="12" conditionals="14" coveredconditionals="14" methods="4" coveredmethods="4" elements="30" coveredelements="30" complexity="0" loc="12" ncloc="12" packages="1" files="1" classes="1"/>
+    <file name="useAuthorization.js" path="C:\Users\lenovo\Desktop\مشروع حصتي\Hosatie_project\Hosatie\src\composables\useAuthorization.js">
+      <metrics statements="12" coveredstatements="12" conditionals="14" coveredconditionals="14" methods="4" coveredmethods="4"/>
+      <line num="2" count="17" type="stmt"/>
+      <line num="3" count="12" type="cond" truecount="4" falsecount="0"/>
+      <line num="4" count="11" type="stmt"/>
+      <line num="7" count="17" type="stmt"/>
+      <line num="8" count="14" type="cond" truecount="4" falsecount="0"/>
+      <line num="9" count="12" type="stmt"/>
+      <line num="12" count="17" type="stmt"/>
+      <line num="13" count="10" type="cond" truecount="2" falsecount="0"/>
+      <line num="14" count="8" type="cond" truecount="2" falsecount="0"/>
+      <line num="15" count="7" type="cond" truecount="2" falsecount="0"/>
+      <line num="16" count="6" type="stmt"/>
+      <line num="19" count="17" type="stmt"/>
+    </file>
+  </project>
+</coverage>

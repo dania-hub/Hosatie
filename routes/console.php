@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('stock:check-alerts')->dailyAt('09:00');
 Schedule::command('inventory:expire')->dailyAt('00:00'); // تصفير الكميات للأدوية المنتهية الصلاحية يومياً
+Schedule::command('users:deactivate-inactive-patients')->monthly();
+Schedule::command('users:deactivate-inactive-logins')->daily();

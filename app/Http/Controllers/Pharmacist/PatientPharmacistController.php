@@ -220,7 +220,7 @@ class PatientPharmacistController extends BaseApiController
                 // ============================================================
                 // تحديد حالة الاستحقاق بناءً على:
                 // 1. توفر الدواء في المخزون (أولوية أولى)
-                // 2. الكمية المصروفة الشهرية (يجب أن تكون أقل من الكمية الشهرية)
+                // 2. الكمية المصروفة في آخر 30 يوم (يجب أن تكون أقل من الكمية الشهرية)
                 // ============================================================
                 
                 // 1. التحقق من توفر الدواء في المخزون
@@ -233,16 +233,18 @@ class PatientPharmacistController extends BaseApiController
                 
                 $eligibilityStatus = 'مستحق';
                 
-                // حساب الكمية المصروفة في الشهر الحالي (يتم حسابها دائماً لعرضها)
-                $startOfMonth = Carbon::now()->startOfMonth();
-                $endOfMonth = Carbon::now()->endOfMonth();
+                // حساب الكمية المصروفة في آخر 30 يوم من تاريخ updated_at
+                // هذا يتماشى مع منطق التجديد التلقائي الذي يستخدم دورات 30 يوم
+                $last30DaysStart = $pivot->updated_at 
+                    ? Carbon::parse($pivot->updated_at)
+                    : Carbon::now()->subDays(30);
                 
-                // حساب الكمية المصروفة في الشهر الحالي من جميع المستشفيات
+                // حساب الكمية المصروفة في آخر 30 يوم من جميع المستشفيات
                 // هذا يضمن حساب دقيق للمرضى المنقولين
-                $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $patient->id)
+                $totalDispensedLast30Days = (int)Dispensing::where('patient_id', $patient->id)
                     ->where('drug_id', $drug->id)
                     ->where('reverted', false) // استبعاد السجلات الملغاة
-                    ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                    ->where('created_at', '>=', $last30DaysStart)
                     ->sum('quantity_dispensed');
                 
                 // في هذا النموذج، monthly_quantity الموجود في pivot يمثل "المتبقي" فعلياً في قاعدة البيانات
@@ -253,8 +255,8 @@ class PatientPharmacistController extends BaseApiController
                 if (!$inventory || $inventory->current_quantity <= 0) {
                     $eligibilityStatus = 'غير متوفر';
                 } else {
-                    // إذا تم صرف الكمية الشهرية كاملة أو أكثر، أو إذا لم يتم تحديد كمية، يصبح غير مستحق
-                    if ($monthlyQty <= 0 || $totalDispensedThisMonth >= $monthlyQty) {
+                    // إذا تم صرف الكمية الشهرية كاملة أو أكثر في آخر 30 يوم، أو إذا لم يتم تحديد كمية، يصبح غير مستحق
+                    if ($monthlyQty <= 0 || $totalDispensedLast30Days >= $monthlyQty) {
                         $eligibilityStatus = 'غير مستحق';
                     }
                 }
@@ -269,9 +271,10 @@ class PatientPharmacistController extends BaseApiController
 
                 // تنسيق الكمية المتبقية كنص
                 $remainingQuantityText = '';
-                if ($monthlyQty > 0 && $totalDispensedThisMonth > 0) {
-                    $remainingQuantityText = $remainingQuantity > 0 
-                        ? $remainingQuantity . ' ' . $unit . ' متبقية'
+                if ($monthlyQty > 0 && $totalDispensedLast30Days > 0) {
+                    $actualRemaining = max(0, $monthlyQty - $totalDispensedLast30Days);
+                    $remainingQuantityText = $actualRemaining > 0 
+                        ? $actualRemaining . ' ' . $unit . ' متبقية'
                         : 'تم صرف الكمية الشهرية كاملة';
                 }
 
@@ -309,8 +312,8 @@ class PatientPharmacistController extends BaseApiController
                     'assignmentDate' => $displayDate,
                     'assignedBy' => $assignedBy,
                     'eligibilityStatus' => $eligibilityStatus,
-                    // معلومات الصرف الشهري
-                    'totalDispensedThisMonth' => $totalDispensedThisMonth,
+                    // معلومات الصرف في آخر 30 يوم
+                    'totalDispensedLast30Days' => $totalDispensedLast30Days,
                     'remainingQuantity' => $remainingQuantity,
                     'remainingQuantityText' => $remainingQuantityText,
                     // الكمية المتوفرة في المخزون

@@ -294,7 +294,23 @@ class StaffNotificationService
         
         // If notes are passed via a temporary property (not in DB)
         if (isset($request->notes) && !empty($request->notes)) {
-             $message .= "\n\nملاحظات الطلب:\n{$request->notes}";
+             $notes = $request->notes;
+             if (is_array($notes)) {
+                 // Finds the first note from the supplier if it's an array structure
+                 $firstNote = collect($notes)->firstWhere('by', 'supplier_admin')['message'] ?? null;
+                 if (!$firstNote && isset($notes[0]['message'])) {
+                      $firstNote = $notes[0]['message'];
+                 } else if (!$firstNote && is_string($notes)) {
+                      // Fallback if array of strings? Unlikely based on new structure but safe
+                      $firstNote = (string) $notes;
+                 }
+                 
+                 if ($firstNote) {
+                     $message .= "\n\nملاحظات الطلب:\n{$firstNote}";
+                 }
+             } else {
+                 $message .= "\n\nملاحظات الطلب:\n{$notes}";
+             }
         }
 
         foreach ($superAdmins as $admin) {

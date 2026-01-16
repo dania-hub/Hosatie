@@ -362,7 +362,7 @@ import axios from "axios";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 import search from "@/components/search.vue"; 
 import btnprint from "@/components/btnprint.vue";
-import RequestViewModal from "@/components/forstorekeeper/RequestViewModal.vue"; 
+import RequestViewModal from "@/components/forsuperadmin/RequestViewModal.vue"; 
 import ConfirmationModal from "@/components/forsuperadmin/ConfirmationModal.vue"; 
 import Toast from "@/components/Shared/Toast.vue";
 import TableSkeleton from "@/components/Shared/TableSkeleton.vue";

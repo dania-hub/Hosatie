@@ -205,7 +205,18 @@
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             رسالة المورد
                         </h4>
-                        <p v-if="requestDetails.notes" class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
+                        <div v-if="Array.isArray(requestDetails.notes) && requestDetails.notes.length > 0" class="space-y-3">
+                            <div v-for="(msg, index) in requestDetails.notes" :key="index" class="bg-white/60 p-3 rounded-lg border border-blue-100/50">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs font-bold" :class="msg.by === 'supplier_admin' ? 'text-green-700' : 'text-blue-700'">
+                                        {{ msg.by === 'supplier_admin' ? (msg.user_name || 'المورد') : 'الإدارة' }}
+                                    </span>
+                                    <span class="text-[10px] text-gray-400" dir="ltr">{{ formatDate(msg.created_at) }}</span>
+                                </div>
+                                <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ msg.message }}</p>
+                            </div>
+                        </div>
+                        <p v-else-if="requestDetails.notes && typeof requestDetails.notes === 'string'" class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
                         <p v-else class="text-blue-400 text-sm leading-relaxed italic">لا توجد رسالة مرفقة</p>
                     </div>
                 </div>

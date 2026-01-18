@@ -1185,7 +1185,7 @@ const printTable = () => {
                                                 <td class="status-col">
                                                     <span
                                                         :class="[
-                                                            'w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 border hover:scale-105 active:scale-95',
+                                                            'px-2 py-1 rounded-full text-xs font-semibold',
                                                             employee.isActive
                                                                 ? 'bg-green-100/70 text-green-700 border-green-700/60'
                                                                 : 'bg-red-100/70 text-red-700 border-red-700/60',

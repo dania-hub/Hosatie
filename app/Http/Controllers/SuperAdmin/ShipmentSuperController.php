@@ -73,13 +73,30 @@ class ShipmentSuperController extends BaseApiController
         try {
             $shipment = ExternalSupplyRequest::with(['supplier', 'items.drug'])->findOrFail($id);
 
+            // Extract the initial supplier message for the frontend "Supplier Message" box
+            $messages = $shipment->messages ?? [];
+            $initialNote = '';
+            if (is_array($messages)) {
+                $supplierNote = collect($messages)->firstWhere('by', 'supplier_admin');
+                $initialNote = $supplierNote['message'] ?? '';
+                
+                // Fallback: if no typed message found but array exists, try first item
+                if (!$initialNote && !empty($messages[0]['message'])) {
+                     $initialNote = $messages[0]['message'];
+                }
+            } else if (is_string($messages)) {
+                $initialNote = $messages;
+            }
+
             return $this->sendSuccess([
                 'id' => $shipment->id,
                 'shipmentNumber' => 'EXT-' . $shipment->id,
                 'department' => $shipment->supplier ? $shipment->supplier->name : 'غير محدد',
                 'date' => $shipment->created_at->format('Y-m-d'),
                 'status' => $shipment->status,
-                'notes' => $shipment->notes,
+                'notes' => $messages, // Return full thread (array or string fallback)
+                'notes_initial' => $initialNote, // Keep mainly for backup/debugging
+                'conversation' => $messages, // Return full thread
                 'items' => $shipment->items->map(function ($item) {
                     // حساب المخزون المتوفر للدواء (إجمالي في جميع المستودعات كمثال، أو 0 إذا لم ينطبق)
                     // بما أن السوبر أدمن قد لا يكون لديه مخزون خاص، سنعرض إجمالي المخزون المتوفر
@@ -112,6 +129,103 @@ class ShipmentSuperController extends BaseApiController
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Shipment Show Error');
+        }
+    }
+
+    /**
+     * قبول طلب التوريد
+     * PUT /api/super-admin/shipments/{id}/approve
+     */
+    public function approve(Request $request, $id)
+    {
+        try {
+            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital'])->findOrFail($id);
+
+            if ($shipment->status !== 'pending') {
+                 return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
+            }
+
+            $shipment->status = 'approved';
+            $shipment->handeled_by = $request->user()->id;
+            $shipment->handeled_at = now();
+            $shipment->save();
+
+            if ($request->filled('notes')) {
+                $shipment->addNote($request->input('notes'), $request->user());
+            }
+
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $request->user()->id,
+                    'hospital_id' => $shipment->hospital_id,
+                    'action' => 'super_admin_approve_external_supply_request',
+                    'table_name' => 'external_supply_requests',
+                    'record_id' => $shipment->id,
+                    'new_values' => json_encode(['status' => 'approved']),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                 \Log::warning('Audit Log Error: ' . $e->getMessage());
+            }
+
+            try {
+                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'تم الموافقة', $request->input('notes'));
+            } catch (\Exception $e) {
+                \Log::error('Notification error', ['error' => $e->getMessage()]);
+            }
+
+            return $this->sendSuccess($shipment, 'تم قبول الطلب بنجاح');
+        } catch (\Exception $e) {
+             return $this->handleException($e, 'Super Admin Approve Error');
+        }
+    }
+
+    /**
+     * رفض طلب التوريد
+     * PUT /api/super-admin/shipments/{id}/reject
+     */
+    public function reject(Request $request, $id)
+    {
+        try {
+            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital'])->findOrFail($id);
+
+            if ($shipment->status !== 'pending') {
+                 return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
+            }
+
+            $shipment->status = 'rejected';
+            $shipment->handeled_by = $request->user()->id;
+            $shipment->handeled_at = now();
+            $shipment->rejection_reason = $request->input('rejection_reason', $request->input('notes')); // Use notes as reason if not provided explicitly
+            $shipment->save();
+
+            if ($request->filled('notes')) {
+                $shipment->addNote($request->input('notes'), $request->user());
+            }
+
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $request->user()->id,
+                    'hospital_id' => $shipment->hospital_id,
+                    'action' => 'super_admin_reject_external_supply_request',
+                    'table_name' => 'external_supply_requests',
+                    'record_id' => $shipment->id,
+                    'new_values' => json_encode(['status' => 'rejected']),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                 \Log::warning('Audit Log Error: ' . $e->getMessage());
+            }
+
+            try {
+                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'مرفوض', $request->input('notes'));
+            } catch (\Exception $e) {
+                \Log::error('Notification error', ['error' => $e->getMessage()]);
+            }
+
+            return $this->sendSuccess($shipment, 'تم رفض الطلب بنجاح');
+        } catch (\Exception $e) {
+             return $this->handleException($e, 'Super Admin Reject Error');
         }
     }
 
@@ -200,10 +314,12 @@ class ShipmentSuperController extends BaseApiController
             }
 
             // تحديث حالة الطلب
-            $shipment->update([
-                'status' => 'fulfilled',
-                'notes' => $request->input('notes')
-            ]);
+            $shipment->status = 'fulfilled';
+            $shipment->save();
+
+            if ($request->filled('notes')) {
+                $shipment->addNote($request->input('notes'), $request->user());
+            }
 
             // تسجيل في AuditLog
              \App\Models\AuditLog::create([

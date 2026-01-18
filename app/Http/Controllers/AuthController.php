@@ -87,8 +87,10 @@ class AuthController extends BaseApiController
         // Update FCM
         if (!empty($credentials['fcm_token'])) {
             $user->fcm_token = $credentials['fcm_token'];
-            $user->save();
         }
+        
+        $user->last_login_at = now();
+        $user->save();
 
         $token = $user->createToken('mobile_app')->plainTextToken;
 

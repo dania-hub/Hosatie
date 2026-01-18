@@ -28,7 +28,8 @@ class User extends Authenticatable
         'department_id',
         'status',
         'created_by',
-        'birth_date',   // 👈 جديد
+        'birth_date',
+        'last_login_at', // 👈 جديد
     ];
 
     protected $hidden = [
@@ -37,7 +38,8 @@ class User extends Authenticatable
     ];
 
     protected $casts = [
-        'birth_date' => 'date', // اختياري لكنه مفيد
+        'birth_date' => 'date', 
+        'last_login_at' => 'datetime',
     ];
 
     public function warehouse()

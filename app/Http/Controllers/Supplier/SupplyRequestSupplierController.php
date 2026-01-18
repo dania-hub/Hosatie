@@ -132,7 +132,7 @@ class SupplyRequestSupplierController extends BaseApiController
                     ];
                 }),
                 'createdAt' => $supplyRequest->created_at->format('Y/m/d H:i'),
-                'notes' => $supplyRequest->notes ?? '',
+                'notes' => $supplyRequest->messages, // Return the conversation thread
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الطلب بنجاح');
@@ -164,12 +164,13 @@ class SupplyRequestSupplierController extends BaseApiController
                 'supplier_id' => $user->supplier_id,
                 'requested_by' => $user->id,
                 'status' => 'pending',
-                'notes' => $request->input('notes'),
                 'priority' => $request->input('priority', 'normal'),
             ]);
             
-            // Attach notes temporarily for notification
-            $supplyRequest->notes = $request->input('notes');
+            // Add initial note if provided
+            if ($request->filled('notes')) {
+                $supplyRequest->addNote($request->input('notes'), $user);
+            }
 
             // إضافة الأدوية المطلوبة
             $items = $request->input('items', []);

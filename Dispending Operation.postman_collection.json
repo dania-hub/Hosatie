@@ -1,0 +1,205 @@
+{
+	"info": {
+		"_postman_id": "4f27c4e5-36e9-4f4e-9a46-a789a0b2e7d7",
+		"name": "Dispending Operation",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "47284804",
+		"_collection_link": "https://daref722-4103910.postman.co/workspace/Hosatie~f3a4e1e8-f50c-4959-b880-eac99916d4fe/collection/47284804-4f27c4e5-36e9-4f4e-9a46-a789a0b2e7d7?action=share&source=collection_link&creator=47284804"
+	},
+	"item": [
+		{
+			"name": "patient data",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "114|EkAsoRT3xEW4UurfGSOI0TllRsI08ZLfH2xJx2KTe8e0af56",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/pharmacist/patients/15",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"pharmacist",
+						"patients",
+						"15"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "dispending",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400\", function () {\r",
+							"    pm.response.to.have.status(400);\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "114|EkAsoRT3xEW4UurfGSOI0TllRsI08ZLfH2xJx2KTe8e0af56",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"patientFileNumber\":15,\r\n  \"dispensedItems\": [\r\n   \r\n    {\r\n      \"drugName\": \"ديكلوفيناك\",\r\n      \"quantity\": 40\r\n    }\r\n  ]\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/pharmacist/dispense",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"pharmacist",
+						"dispense"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "drugs",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "114|EkAsoRT3xEW4UurfGSOI0TllRsI08ZLfH2xJx2KTe8e0af56",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/pharmacist/drugs",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"pharmacist",
+						"drugs"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "patient drug",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "115|167W7PkiAGMWLRCuYOSsMiHslusU3nX5RIpjqwfDa984653b",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/home/mobile",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"home",
+						"mobile"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

@@ -635,5 +635,7 @@ Route::middleware('auth:sanctum')->group(function () {
          Route::get('/shipments', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'index']);
          Route::get('/shipments/{id}', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'show']);
          Route::put('/shipments/{id}/confirm', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'confirm']);
+         Route::put('/shipments/{id}/approve', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'approve']);
+         Route::put('/shipments/{id}/reject', [App\Http\Controllers\SuperAdmin\ShipmentSuperController::class, 'reject']);
     });
 });

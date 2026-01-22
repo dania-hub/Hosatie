@@ -668,7 +668,8 @@ const fetchDrugs = async () => {
                 type: drug.form || drug.type || 'Tablet',
                 form: drug.form || '',
                 unit: drug.unit || '',
-                drugCode: drug.drugCode || drug.id
+                drugCode: drug.drugCode || drug.id,
+                units_per_box: drug.units_per_box || drug.unitsPerBox || 1
             };
         });
         
@@ -686,7 +687,7 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('ar-SA');
+        return date.toLocaleDateString('en-GB');
     } catch {
         return dateString;
     }

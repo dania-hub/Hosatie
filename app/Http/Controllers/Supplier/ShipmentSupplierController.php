@@ -119,7 +119,7 @@ class ShipmentSupplierController extends BaseApiController
                 'requester:id,full_name,email,phone',
                 'approver:id,full_name',
                 // `category` is stored as a string on `drug` table in this project.
-                'items.drug:id,name,category,strength,unit,form',
+                'items.drug:id,name,category,strength,unit,form,units_per_box',
             ])
                 ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
@@ -349,6 +349,7 @@ class ShipmentSupplierController extends BaseApiController
                         'sentQuantity' => $sentQty,
                         'receivedQuantity' => $receivedQty,
                         'unit' => $item->drug->unit ?? 'قرص',
+                        'units_per_box' => $item->drug->units_per_box ?? 1,
                         'dosage' => $item->drug->strength ?? null,
                         'strength' => $item->drug->strength ?? null,
                         'form' => $item->drug->form ?? null,
@@ -391,6 +392,7 @@ class ShipmentSupplierController extends BaseApiController
             if ($user->type !== 'supplier_admin') {
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
+
 
             $shipment = ExternalSupplyRequest::with('items.drug')
                 ->where('supplier_id', $user->supplier_id)
@@ -535,7 +537,7 @@ class ShipmentSupplierController extends BaseApiController
             }
 
             try {
-                $this->notifications->notifyWarehouseSupplierAccepted($shipment);
+                // $this->notifications->notifyWarehouseSupplierAccepted($shipment);
             } catch (\Exception $e) {
                 \Log::error('Failed to notify warehouse manager about supplier acceptance', ['error' => $e->getMessage()]);
             }

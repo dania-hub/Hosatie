@@ -260,6 +260,9 @@ class DrugPharmacistController extends BaseApiController
             return $neededQuantity;
         };
 
+        // جلب معرفات الأدوية المسجلة في الصيدلية
+        $registeredDrugIds = $inventoriesGrouped->keys()->toArray();
+
         // تحويل البيانات إلى الشكل المطلوب للأدوية المسجلة
         $registeredDrugs = $inventoriesGrouped->map(function ($group) use ($calculateNeededQuantity, $user, $pharmacyId) {
             $firstInventory = $group->first();
@@ -272,14 +275,23 @@ class DrugPharmacistController extends BaseApiController
             $availableQuantity = $group->sum('current_quantity');
             $hospitalId = $user->hospital_id;
             
-            // تفاصيل الدفعات (الشحنات)
-            $batches = $group->map(function ($inv) {
-                return [
+            // تفاصيل الدفعات (الشحنات) - نجلبها من صيدلية المستخدم فقط
+            $batches = collect();
+            
+            foreach ($group as $inv) {
+                $locationName = $inv->pharmacy?->name ?? 'صيدليتي';
+                $locationType = 'pharmacy';
+                
+                $batches->push([
                     'batchNumber' => $inv->batch_number ?? 'غير محدد',
                     'expiryDate' => $inv->expiry_date ? date('Y/m/d', strtotime($inv->expiry_date)) : 'غير محدد',
                     'quantity' => $inv->current_quantity,
-                ];
-            })->values();
+                    'location' => $locationName,
+                    'location_type' => $locationType,
+                ]);
+            }
+            
+            $batches = $batches->values();
 
             // حساب الكمية المحتاجة ديناميكياً
             $neededQuantity = 0;
@@ -323,12 +335,10 @@ class DrugPharmacistController extends BaseApiController
                 'batches' => $batches,
                 'description' => $drug->description ?? '',
                 'type' => $drug->form ?? 'Tablet',
+                'units_per_box' => $drug->units_per_box ?? 1,
                 'isUnregistered' => false // دواء مسجل في الصيدلية
             ];
         })->filter(); // إزالة القيم null
-
-        // جلب معرفات الأدوية المسجلة في الصيدلية
-        $registeredDrugIds = $inventoriesGrouped->keys()->toArray();
 
         // جلب الأدوية غير المسجلة ولكن موصوفة للمرضى
         $unregisteredDrugs = collect();
@@ -451,6 +461,7 @@ class DrugPharmacistController extends BaseApiController
                         'neededQuantity' => $totalNeededQuantity, // الكمية المحتاجة من المرضى المستحقين
                         'description' => $drug->description ?? '',
                         'type' => $drug->form ?? 'Tablet',
+                        'units_per_box' => $drug->units_per_box ?? 1,
                         'isUnregistered' => true // دواء غير مسجل في الصيدلية
                     ];
                 })->filter(); // إزالة القيم null
@@ -576,14 +587,20 @@ class DrugPharmacistController extends BaseApiController
                 'quantity' => 0,
                 'neededQuantity' => $neededQuantity,
                 'isUnregistered' => true,
+                'units_per_box'  => $drug->units_per_box ?? 1,
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح');
         } else {
             // دواء مسجل - جلب من Inventory مع معلومات Drug
+            // نتحقق مما إذا كان المعرف المرسل هو معرف السجل (Inventory ID) أو معرف الدواء (Drug ID)
             $inventory = Inventory::with('drug')
                 ->where('pharmacy_id', $pharmacyId)
-                ->find($id);
+                ->where(function($q) use ($id) {
+                    $q->where('id', $id)
+                      ->orWhere('drug_id', $id);
+                })
+                ->first();
 
             if (!$inventory || !$inventory->drug) {
                 return $this->sendError('الدواء غير موجود في المخزون', [], 404);
@@ -623,6 +640,7 @@ class DrugPharmacistController extends BaseApiController
                 'neededQuantity' => $neededQuantity,
                 'expiryDate' => $inventory->expiry_date ? date('Y/m/d', strtotime($inventory->expiry_date)) : null,
                 'isUnregistered' => false,
+                'units_per_box'  => $drug->units_per_box ?? 1,
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح');
@@ -649,7 +667,8 @@ class DrugPharmacistController extends BaseApiController
             'status',
             'manufacturer',
             'country',
-            'utilization_type'
+            'utilization_type',
+            'units_per_box'
         )
             ->where('status', '!=', Drug::STATUS_ARCHIVED)
             ->where(function($query) use ($hospitalId) {
@@ -689,6 +708,7 @@ class DrugPharmacistController extends BaseApiController
                     'manufacturer' => $drug->manufacturer,
                     'country' => $drug->country,
                     'utilizationType' => $drug->utilization_type,
+                    'units_per_box' => $drug->units_per_box ?? 1,
                 ];
             });
             

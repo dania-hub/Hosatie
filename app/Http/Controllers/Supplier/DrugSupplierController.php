@@ -207,7 +207,12 @@ class DrugSupplierController extends BaseApiController
                     'genericName' => $drug->generic_name ?? null,
                     'strength' => $drug->strength ?? 'غير محدد',
                     'quantity' => $totalQuantity,
+                    'quantity_boxes' => floor($totalQuantity / ($drug->units_per_box ?: 1)),
+                    'quantity_remainder' => $totalQuantity % ($drug->units_per_box ?: 1),
                     'neededQuantity' => $neededQuantity, // الكمية المحتاجة المحسوبة ديناميكياً
+                    'needed_quantity_boxes' => floor($neededQuantity / ($drug->units_per_box ?: 1)),
+                    'units_per_box' => $drug->units_per_box,
+                    'unit' => $drug->unit,
                     'batches' => $batches, // قائمة الدفعات وتواريخ الصلاحية
                     'expiryDate' => $group->min('expiry_date') ? date('Y/m/d', strtotime($group->min('expiry_date'))) : null, // للأغراض الفرز (أقرب تاريخ)
                     'category' => $drug
@@ -248,7 +253,11 @@ class DrugSupplierController extends BaseApiController
                         'genericName' => $drug->generic_name ?? null,
                         'strength' => $drug->strength ?? 'غير محدد',
                         'quantity' => 0, // الكمية في المخزون = 0 لأنها غير مسجلة
+                        'quantity_boxes' => 0,
                         'neededQuantity' => $item['total_requested_qty'], // الكمية المطلوبة من جميع الطلبات
+                        'needed_quantity_boxes' => floor($item['total_requested_qty'] / ($drug->units_per_box ?: 1)),
+                        'units_per_box' => $drug->units_per_box,
+                        'unit' => $drug->unit,
                         'category' => is_object($drug->category)
                             ? ($drug->category->name ?? 'غير مصنف')
                             : ($drug->category ?? 'غير مصنف'),
@@ -340,6 +349,7 @@ class DrugSupplierController extends BaseApiController
                     'contraindications' => $drug->contraindications,
                     'quantity' => 0,
                     'neededQuantity' => $totalRequestedQty,
+                    'units_per_box' => $drug->units_per_box,
                     'isUnregistered' => true,
                 ];
 
@@ -410,6 +420,7 @@ class DrugSupplierController extends BaseApiController
                     'contraindications' => $drug->contraindications,
                     'quantity' => $inventory->current_quantity,
                     'neededQuantity' => $neededQuantity,
+                    'units_per_box' => $drug->units_per_box,
                     'expiryDate' => $inventory->expiry_date ? date('Y/m/d', strtotime($inventory->expiry_date)) : 'غير محدد',
                     'isUnregistered' => false,
                 ];
@@ -434,7 +445,7 @@ class DrugSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $drugs = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit', 'status')
+            $drugs = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit', 'status', 'units_per_box')
                 ->where('status', Drug::STATUS_AVAILABLE)
                 ->get()
                 ->map(function ($drug) {
@@ -451,6 +462,7 @@ class DrugSupplierController extends BaseApiController
                         'categoryId' => $drug->category, // استخدام category مباشرة
                         'unit' => $drug->unit ?? 'قرص',
                         'status' => $drug->status,
+                        'units_per_box' => $drug->units_per_box ?? 1,
                     ];
                 });
 
@@ -553,6 +565,8 @@ class DrugSupplierController extends BaseApiController
                 'items' => 'required|array|min:1',
                 'items.*.drugId' => 'required|exists:drugs,id',
                 'items.*.quantity' => 'required|integer|min:1',
+                'items.*.batch_number' => 'nullable|string',
+                'items.*.expiry_date' => 'nullable|date',
             ]);
 
             $supplierId = $user->supplier_id;
@@ -576,6 +590,8 @@ class DrugSupplierController extends BaseApiController
                 // البحث عن سجل المخزون الحالي
                 $inventory = Inventory::where('drug_id', $item['drugId'])
                     ->where('supplier_id', $supplierId)
+                    ->where('batch_number', $item['batch_number'] ?? null)
+                    ->where('expiry_date', $item['expiry_date'] ?? null)
                     ->whereNull('warehouse_id')
                     ->whereNull('pharmacy_id')
                     ->first();
@@ -592,6 +608,8 @@ class DrugSupplierController extends BaseApiController
                         'warehouse_id' => null,
                         'pharmacy_id' => null,
                         'current_quantity' => $item['quantity'],
+                        'batch_number' => $item['batch_number'] ?? null,
+                        'expiry_date' => $item['expiry_date'] ?? null,
                         'minimum_level' => 50, // القيمة الافتراضية
                     ]);
                 }

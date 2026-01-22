@@ -76,7 +76,9 @@ const handleRegistrationConfirm = async (registrationData) => {
     const response = await api.post("/supplier/drugs/register", {
       items: registrationData.items.map(item => ({
         drugId: item.drugId,
-        quantity: item.quantity
+        quantity: item.quantity,
+        batch_number: item.batchNumber,
+        expiry_date: item.expiryDate
       }))
     });
     
@@ -289,55 +291,17 @@ const submitSupplyRequest = async (requestData) => {
 // 7. دالة تحديد لون الصف والخط
 // ----------------------------------------------------
 const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
-  // إذا كان الدواء غير مسجل، نعرضه بخلفية زرقاء فاتحة
-  if (isUnregistered) {
-    return "bg-blue-50/70 border-r-4 border-blue-400";
-  }
-  
-  
-  const qty = Number(quantity);
-  const neededQty = Number(neededQuantity);
-  
-  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
-    return "bg-white border-gray-300 border";
-  }
-  
-  const dangerThreshold = neededQty * 0.5; 
-  const warningThreshold = neededQty * 0.75;  
-
-  if (qty < dangerThreshold) {
-    return " bg-red-50/70 border-r-4 border-red-500 ";
-  } else if (qty < warningThreshold) {
-    return "bg-yellow-50/70 border-r-4 border-yellow-500";
-  } else {
-    return "bg-white border-gray-300 border";
-  }
+    if (isUnregistered) return 'bg-blue-50/70 border-r-4 border-blue-400';
+    if (Number(quantity) <= 0) return 'bg-red-50/70 border-r-4 border-red-500';
+    if (Number(quantity) < Number(neededQuantity)) return 'bg-orange-50/70 border-r-4 border-orange-400';
+    return 'bg-white border-gray-100';
 };
 
 const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
-  // إذا كان الدواء غير مسجل، نعرضه بلون أزرق
-  if (isUnregistered) {
-    return "text-blue-700 font-semibold";
-  }
-  
-  // التحقق من أن القيم موجودة (وليس فقط falsy) - 0 هو قيمة صالحة
-  const qty = Number(quantity);
-  const neededQty = Number(neededQuantity);
-  
-  if (isNaN(qty) || isNaN(neededQty) || neededQty <= 0) {
-    return "text-gray-800";
-  }
-  
-  const dangerThreshold = neededQty * 0.5;
-  const warningThreshold = neededQty * 0.75;
-
-  if (qty < dangerThreshold) {
-    return "text-red-700 font-semibold";
-  } else if (qty < warningThreshold) {
-    return "text-yellow-700 font-semibold";
-  } else {
-    return "text-gray-800";
-  }
+    if (isUnregistered) return 'text-blue-600 font-bold';
+    if (Number(quantity) <= 0) return 'text-red-600 font-bold';
+    if (Number(quantity) < Number(neededQuantity)) return 'text-orange-600 font-bold text-lg';
+    return '';
 };
 
 // ----------------------------------------------------
@@ -375,6 +339,81 @@ const openSupplyRequestModal = () => {
 
 const closeSupplyRequestModal = () => {
   isSupplyRequestModalOpen.value = false;
+};
+
+const getQuantityDisplay = (drug) => {
+    if (!drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const quantity = Number(drug.quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(quantity / unitsPerBox);
+        const remainder = quantity % unitsPerBox;
+        
+        if (boxes === 0 && quantity > 0) {
+            return `${quantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br> و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${quantity} ${unit}`;
+    }
+};
+
+const getBatchQuantityDisplay = (batch, drug) => {
+    if (!drug || !batch) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const quantity = Number(batch.quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(quantity / unitsPerBox);
+        const remainder = quantity % unitsPerBox;
+        
+        if (boxes === 0 && quantity > 0) {
+            return `${quantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br> و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${quantity} ${unit}`;
+    }
+};
+
+const getNeededQuantityDisplay = (drug) => {
+    if (!drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const neededQuantity = Number(drug.neededQuantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(neededQuantity / unitsPerBox);
+        const remainder = neededQuantity % unitsPerBox;
+        
+        if (boxes === 0 && neededQuantity > 0) {
+            return `${neededQuantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br> و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${neededQuantity} ${unit}`;
+    }
 };
 
 const handleSupplyConfirm = async (data) => {
@@ -462,13 +501,16 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 `;
 
     filteredDrugss.value.forEach((drug) => {
+      const quantityDisplay = getQuantityDisplay(drug);
+      const neededQuantityDisplay = getNeededQuantityDisplay(drug);
+
       tableHtml += `
 <tr>
  <td>${drug.drugName || ''}</td>
  <td>${drug.genericName || 'غير محدد'}</td>
  <td>${drug.strength || 'غير محدد'}</td>
- <td>${drug.quantity || 0}</td>
- <td>${drug.neededQuantity || 0}</td>
+ <td>${quantityDisplay}</td>
+ <td>${neededQuantityDisplay}</td>
 </tr>
 `;
     });
@@ -725,28 +767,18 @@ onMounted(async () => {
                             <div class="overflow-x-auto h-full">
                                 <table
                                     dir="rtl"
-                                    class="table w-full text-right min-w-[700px] border-collapse"
+                                    class="table-fixed w-full text-right min-w-[1000px] border-collapse"
                                 >
                                     <thead
                                         class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                                     >
                                         <tr>
-                                            <th class="drug-name-col">
-                                                اسم الدواء
-                                            </th>
-                                            <th class="scientific-name-col">
-                                                الاسم العلمي
-                                            </th>
-                                            <th class="strength-col">
-                                                التركيز
-                                            </th>
-                                            <th class="quantity-col">
-                                                الكمية المتوفرة
-                                            </th>
-                                            <th class="needed-quantity-col">
-                                                الكمية المحتاجة
-                                            </th>
-                                            <th class="actions-col">الإجراءات</th>
+                                            <th class="drug-name-col px-4 py-3 text-sm font-bold">اسم الدواء</th>
+                                            <th class="scientific-name-col px-4 py-3 text-sm font-bold">الاسم العلمي</th>
+                                            <th class="strength-col px-4 py-3 text-sm font-bold text-center">التركيز</th>
+                                            <th class="quantity-col px-4 py-3 text-sm font-bold text-center">الكمية المتوفرة</th>
+                                            <th class="needed-quantity-col px-4 py-3 text-sm font-bold text-center">الكمية المحتاجة</th>
+                                            <th class="actions-col px-4 py-3 text-sm font-bold text-center">الإجراءات</th>
                                         </tr>
                                     </thead>
 
@@ -777,6 +809,7 @@ onMounted(async () => {
                                                     ]"
                                                 >
                                                     <td
+                                                        class="drug-name-col px-4 py-3"
                                                         :class="
                                                             getTextColorClass(
                                                                 drug.quantity,
@@ -786,15 +819,16 @@ onMounted(async () => {
                                                         "
                                                     >
                                                         <div class="flex items-center gap-2">
-                                                            <span>{{ drug.drugName }}</span>
+                                                            <span class="truncate" :title="drug.drugName">{{ drug.drugName }}</span>
                                                             <span v-if="drug.isUnregistered" 
-                                                                class="px-2 py-0.5 text-xs font-bold bg-blue-200 text-blue-800 rounded-full"
+                                                                class="shrink-0 px-2 py-0.5 text-[10px] font-bold bg-blue-200 text-blue-800 rounded-full"
                                                                 title="دواء غير مسجل في مخزون المورد ولكن مطلوب في الطلبات المستقبلة">
                                                                 غير مسجل
                                                             </span>
                                                         </div>
                                                     </td>
                                                     <td
+                                                        class="scientific-name-col px-4 py-3"
                                                         :class="
                                                             getTextColorClass(
                                                                 drug.quantity,
@@ -803,9 +837,10 @@ onMounted(async () => {
                                                             )
                                                         "
                                                     >
-                                                        {{ drug.genericName || 'غير محدد' }}
+                                                        <div class="truncate" :title="drug.genericName">{{ drug.genericName || 'غير محدد' }}</div>
                                                     </td>
                                                     <td
+                                                        class="strength-col px-4 py-3 text-center"
                                                         :class="
                                                             getTextColorClass(
                                                                 drug.quantity,
@@ -817,6 +852,7 @@ onMounted(async () => {
                                                         {{ drug.strength || 'غير محدد' }}
                                                     </td>
                                                     <td
+                                                        class="quantity-col px-4 py-3 text-center"
                                                         :class="
                                                             getTextColorClass(
                                                                 drug.quantity,
@@ -824,12 +860,11 @@ onMounted(async () => {
                                                                 drug.isUnregistered
                                                             )
                                                         "
+                                                        v-html="getQuantityDisplay(drug)"
                                                     >
-                                                        <span class="font-bold">{{
-                                                            drug.quantity
-                                                        }}</span>
                                                     </td>
                                                     <td
+                                                        class="needed-quantity-col px-4 py-3 text-center"
                                                         :class="
                                                             getTextColorClass(
                                                                 drug.quantity,
@@ -837,13 +872,8 @@ onMounted(async () => {
                                                                 drug.isUnregistered
                                                             )
                                                         "
+                                                        v-html="getNeededQuantityDisplay(drug)"
                                                     >
-                                                        <span class="font-bold">{{
-                                                            drug.neededQuantity
-                                                        }}</span>
-                                                        <span v-if="drug.isUnregistered" class="text-xs text-blue-600 block mt-1">
-                                                            (من الطلبات)
-                                                        </span>
                                                     </td>
                                                     <td class="actions-col">
                                                         <div
@@ -888,7 +918,8 @@ onMounted(async () => {
                                                                         تفاصيل الدفعات 
                                                                     </h4>
                                                                     <span class="text-xs font-bold bg-[#4DA1A9]/10 text-[#4DA1A9] px-2 py-1 rounded-lg">
-                                                                        إجمالي الكمية: {{ drug.quantity }}
+                                                                        إجمالي الكمية: 
+                                                                        <span class="block mt-1" v-html="getQuantityDisplay(drug)"></span>
                                                                     </span>
                                                                 </div>
                                                                 <table class="w-full text-right text-sm">
@@ -903,7 +934,7 @@ onMounted(async () => {
                                                                         <tr v-for="(batch, bIndex) in drug.batches" :key="bIndex" class="hover:bg-gray-50 transition-colors">
                                                                             <td class="px-4 py-2.5 text-gray-700 font-bold font-mono">{{ batch.batchNumber || '---' }}</td>
                                                                             <td class="px-4 py-2.5 text-gray-700 font-mono tracking-wide" dir="ltr" style="text-align: right;">{{ batch.expiryDate }}</td>
-                                                                            <td class="px-4 py-2.5 font-bold text-[#4DA1A9]">{{ batch.quantity }}</td>
+                                                                            <td class="px-4 py-2.5 font-bold text-[#4DA1A9]" v-html="getBatchQuantityDisplay(batch, drug)"></td>
                                                                         </tr>
                                                                          <tr v-if="!drug.batches || drug.batches.length === 0">
                                                                             <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">
@@ -988,35 +1019,21 @@ onMounted(async () => {
 }
 
 .actions-col {
-    width: 120px;
-    min-width: 120px;
-    max-width: 120px;
-    text-align: center;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    width: 12%;
 }
 .strength-col {
-    width: 120px;
-    min-width: 120px;
+    width: 12%;
 }
 .quantity-col {
-    width: 120px; 
-    min-width: 120px;
+    width: 13%; 
 }
 .needed-quantity-col {
-    width: 150px; 
-    min-width: 150px;
+    width: 13%; 
 }
-/* Recalculate widths to fit screen better since one column is removed */
 .drug-name-col {
-    width: auto;
-    min-width: 170px;
+    width: 25%;
 }
 .scientific-name-col {
-    width: auto;
-    min-width: 150px;
-}
-.min-w-\[700px\] {
-    min-width: 700px;
+    width: 25%;
 }
 </style>

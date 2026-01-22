@@ -632,7 +632,10 @@ const openRequestViewModal = async (shipment) => {
         
         selectedRequestDetails.value = {
             ...data,
-            items: data.items || [],
+            items: (data.items || []).map(item => ({
+                ...item,
+                units_per_box: item.units_per_box || item.unitsPerBox || 1
+            })),
             shipmentNumber: data.shipmentNumber || `EXT-${data.id}`,
             confirmationDetails: data.confirmationDetails || null,
             storekeeperNotes: data.storekeeperNotes || null,
@@ -670,7 +673,10 @@ const openConfirmationModal = async (shipment) => {
         
         selectedShipmentForConfirmation.value = {
             ...data,
-            items: data.items || [],
+            items: (data.items || []).map(item => ({
+                ...item,
+                units_per_box: item.units_per_box || item.unitsPerBox || 1
+            })),
             shipmentNumber: data.shipmentNumber || `EXT-${data.id}`
         };
         isConfirmationModalOpen.value = true;

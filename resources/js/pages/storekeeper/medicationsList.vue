@@ -221,7 +221,8 @@ const fetchAllDrugsData = async () => {
       manufacturer: drug.manufacturer,
       country: drug.country,
       utilizationType: drug.utilizationType,
-      type: drug.form || 'Tablet'
+      type: drug.form || 'Tablet',
+      units_per_box: drug.units_per_box || drug.unitsPerBox || 1
     }));
     
     console.log('All Drugs Data loaded:', allDrugsData.value.length, 'drugs');
@@ -368,7 +369,7 @@ const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
 const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
   // إذا كان الدواء غير مسجل، نعرضه بلون أزرق
   if (isUnregistered) {
-    return "text-blue-700 font-semibold";
+    return "text-blue-700";
   }
   
   // التحقق من أن القيم موجودة (وليس فقط falsy) - 0 هو قيمة صالحة
@@ -383,12 +384,87 @@ const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
   const warningThreshold = neededQty * 0.75;
 
   if (qty < dangerThreshold) {
-    return "text-red-700 font-semibold";
+    return "text-red-700";
   } else if (qty < warningThreshold) {
-    return "text-yellow-700 font-semibold";
+    return "text-yellow-700";
   } else {
     return "text-gray-800";
   }
+};
+
+const getQuantityDisplay = (drug) => {
+    if (!drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const quantity = Number(drug.quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(quantity / unitsPerBox);
+        const remainder = quantity % unitsPerBox;
+        
+        if (boxes === 0 && quantity > 0) {
+            return `${quantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${quantity} ${unit}`;
+    }
+};
+
+const getNeededQuantityDisplay = (drug) => {
+    if (!drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const neededQuantity = Number(drug.neededQuantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(neededQuantity / unitsPerBox);
+        const remainder = neededQuantity % unitsPerBox;
+        
+        if (boxes === 0 && neededQuantity > 0) {
+            return `${neededQuantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${neededQuantity} ${unit}`;
+    }
+};
+
+const getBatchQuantityDisplay = (batch, drug) => {
+    if (!batch || !drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const quantity = Number(batch.quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(quantity / unitsPerBox);
+        const remainder = quantity % unitsPerBox;
+        
+        if (boxes === 0 && quantity > 0) {
+            return `${quantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${quantity} ${unit}`;
+    }
 };
 
 // ----------------------------------------------------
@@ -490,8 +566,8 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <td>${drug.drugName || drug.name || ''}</td>
  <td>${drug.genericName || 'غير محدد'}</td>
  <td>${drug.strength || 'غير محدد'}</td>
- <td>${drug.quantity || 0}</td>
- <td>${drug.neededQuantity || 0}</td>
+ <td>${getQuantityDisplay(drug)}</td>
+ <td>${getNeededQuantityDisplay(drug)}</td>
 </tr>
 `;
     });
@@ -700,7 +776,7 @@ onMounted(async () => {
                                 class="text-sm font-semibold text-gray-600 self-end sm:self-center"
                             >
                                 عدد النتائج :
-                                <span class="text-[#4DA1A9] text-lg font-bold">{{
+                                <span class="text-[#4DA1A9] text-lg">{{
                                     filteredDrugss.length
                                 }}</span>
                             </p>
@@ -804,7 +880,7 @@ onMounted(async () => {
                                                         <div class="flex items-center gap-2">
                                                             <span>{{ drug.drugName || drug.name }}</span>
                                                             <span v-if="drug.isUnregistered" 
-                                                                class="px-2 py-0.5 text-xs font-bold bg-blue-200 text-blue-800 rounded-full"
+                                                                class="px-2 py-0.5 text-xs bg-blue-200 text-blue-800 rounded-full"
                                                                 title="دواء غير مسجل في مخزون المورد ولكن مطلوب في الطلبات المستقبلة">
                                                                 غير مسجل
                                                             </span>
@@ -841,9 +917,7 @@ onMounted(async () => {
                                                             )
                                                         "
                                                     >
-                                                        <span class="font-bold">{{
-                                                            drug.quantity || 0
-                                                        }}</span>
+                                                        <div v-html="getQuantityDisplay(drug)"></div>
                                                     </td>
                                                     <td
                                                         :class="
@@ -854,9 +928,7 @@ onMounted(async () => {
                                                             )
                                                         "
                                                     >
-                                                        <span class="font-bold">{{
-                                                            drug.neededQuantity || 0
-                                                        }}</span>
+                                                        <div v-html="getNeededQuantityDisplay(drug)"></div>
                                                         <span v-if="drug.isUnregistered" class="text-xs text-blue-600 block mt-1">
                                                             (من الطلبات)
                                                         </span>
@@ -899,27 +971,27 @@ onMounted(async () => {
                                                         <div class="pr-8">
                                                             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                                                                 <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                                                    <h4 class="font-bold text-[#2E5077] text-sm flex items-center gap-2">
+                                                                    <h4 class="text-[#2E5077] text-sm flex items-center gap-2">
                                                                         <Icon icon="solar:box-minimalistic-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                                                         تفاصيل الدفعات 
                                                                     </h4>
-                                                                    <span class="text-xs font-bold bg-[#4DA1A9]/10 text-[#4DA1A9] px-2 py-1 rounded-lg">
-                                                                        إجمالي الكمية: {{ drug.quantity }}
+                                                                    <span class="text-xs bg-[#4DA1A9]/10 text-[#4DA1A9] px-2 py-1 rounded-lg">
+                                                                        إجمالي الكمية: <span v-html="getQuantityDisplay(drug)"></span>
                                                                     </span>
                                                                 </div>
                                                                 <table class="w-full text-right text-sm">
                                                                     <thead class="bg-gray-50/50 text-gray-500 font-medium">
                                                                         <tr>
-                                                                            <th class="px-4 py-2 font-bold w-1/3">رقم الشحنة </th>
-                                                                            <th class="px-4 py-2 font-bold w-1/3">تاريخ الإنتهاء</th>
-                                                                            <th class="px-4 py-2 font-bold w-1/3">الكمية</th>
+                                                                            <th class="px-4 py-2 w-1/3">رقم الشحنة </th>
+                                                                            <th class="px-4 py-2 w-1/3">تاريخ الإنتهاء</th>
+                                                                            <th class="px-4 py-2 w-1/3">الكمية</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody class="divide-y divide-gray-50">
                                                                         <tr v-for="(batch, bIndex) in drug.batches" :key="bIndex" class="hover:bg-gray-50 transition-colors">
-                                                                            <td class="px-4 py-2.5 text-gray-700 font-bold font-mono">{{ batch.batchNumber || '---' }}</td>
+                                                                            <td class="px-4 py-2.5 text-gray-700 font-mono">{{ batch.batchNumber || '---' }}</td>
                                                                             <td class="px-4 py-2.5 text-gray-700 font-mono tracking-wide" dir="ltr" style="text-align: right;">{{ batch.expiryDate }}</td>
-                                                                            <td class="px-4 py-2.5 font-bold text-[#4DA1A9]">{{ batch.quantity }}</td>
+                                                                            <td class="px-4 py-2.5 text-[#4DA1A9]" v-html="getBatchQuantityDisplay(batch, drug)"></td>
                                                                         </tr>
                                                                          <tr v-if="!drug.batches || drug.batches.length === 0">
                                                                             <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">

@@ -503,17 +503,32 @@ class StaffNotificationService
             ->get();
 
         
-            $title = 'تم إرسال شحنة أدوية جديدة';
-            $message = "قامت الإدارة المركزية بإرسال شحنة أدوية جديدة إلى مخازنكم.";
-            $message .= "\nرقم الشحنة المرجعي: [رقم الشحنة #{$request->id}]";
-            $message .= "\nالحالة: [قيد الاستلام].";
-            $message .= "\nملاحظة: يرجى الاستعداد لاستلام الشحنة وتأكيدها في النظام فور وصولها لتحديث مخزونكم.";
+        $title = 'تحديث على طلب التوريد';
+        $message = "تم تحديث حالة طلب التوريد (رقم #{$request->id}).";
+
+        if ($status === 'approved' || $status === 'قيد الشحن الدولي') {
+            $title = 'تمت الموافقة على طلب التوريد';
+            $message = "قامت الإدارة المركزية بالموافقة على طلب التوريد (رقم #{$request->id}). الطلب الآن قيد الشحن الدولي.";
+        } elseif ($status === 'rejected' || $status === 'مرفوض') {
+            $title = 'تم رفض طلب التوريد';
+            $message = "تم رفض طلب التوريد (رقم #{$request->id}) من قبل الإدارة المركزية.";
+            if ($notes) {
+                $message .= "\nالسبب: " . $notes;
+            }
+        } elseif ($status === 'fulfilled' || $status === 'تم الإستلام') {
+            $title = 'تم إرسال شحنة أدوية جديدة إليكم';
+            $message = "قامت الإدارة المركزية بإرسال شحنة أدوية جديدة إلى مخازنكم.\nرقم الشحنة المرجعي: EXT-{$request->id}\nالحالة: قيد الاستلام.\nملاحظة: يرجى الاستعداد لاستلام الشحنة وتأكيدها في النظام فور وصولها لتحديث مخزونكم.";
+        }
+
+        if ($notes && !in_array($status, ['rejected', 'مرفوض'])) {
+            $message .= "\nملاحظات الإدارة: " . $notes;
+        }
        
         
         
 
         foreach ($supplierAdmins as $admin) {
-            $this->createNotification($admin, $title, $message, 'شحنة');
+            $this->createNotification($admin, $title, $message, 'عادي');
         }
     }
 

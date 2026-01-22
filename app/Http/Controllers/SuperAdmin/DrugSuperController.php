@@ -61,6 +61,7 @@ class DrugSuperController extends BaseApiController
                     'utilization_type' => $drug->utilization_type,
                     'warnings' => $drug->warnings,
                     'indications' => $drug->indications,
+                    'units_per_box' => $drug->units_per_box,
                     'createdAt' => optional($drug->created_at)->format('Y-m-d'),
                 ];
             });
@@ -144,6 +145,7 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => 'required|string|max:100',
                 'warnings' => 'required|string',
                 'indications' => 'required|string',
+                'units_per_box' => 'required|integer|min:1',
             ], [
                 'name.required' => 'اسم الدواء مطلوب',
                 'generic_name.required' => 'الاسم العلمي مطلوب',
@@ -188,6 +190,7 @@ class DrugSuperController extends BaseApiController
                 'warnings' => $request->warnings,
                 'indications' => $request->indications,
                 'contraindications' => $request->contraindications ?? '',
+                'units_per_box' => $request->units_per_box ?? 1,
             ]);
 
             return $this->sendSuccess([
@@ -205,6 +208,7 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $drug->utilization_type,
                 'warnings' => $drug->warnings,
                 'indications' => $drug->indications,
+                'units_per_box' => $drug->units_per_box,
                 'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم إضافة الدواء بنجاح', 201);
 
@@ -242,6 +246,7 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => 'sometimes|required|string|max:100',
                 'warnings' => 'sometimes|required|string',
                 'indications' => 'sometimes|required|string',
+                'units_per_box' => 'sometimes|required|integer|min:1',
             ]);
 
             if ($validator->fails()) {
@@ -251,7 +256,7 @@ class DrugSuperController extends BaseApiController
             $drug->update($request->only([
                 'name', 'generic_name', 'strength', 'form', 'category', 
                 'unit', 'max_monthly_dose', 'status', 'manufacturer', 'country',
-                'utilization_type', 'warnings', 'indications'
+                'utilization_type', 'warnings', 'indications', 'units_per_box'
             ]));
 
             return $this->sendSuccess([
@@ -269,6 +274,7 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $drug->utilization_type,
                 'warnings' => $drug->warnings,
                 'indications' => $drug->indications,
+                'units_per_box' => $drug->units_per_box,
                 'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم تعديل بيانات الدواء بنجاح');
 

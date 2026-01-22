@@ -423,6 +423,8 @@ class InternalSupplyRequestController extends BaseApiController
                     'form'           => $item->drug->form ?? '',
                     'type'           => $item->drug->form ?? '', // للتوافق مع المكون
                     'unit'           => $item->drug->unit ?? 'قرص',
+                    'units_per_box'  => $item->drug->units_per_box ?? 1,
+                    'unitsPerBox'    => $item->drug->units_per_box ?? 1,
                     'batch_number'   => $item->batch_number,
                     'expiry_date'    => $item->expiry_date,
                 ];

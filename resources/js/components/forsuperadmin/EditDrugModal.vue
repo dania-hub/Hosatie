@@ -108,13 +108,17 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">
                                 الوحدة <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <select
                                 v-model="formData.unit"
-                                type="text"
                                 required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                                placeholder="مثال: قرص، مل"
-                            />
+                            >
+                                <option value="">اختر الوحدة</option>
+                                <option value="قرص">قرص</option>
+                                <option value="مل">مل</option>
+                                <option value="حقنة">حقنة</option>
+                                <option value="جرام">جرام</option>
+                            </select>
                         </div>
 
                         <!-- الجرعة الشهرية القصوى -->
@@ -191,6 +195,20 @@
                             />
                         </div>
 
+                        <!-- عدد الوحدات في العلبة/العبوة -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                عدد {{ formData.unit === 'مل' ? 'المليات في العبوة' : 'الحبات في العلبة' }} <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.units_per_box"
+                                type="number"
+                                required
+                                min="1"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="مثال: 30"
+                            />
+                        </div>
                         </div>
                     </div>
 
@@ -301,6 +319,7 @@ watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
             utilization_type: drug.utilization_type || '',
             warnings: drug.warnings || '',
             indications: drug.indications || '',
+            units_per_box: drug.units_per_box || drug.unitsPerBox || 1,
         };
     }
 }, { immediate: true });

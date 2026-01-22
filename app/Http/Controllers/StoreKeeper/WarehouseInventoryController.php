@@ -206,6 +206,7 @@ class WarehouseInventoryController extends BaseApiController
                 'batches'        => $batches, // قائمة الدفعات وتواريخ الصلاحية
                 'expiryDate'     => $group->min('expiry_date') ? date('Y/m/d', strtotime($group->min('expiry_date'))) : null, // أقرب تاريخ انتهاء
                 'isUnregistered' => false, // دواء مسجل في المستودع
+                'units_per_box'  => $drug->units_per_box ?? 1,
             ];
         });
 
@@ -242,6 +243,7 @@ class WarehouseInventoryController extends BaseApiController
                     'quantity' => 0, // الكمية في المخزون = 0 لأنها غير مسجلة
                     'neededQuantity' => $item['total_requested_qty'], // الكمية المطلوبة من جميع الطلبات
                     'isUnregistered' => true, // دواء غير مسجل في المستودع
+                    'units_per_box' => $drug->units_per_box ?? 1,
                 ];
             })->filter(); // إزالة القيم null
         }
@@ -265,7 +267,7 @@ class WarehouseInventoryController extends BaseApiController
         $hospital = Hospital::find($user->hospital_id);
         $supplierId = $hospital->supplier_id ?? null;
 
-        $drugs = Drug::select('id', 'id as drugCode', 'name as drugName', 'generic_name as genericName', 'strength', 'category', 'form', 'unit', 'max_monthly_dose as maxMonthlyDose', 'status', 'manufacturer', 'country', 'utilization_type as utilizationType')
+        $drugs = Drug::select('id', 'id as drugCode', 'name as drugName', 'generic_name as genericName', 'strength', 'category', 'form', 'unit', 'max_monthly_dose as maxMonthlyDose', 'status', 'manufacturer', 'country', 'utilization_type as utilizationType', 'units_per_box')
             ->where('status', '!=', Drug::STATUS_ARCHIVED)
             ->where(function($query) use ($supplierId) {
                 $query->where('status', Drug::STATUS_AVAILABLE)
@@ -297,8 +299,25 @@ class WarehouseInventoryController extends BaseApiController
     {
         $user = $request->user();
 
-        if ($user->type !== 'warehouse_manager') {
+        if ($user->type !== 'warehouse_manager' && $user->type !== 'super_admin') {
             return response()->json(['message' => 'غير مصرح'], 403);
+        }
+
+        // التأكد من وجود warehouse_id و hospital_id
+        $warehouse_id = $user->warehouse_id;
+        $hospital_id = $user->hospital_id;
+
+        if ($user->type === 'super_admin') {
+            $warehouse_id = $warehouse_id ?: $request->input('warehouse_id') ?: (\App\Models\Warehouse::first()?->id);
+            $hospital_id = $hospital_id ?: $request->input('hospital_id') ?: (\App\Models\Hospital::first()?->id);
+        }
+
+        if (!$warehouse_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمخزن'], 403);
+        }
+
+        if (!$hospital_id) {
+            return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
         }
 
         // التحقق من أن المعرف هو معرف Inventory أو معرف Drug
@@ -314,8 +333,8 @@ class WarehouseInventoryController extends BaseApiController
 
             // حساب الكمية المحتاجة من الطلبات
             $internalRequests = InternalSupplyRequest::where('status', 'pending')
-                ->whereHas('pharmacy', function($query) use ($user) {
-                    $query->where('hospital_id', $user->hospital_id);
+                ->whereHas('pharmacy', function($query) use ($hospital_id) {
+                    $query->where('hospital_id', $hospital_id);
                 })
                 ->with(['items' => function($query) use ($drugId) {
                     $query->where('drug_id', $drugId);
@@ -350,28 +369,44 @@ class WarehouseInventoryController extends BaseApiController
                 'quantity' => 0,
                 'neededQuantity' => $totalRequestedQty,
                 'isUnregistered' => true,
+                'units_per_box' => $drug->units_per_box ?? 1,
             ]);
         } else {
             // دواء مسجل - جلب من Inventory مع معلومات Drug
-            $item = Inventory::with('drug')
-                ->where('warehouse_id', $user->warehouse_id)
-                ->find($id);
+            $items = Inventory::with('drug')
+                ->where('warehouse_id', $warehouse_id)
+                ->where('drug_id', $id)
+                ->whereHas('drug', function($q) {
+                    $q->where('status', '!=', Drug::STATUS_ARCHIVED);
+                })
+                ->get();
 
-            if (!$item || !$item->drug) {
+            if ($items->isEmpty() || !$items->first()->drug) {
                 return response()->json(['message' => 'الدواء غير موجود في المخزون'], 404);
             }
 
-            $drug = $item->drug;
+            $drug = $items->first()->drug;
+            $totalQuantity = $items->sum('current_quantity');
+
+            // تفاصيل الدفعات (الشحنات)
+            $batches = $items->map(function ($inv) {
+                return [
+                    'batchNumber' => $inv->batch_number ?? 'غير محدد',
+                    'expiryDate' => $inv->expiry_date ? date('Y/m/d', strtotime($inv->expiry_date)) : 'غير محدد',
+                    'quantity' => $inv->current_quantity,
+                ];
+            })->values();
 
             // حساب الكمية المحتاجة من الطلبات
             $internalRequests = InternalSupplyRequest::where('status', 'pending')
-                ->whereHas('pharmacy', function($query) use ($user) {
-                    $query->where('hospital_id', $user->hospital_id);
+                ->whereHas('pharmacy', function($query) use ($hospital_id) {
+                    $query->where('hospital_id', $hospital_id);
                 })
                 ->with(['items' => function($query) use ($drug) {
                     $query->where('drug_id', $drug->id);
                 }])
                 ->get();
+
 
             $totalRequestedQty = 0;
             foreach ($internalRequests as $request) {
@@ -380,16 +415,18 @@ class WarehouseInventoryController extends BaseApiController
                 }
             }
 
-            $neededQuantity = max(0, $totalRequestedQty - $item->current_quantity);
+            $neededQuantity = max(0, $totalRequestedQty - $totalQuantity);
             
             // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
-            if ($item->minimum_level != $neededQuantity) {
-                $item->minimum_level = $neededQuantity;
-                $item->save();
+            foreach ($items as $item) {
+                if ($item->minimum_level != $neededQuantity) {
+                    $item->minimum_level = $neededQuantity;
+                    $item->save();
+                }
             }
 
             return response()->json([
-                'id' => $item->id,
+                'id' => $drug->id,
                 'drugCode' => $drug->id,
                 'drugName' => $drug->name,
                 'name' => $drug->name,
@@ -406,10 +443,11 @@ class WarehouseInventoryController extends BaseApiController
                 'indications' => $drug->indications,
                 'warnings' => $drug->warnings,
                 'contraindications' => $drug->contraindications,
-                'quantity' => $item->current_quantity,
+                'quantity' => $totalQuantity,
                 'neededQuantity' => $neededQuantity,
-                'expiryDate' => $item->expiry_date ? date('Y/m/d', strtotime($item->expiry_date)) : null,
+                'batches' => $batches,
                 'isUnregistered' => false,
+                'units_per_box' => $drug->units_per_box ?? 1,
             ]);
         }
     }

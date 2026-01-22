@@ -50,7 +50,7 @@
                         <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
                             <span class="text-gray-500 font-medium">الحالة</span>
                             <span class="inline-block px-3 py-1 rounded-lg text-sm font-bold bg-orange-100 text-orange-600">
-                                {{ requestData.status || "قيد الاستلام" }}
+                                {{ getStatusArabic(requestData.status || "pending") }}
                             </span>
                         </div>
                     </div>
@@ -61,7 +61,7 @@
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:pill-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         <span v-if="isProcessing">الكميات المستلمة</span>
-                        <span v-else>الأدوية المطلوبة والمخزون المتاح</span>
+                        <span v-else>الأدوية المطلوبة</span>
                     </h3>
 
                     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -82,21 +82,10 @@
                                             </span>
                                         </div>
                                         
-                                        <div class="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
-                                            <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">مطلوب: {{ item.originalQuantity }} {{ item.unit }}</span>
-                                            <span v-if="item.sentQuantity !== null && item.sentQuantity !== undefined && !isNaN(item.sentQuantity)" class="bg-green-50 text-green-600 px-2 py-0.5 rounded-md font-medium">مرسل: {{ item.sentQuantity }} {{ item.unit }}</span>
-                                            
-                                            <div 
-                                                v-if="!isProcessing"
-                                                class="flex items-center gap-1 px-2 py-0.5 rounded-md border"
-                                                :class="{
-                                                    'bg-green-50 border-green-100 text-green-700': item.availableQuantity >= item.originalQuantity,
-                                                    'bg-red-50 border-red-100 text-red-700': item.availableQuantity < item.originalQuantity
-                                                }"
-                                            >
-                                                <span class="font-medium text-xs">متوفر:</span>
-                                                <span class="font-bold text-xs">{{ item.availableQuantity }} {{ item.unit }}</span>
-                                                <Icon v-if="item.availableQuantity < item.originalQuantity" icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                        <div class="text-xs text-gray-500 mt-2 flex items-center gap-3 flex-wrap">
+                                            <div class="flex flex-col bg-blue-50/50 p-2 rounded-xl border border-blue-100 min-w-[80px]">
+                                                <span class="text-[10px] text-blue-400 font-bold mb-0.5">الكمية المطلوبة</span>
+                                                <span class="text-blue-700 font-bold leading-tight" v-html="getFormattedQuantity(item.originalQuantity, item.unit, item.units_per_box)"></span>
                                             </div>
                                         </div>
                                     </div>
@@ -105,73 +94,101 @@
                                     <div class="flex flex-col md:flex-row items-start md:items-center gap-3 w-full md:w-auto">
                                         <!-- عند تأكيد الاستلام: عرض حقل "مستلم" فقط -->
                                         <template v-if="isProcessing">
-                                            <div class="flex items-center gap-4 w-full md:w-auto justify-end">
-                                                <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
-                                                    <span class="text-sm text-gray-500 font-medium px-2">مستلم:</span>
-                                                    <input
-                                                        type="number"
-                                                        v-model.number="item.receivedQuantity"
-                                                        :max="item.sentQuantity"
-                                                        :min="0"
-                                                        class="w-20 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
+                                            <div class="flex flex-col gap-1">
+                                                <div class="flex items-center gap-4 w-full md:w-auto justify-end">
+                                                    <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                                        <span class="text-sm text-gray-500 font-medium px-1">مستلم:</span>
+                                                        
+                                                        <template v-if="item.units_per_box > 1">
+                                                            <div class="flex items-center gap-2">
+                                                                <div class="flex flex-col items-center gap-0.5">
+                                                                    <input
+                                                                        type="number"
+                                                                        v-model.number="item.receivedBoxes"
+                                                                        @input="handleBoxInput(index, 'received')"
+                                                                        class="w-24 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
+                                                                        :disabled="props.isLoading || isConfirming || item.sentQuantity === 0"
+                                                                    />
+                                                                    <span class="text-[10px] text-gray-400 font-bold">عبوة</span>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                        
+                                                        <input
+                                                            v-else
+                                                            type="number"
+                                                            v-model.number="item.receivedQuantity"
+                                                            :max="item.sentQuantity"
+                                                            :min="0"
+                                                            class="w-24 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
+                                                            :class="{
+                                                                'text-green-600': item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0,
+                                                                'text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.sentQuantity,
+                                                                'text-red-600': item.receivedQuantity === 0 || item.sentQuantity === 0,
+                                                                'bg-gray-100 cursor-not-allowed opacity-70': item.sentQuantity === 0
+                                                            }"
+                                                            @input="validateReceivedQuantity(index, item.sentQuantity)"
+                                                            :disabled="props.isLoading || isConfirming || item.sentQuantity === 0"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div 
+                                                        class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
                                                         :class="{
-                                                            'text-green-600': item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0,
-                                                            'text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.sentQuantity,
-                                                            'text-red-600': item.receivedQuantity === 0 || item.sentQuantity === 0,
-                                                            'bg-gray-100 cursor-not-allowed opacity-70': item.sentQuantity === 0
+                                                            'bg-green-100 text-green-600': item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0,
+                                                            'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.sentQuantity,
+                                                            'bg-red-100 text-red-600': item.receivedQuantity === 0 || item.sentQuantity === 0
                                                         }"
-                                                        @input="validateReceivedQuantity(index, item.sentQuantity)"
-                                                        :disabled="props.isLoading || isConfirming || item.sentQuantity === 0"
-                                                    />
+                                                    >
+                                                        <Icon v-if="item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0" icon="solar:check-circle-bold" class="w-6 h-6" />
+                                                        <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
+                                                        <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
+                                                    </div>
                                                 </div>
-                                                
-                                                <div 
-                                                    class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                                                    :class="{
-                                                        'bg-green-100 text-green-600': item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0,
-                                                        'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < item.sentQuantity,
-                                                        'bg-red-100 text-red-600': item.receivedQuantity === 0 || item.sentQuantity === 0
-                                                    }"
-                                                >
-                                                    <Icon v-if="item.receivedQuantity === item.sentQuantity && item.sentQuantity > 0" icon="solar:check-circle-bold" class="w-6 h-6" />
-                                                    <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
-                                                    <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
-                                                </div>
+                                                <div v-if="item.units_per_box > 1" class="text-[10px] text-gray-400 font-bold text-center mt-1" v-html="getFormattedQuantity(item.receivedQuantity, item.unit, item.units_per_box)"></div>
                                             </div>
                                         </template>
                                         
-                                        <!-- عند الإرسال: عرض الكمية المقترحة والمرسلة -->
                                         <template v-else>
-                                            <!-- الكمية المقترجة -->
-                                            <div class="flex items-center gap-2 bg-blue-50 p-2 rounded-xl border border-blue-200">
-                                                <label class="text-sm font-bold text-blue-600 px-2">
-                                                    الكمية المقترحة:
-                                                </label>
-                                                <div class="w-24 h-10 flex items-center justify-center bg-white border border-blue-300 rounded-lg font-bold text-blue-700 text-lg">
-                                                    {{ item.suggestedQuantity || 0 }}
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- الكمية المرسلة -->
-                                            <div class="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200">
-                                                <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
-                                                    الكمية المرسلة:
-                                                </label>
-                                                <input
-                                                    :id="`sent-qty-${index}`"
-                                                    type="number"
-                                                    v-model.number="item.sentQuantity"
-                                                    :max="Math.min(item.availableQuantity, item.originalQuantity)"
-                                                    :min="0"
-                                                    class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
-                                                    :class="{
-                                                        'border-red-300 focus:border-red-500': item.sentQuantity > Math.min(item.availableQuantity, item.originalQuantity),
-                                                        'border-green-300 focus:border-green-500': item.sentQuantity <= Math.min(item.availableQuantity, item.originalQuantity) && item.sentQuantity > 0,
-                                                        'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0
-                                                    }"
-                                                    @input="validateQuantity(index, Math.min(item.availableQuantity, item.originalQuantity))"
-                                                    :disabled="props.isLoading || isConfirming"
-                                                />
+                                            <div class="flex flex-col gap-1">
+                                                    <div class="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                                        <label class="text-sm font-bold text-gray-500 px-1">
+                                                            الكمية المرسلة:
+                                                        </label>
+                                                        
+                                                        <template v-if="item.units_per_box > 1">
+                                                            <div class="flex items-center gap-2">
+                                                                <div class="flex flex-col items-center gap-0.5">
+                                                                    <input
+                                                                        type="number"
+                                                                        v-model.number="item.sentBoxes"
+                                                                        @input="handleBoxInput(index, 'sent')"
+                                                                        class="w-24 h-10 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
+                                                                        :disabled="props.isLoading || isConfirming"
+                                                                    />
+                                                                    <span class="text-[10px] text-gray-400 font-bold">عبوة</span>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                        
+                                                        <input
+                                                            v-else
+                                                            :id="`sent-qty-${index}`"
+                                                            type="number"
+                                                            v-model.number="item.sentQuantity"
+                                                            :max="Math.min(item.availableQuantity, item.originalQuantity)"
+                                                            :min="0"
+                                                            class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
+                                                            :class="{
+                                                                'border-red-300 focus:border-red-500': item.sentQuantity > Math.min(item.availableQuantity, item.originalQuantity),
+                                                                'border-green-300 focus:border-green-500': item.sentQuantity <= Math.min(item.availableQuantity, item.originalQuantity) && item.sentQuantity > 0,
+                                                                'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0
+                                                            }"
+                                                            @input="validateQuantity(index, Math.min(item.availableQuantity, item.originalQuantity))"
+                                                            :disabled="props.isLoading || isConfirming"
+                                                        />
+                                                    </div>
+                                                <div v-if="item.units_per_box > 1" class="text-[10px] text-gray-400 font-bold text-center mt-1" v-html="getFormattedQuantity(item.sentQuantity, item.unit, item.units_per_box)"></div>
                                             </div>
                                         </template>
                                     </div>
@@ -338,6 +355,41 @@
 <script setup>
 import { ref, watch, computed } from "vue";
 import { Icon } from "@iconify/vue";
+
+const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = 'عبوة'; // التوحيد إلى نظام "عبوة" كما طلب المستخدم
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br><span class="text-[10px] text-gray-400 font-normal">و ${remainder} ${unit}</span>`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
+};
+
+const getStatusArabic = (status) => {
+    if (!status) return 'قيد الانتظار';
+    const map = {
+        'pending': 'قيد الانتظار',
+        'approved': 'تمت الموافقة',
+        'fulfilled': 'تم التنفيذ',
+        'shipped': 'تم الشحن',
+        'delivered': 'تم الاستلام',
+        'rejected': 'مرفوض',
+        'processing': 'قيد المعالجة',
+        'cancelled': 'ملغى'
+    };
+    return map[status.toLowerCase()] || status;
+};
 
 const props = defineProps({
     isOpen: {
@@ -523,15 +575,22 @@ watch(
                     }
                 }
                 
+                const upb = Number(item.units_per_box || 1);
+                const recQty = Number(item.receivedQuantity || item.received_qty || 0);
                 return {
                     id: item.id || item.drugId || item.drug_id,
                     name: item.name || item.drugName || item.drug_name || 'دواء غير محدد',
                     originalQuantity: requested,
                     availableQuantity: available,
-                    suggestedQuantity: suggestedQty, // الكمية المقترحة من الـ API
-                    sentQuantity: finalSentQty, // استخدام fulfilled_qty عند تأكيد الاستلام، أو suggestedQty عند الإرسال
-                    receivedQuantity: item.receivedQuantity || item.received_qty || 0, // الكمية المستلمة
+                    suggestedQuantity: suggestedQty,
+                    sentQuantity: finalSentQty,
+                    receivedQuantity: recQty,
+                    sentBoxes: Math.floor(finalSentQty / upb),
+                    sentUnits: finalSentQty % upb,
+                    receivedBoxes: Math.floor(recQty / upb),
+                    receivedUnits: recQty % upb,
                     unit: item.unit || "حبة",
+                    units_per_box: upb,
                     dosage: item.dosage || item.strength || ''
                 };
             });
@@ -571,37 +630,48 @@ const formatDate = (dateString) => {
 // التحقق من الكمية المدخلة
 const validateQuantity = (index, maxQuantity) => {
     let value = receivedItems.value[index].sentQuantity;
-
-    if (isNaN(value) || value === null) {
-        value = 0;
-    }
-    
-    if (value > maxQuantity) {
-        value = maxQuantity;
-    }
-    if (value < 0) {
-        value = 0;
-    }
+    if (isNaN(value) || value === null) value = 0;
+    if (value > maxQuantity) value = maxQuantity;
+    if (value < 0) value = 0;
 
     receivedItems.value[index].sentQuantity = Math.floor(value);
+
+    // تحديث العلب والقطع للمزامنة مع الإدخال
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    item.sentBoxes = Math.floor(item.sentQuantity / upb);
+    item.sentUnits = item.sentQuantity % upb;
 };
 
 // التحقق من الكمية المستلمة المدخلة
 const validateReceivedQuantity = (index, maxQuantity) => {
     let value = receivedItems.value[index].receivedQuantity;
-
-    if (isNaN(value) || value === null) {
-        value = 0;
-    }
-    
-    if (value > maxQuantity) {
-        value = maxQuantity;
-    }
-    if (value < 0) {
-        value = 0;
-    }
+    if (isNaN(value) || value === null) value = 0;
+    if (value > maxQuantity) value = maxQuantity;
+    if (value < 0) value = 0;
 
     receivedItems.value[index].receivedQuantity = Math.floor(value);
+
+    // تحديث العلب والقطع للمزامنة مع الإدخال
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    item.receivedBoxes = Math.floor(item.receivedQuantity / upb);
+    item.receivedUnits = item.receivedQuantity % upb;
+};
+
+const handleBoxInput = (index, type) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    
+    if (type === 'sent') {
+        const boxes = Number(item.sentBoxes || 0);
+        item.sentQuantity = boxes * upb;
+        validateQuantity(index, Math.min(item.availableQuantity, item.originalQuantity));
+    } else {
+        const boxes = Number(item.receivedBoxes || 0);
+        item.receivedQuantity = boxes * upb;
+        validateReceivedQuantity(index, item.sentQuantity);
+    }
 };
 
 // بدء عملية الرفض

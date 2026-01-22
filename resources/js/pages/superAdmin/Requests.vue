@@ -837,6 +837,7 @@ const openConfirmationModal = async (shipment) => {
                     suggestedQuantity: item.suggestedQuantity !== undefined && item.suggestedQuantity !== null ? item.suggestedQuantity : null,
                     sentQuantity: item.approved_qty !== null && item.approved_qty !== undefined ? item.approved_qty : (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : 0),
                     unit: item.unit || 'وحدة',
+                    units_per_box: item.units_per_box || 1,
                     dosage: item.dosage || item.strength || '',
                     strength: item.strength || item.dosage || '',
                     type: item.type || item.form || '',

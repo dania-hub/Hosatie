@@ -329,6 +329,7 @@
             :is-open="isSupplyRequestModalOpen"
             :categories="categories"
             :all-drugs-data="allDrugsData"
+            :drugs-data="drugsData"
             @close="closeSupplyRequestModal"
             @confirm="handleSupplyConfirm"
             @show-alert="showSuccessAlert"
@@ -430,6 +431,7 @@ const endpoints = {
 const shipmentsData = ref([]);
 const categories = ref([]);
 const allDrugsData = ref([]);
+const drugsData = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
 const isSubmittingSupply = ref(false);
@@ -447,7 +449,8 @@ const fetchAllData = async () => {
         await Promise.all([
             fetchShipments(),
             fetchCategories(),
-            fetchDrugs()
+            fetchDrugs(),
+            fetchDrugsInventory()
         ]);
     } catch (err) {
         error.value = 'حدث خطأ في تحميل البيانات. يرجى المحاولة مرة أخرى.';
@@ -528,11 +531,23 @@ const fetchDrugs = async () => {
             country: drug.country,
             utilizationType: drug.utilizationType || drug.utilization_type,
             dosage: drug.strength,
-            type: drug.form || 'Tablet'
+            type: drug.form || 'Tablet',
+            units_per_box: drug.units_per_box || drug.unitsPerBox || 1
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);
         allDrugsData.value = [];
+    }
+};
+
+const fetchDrugsInventory = async () => {
+    try {
+        const response = await api.get('/drugs');
+        const data = response.data?.data ?? response.data;
+        drugsData.value = Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.error('Error fetching drugs inventory:', err);
+        drugsData.value = [];
     }
 };
 

@@ -130,27 +130,68 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                             <!-- Quantity Input -->
                             <div class="space-y-2">
                                 <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                                    <Icon icon="solar:calculator-minimalistic-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                                    الكمية المطلوبة (<span class="text-[#4DA1A9]">{{ quantityUnit }}</span>)
+                                    <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                    الكمية (<span class="text-[#4DA1A9]">{{ selectedDrugType === 'Liquid' || selectedDrugType === 'Syrup' ? 'عبوة' : 'علبة' }}</span>)
+                                </label>
+                                <div class="relative">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        v-model.number="dailyQuantity"
+                                        @blur="handleQuantityBlur"
+                                        @input="hasInteractedWithQuantity = true"
+                                        class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400 font-bold"
+                                        :placeholder="selectedDrugName ? 'الكمية' : 'اختر دواء'"
+                                        :disabled="!selectedDrugName || isSubmitting"
+                                    />
+                                    <div v-if="selectedDrugName && selectedDrugData" class="mt-1 flex justify-between items-center px-1">
+                                        <span class="text-[10px] text-gray-400">
+                                            العلبة = {{ selectedDrugData.units_per_box || selectedDrugData.unitsPerBox || 1 }} {{ quantityUnit }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Batch Number -->
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                    <Icon icon="solar:tag-bold-duotone" class="w-4 h-4 text-amber-500" />
+                                    رقم الدفعة / الشحنة
                                 </label>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    v-model.number="dailyQuantity"
-                                    @blur="hasInteractedWithQuantity = true"
-                                    @input="hasInteractedWithQuantity = true"
-                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
-                                    placeholder="0"
+                                    type="text"
+                                    v-model="batchNumber"
+                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all font-mono"
+                                    placeholder="BAT-XXXX"
+                                    dir="ltr"
                                     :disabled="!selectedDrugName || isSubmitting"
                                 />
-                                <p v-if="hasInteractedWithQuantity && quantityError" class="text-xs text-red-500 flex items-center gap-1">
-                                    <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                                    {{ quantityError }}
-                                </p>
+                            </div>
+
+                            <!-- Expiry Date -->
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                    <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4 text-purple-500" />
+                                    تاريخ الإنتهاء
+                                </label>
+                                <div 
+                                    class="relative cursor-pointer" 
+                                    @click="$event.currentTarget.querySelector('input').showPicker()"
+                                >
+                                    <input
+                                        type="date"
+                                        v-model="expiryDate"
+                                        class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all cursor-pointer"
+                                        :disabled="!selectedDrugName || isSubmitting"
+                                        @click.stop
+                                    />
+                                </div>
+                               
+                               
                             </div>
                             
                             <!-- Add Button -->
@@ -163,7 +204,7 @@
                                     : 'bg-[#4DA1A9] text-white hover:bg-[#3a8c94] hover:-translate-y-0.5'"
                             >
                                 <Icon icon="solar:add-circle-bold" class="w-5 h-5" />
-                                إضافة للقائمة
+                                إضافة
                             </button>
                         </div>
 
@@ -209,7 +250,20 @@
                                                 ({{ item.strength }})
                                             </span>
                                         </p>
-                                        <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }}</p>
+                                        <div class="flex items-center gap-4 mt-1">
+                                            <div class="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md font-bold">
+                                                <Icon icon="solar:box-bold" class="w-3 h-3" />
+                                                <span v-html="getFormattedQuantity(item.quantity, item)"></span>
+                                            </div>
+                                            <div class="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                                                <Icon icon="solar:tag-bold" class="w-3 h-3" />
+                                                {{ item.batchNumber || 'بدون دفعة' }}
+                                            </div>
+                                            <div class="flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+                                                <Icon icon="solar:calendar-bold" class="w-3 h-3" />
+                                                {{ item.expiryDate || 'بدون تاريخ' }}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <button 
@@ -306,6 +360,41 @@ const filteredDrugs = ref([]);
 const selectedDrugName = ref("");
 const selectedDrugType = ref("");
 const dailyQuantity = ref(null);
+const batchNumber = ref("");
+const expiryDate = ref("");
+
+const getFormattedQuantity = (quantity, item) => {
+    if (!item) return quantity;
+    const unit = item.unit || 'حبة';
+    const boxUnit = (item.type === 'Liquid' || item.type === 'Syrup') ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const remainder = qty % unitsPerBox;
+        
+        if (boxes === 0 && qty > 0) {
+            return `${qty} ${unit}`;
+        }
+        
+        let display = `<span>${boxes}</span> <span class="text-[9px] text-gray-400 mr-0.5">${boxUnit}</span>`;
+        if (remainder > 0) {
+            display += ` و <span>${remainder}</span> <span class="text-[9px] text-gray-400 mr-0.5">${unit}</span>`;
+        }
+        return display;
+    } else {
+        return `<span>${qty}</span> <span class="text-[9px] text-gray-400 mr-0.5">${unit}</span>`;
+    }
+};
+
+// توليد رقم دفعة افتراضي
+const generateDefaultBatch = () => {
+    const now = new Date();
+    const datePart = now.toISOString().slice(0,10).replace(/-/g, '');
+    const randomPart = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `REG-${datePart}-${randomPart}`;
+};
 const showResults = ref(false);
 const dailyDosageList = ref([]);
 
@@ -313,6 +402,10 @@ const isSubmitting = ref(false);
 const hasInteractedWithQuantity = ref(false);
 const searchContainerRef = ref(null);
 const isClickingResults = ref(false);
+
+const handleQuantityBlur = () => {
+    hasInteractedWithQuantity.value = true;
+};
 
 // الثوابت
 const MAX_PILL_QTY = 1000;
@@ -428,15 +521,17 @@ const quantityError = computed(() => {
     }
 
     if (selectedDrugType.value === "Tablet" || selectedDrugType.value === "Capsule") {
-        if (numericQuantity > MAX_PILL_QTY) {
-            return `لا يمكن أن تتجاوز الكمية ${MAX_PILL_QTY} حبة/قرص`;
+        const totalPills = numericQuantity * (selectedDrugData.value?.units_per_box || selectedDrugData.value?.unitsPerBox || 1);
+        if (totalPills > MAX_PILL_QTY * 10) { 
+            return `الكمية كبيرة جداً، يرجى التأكد من عدد العلب`;
         }
         if (!Number.isInteger(numericQuantity)) {
-            return "يجب أن يكون عدد الحبات رقماً صحيحاً";
+            return "يجب أن يكون عدد العلب رقماً صحيحاً";
         }
     } else if (selectedDrugType.value === "Liquid" || selectedDrugType.value === "Syrup") {
-        if (numericQuantity > MAX_LIQUID_QTY) {
-            return `لا يمكن أن تتجاوز الكمية ${MAX_LIQUID_QTY} مل`;
+        const totalAmount = numericQuantity * (selectedDrugData.value?.units_per_box || selectedDrugData.value?.unitsPerBox || 1);
+        if (totalAmount > MAX_LIQUID_QTY * 10) {
+            return `الكمية كبيرة جداً، يرجى التأكد من عدد العلب`;
         }
     }
 
@@ -452,7 +547,9 @@ const isCurrentDrugValid = computed(() => {
         selectedDrugName.value.length > 0 &&
         selectedDrugType.value.length > 0 &&
         isQuantityValid &&
-        noQuantityError
+        noQuantityError &&
+        batchNumber.value.trim().length > 0 &&
+        expiryDate.value !== ""
     );
 });
 
@@ -478,6 +575,8 @@ const clearForm = () => {
     selectedDrugType.value = "";
     selectedDrugData.value = null;
     dailyQuantity.value = null;
+    batchNumber.value = generateDefaultBatch();
+    expiryDate.value = "";
     dailyDosageList.value = [];
     filteredDrugs.value = [];
     hasInteractedWithQuantity.value = false;
@@ -511,6 +610,7 @@ const selectDrug = (drug) => {
     selectedDrugType.value = newDrugType;
 
     dailyQuantity.value = null;
+    if (!batchNumber.value) batchNumber.value = generateDefaultBatch();
     hasInteractedWithQuantity.value = false;
     
     // إخفاء القائمة بعد اختيار الدواء
@@ -525,6 +625,8 @@ const clearSelectedDrug = () => {
     selectedDrugType.value = "";
     selectedDrugData.value = null;
     dailyQuantity.value = null;
+    // نقوم بتوليد رقم جديد فقط إذا كان فارغاً
+    if (!batchNumber.value) batchNumber.value = generateDefaultBatch();
     hasInteractedWithQuantity.value = false;
     searchTermDrug.value = "";
     filteredDrugs.value = [];
@@ -566,13 +668,19 @@ const addNewDrug = () => {
             return dName.toLowerCase() === selectedDrugName.value.toLowerCase();
         });
         
+        const unitsPerBox = drugInfo?.units_per_box || drugInfo?.unitsPerBox || 1;
+        const totalQuantity = Number(dailyQuantity.value) * unitsPerBox;
+
         dailyDosageList.value.push({
             drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
             strength: drugInfo?.strength || null,
-            quantity: dailyQuantity.value,
+            quantity: totalQuantity,
             unit: quantityUnit.value,
             type: selectedDrugType.value,
+            units_per_box: unitsPerBox,
+            batchNumber: batchNumber.value,
+            expiryDate: expiryDate.value
         });
 
         emit('show-alert', `✅ تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
@@ -583,6 +691,7 @@ const addNewDrug = () => {
         selectedDrugType.value = "";
         selectedDrugData.value = null;
         dailyQuantity.value = null;
+        // نترك رقم الدفعة والتاريخ كما هما لتسهيل إضافة أدوية من نفس الشحنة
         hasInteractedWithQuantity.value = false;
         filteredDrugs.value = [];
     } else {
@@ -603,13 +712,19 @@ const confirmAddition = () => {
             return dName.toLowerCase() === selectedDrugName.value.toLowerCase();
         });
         
+        const unitsPerBox = drugInfo?.units_per_box || drugInfo?.unitsPerBox || 1;
+        const totalQuantity = Number(dailyQuantity.value) * unitsPerBox;
+
         dailyDosageList.value.push({
             drugId: drugInfo?.id || null,
             name: selectedDrugName.value,
             strength: drugInfo?.strength || null,
-            quantity: dailyQuantity.value,
+            quantity: totalQuantity,
             unit: quantityUnit.value,
             type: selectedDrugType.value,
+            units_per_box: unitsPerBox,
+            batchNumber: batchNumber.value,
+            expiryDate: expiryDate.value
         });
         
         searchTermDrug.value = "";
@@ -679,6 +794,7 @@ watch(() => selectedCategory.value, (newCategory) => {
 watch(() => props.isOpen, (isOpen) => {
     if (isOpen) {
         clearForm();
+        batchNumber.value = generateDefaultBatch();
         
         // عند فتح النموذج، عرض جميع الأدوية مباشرة (لأن الفئة الافتراضية هي "كل الفئات")
         filteredDrugs.value = props.allDrugsData || [];

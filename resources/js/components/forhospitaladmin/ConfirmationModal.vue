@@ -83,23 +83,23 @@
                                         </div>
                                         
                                         <div class="flex items-center gap-4 text-sm mt-2">
-                                            <div class="flex items-center gap-1 text-gray-600 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                                                <span class="font-medium">الكمية المطلوبة:</span>
-                                                <span class="font-bold text-[#2E5077]">{{ item.requestedQuantity }} {{ item.unit }}</span>
-                                            </div>
-                                            
-                                            <div 
-                                                class="flex items-center gap-1 px-2 py-1 rounded-lg border"
-                                                :class="{
-                                                    'bg-green-50 border-green-100 text-green-700': item.availableQuantity >= item.requestedQuantity,
-                                                    'bg-red-50 border-red-100 text-red-700': item.availableQuantity < item.requestedQuantity
-                                                }"
-                                            >
-                                                <span class="font-medium">الكمية المتوفرة:</span>
-                                                <span class="font-bold">{{ item.availableQuantity || 0 }} {{ item.unit }}</span>
-                                                <Icon v-if="item.availableQuantity < item.requestedQuantity" icon="solar:danger-circle-bold" class="w-4 h-4" />
-                                            </div>
-                                        </div>
+                                             <div class="flex items-center gap-1 text-gray-600 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                                                 <span class="font-medium">الكمية المطلوبة:</span>
+                                                 <span class="font-bold text-[#2E5077]" v-html="getFormattedQuantity(item.requestedQuantity, item)"></span>
+                                             </div>
+                                             
+                                             <div 
+                                                 class="flex items-center gap-1 px-2 py-1 rounded-lg border"
+                                                 :class="{
+                                                     'bg-green-50 border-green-100 text-green-700': item.availableQuantity >= item.requestedQuantity,
+                                                     'bg-red-50 border-red-100 text-red-700': item.availableQuantity < item.requestedQuantity
+                                                 }"
+                                             >
+                                                 <span class="font-medium">الكمية المتوفرة:</span>
+                                                 <span class="font-bold" v-html="getFormattedQuantity(item.availableQuantity || 0, item)"></span>
+                                                 <Icon v-if="item.availableQuantity < item.requestedQuantity" icon="solar:danger-circle-bold" class="w-4 h-4" />
+                                             </div>
+                                         </div>
                                     </div>
                                 </div>
                             </div>
@@ -248,7 +248,9 @@ watch(
                     requestedQuantity: Number(item.requestedQuantity || item.requested || item.requested_qty || item.quantity || 0),
                     availableQuantity: Number(item.availableQuantity || item.available_quantity || item.stock || 0),
                     unit: item.unit || "وحدة",
-                    dosage: item.dosage || item.strength
+                    dosage: item.dosage || item.strength,
+                    units_per_box: item.units_per_box || 1,
+                    type: item.type || item.form || item.category || ''
                 };
                 console.log('Mapped item:', mappedItem);
                 return mappedItem;
@@ -272,6 +274,31 @@ const formatDate = (dateString) => {
         });
     } catch {
         return dateString;
+    }
+};
+
+const getFormattedQuantity = (quantity, item) => {
+    if (!item) return quantity;
+    const unit = item.unit || 'حبة';
+    const boxUnit = (item.type === 'Liquid' || item.type === 'Syrup' || unit === 'مل') ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const remainder = qty % unitsPerBox;
+        
+        if (boxes === 0 && qty > 0) {
+            return `${qty} ${unit}`;
+        }
+        
+        let display = `<span>${boxes}</span> <span class="text-[10px] text-gray-400 mr-0.5">${boxUnit}</span>`;
+        if (remainder > 0) {
+            display += ` و <span>${remainder}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+        }
+        return display;
+    } else {
+        return `<span>${qty}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
     }
 };
 

@@ -53,6 +53,7 @@ class ShipmentSuperController extends BaseApiController
                             'quantity' => $item->requested_qty,
                             'requested_qty' => $item->requested_qty, // Ensure frontend receives this
                             'receivedQuantity' => $item->fulfilled_qty ?? 0,
+                            'units_per_box' => $item->drug->units_per_box ?? 1,
                         ];
                     }),
                 ];
@@ -123,6 +124,7 @@ class ShipmentSuperController extends BaseApiController
                         'availableQuantity' => $stock,
                         'unit' => $item->drug->unit ?? 'وحدة',
                         'dosage' => $item->drug->strength ?? '',
+                        'units_per_box' => $item->drug->units_per_box ?? 1,
                     ];
                 }),
             ], 'تم جلب تفاصيل الشحنة بنجاح');

@@ -46,6 +46,8 @@ class InventorySuperController extends BaseApiController
                     'strength' => $strength,
                     'current_quantity' => (int)$inventory->current_quantity,
                     'needed_quantity' => (int)($inventory->minimum_level ?? 0),
+                    'units_per_box' => $inventory->drug && $inventory->drug->units_per_box ? (int)$inventory->drug->units_per_box : 1,
+                    'unit' => $inventory->drug && $inventory->drug->unit ? $inventory->drug->unit : 'حبة',
                     'entity_name' => $entityName, // Generic name for Hospital or Supplier
                 ];
             });
@@ -62,6 +64,11 @@ class InventorySuperController extends BaseApiController
                 'hospital_name' => $first['entity_name'], // Keep key as hospital_name for frontend compatibility, or change frontend
                 'current_quantity' => $group->sum('current_quantity'),
                 'needed_quantity' => $group->sum('needed_quantity'),
+                'units_per_box' => $first['units_per_box'],
+                'unit' => $first['unit'],
+                'current_quantity_boxes' => floor($group->sum('current_quantity') / ($first['units_per_box'] ?: 1)),
+                'current_quantity_remainder' => $group->sum('current_quantity') % ($first['units_per_box'] ?: 1),
+                'needed_quantity_boxes' => floor($group->sum('needed_quantity') / ($first['units_per_box'] ?: 1)),
             ];
         })->values();
 

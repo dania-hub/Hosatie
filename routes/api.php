@@ -560,6 +560,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('supply-requests', [SupplyRequestSupplierController::class, 'index']);
         Route::get('supply-requests/{id}', [SupplyRequestSupplierController::class, 'show']);
         Route::post('supply-requests', [SupplyRequestSupplierController::class, 'store']);
+        Route::post('supply-requests/{id}/confirm-receipt', [SupplyRequestSupplierController::class, 'confirmReceipt']);
 
         // 4. Hospitals List (قائمة المستشفيات)
         Route::get('hospitals', [SupplyRequestSupplierController::class, 'hospitals']);

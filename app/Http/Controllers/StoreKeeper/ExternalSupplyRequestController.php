@@ -153,7 +153,8 @@ class ExternalSupplyRequestController extends BaseApiController
                             'name' => $item->drug->name ?? 'غير محدد',
                             'sentQuantity' => $originalSentQuantities[$item->id] ?? $item->approved_qty ?? 0, // الكمية المرسلة الأصلية من audit_log
                             'receivedQuantity' => $item->fulfilled_qty ?? 0, // الكمية المستلمة الفعلية
-                            'unit' => $item->drug->unit ?? 'وحدة'
+                            'unit' => $item->drug->unit ?? 'وحدة',
+                            'units_per_box' => $item->drug->units_per_box ?? 1,
                         ];
                     })->toArray()
                 ];
@@ -192,7 +193,7 @@ class ExternalSupplyRequestController extends BaseApiController
                         'strength'          => $item->drug->strength ?? null,
                         'batch_number'      => $item->batch_number,
                         'expiry_date'       => $item->expiry_date,
-                        'units_per_box'     => $unitsPerBox, // إضافة المعلومة للواجهة
+                        'units_per_box'     => $item->drug->units_per_box ?? 1, // إضافة المعلومة للواجهة
                     ];
                 }),
                 'notes'             => null,
@@ -739,7 +740,8 @@ class ExternalSupplyRequestController extends BaseApiController
                         'name' => $item->drug->name ?? 'غير محدد',
                         'sentQuantity' => $originalSentQuantities[$item->id] ?? $item->fulfilled_qty ?? $item->approved_qty ?? 0, // الكمية المرسلة الأصلية
                         'receivedQuantity' => $itemData['receivedQuantity'] ?? $item->fulfilled_qty ?? 0, // الكمية المستلمة الفعلية
-                        'unit' => $item->drug->unit ?? 'وحدة'
+                        'unit' => $item->drug->unit ?? 'وحدة',
+                        'units_per_box' => $item->drug->units_per_box ?? 1,
                     ];
                 })->toArray()
             ];

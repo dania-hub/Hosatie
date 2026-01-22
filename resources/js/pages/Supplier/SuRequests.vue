@@ -288,28 +288,28 @@
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
-                                                    <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
+                                                <template v-else-if="shipment.requestStatus === 'جديد' || shipment.requestStatus === 'approved'">
+                                                    <!-- زر تأكيد الإرسال عندما تكون الحالة "جديد" (approved) -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
-                                                        class="tooltip p-2 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all duration-200 hover:scale-110 active:scale-95"
-                                                        data-tip="تأكيد الإستلام">
+                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                        data-tip="تأكيد الإرسال">
                                                         <Icon
                                                             icon="tabler:truck-delivery"
-                                                            class="w-4 h-4 text-amber-500 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
 
-                                                <template v-else-if="shipment.requestStatus === 'تم التنفيذ' || shipment.requestStatus === 'fulfilled'">
-                                                    <!-- زر تتبع الشحنة عندما تكون الحالة تم التنفيذ -->
+                                                <template v-else-if="shipment.requestStatus === 'قيد الاستلام' || shipment.requestStatus === 'fulfilled'">
+                                                    <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
                                                     <button 
                                                         @click="openConfirmationModal(shipment)"
-                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" 
-                                                        data-tip="معالجة الشحنة (تعديل/تأكيد)">
+                                                        class="tooltip p-2 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all duration-200 hover:scale-110 active:scale-95" 
+                                                        data-tip="تأكيد الاستلام">
                                                         <Icon
                                                             icon="tabler:truck-delivery"
-                                                            class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-amber-600 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
@@ -344,6 +344,7 @@
             :is-open="isSupplyRequestModalOpen"
             :categories="categories"
             :all-drugs-data="allDrugsData"
+            :drugs-data="drugsData"
             @close="closeSupplyRequestModal"
             @confirm="handleSupplyConfirm"
             @show-alert="showSuccessAlert"
@@ -445,6 +446,7 @@ const endpoints = {
 const shipmentsData = ref([]);
 const categories = ref([]);
 const allDrugsData = ref([]);
+const drugsData = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
 const isSubmittingSupply = ref(false);
@@ -462,7 +464,8 @@ const fetchAllData = async () => {
         await Promise.all([
             fetchShipments(),
             fetchCategories(),
-            fetchDrugs()
+            fetchDrugs(),
+            fetchDrugsInventory()
         ]);
     } catch (err) {
         error.value = 'حدث خطأ في تحميل البيانات. يرجى المحاولة مرة أخرى.';
@@ -543,11 +546,23 @@ const fetchDrugs = async () => {
             country: drug.country,
             utilizationType: drug.utilizationType || drug.utilization_type,
             dosage: drug.strength,
-            type: drug.form || 'Tablet'
+            type: drug.form || 'Tablet',
+            units_per_box: drug.units_per_box || drug.unitsPerBox || 1
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);
         allDrugsData.value = [];
+    }
+};
+
+const fetchDrugsInventory = async () => {
+    try {
+        const response = await api.get('/drugs');
+        const data = response.data?.data ?? response.data;
+        drugsData.value = Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.error('Error fetching drugs inventory:', err);
+        drugsData.value = [];
     }
 };
 
@@ -885,8 +900,9 @@ const handleConfirmation = async (confirmationData) => {
             items: confirmationData.receivedItems || [],
             notes: confirmationData.notes
         };
-        const response = await endpoints.shipments.confirm(shipmentId, payload);
-        // Laravel Resources wrap collections in a 'data' property
+        
+        // استدعاء API لتأكيد الاستلام وإضافة الكميات لمخزون المورد
+        const response = await api.post(`/supply-requests/${shipmentId}/confirm-receipt`, payload);
         const responseData = response.data?.data ?? response.data;
         
         const shipmentIndex = shipmentsData.value.findIndex(
@@ -894,7 +910,8 @@ const handleConfirmation = async (confirmationData) => {
         );
         
         if (shipmentIndex !== -1) {
-            shipmentsData.value[shipmentIndex].requestStatus = responseData?.status || 'تم الإستلام';
+            // تحديث الحالة إلى approved بدلاً من تم الإستلام
+            shipmentsData.value[shipmentIndex].requestStatus = 'approved';
             shipmentsData.value[shipmentIndex].received = true;
             
             // تحديث تفاصيل الشحنة مع البيانات المحدثة
@@ -912,7 +929,7 @@ const handleConfirmation = async (confirmationData) => {
             }
         }
         
-        showSuccessAlert(` تم تأكيد استلام الشحنة بنجاح!`);
+        showSuccessAlert(` تم تأكيد الاستلام وإضافة الكميات لمخزون المورد بنجاح!`);
         closeConfirmationModal();
         
         // إعادة تحميل الشحنات لتحديث البيانات

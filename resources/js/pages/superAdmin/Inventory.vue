@@ -130,12 +130,18 @@ const printTable = () => {
     `;
 
     filteredInventories.value.forEach(item => {
+        const boxLabel = item.unit === 'مل' ? 'عبوة' : 'علبة';
+        const unitLabel = item.unit === 'مل' ? 'مل' : 'حبة';
+        const displayQty = item.units_per_box > 1 
+            ? `${item.current_quantity_boxes} ${boxLabel} ${item.current_quantity_remainder > 0 ? `و ${item.current_quantity_remainder} ${unitLabel}` : ''}`
+            : `${item.current_quantity} ${item.unit}`;
+            
         tableHtml += `
             <tr>
                 <td>${item.drug_name}</td>
                 <td>${item.strength}</td>
-                <td>${item.current_quantity}</td>
-                <td>${item.needed_quantity}</td>
+                <td>${displayQty}</td>
+                <td>${item.needed_quantity_boxes} ${boxLabel}</td>
                 <td>${item.hospital_name}</td>
             </tr>
         `;
@@ -225,7 +231,7 @@ onMounted(() => {
                                     <th class="p-4">اسم الدواء</th>
                                     <th class="p-4">التركيز</th>
                                     <th class="p-4">الكمية الحالية</th>
-                                    <th class="p-4">الكمية المطلوبة</th>
+                                    <th class="p-4">الحد الأدنى</th>
                                     <th class="p-4">المستشفى</th>
                                 </tr>
                             </thead>
@@ -240,8 +246,25 @@ onMounted(() => {
                                     <tr v-for="item in filteredInventories" :key="item.id" class="hover:bg-gray-100 border border-gray-300">
                                         <td class="p-4">{{ item.drug_name }}</td>
                                         <td class="p-4">{{ item.strength }}</td>
-                                        <td class="p-4 font-bold text-blue-600">{{ item.current_quantity }}</td>
-                                        <td class="p-4 font-bold text-red-600">{{ item.needed_quantity }}</td>
+                                        <td class="p-4 font-bold text-blue-600">
+                                            <div v-if="item.units_per_box && item.units_per_box > 1">
+                                                {{ item.current_quantity_boxes || 0 }} {{ item.unit === 'مل' ? 'عبوة' : 'علبة' }}
+                                                <span v-if="item.current_quantity_remainder > 0" class="text-xs text-gray-400 font-normal">
+                                                    و {{ item.current_quantity_remainder }} {{ item.unit === 'مل' ? 'مل' : item.unit || 'حبة' }}
+                                                </span>
+                                            </div>
+                                            <div v-else>
+                                                {{ item.current_quantity || 0 }} {{ item.unit || 'حبة' }}
+                                            </div>
+                                        </td>
+                                        <td class="p-4 font-bold text-red-600">
+                                            <span v-if="item.units_per_box && item.units_per_box > 1">
+                                                {{ item.needed_quantity_boxes || 0 }} {{ item.unit === 'مل' ? 'عبوة' : 'علبة' }}
+                                            </span>
+                                            <span v-else>
+                                                {{ item.needed_quantity || 0 }} {{ item.unit || 'حبة' }}
+                                            </span>
+                                        </td>
                                         <td class="p-4">{{ item.hospital_name }}</td>
                                     </tr>
                                     <tr v-if="filteredInventories.length === 0">

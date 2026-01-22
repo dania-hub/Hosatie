@@ -77,51 +77,103 @@
                                             <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
                                         </div>
                                         <div class="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
-                                            <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">مطلوب: {{ item.originalQuantity }} {{ item.unit }}</span>
-                                            <span v-if="item.sentQuantity !== null && item.sentQuantity !== undefined && !isNaN(item.sentQuantity)" class="bg-green-50 text-green-600 px-2 py-0.5 rounded-md font-medium">مرسل: {{ item.sentQuantity }} {{ item.unit }}</span>
-                                            
-                                            <!-- Batch & Expiry Display -->
-                                            <div v-if="item.batchNumber" class="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 font-medium text-xs">
-                                                <Icon icon="solar:tag-bold" class="w-3 h-3" />
-                                                <span>رقم الشحنة: {{ item.batchNumber }}</span>
+                                            <!-- Required & Sent Info (Formatted in Boxes) -->
+                                            <div class="flex items-center gap-3 mt-1 flex-wrap">
+                                                <div class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg border border-blue-100 flex items-center gap-1 font-bold">
+                                                    <span>مطلوب:</span>
+                                                    <span v-html="getFormattedQuantity(item.originalQuantity, item.unit, item.units_per_box)"></span>
+                                                </div>
+                                                <div v-if="item.sentQuantity !== null" class="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-lg border border-green-100 flex items-center gap-1 font-bold">
+                                                    <span>مرسل:</span>
+                                                    <span v-html="getFormattedQuantity(item.sentQuantity, item.unit, item.units_per_box)"></span>
+                                                </div>
                                             </div>
-                                            <div v-if="item.expiryDate" class="flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100 font-medium text-xs">
-                                                <Icon icon="solar:calendar-bold" class="w-3 h-3" />
-                                                <span>تاريخ انتهاءالصلاحية: {{ formatDate(item.expiryDate) }}</span>
+
+                                            <!-- Batch & Expiry Display -->
+                                            <div class="flex items-center gap-3 mt-3">
+                                                <div v-if="item.batchNumber" class="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-2">
+                                                    <div class="p-1 bg-amber-200/50 rounded-lg">
+                                                        <Icon icon="solar:tag-bold" class="w-4 h-4" />
+                                                    </div>
+                                                    <div class="flex flex-col">
+                                                        <span class="text-[10px] uppercase font-bold text-amber-600 leading-none mb-0.5">رقم الدفعة</span>
+                                                        <span class="text-sm font-black">{{ item.batchNumber }}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div v-if="item.expiryDate" class="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl border border-purple-200 flex items-center gap-2">
+                                                    <div class="p-1 bg-purple-200/50 rounded-lg">
+                                                        <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
+                                                    </div>
+                                                    <div class="flex flex-col">
+                                                        <span class="text-[10px] uppercase font-bold text-purple-600 leading-none mb-0.5">تاريخ الانتهاء</span>
+                                                        <span class="text-sm font-black">{{ formatDate(item.expiryDate) }}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div v-if="!item.batchNumber && !item.expiryDate" class="text-xs text-gray-400 italic flex items-center gap-1">
+                                                    <Icon icon="solar:info-circle-linear" class="w-4 h-4" />
+                                                    لا توجد بيانات للدفعة أو تاريخ الانتهاء
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <div class="flex items-center gap-4 w-full md:w-auto justify-end">
-                                        <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
-                                            <span class="text-sm text-gray-500 font-medium px-2">مستلم:</span>
-                                            <input
-                                                type="number"
-                                                v-model.number="item.receivedQuantity"
-                                                :max="item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity"
-                                                min="0"
-                                                class="w-20 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
-                                                :class="{
-                                                    'text-green-600': item.receivedQuantity === (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
-                                                    'text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
-                                                    'text-red-600': item.receivedQuantity === 0
-                                                }"
-                                                @input="validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)"
-                                                :disabled="props.isLoading || isConfirming"
-                                            />
+                                    <div class="flex flex-col items-end gap-2 w-full md:w-auto">
+                                        <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                            <template v-if="item.units_per_box > 1">
+                                                <div class="flex flex-col">
+                                                    <div class="flex items-center">
+                                                        <span class="text-sm text-gray-600 font-bold px-2">عدد {{ item.unit === 'مل' ? 'العبوات' : 'العلب' }}:</span>
+                                                        <div class="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden focus-within:border-[#4DA1A9] transition-all">
+                                                            <input
+                                                                type="number"
+                                                                v-model.number="item.receivedBoxes"
+                                                                class="w-20 h-10 text-center outline-none font-bold text-[#2E5077] text-lg"
+                                                                @input="handleBoxInput(index)"
+                                                                :disabled="props.isLoading || isConfirming"
+                                                            />
+                                                            <span class="px-2 bg-gray-50 text-xs text-gray-500 font-bold border-r border-gray-200 h-10 flex items-center">
+                                                                {{ item.unit === 'مل' ? 'عبوة' : 'علبة' }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-[11px] text-gray-400 mt-1 mr-2 font-medium">
+                                                        الإجمالي: {{ item.receivedQuantity }} {{ item.unit }}
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template v-else>
+                                                <span class="text-sm text-gray-600 font-bold px-2">الكمية المستلمة:</span>
+                                                <div class="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden focus-within:border-[#4DA1A9] transition-all">
+                                                    <input
+                                                        type="number"
+                                                        v-model.number="item.receivedQuantity"
+                                                        :max="item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity"
+                                                        min="0"
+                                                        class="w-24 h-10 text-center outline-none font-bold text-[#2E5077] text-lg"
+                                                        @input="validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)"
+                                                        :disabled="props.isLoading || isConfirming"
+                                                    />
+                                                    <span class="px-2 bg-gray-50 text-xs text-gray-500 font-bold border-r border-gray-200 h-10 flex items-center">
+                                                        {{ item.unit }}
+                                                    </span>
+                                                </div>
+                                            </template>
                                         </div>
                                         
                                         <div 
-                                            class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                                            class="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold"
                                             :class="{
-                                                'bg-green-100 text-green-600': item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
-                                                'bg-amber-100 text-amber-600': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
-                                                'bg-red-100 text-red-600': item.receivedQuantity === 0
+                                                'bg-green-100 text-green-700': item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
+                                                'bg-amber-100 text-amber-700': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity),
+                                                'bg-red-100 text-red-700': item.receivedQuantity === 0
                                             }"
                                         >
-                                            <Icon v-if="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)" icon="solar:check-circle-bold" class="w-6 h-6" />
-                                            <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
-                                            <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
+                                            <Icon v-if="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)" icon="solar:check-circle-bold" class="w-4 h-4" />
+                                            <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-4 h-4" />
+                                            <Icon v-else icon="solar:close-circle-bold" class="w-4 h-4" />
+                                            {{ item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity) ? 'استلام كامل' : (item.receivedQuantity > 0 ? 'استلام جزئي' : 'لم يتم الاستلام') }}
                                         </div>
                                     </div>
                                 </div>
@@ -283,12 +335,15 @@ watch(() => props.requestData.items, (newItems) => {
             
             let receivedQty = item.fulfilled_qty ?? item.fulfilledQty ?? item.receivedQuantity ?? sentQty;
             
+            const upb = Number(item.units_per_box || item.unitsPerBox || 1);
             return {
                 id: item.id || item.drugId,
                 name: item.name || item.drugName || 'دواء غير محدد',
                 originalQuantity: requestedQty,
                 sentQuantity: sentQty,
                 receivedQuantity: Number(receivedQty),
+                receivedBoxes: Math.floor(Number(receivedQty) / upb),
+                units_per_box: upb,
                 // تعيين رقم الدفعة تلقائياً بناءً على رقم الشحنة إذا لم يكن محدداً
                 batchNumber: item.batchNumber || item.batch_number || props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null),
                 expiryDate: item.expiryDate || item.expiry_date || null,
@@ -299,12 +354,50 @@ watch(() => props.requestData.items, (newItems) => {
     }
 }, { immediate: true, deep: true });
 
+const handleBoxInput = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    const boxes = Number(item.receivedBoxes || 0);
+    
+    item.receivedQuantity = boxes * upb;
+    
+    const maxQty = item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity;
+    validateQuantity(index, maxQty);
+};
+
 const validateQuantity = (index, maxQuantity) => {
     let value = receivedItems.value[index].receivedQuantity;
     if (isNaN(value) || value === null) value = 0;
     if (value > maxQuantity) value = maxQuantity;
     if (value < 0) value = 0;
-    receivedItems.value[index].receivedQuantity = value;
+    
+    const item = receivedItems.value[index];
+    item.receivedQuantity = Math.floor(value);
+    
+    // مزامنة العلب عند إدخال الوحدات يدوياً (إن حدث)
+    if (item.units_per_box > 1) {
+        item.receivedBoxes = Math.floor(item.receivedQuantity / item.units_per_box);
+    }
+};
+
+const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` <span class="text-[10px] text-gray-400 font-normal">و ${remainder} ${unit}</span>`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
 };
 
 const confirmReceipt = async () => {

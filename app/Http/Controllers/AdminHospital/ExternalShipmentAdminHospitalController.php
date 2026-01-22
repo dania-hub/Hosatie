@@ -124,6 +124,8 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
                 'unit'              => $item->drug?->unit ?? 'وحدة',
                 'dosage'            => $item->drug?->strength ?? null,
                 'strength'          => $item->drug?->strength ?? null,
+                'units_per_box'     => $item->drug?->units_per_box ?? 1,
+                'type'              => $item->drug?->type ?? $item->drug?->form ?? '',
             ];
         });
 

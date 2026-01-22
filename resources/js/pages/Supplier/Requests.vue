@@ -704,7 +704,8 @@ const openRequestViewModal = async (shipment) => {
                 dosage: item.dosage || item.strength,
                 strength: item.strength || item.dosage,
                 batchNumber: item.batchNumber || item.batch_number || null,
-                expiryDate: item.expiryDate || item.expiry_date || null
+                expiryDate: item.expiryDate || item.expiry_date || null,
+                units_per_box: item.units_per_box || item.unitsPerBox || 1
             })),
             notes: data.notes || '',
             storekeeperNotes: data.storekeeperNotes || null,
@@ -766,7 +767,8 @@ const openConfirmationModal = async (shipment) => {
                 strength: item.strength || item.dosage,
                 // للـ ConfirmationModal - استخدام الكمية المتوفرة الفعلية من API (من مخزون المورد)
                 originalQuantity: item.requestedQuantity || item.requested_qty || 0,
-                availableQuantity: item.availableQuantity ?? item.stock ?? item.currentStock ?? 0
+                availableQuantity: item.availableQuantity ?? item.stock ?? item.currentStock ?? 0,
+                units_per_box: item.units_per_box || item.unitsPerBox || 1
             }))
         };
         isConfirmationModalOpen.value = true;

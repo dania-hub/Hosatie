@@ -87,15 +87,14 @@
                             </div>
                         </div>
                         
-                        <!-- معلومات المخزون -->
                         <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الكمية المتوفرة</p>
-                                <p class="font-semibold text-[#4DA1A9] text-lg">{{ drug.quantity || 0 }}</p>
+                                <div class="font-semibold text-[#4DA1A9] text-lg" v-html="getQuantityDisplay(drug)"></div>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الكمية المحتاجة</p>
-                                <p class="font-semibold text-[#2E5077] text-lg">{{ drug.neededQuantity || 0 }}</p>
+                                <div class="font-semibold text-[#2E5077] text-lg" v-html="getNeededQuantityDisplay(drug)"></div>
                             </div>
                         </div>
                     </div>
@@ -189,5 +188,55 @@ const emit = defineEmits(['close']);
 
 const closeModal = () => {
     emit('close');
+};
+
+const getQuantityDisplay = (drug) => {
+    if (!drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const quantity = Number(drug.quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(quantity / unitsPerBox);
+        const remainder = quantity % unitsPerBox;
+        
+        if (boxes === 0 && quantity > 0) {
+            return `${quantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br> و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${quantity} ${unit}`;
+    }
+};
+
+const getNeededQuantityDisplay = (drug) => {
+    if (!drug) return '0';
+    const unit = drug.unit || 'قرص';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(drug.units_per_box || 1);
+    const neededQuantity = Number(drug.neededQuantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(neededQuantity / unitsPerBox);
+        const remainder = neededQuantity % unitsPerBox;
+        
+        if (boxes === 0 && neededQuantity > 0) {
+            return `${neededQuantity} ${unit}`;
+        }
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br> و ${remainder} ${unit}`;
+        }
+        return display;
+    } else {
+        return `${neededQuantity} ${unit}`;
+    }
 };
 </script>

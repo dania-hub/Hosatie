@@ -123,7 +123,7 @@
                                     <div class="flex items-center gap-6 w-full md:w-auto justify-end">
                                         <div class="text-center">
                                             <span class="text-xs text-gray-400 block mb-1">مطلوب</span>
-                                            <span class="font-bold text-[#4DA1A9] text-lg">{{ item.requestedQuantity || item.requested_qty || item.requested || 0 }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
+                                            <span class="font-bold text-[#4DA1A9] text-lg" v-html="getFormattedQuantity(item.requestedQuantity || item.requested_qty || item.requested || 0, item)"></span>
                                         </div>
                                         
                                         <div v-if="hasSentQuantity(item)" class="text-center pl-4 border-r border-gray-100">
@@ -132,10 +132,8 @@
                                                 <span 
                                                     class="font-bold text-lg"
                                                     :class="getSentQuantity(item) >= (item.requestedQuantity || item.requested_qty || item.requested || 0) ? 'text-green-600' : 'text-amber-600'"
-                                                >
-                                                    {{ getSentQuantity(item) || 0 }}
-                                                </span>
-                                                <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                                    v-html="getFormattedQuantity(getSentQuantity(item) || 0, item)"
+                                                ></span>
                                                 <Icon v-if="getSentQuantity(item) >= (item.requestedQuantity || item.requested_qty || item.requested || 0)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                                 <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
                                             </div>
@@ -147,10 +145,8 @@
                                                 <span 
                                                     class="font-bold text-lg"
                                                     :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-amber-600'"
-                                                >
-                                                    {{ getReceivedQuantity(item) || 0 }}
-                                                </span>
-                                                <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                                    v-html="getFormattedQuantity(getReceivedQuantity(item) || 0, item)"
+                                                ></span>
                                                 <Icon v-if="getReceivedQuantity(item) >= getSentQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                                 <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
                                             </div>
@@ -397,7 +393,6 @@ watch(() => props.requestData, (newData) => {
     }
 }, { deep: true });
 
-// دالة تنسيق التاريخ
 const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
@@ -409,6 +404,31 @@ const formatDate = (dateString) => {
         });
     } catch {
         return dateString;
+    }
+};
+
+const getFormattedQuantity = (quantity, item) => {
+    if (!item) return quantity;
+    const unit = item.unit || 'حبة';
+    const boxUnit = (item.type === 'Liquid' || item.type === 'Syrup' || unit === 'مل') ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const remainder = qty % unitsPerBox;
+        
+        if (boxes === 0 && qty > 0) {
+            return `${qty} ${unit}`;
+        }
+        
+        let display = `<span>${boxes}</span> <span class="text-[10px] text-gray-400 mr-0.5">${boxUnit}</span>`;
+        if (remainder > 0) {
+            display += ` و <span>${remainder}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+        }
+        return display;
+    } else {
+        return `<span>${qty}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
     }
 };
 

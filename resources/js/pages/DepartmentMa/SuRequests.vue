@@ -540,7 +540,8 @@ const fetchDrugs = async () => {
             unit: drug.unit || 'قرص',
             category: drug.category,
             isPhasingOut: drug.isPhasingOut || false,
-            phasingOutWarning: drug.phasingOutWarning || null
+            phasingOutWarning: drug.phasingOutWarning || null,
+            units_per_box: drug.units_per_box || drug.unitsPerBox || 1
         }));
     } catch (err) {
         console.error('Error fetching drugs:', err);

@@ -356,11 +356,13 @@ class DrugHospitalAdminController extends BaseApiController
                 // تفاصيل الدفعات (الشحنات) عبر جميع الصيدليات والمستودعات
                 $batches = $drugInventories->map(function ($inv) {
                     $locationName = $inv->pharmacy?->name ?? $inv->warehouse?->name ?? 'غير معروف';
+                    $locationType = $inv->pharmacy_id ? 'pharmacy' : 'warehouse';
                     return [
                         'batchNumber' => $inv->batch_number ?? 'غير محدد',
                         'expiryDate' => $inv->expiry_date ? date('Y/m/d', strtotime($inv->expiry_date)) : 'غير محدد',
                         'quantity' => $inv->current_quantity,
                         'location' => $locationName,
+                        'location_type' => $locationType,
                     ];
                 })->values();
 
@@ -380,11 +382,19 @@ class DrugHospitalAdminController extends BaseApiController
                     'country' => $drug->country,
                     'utilizationType' => $drug->utilization_type,
                     'quantity' => $totalQuantity, // الكمية الإجمالية (للتوافق مع الكود القديم)
+                    'quantity_boxes' => floor($totalQuantity / ($drug->units_per_box ?: 1)),
                     'pharmacyQuantity' => $pharmacyQuantity, // الكمية المتوفرة في الصيدليات
+                    'pharmacy_quantity_boxes' => floor($pharmacyQuantity / ($drug->units_per_box ?: 1)),
+                    'pharmacy_quantity_remainder' => $pharmacyQuantity % ($drug->units_per_box ?: 1),
                     'warehouseQuantity' => $warehouseQuantity, // الكمية المتوفرة في المستودعات
+                    'warehouse_quantity_boxes' => floor($warehouseQuantity / ($drug->units_per_box ?: 1)),
+                    'warehouse_quantity_remainder' => $warehouseQuantity % ($drug->units_per_box ?: 1),
                     'neededQuantity' => $pharmacyNeededQuantity + $warehouseNeededQuantity, // الكمية المحتاجة الإجمالية (للتوافق مع الكود القديم)
                     'pharmacyNeededQuantity' => $pharmacyNeededQuantity, // الكمية المحتاجة للصيدليات
+                    'pharmacy_needed_quantity_boxes' => floor($pharmacyNeededQuantity / ($drug->units_per_box ?: 1)),
                     'warehouseNeededQuantity' => $warehouseNeededQuantity, // الكمية المحتاجة للمستودعات
+                    'warehouse_needed_quantity_boxes' => floor($warehouseNeededQuantity / ($drug->units_per_box ?: 1)),
+                    'units_per_box' => $drug->units_per_box,
                     'batches' => $batches,
                     'description' => $drug->description ?? '',
                     'type' => $drug->form ?? 'Tablet',
@@ -424,7 +434,7 @@ class DrugHospitalAdminController extends BaseApiController
 
             $search = $request->query('search', '');
 
-            $query = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit')
+            $query = Drug::select('id', 'name', 'generic_name', 'strength', 'form', 'category', 'unit', 'units_per_box')
                 ->where('status', '!=', Drug::STATUS_ARCHIVED); // إخفاء الأدوية المؤرشفة
 
             if ($search) {
@@ -608,17 +618,21 @@ class DrugHospitalAdminController extends BaseApiController
             // تجميع الدفعات لهذا الدواء عبر جميع صيدليات ومستودعات المستشفى
             $batches = $inventories->map(function($inv) {
                 $location = 'غير محدد';
+                $locationType = 'unknown';
                 if ($inv->pharmacy) {
                     $location = 'صيدلية: ' . $inv->pharmacy->name;
+                    $locationType = 'pharmacy';
                 } elseif ($inv->warehouse) {
                     $location = 'مستودع: ' . $inv->warehouse->name;
+                    $locationType = 'warehouse';
                 }
 
                 return [
                     'batchNumber' => $inv->batch_number ?? '-',
                     'expiryDate' => $inv->expiry_date ? \Carbon\Carbon::parse($inv->expiry_date)->format('Y/m/d') : '-',
                     'quantity' => (int)$inv->current_quantity,
-                    'location' => $location
+                    'location' => $location,
+                    'location_type' => $locationType,
                 ];
             });
 
@@ -650,6 +664,7 @@ class DrugHospitalAdminController extends BaseApiController
                 'batches' => $batches,
                 'description' => $drug->description ?? '',
                 'type' => $drug->form ?? 'Tablet',
+                'units_per_box' => $drug->units_per_box ?? 1,
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الدواء بنجاح.');

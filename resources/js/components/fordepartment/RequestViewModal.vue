@@ -89,16 +89,33 @@
                                         <span v-if="item.type" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
                                             {{ item.type }}
                                         </span>
-                                        <!-- Batch Number -->
-                                        <span v-if="item.batch_number || item.batchNumber" class="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md font-bold border border-amber-100 flex items-center gap-1">
-                                            <Icon icon="solar:tag-bold" class="w-3 h-3" />
-                                            رقم الشحنة: {{ item.batch_number || item.batchNumber }}
-                                        </span>
-                                        <!-- Expiry Date -->
-                                        <span v-if="item.expiry_date || item.expiryDate" class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md font-bold border border-purple-100 flex items-center gap-1">
-                                            <Icon icon="solar:calendar-bold" class="w-3 h-3" />
-                                            تاريخ انتهاءالصلاحية: {{ formatDate(item.expiry_date || item.expiryDate) }}
-                                        </span>
+                                    </div>
+                                    <!-- Batch & Expiry Display -->
+                                    <div class="flex items-center gap-3 mt-3">
+                                        <div v-if="item.batch_number || item.batchNumber" class="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-2">
+                                            <div class="p-1 bg-amber-200/50 rounded-lg">
+                                                <Icon icon="solar:tag-bold" class="w-4 h-4" />
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-[10px] uppercase font-bold text-amber-600 leading-none mb-0.5">رقم الدفعة</span>
+                                                <span class="text-sm font-black">{{ item.batch_number || item.batchNumber }}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div v-if="item.expiry_date || item.expiryDate" class="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl border border-purple-200 flex items-center gap-2">
+                                            <div class="p-1 bg-purple-200/50 rounded-lg">
+                                                <Icon icon="solar:calendar-date-bold" class="w-4 h-4" />
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-[10px] uppercase font-bold text-purple-600 leading-none mb-0.5">تاريخ الانتهاء</span>
+                                                <span class="text-sm font-black">{{ formatDate(item.expiry_date || item.expiryDate) }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="!(item.batch_number || item.batchNumber) && !(item.expiry_date || item.expiryDate)" class="text-xs text-gray-400 italic flex items-center gap-1">
+                                            <Icon icon="solar:info-circle-linear" class="w-4 h-4" />
+                                            لا توجد بيانات للدفعة أو تاريخ الانتهاء
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -106,7 +123,7 @@
                                     <!-- الكمية المطلوبة -->
                                     <div class="text-center">
                                         <span class="text-xs text-gray-400 block mb-1">مطلوب</span>
-                                        <span class="font-bold text-[#4DA1A9] text-lg">{{ getRequestedQuantity(item) }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
+                                        <span class="font-bold text-[#4DA1A9] text-lg" v-html="getFormattedQuantity(getRequestedQuantity(item), item.unit, item.units_per_box || item.unitsPerBox)"></span>
                                     </div>
                                     
                                     <!-- الكمية المرسلة -->
@@ -116,10 +133,9 @@
                                             <span 
                                                 class="font-bold text-lg"
                                                 :class="getSentQuantity(item) >= getRequestedQuantity(item) ? 'text-green-600' : 'text-amber-600'"
+                                                v-html="getFormattedQuantity(getSentQuantity(item), item.unit, item.units_per_box || item.unitsPerBox)"
                                             >
-                                                {{ getSentQuantity(item) || 0 }}
                                             </span>
-                                            <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
                                             <Icon v-if="getSentQuantity(item) >= getRequestedQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                             <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
                                         </div>
@@ -132,10 +148,9 @@
                                             <span 
                                                 class="font-bold text-lg"
                                                 :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-orange-600'"
+                                                v-html="getFormattedQuantity(getReceivedQuantity(item), item.unit, item.units_per_box || item.unitsPerBox)"
                                             >
-                                                {{ getReceivedQuantity(item) ?? 0 }}
                                             </span>
-                                            <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
                                             <Icon v-if="getReceivedQuantity(item) >= getSentQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                             <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-orange-600" />
                                         </div>
@@ -287,15 +302,35 @@ const formatDate = (dateString) => {
     if (!dateString) return '';
     try {
         const date = new Date(dateString);
-        // Format: DD/MM/YYYY HH:mm (English numbers)
+        // Format: DD/MM/YYYY
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
      
-        return `${day}/${month}/${year} `;
+        return `${day}/${month}/${year}`;
     } catch {
         return dateString;
     }
+};
+
+const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` <span class="text-[10px] text-gray-400 font-normal">و ${remainder} ${unit}</span>`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
 };
 
 // نوع المستخدم الحالي

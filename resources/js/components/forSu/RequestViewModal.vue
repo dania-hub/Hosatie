@@ -112,9 +112,11 @@
                                     <!-- Requested Qty -->
                                     <div class="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center min-w-[100px]">
                                         <span class="text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">مطلوب</span>
-                                        <div class="flex items-center gap-1">
-                                            <span class="font-black text-[#4DA1A9] text-xl">{{ item.quantity || item.requestedQuantity || item.requested_qty || 0 }}</span>
-                                            <span class="text-[10px] text-slate-400 font-bold mt-1">{{ item.unit || 'وحدة' }}</span>
+                                        <div class="flex items-center gap-1 font-bold">
+                                            <span 
+                                                class="text-gray-700 text-sm"
+                                                v-html="getFormattedQuantity(item.quantity || item.requestedQuantity || item.requested_qty || 0, item)"
+                                            ></span>
                                         </div>
                                     </div>
                                     
@@ -125,14 +127,12 @@
                                             <Icon v-if="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-3 h-3 text-green-500" />
                                             <Icon v-else icon="solar:info-circle-bold" class="w-3 h-3 text-amber-500" />
                                         </span>
-                                        <div class="flex items-center gap-1 mb-1">
+                                        <div class="flex items-center gap-1 mb-1 font-bold">
                                             <span 
-                                                class="font-black text-xl"
+                                                class="text-sm"
                                                 :class="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0) ? 'text-green-600' : 'text-amber-600'"
-                                            >
-                                                {{ getSentQuantity(item) || 0 }}
-                                            </span>
-                                            <span class="text-[10px] text-blue-400/70 font-bold mt-1">{{ item.unit || 'وحدة' }}</span>
+                                                v-html="getFormattedQuantity(getSentQuantity(item) || 0, item)"
+                                            ></span>
                                         </div>
                                         
                                         <!-- Batch Info -->
@@ -151,14 +151,12 @@
                                     <!-- Received Qty -->
                                     <div v-if="hasReceivedQuantity(item)" class="px-4 py-3 bg-purple-50/50 rounded-2xl border border-purple-100 flex flex-col items-center min-w-[100px]">
                                         <span class="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider">مستلم</span>
-                                        <div class="flex items-center gap-1">
+                                        <div class="flex items-center gap-1 font-bold">
                                             <span 
-                                                class="font-black text-xl"
+                                                class="text-sm"
                                                 :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-amber-600'"
-                                            >
-                                                {{ getReceivedQuantity(item) || 0 }}
-                                            </span>
-                                            <span class="text-[10px] text-purple-400/70 font-bold mt-1">{{ item.unit || 'وحدة' }}</span>
+                                                v-html="getFormattedQuantity(getReceivedQuantity(item) || 0, item)"
+                                            ></span>
                                         </div>
                                     </div>
                                 </div>
@@ -348,7 +346,30 @@ watch(() => props.requestData, (newVal) => {
         };
     }
 }, { immediate: true, deep: true });
+const getFormattedQuantity = (quantity, item) => {
+    if (!item) return quantity;
+    const unit = item.unit || 'حبة';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
 
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const remainder = qty % unitsPerBox;
+        
+        if (boxes === 0 && qty > 0) {
+            return `${qty} ${unit}`;
+        }
+        
+        let display = `<span>${boxes}</span> <span class="text-[10px] text-gray-400 mr-0.5">${boxUnit}</span>`;
+        if (remainder > 0) {
+            display += ` و <span>${remainder}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+        }
+        return display;
+    } else {
+        return `<span>${qty}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+    }
+};
 // دالة تنسيق التاريخ
 const formatDate = (dateString) => {
     if (!dateString) return '';

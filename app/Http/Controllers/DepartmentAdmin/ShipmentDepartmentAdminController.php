@@ -200,6 +200,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
                         'drugName' => $item->drug->name ?? 'غير محدد',
                         'quantity' => $item->requested_qty,
                         'unit' => $item->drug->unit ?? 'وحدة',
+                        'units_per_box' => $item->drug->units_per_box ?? 1,
+                        'unitsPerBox'   => $item->drug->units_per_box ?? 1,
                     ];
                 }),
                 'notes' => $shipment->notes,
@@ -311,6 +313,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
                     'sentQuantity' => $sentQuantity, // الكمية المرسلة من storekeeper
                     'receivedQuantity' => $item->fulfilled_qty, // الكمية المستلمة فقط
                     'unit' => $item->drug->unit ?? 'علبة',
+                    'units_per_box' => $item->drug->units_per_box ?? 1,
+                    'unitsPerBox'   => $item->drug->units_per_box ?? 1,
                     'genericName' => $item->drug->generic_name ?? null,
                     'strength' => $item->drug->strength ?? null,
                     'dosage' => $item->drug->strength ?? null,
@@ -534,7 +538,9 @@ class ShipmentDepartmentAdminController extends BaseApiController
                     'fulfilledQty' => $item->fulfilled_qty,
                     'fulfilled_qty' => $item->fulfilled_qty,
                     'receivedQuantity' => $item->fulfilled_qty,
-                    'unit' => $item->drug->unit ?? 'علبة'
+                    'unit' => $item->drug->unit ?? 'علبة',
+                    'units_per_box' => $item->drug->units_per_box ?? 1,
+                    'unitsPerBox'   => $item->drug->units_per_box ?? 1,
                 ];
             })
         ], 'تم تأكيد استلام الشحنة بنجاح.');

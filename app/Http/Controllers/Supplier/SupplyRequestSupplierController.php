@@ -8,6 +8,7 @@ use App\Models\ExternalSupplyRequest;
 use App\Models\ExternalSupplyRequestItem;
 use App\Models\Hospital;
 use App\Models\AuditLog;
+use App\Models\Inventory;
 use App\Http\Requests\Supplier\CreateSupplyRequestRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +79,7 @@ class SupplyRequestSupplierController extends BaseApiController
             $supplyRequest = ExternalSupplyRequest::with([
                 'hospital:id,name,city,address,phone',
                 'requester:id,full_name,email,phone',
-                'items.drug:id,name,category,form,strength,unit',
+                'items.drug:id,name,category,form,strength,unit,units_per_box',
             ])
                 ->where('requested_by', $user->id)
                 ->findOrFail($id);
@@ -129,6 +130,7 @@ class SupplyRequestSupplierController extends BaseApiController
                         'form' => $drug->form ?? null,
                         'type' => $drug->form ?? 'Tablet',
                         'unit' => $drug->unit ?? 'وحدة',
+                        'units_per_box' => $drug->units_per_box ?? 1,
                     ];
                 }),
                 'createdAt' => $supplyRequest->created_at->format('Y/m/d H:i'),
@@ -252,6 +254,111 @@ class SupplyRequestSupplierController extends BaseApiController
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->handleException($e, 'Supplier Create Supply Request Error');
+        }
+    }
+
+    /**
+     * تأكيد استلام المورد للطلب
+     * POST /api/supplier/supply-requests/{id}/confirm-receipt
+     */
+    public function confirmReceipt(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $user = $request->user();
+
+            if ($user->type !== 'supplier_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $supplyRequest = ExternalSupplyRequest::with('items.drug')
+                ->where('requested_by', $user->id)
+                ->findOrFail($id);
+
+            // التحقق من أن الطلب في حالة fulfilled (قيد الاستلام)
+            if ($supplyRequest->status !== 'fulfilled') {
+                return $this->sendError('لا يمكن تأكيد استلام هذا الطلب. يجب أن يكون في حالة قيد الاستلام.', null, 400);
+            }
+
+            $receivedItems = $request->input('items', []);
+            $notes = $request->input('notes', '');
+
+            foreach ($receivedItems as $receivedItem) {
+                $itemId = $receivedItem['id'] ?? null;
+                $receivedQty = $receivedItem['receivedQuantity'] ?? 0;
+                $batchNumber = $receivedItem['batchNumber'] ?? null;
+                $expiryDate = $receivedItem['expiryDate'] ?? null;
+
+                if (!$itemId || $receivedQty <= 0) {
+                    continue;
+                }
+
+                $item = $supplyRequest->items->firstWhere('id', $itemId);
+                if (!$item) {
+                    continue;
+                }
+
+                // إضافة الكمية المستلمة إلى مخزون المورد
+                $inventory = Inventory::firstOrCreate(
+                    [
+                        'drug_id' => $item->drug_id,
+                        'supplier_id' => $user->supplier_id,
+                        'warehouse_id' => null,
+                        'pharmacy_id' => null,
+                        'department_id' => null,
+                        'batch_number' => $batchNumber,
+                        'expiry_date' => $expiryDate,
+                    ],
+                    [
+                        'current_quantity' => 0,
+                    ]
+                );
+
+                $inventory->current_quantity += $receivedQty;
+                $inventory->save();
+
+                // تحديث fulfilled_qty في العنصر
+                $item->fulfilled_qty = $receivedQty;
+                $item->batch_number = $batchNumber;
+                $item->expiry_date = $expiryDate;
+                $item->save();
+            }
+
+            // تحديث حالة الطلب إلى delivered
+            $supplyRequest->status = 'delivered';
+            $supplyRequest->save();
+
+            // تسجيل العملية في AuditLog
+            try {
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $supplyRequest->hospital_id,
+                    'action' => 'supplier_confirm_receipt',
+                    'table_name' => 'external_supply_request',
+                    'record_id' => $supplyRequest->id,
+                    'old_values' => json_encode(['status' => 'fulfilled']),
+                    'new_values' => json_encode([
+                        'status' => 'delivered',
+                        'notes' => $notes,
+                        'items' => $receivedItems
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to create audit log for supplier receipt confirmation', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            DB::commit();
+
+            return $this->sendSuccess([
+                'id' => $supplyRequest->id,
+                'status' => $this->translateStatus($supplyRequest->status),
+            ], 'تم تأكيد استلام الطلب بنجاح وإضافة الكميات إلى المخزون');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->handleException($e, 'Supplier Confirm Receipt Error');
         }
     }
 

@@ -108,13 +108,17 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">
                                 الوحدة <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <select
                                 v-model="formData.unit"
-                                type="text"
                                 required
                                 class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                                placeholder="مثال: قرص، مل"
-                            />
+                            >
+                                <option value="">اختر الوحدة</option>
+                                <option value="قرص">قرص</option>
+                                <option value="مل">مل</option>
+                                <option value="حقنة">حقنة</option>
+                                <option value="جرام">جرام</option>
+                            </select>
                         </div>
 
                         <!-- الجرعة الشهرية القصوى -->
@@ -191,8 +195,22 @@
                             />
                         </div>
 
+                        <!-- عدد الوحدات في العلبة/العبوة -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                عدد {{ formData.unit === 'مل' ? 'المليات في العبوة' : 'الحبات في العلبة' }} <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-model="formData.units_per_box"
+                                type="number"
+                                required
+                                min="1"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
+                                placeholder="مثال: 30"
+                            />
                         </div>
                     </div>
+                </div>
                 <!-- Medical Info -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] mb-4">المعلومات الطبية</h3>
@@ -291,6 +309,7 @@ const formData = ref({
     warnings: '',
     indications: '',
     contraindications: '', // Ensure default value is an empty string
+    units_per_box: 1,
 });
 
 const isSubmitting = ref(false);
@@ -317,6 +336,7 @@ const resetForm = () => {
         utilization_type: '',
         warnings: '',
         indications: '',
+        units_per_box: 1,
     };
     isSubmitting.value = false;
 };

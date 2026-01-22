@@ -135,21 +135,33 @@
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                             <!-- Quantity Input -->
-                            <div class="space-y-2">
+                             <div class="space-y-2">
                                 <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                                    <Icon icon="solar:calculator-minimalistic-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                                    الكمية المطلوبة (<span class="text-[#4DA1A9]">{{ quantityUnit }}</span>)
+                                    <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                    عدد العلب/العبوات (<span class="text-[#4DA1A9]">{{ selectedDrugType === 'Liquid' || selectedDrugType === 'Syrup' ? 'عبوة' : 'علبة' }}</span>)
                                 </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    v-model.number="dailyQuantity"
-                                    @blur="hasInteractedWithQuantity = true"
-                                    @input="hasInteractedWithQuantity = true"
-                                    class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
-                                    placeholder="0"
-                                    :disabled="!selectedDrugName || isSubmitting"
-                                />
+                                <div class="relative">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        v-model.number="dailyQuantity"
+                                        @blur="handleQuantityBlur"
+                                        @input="hasInteractedWithQuantity = true"
+                                        class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400 font-bold"
+                                        :placeholder="selectedDrugName ? 'أدخل عدد العلب' : 'اختر دواء أولاً'"
+                                        :disabled="!selectedDrugName || isSubmitting"
+                                    />
+                                    <div v-if="selectedDrugName && selectedDrugData" class="mt-1 flex justify-between items-center px-1">
+                                        <div class="flex flex-col gap-0.5">
+                                            <span class="text-[10px] text-gray-400">
+                                                العلبة = {{ selectedDrugData.units_per_box || selectedDrugData.unitsPerBox || 1 }} {{ quantityUnit }}
+                                            </span>
+                                        </div>
+                                        <span v-if="dailyQuantity > 0" class="text-[10px] text-[#4DA1A9] font-bold bg-[#4DA1A9]/10 px-2 py-0.5 rounded-full">
+                                            الإجمالي: {{ dailyQuantity * (selectedDrugData.units_per_box || selectedDrugData.unitsPerBox || 1) }} {{ quantityUnit }}
+                                        </span>
+                                    </div>
+                                </div>
                                 <p v-if="hasInteractedWithQuantity && quantityError" class="text-xs text-red-500 flex items-center gap-1">
                                     <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                                     {{ quantityError }}
@@ -160,10 +172,10 @@
                             <button
                                 @click="addNewDrug"
                                 :disabled="!isCurrentDrugValid || isSubmitting"
-                                class="h-11 w-full rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20"
+                                class="h-11 w-full rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 shadow-lg"
                                 :class="(!isCurrentDrugValid || isSubmitting) 
-                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
-                                    : 'bg-[#4DA1A9] text-white hover:bg-[#3a8c94] hover:-translate-y-0.5'"
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' 
+                                    : 'bg-[#4DA1A9] text-white hover:bg-[#3a8c94] hover:shadow-[#4DA1A9]/30 hover:-translate-y-0.5 active:scale-[0.98]'"
                             >
                                 <Icon icon="solar:add-circle-bold" class="w-5 h-5" />
                                 إضافة للقائمة
@@ -207,7 +219,9 @@
                                     </div>
                                     <div>
                                         <p class="font-bold text-[#2E5077]">{{ item.name }}</p>
-                                        <p class="text-sm text-gray-500">{{ item.quantity }} {{ item.unit }}</p>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-bold text-[#4DA1A9]" v-html="getFormattedQuantity(item.quantity, item)"></span>
+                                        </div>
                                     </div>
                                 </div>
                                 <button 
@@ -308,6 +322,31 @@ const clearAllItems = () => {
     emit('show-alert', `🗑️ تم مسح جميع الأدوية (${itemCount} دواء) من قائمة التوريد`);
 };
 
+const getFormattedQuantity = (quantity, item) => {
+    if (!item) return quantity;
+    const unit = item.unit || 'حبة';
+    const boxUnit = (item.type === 'Liquid' || item.type === 'Syrup') ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const remainder = qty % unitsPerBox;
+        
+        if (boxes === 0 && qty > 0) {
+            return `${qty} ${unit}`;
+        }
+        
+        let display = `<span>${boxes}</span> <span class="text-[10px] text-gray-400 mr-0.5">${boxUnit}</span>`;
+        if (remainder > 0) {
+            display += ` و <span>${remainder}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+        }
+        return display;
+    } else {
+        return `<span>${qty}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+    }
+};
+
 const emit = defineEmits(['close', 'confirm', 'show-alert']);
 
 // البيانات المحلية
@@ -322,8 +361,13 @@ const dailyDosageList = ref([]);
 const requestNotes = ref('');
 const isSubmitting = ref(false);
 const hasInteractedWithQuantity = ref(false);
+const selectedDrugData = ref(null);
 const searchContainerRef = ref(null);
 const isClickingResults = ref(false);
+
+const handleQuantityBlur = () => {
+    hasInteractedWithQuantity.value = true;
+};
 
 // الثوابت
 const MAX_PILL_QTY = 1000;
@@ -335,6 +379,7 @@ const handleInput = () => {
     if (searchTermDrug.value !== selectedDrugName.value) {
         selectedDrugName.value = "";
         selectedDrugType.value = "";
+        selectedDrugData.value = null;
         dailyQuantity.value = null;
         hasInteractedWithQuantity.value = false;
     }
@@ -428,15 +473,17 @@ const quantityError = computed(() => {
     }
 
     if (selectedDrugType.value === "Tablet" || selectedDrugType.value === "Capsule") {
-        if (numericQuantity > MAX_PILL_QTY) {
-            return `لا يمكن أن تتجاوز الكمية ${MAX_PILL_QTY} حبة/قرص`;
+        const totalPills = numericQuantity * (selectedDrugData.value?.units_per_box || selectedDrugData.value?.unitsPerBox || 1);
+        if (totalPills > MAX_PILL_QTY * 10) { 
+            return `الكمية كبيرة جداً، يرجى التأكد من عدد العلب`;
         }
         if (!Number.isInteger(numericQuantity)) {
-            return "يجب أن يكون عدد الحبات رقماً صحيحاً";
+            return "يجب أن يكون عدد العلب رقماً صحيحاً";
         }
     } else if (selectedDrugType.value === "Liquid" || selectedDrugType.value === "Syrup") {
-        if (numericQuantity > MAX_LIQUID_QTY) {
-            return `لا يمكن أن تتجاوز الكمية ${MAX_LIQUID_QTY} مل`;
+        const totalAmount = numericQuantity * (selectedDrugData.value?.units_per_box || selectedDrugData.value?.unitsPerBox || 1);
+        if (totalAmount > MAX_LIQUID_QTY * 10) {
+            return `الكمية كبيرة جداً، يرجى التأكد من عدد العلب`;
         }
     }
 
@@ -504,6 +551,8 @@ const selectDrug = (drug) => {
         return dName.toLowerCase() === drugName.toLowerCase();
     });
     
+    selectedDrugData.value = fullDrugData || drug;
+    
     const newDrugType = fullDrugData ? (fullDrugData.type || 'Tablet') : 'Tablet';
     selectedDrugType.value = newDrugType;
 
@@ -520,6 +569,7 @@ const selectDrug = (drug) => {
 const clearSelectedDrug = () => {
     selectedDrugName.value = "";
     selectedDrugType.value = "";
+    selectedDrugData.value = null;
     dailyQuantity.value = null;
     hasInteractedWithQuantity.value = false;
     searchTermDrug.value = "";
@@ -581,15 +631,19 @@ const addNewDrug = () => {
             
             emit('show-alert', ` تم تحديث كمية الدواء **${selectedDrugName.value}** في قائمة التوريد (الكمية الجديدة: ${existingQuantity + newQuantity})`);
         } else {
+            const unitsPerBox = drugInfo.units_per_box || drugInfo.unitsPerBox || 1;
+            const totalQuantity = Number(dailyQuantity.value) * unitsPerBox;
+
             // إذا لم يكن موجوداً، نضيفه كعنصر جديد
             dailyDosageList.value.push({
                 drugId: drugInfo.id,
                 id: drugInfo.id,
                 name: selectedDrugName.value,
-                quantity: dailyQuantity.value,
+                quantity: totalQuantity,
                 unit: drugInfo.unit || quantityUnit.value,
                 type: selectedDrugType.value,
                 strength: drugInfo.strength || drugInfo.dosage || null,
+                units_per_box: unitsPerBox
             });
 
             emit('show-alert', ` تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
@@ -631,15 +685,19 @@ const confirmAddition = () => {
                 const newQuantity = dailyQuantity.value || 0;
                 dailyDosageList.value[existingDrugIndex].quantity = existingQuantity + newQuantity;
             } else {
+                const unitsPerBox = drugInfo.units_per_box || drugInfo.unitsPerBox || 1;
+                const totalQuantity = Number(dailyQuantity.value) * unitsPerBox;
+
                 // إذا لم يكن موجوداً، نضيفه كعنصر جديد
                 dailyDosageList.value.push({
                     drugId: drugInfo.id,
                     id: drugInfo.id,
                     name: selectedDrugName.value,
-                    quantity: dailyQuantity.value,
+                    quantity: totalQuantity,
                     unit: drugInfo.unit || quantityUnit.value,
                     type: selectedDrugType.value,
                     strength: drugInfo.strength || drugInfo.dosage || null,
+                    units_per_box: unitsPerBox
                 });
             }
         }

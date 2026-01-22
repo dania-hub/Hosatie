@@ -567,10 +567,10 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString( {
+        return date.toLocaleDateString('en-GB', {
             year: 'numeric',
-            month: 'long',
-            day: 'numeric'
+            month: '2-digit',
+            day: '2-digit'
         });
     } catch {
         return dateString;
@@ -731,6 +731,8 @@ const openRequestViewModal = async (shipment) => {
                 sentQuantity: item.approved_qty || item.sentQuantity || 0,
                 receivedQuantity: item.fulfilled_qty || item.receivedQuantity || 0,
                 unit: item.unit || 'وحدة',
+                units_per_box: item.units_per_box || item.unitsPerBox || 1,
+                unitsPerBox: item.unitsPerBox || item.units_per_box || 1,
                 dosage: item.dosage || item.strength || '',
                 type: item.type || item.form || '',
                 batch_number: item.batch_number || null,
@@ -815,6 +817,8 @@ const openConfirmationModal = async (shipment) => {
                     suggestedQuantity: item.suggestedQuantity !== undefined && item.suggestedQuantity !== null ? item.suggestedQuantity : null, // الكمية المقترحة من API
                     sentQuantity: item.approved_qty !== null && item.approved_qty !== undefined ? item.approved_qty : (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : 0), // استخدام approved_qty (الكمية المرسلة من المستودع)
                     unit: item.unit || 'وحدة',
+                    units_per_box: item.units_per_box || item.unitsPerBox || 1,
+                    unitsPerBox: item.unitsPerBox || item.units_per_box || 1,
                     dosage: item.dosage || item.strength || '',
                     strength: item.strength || item.dosage || '',
                     type: item.type || item.form || '',
@@ -1021,7 +1025,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 </style>
 
 <h1>قائمة طلبات التوريد (تقرير طباعة)</h1>
-<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('en-GB')}</p>
 <p class="results-info">عدد النتائج: ${resultsCount}</p>
 
 <table>

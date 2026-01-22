@@ -81,6 +81,10 @@
                                 <p class="text-xs text-gray-400 mb-1">تاريخ الأضافة</p>
                                 <p class="font-semibold text-[#2E5077]">{{ drug.createdAt || "غير محدد" }}</p>
                             </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">{{ drug.unit === 'مل' ? 'المليات في العبوة' : 'الحبات في العلبة' }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.units_per_box || drug.unitsPerBox || "غير محدد" }}</p>
+                            </div>
                         </div>
                     </div>
 

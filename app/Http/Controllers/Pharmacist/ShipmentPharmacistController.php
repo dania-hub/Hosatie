@@ -189,6 +189,8 @@ class ShipmentPharmacistController extends BaseApiController
                     'fulfilled_qty' => $item->fulfilled_qty ?? null, // للتوافق مع الواجهة
                     'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
                     'unit' => $item->drug->unit ?? 'علبة',
+                    'units_per_box' => $item->drug->units_per_box ?? 1,
+                    'unitsPerBox'   => $item->drug->units_per_box ?? 1,
                     'form' => $item->drug->form ?? null,
                     'type' => $item->drug->form ?? null, // للتوافق مع الواجهة
                     'batch_number' => $item->batch_number,
@@ -404,7 +406,9 @@ class ShipmentPharmacistController extends BaseApiController
                         'approvedQty' => $item->approved_qty ?? null,
                         'fulfilledQty' => $item->fulfilled_qty ?? null,
                         'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
-                        'unit' => $item->drug->unit ?? 'علبة'
+                        'unit' => $item->drug->unit ?? 'علبة',
+                        'units_per_box' => $item->drug->units_per_box ?? 1,
+                        'unitsPerBox'   => $item->drug->units_per_box ?? 1,
                     ];
                 })
             ], 'تم تأكيد استلام الشحنة وإضافتها لمخزون الصيدلية.');

@@ -90,7 +90,7 @@
                                         <div class="flex items-center gap-4 text-sm mt-2">
                                             <div class="flex items-center gap-1 text-gray-600 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
                                                 <span class="font-medium">مطلوب:</span>
-                                                <span class="font-bold text-[#2E5077]">{{ item.originalQuantity }} {{ item.unit }}</span>
+                                                <span class="font-bold text-[#2E5077]" v-html="getFormattedQuantity(item.originalQuantity, item)"></span>
                                             </div>
                                             
                                             <div 
@@ -101,7 +101,7 @@
                                                 }"
                                             >
                                                 <span class="font-medium">متوفر:</span>
-                                                <span class="font-bold">{{ item.availableQuantity }} {{ item.unit }}</span>
+                                                <span class="font-bold" v-html="getFormattedQuantity(item.availableQuantity, item)"></span>
                                                 <Icon v-if="item.availableQuantity < item.originalQuantity" icon="solar:danger-circle-bold" class="w-4 h-4" />
                                             </div>
                                         </div>
@@ -109,25 +109,47 @@
 
                                     <!-- Action -->
                                     <div class="flex items-center gap-3 w-full md:w-auto bg-gray-50 p-2 rounded-xl border border-gray-200">
-                                        <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
-                                            الكمية المرسلة:
-                                        </label>
-                                        <input
-                                            :id="`sent-qty-${index}`"
-                                            type="number"
-                                            v-model.number="item.sentQuantity"
-                                            :max="item.availableQuantity"
-                                            :min="0"
-                                            class="w-24 h-10 text-center bg-white border rounded-lg focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077] text-lg"
-                                            :class="{
-                                                'border-red-300 focus:border-red-500': item.sentQuantity > item.availableQuantity,
-                                                'border-green-300 focus:border-green-500': item.sentQuantity <= item.availableQuantity && item.sentQuantity > 0,
-                                                'border-gray-200 focus:border-[#4DA1A9]': item.sentQuantity === 0
-                                            }"
-                                            @input="validateQuantity(index, item.availableQuantity)"
-                                            :disabled="props.isLoading || isConfirming"
-                                        />
-                                    </div>
+                                         <label :for="`sent-qty-${index}`" class="text-sm font-bold text-gray-500 px-2">
+                                             الكمية المرسلة:
+                                         </label>
+                                         <div class="flex items-center bg-white border rounded-lg overflow-hidden shadow-sm">
+                                             <template v-if="item.units_per_box > 1">
+                                                 <div class="flex items-center px-2">
+                                                     <input
+                                                         type="number"
+                                                         v-model.number="item.sentBoxes"
+                                                         class="w-16 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                         @input="handleBoxInput(index)"
+                                                         :disabled="props.isLoading || isConfirming"
+                                                     />
+                                                     <span class="text-xs font-bold text-gray-400 mr-1">{{ item.unit === 'مل' ? 'عبوة' : 'علبة' }}</span>
+                                                 </div>
+                                                 <div class="w-px h-6 bg-gray-200"></div>
+                                                 <div class="flex items-center px-2">
+                                                     <input
+                                                         type="number"
+                                                         v-model.number="item.sentRemainder"
+                                                         class="w-12 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                         @input="handleRemainderInput(index)"
+                                                         :disabled="props.isLoading || isConfirming"
+                                                     />
+                                                     <span class="text-xs font-bold text-gray-400 mr-1">{{ item.unit }}</span>
+                                                 </div>
+                                             </template>
+                                             <template v-else>
+                                                 <input
+                                                     :id="`sent-qty-${index}`"
+                                                     type="number"
+                                                     v-model.number="item.sentQuantity"
+                                                     :max="item.availableQuantity"
+                                                     :min="0"
+                                                     class="w-24 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg"
+                                                     @input="validateQuantity(index, item.availableQuantity)"
+                                                     :disabled="props.isLoading || isConfirming"
+                                                 />
+                                             </template>
+                                         </div>
+                                     </div>
                                 </div>
                             </div>
                         </div>
@@ -312,14 +334,20 @@ watch(
                         : 0
                 );
 
+                const upb = Number(item.units_per_box || 1);
+                const sentQty = Math.min(requested, available);
+                
                 return {
                     id: item.id || item.drugId,
                     name: item.name || item.drugName,
                     originalQuantity: requested,
                     availableQuantity: available,
-                    sentQuantity: Math.min(requested, available), // افتراضي: إرسال الكمية المعتمدة
+                    sentQuantity: sentQty, 
+                    sentBoxes: Math.floor(sentQty / upb),
+                    sentRemainder: sentQty % upb,
                     unit: item.unit || "وحدة",
-                    dosage: item.dosage || item.strength
+                    dosage: item.dosage || item.strength,
+                    units_per_box: upb
                 };
             });
         } else {
@@ -328,6 +356,31 @@ watch(
     },
     { immediate: true, deep: true }
 );
+
+const getFormattedQuantity = (quantity, item) => {
+    if (!item) return quantity;
+    const unit = item.unit || 'حبة';
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
+
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const remainder = qty % unitsPerBox;
+        
+        if (boxes === 0 && qty > 0) {
+            return `${qty} ${unit}`;
+        }
+        
+        let display = `<span>${boxes}</span> <span class="text-[10px] text-gray-400 mr-0.5">${boxUnit}</span>`;
+        if (remainder > 0) {
+            display += ` و <span>${remainder}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+        }
+        return display;
+    } else {
+        return `<span>${qty}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
+    }
+};
 
 // دالة تنسيق التاريخ
 const formatDate = (dateString) => {
@@ -360,7 +413,121 @@ const validateQuantity = (index, maxQuantity) => {
     }
 
     receivedItems.value[index].sentQuantity = Math.floor(value);
+    
+    // تزامن الصناديق والباقي
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    item.sentBoxes = Math.floor(item.sentQuantity / upb);
+    item.sentRemainder = item.sentQuantity % upb;
 };
+
+const handleBoxInput = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    const boxes = Number(item.sentBoxes || 0);
+    const remainder = Number(item.sentRemainder || 0);
+    
+    let total = (boxes * upb) + remainder;
+    
+    if (total > item.availableQuantity) {
+        total = item.availableQuantity;
+        syncQuantities(index, total);
+    } else {
+        item.sentQuantity = total;
+    }
+};
+
+const handleRemainderInput = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    const boxes = Number(item.sentBoxes || 0);
+    let remainder = Number(item.sentRemainder || 0);
+    
+    if (remainder >= upb) {
+        remainder = upb - 1;
+        item.sentRemainder = remainder;
+    }
+    
+    let total = (boxes * upb) + remainder;
+    
+    if (total > item.availableQuantity) {
+        total = item.availableQuantity;
+        syncQuantities(index, total);
+    } else {
+        item.sentQuantity = total;
+    }
+};
+
+const syncQuantities = (index, total) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    item.sentQuantity = total;
+    item.sentBoxes = Math.floor(total / upb);
+    item.sentRemainder = total % upb;
+};
+
+// دوال الزيادة والنقصان للعلب
+const incrementBoxes = (index) => {
+    const item = receivedItems.value[index];
+    item.sentBoxes = Number(item.sentBoxes || 0) + 1;
+    handleBoxInput(index);
+};
+
+const decrementBoxes = (index) => {
+    const item = receivedItems.value[index];
+    const current = Number(item.sentBoxes || 0);
+    if (current > 0) {
+        item.sentBoxes = current - 1;
+        handleBoxInput(index);
+    }
+};
+
+// دوال الزيادة والنقصان للوحدات المتبقية
+const incrementRemainder = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    let remainder = Number(item.sentRemainder || 0) + 1;
+    if (remainder >= upb) {
+        remainder = 0;
+        item.sentBoxes = Number(item.sentBoxes || 0) + 1;
+    }
+    item.sentRemainder = remainder;
+    handleRemainderInput(index);
+};
+
+const decrementRemainder = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    let remainder = Number(item.sentRemainder || 0);
+    if (remainder > 0) {
+        item.sentRemainder = remainder - 1;
+        handleRemainderInput(index);
+    } else if (Number(item.sentBoxes || 0) > 0) {
+        item.sentBoxes = Number(item.sentBoxes || 0) - 1;
+        item.sentRemainder = upb - 1;
+        handleBoxInput(index);
+    }
+};
+
+// دوال الزيادة والنقصان للكمية المفردة
+const incrementQuantity = (index) => {
+    const item = receivedItems.value[index];
+    const current = Number(item.sentQuantity || 0);
+    if (current < item.availableQuantity) {
+        item.sentQuantity = current + 1;
+        validateQuantity(index, item.availableQuantity);
+    }
+};
+
+const decrementQuantity = (index) => {
+    const item = receivedItems.value[index];
+    const current = Number(item.sentQuantity || 0);
+    if (current > 0) {
+        item.sentQuantity = current - 1;
+        validateQuantity(index, item.availableQuantity);
+    }
+};
+
 
 // التحقق من إمكانية إرسال الشحنة
 // يتم تعطيل الزر إذا كانت كل الأدوية لديها الكمية المتوفرة = 0 أو الكمية المرسلة = 0

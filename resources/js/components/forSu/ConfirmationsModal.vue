@@ -102,11 +102,11 @@
                                         <div class="flex items-center gap-3 flex-wrap mt-2">
                                             <div class="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold border border-blue-100 flex items-center gap-2">
                                                 <Icon icon="solar:cart-large-minimalistic-bold" class="w-3.5 h-3.5" />
-                                                مطلوب: {{ item.originalQuantity }}
+                                                مطلوب: <span v-html="getFormattedQuantity(item.originalQuantity, item.unit, item.units_per_box)"></span>
                                             </div>
                                             <div class="px-3 py-1.5 bg-green-50 text-green-600 rounded-xl text-xs font-bold border border-green-100 flex items-center gap-2">
                                                 <Icon icon="solar:box-minimalistic-bold" class="w-3.5 h-3.5" />
-                                                مرسل: {{ item.sentQuantity }}
+                                                مرسل: <span v-html="getFormattedQuantity(item.sentQuantity, item.unit, item.units_per_box)"></span>
                                             </div>
                                         </div>
                                         
@@ -121,35 +121,70 @@
                                             </label>
                                             
                                             <div class="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                                <button 
-                                                    @click="decrementQuantity(index)"
-                                                    class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
-                                                    :disabled="item.receivedQuantity <= 0 || props.isLoading || isConfirming"
-                                                >
-                                                    <Icon icon="solar:minus-circle-bold" class="w-6 h-6" />
-                                                </button>
+                                                <template v-if="item.units_per_box > 1">
+                                                    <button 
+                                                        @click="decrementBoxes(index)"
+                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                        :disabled="item.receivedBoxes <= 0 || props.isLoading || isConfirming"
+                                                    >
+                                                        <Icon icon="solar:minus-circle-bold" class="w-6 h-6" />
+                                                    </button>
 
-                                                <input
-                                                    type="number"
-                                                    v-model.number="item.receivedQuantity"
-                                                    :max="item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity"
-                                                    min="0"
-                                                    class="w-16 h-10 text-center border-none focus:ring-0 font-black text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                    :class="{
-                                                        'text-green-600': item.receivedQuantity === (item.sentQuantity || item.originalQuantity),
-                                                        'text-amber-500': item.receivedQuantity < (item.sentQuantity || item.originalQuantity) && item.receivedQuantity > 0,
-                                                        'text-red-500': item.receivedQuantity === 0
-                                                    }"
-                                                    @input="validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)"
-                                                />
-                                                
-                                                <button 
-                                                    @click="incrementQuantity(index)"
-                                                    class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
-                                                    :disabled="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity) || props.isLoading || isConfirming"
-                                                >
-                                                    <Icon icon="solar:add-circle-bold" class="w-6 h-6" />
-                                                </button>
+                                                    <div class="flex items-center px-2">
+                                                        <input
+                                                            type="number"
+                                                            v-model.number="item.receivedBoxes"
+                                                            class="w-16 h-10 text-center border-none focus:ring-0 font-black text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                            :class="{
+                                                                'text-green-600': item.receivedQuantity === (item.sentQuantity || item.originalQuantity),
+                                                                'text-amber-500': item.receivedQuantity < (item.sentQuantity || item.originalQuantity) && item.receivedQuantity > 0,
+                                                                'text-red-500': item.receivedQuantity === 0
+                                                            }"
+                                                            @input="handleBoxInput(index)"
+                                                            :disabled="props.isLoading || isConfirming"
+                                                        />
+                                                        <span class="text-xs font-bold text-slate-400 mr-1">عبوة</span>
+                                                    </div>
+                                                    
+                                                    <button 
+                                                        @click="incrementBoxes(index)"
+                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                        :disabled="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity) || props.isLoading || isConfirming"
+                                                    >
+                                                        <Icon icon="solar:add-circle-bold" class="w-6 h-6" />
+                                                    </button>
+                                                </template>
+                                                <template v-else>
+                                                    <button 
+                                                        @click="decrementQuantity(index)"
+                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                        :disabled="item.receivedQuantity <= 0 || props.isLoading || isConfirming"
+                                                    >
+                                                        <Icon icon="solar:minus-circle-bold" class="w-6 h-6" />
+                                                    </button>
+
+                                                    <input
+                                                        type="number"
+                                                        v-model.number="item.receivedQuantity"
+                                                        :max="item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity"
+                                                        min="0"
+                                                        class="w-16 h-10 text-center border-none focus:ring-0 font-black text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        :class="{
+                                                            'text-green-600': item.receivedQuantity === (item.sentQuantity || item.originalQuantity),
+                                                            'text-amber-500': item.receivedQuantity < (item.sentQuantity || item.originalQuantity) && item.receivedQuantity > 0,
+                                                            'text-red-500': item.receivedQuantity === 0
+                                                        }"
+                                                        @input="validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)"
+                                                    />
+                                                    
+                                                    <button 
+                                                        @click="incrementQuantity(index)"
+                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                        :disabled="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity) || props.isLoading || isConfirming"
+                                                    >
+                                                        <Icon icon="solar:add-circle-bold" class="w-6 h-6" />
+                                                    </button>
+                                                </template>
                                             </div>
                                             
                                             <div 
@@ -376,12 +411,15 @@ watch(() => props.requestData.items, (newItems) => {
             // Default received quantity to 0 as requested
             let receivedQty = 0; 
             
+            const upb = Number(item.units_per_box || 1);
             return {
                 id: item.id || item.drugId,
                 name: item.name || item.drugName || 'دواء غير محدد',
                 originalQuantity: requestedQty,
                 sentQuantity: sentQty,
                 receivedQuantity: receivedQty,
+                receivedBoxes: Math.floor(receivedQty / upb),
+                units_per_box: upb,
                 // تعيين رقم الدفعة تلقائياً بناءً على رقم الشحنة إذا لم يكن محدداً
                 batchNumber: item.batchNumber || item.batch_number || props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null),
                 expiryDate: item.expiryDate || item.expiry_date || null,
@@ -407,12 +445,67 @@ const decrementQuantity = (index) => {
     }
 };
 
+const incrementBoxes = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    const max = item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity;
+    const currentQty = item.receivedBoxes * upb;
+    
+    if (currentQty + upb <= max) {
+        item.receivedBoxes++;
+        item.receivedQuantity = item.receivedBoxes * upb;
+    }
+};
+
+const decrementBoxes = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    
+    if (item.receivedBoxes > 0) {
+        item.receivedBoxes--;
+        item.receivedQuantity = item.receivedBoxes * upb;
+    }
+};
+
 const validateQuantity = (index, maxQuantity) => {
     let value = receivedItems.value[index].receivedQuantity;
     if (isNaN(value) || value === null) value = 0;
     if (value > maxQuantity) value = maxQuantity;
     if (value < 0) value = 0;
     receivedItems.value[index].receivedQuantity = value;
+
+    // مزامنة العلب
+    const item = receivedItems.value[index];
+    item.receivedBoxes = Math.floor(item.receivedQuantity / (item.units_per_box || 1));
+};
+
+const handleBoxInput = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    const boxes = Number(item.receivedBoxes || 0);
+    
+    item.receivedQuantity = boxes * upb;
+    validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity);
+};
+
+const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = 'عبوة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` <span class="text-[10px] text-gray-400 font-normal">و ${remainder} ${unit}</span>`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
 };
 
 const confirmReceipt = async () => {

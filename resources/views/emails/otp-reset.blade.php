@@ -13,7 +13,7 @@
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+                        <td style="background: linear-gradient(135deg, #2E5077 0%, #4DA1A9 100%); padding: 30px; text-align: center;">
                             <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">نظام حصتي</h1>
                             <p style="color: #ffffff; margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">نظام رقمي لتوزيع الأدوية المدعومة</p>
                         </td>
@@ -33,10 +33,10 @@
                             </p>
 
                             <!-- OTP Box -->
-                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 25px; text-align: center; margin: 30px 0;">
+                            <div style="background: linear-gradient(135deg, #2E5077 0%, #4DA1A9  100%); border-radius: 10px; padding: 25px; text-align: center; margin: 30px 0;">
                                 <p style="color: #ffffff; margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;">رمز التحقق الخاص بك</p>
                                 <div style="background-color: #ffffff; border-radius: 8px; padding: 20px; display: inline-block;">
-                                    <span style="color: #667eea; font-size: 36px; font-weight: bold; letter-spacing: 8px; font-family: 'Courier New', monospace;">{{ $otp }}</span>
+                                    <span style="color: linear-gradient(135deg, #2E5077 0%, #4DA1A9); font-size: 36px; font-weight: bold; letter-spacing: 8px; font-family: 'Courier New', monospace;">{{ $otp }}</span>
                                 </div>
                             </div>
 
@@ -73,4 +73,4 @@
         </tr>
     </table>
 </body>
-</html>
+</html>  

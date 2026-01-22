@@ -282,8 +282,8 @@ public function forceChangePassword(Request $request)
         }
 
         // Load hospital and department so UI can show department when applicable
-        // Load hospital and department relations
-        $user->load('hospital', 'department');
+        // Load hospital, department, and supplier relations
+        $user->load(['hospital', 'department', 'supplier']);
 
         // If the user is a department head but department is not set via department_id,
         // try to find the department where this user is recorded as head (head_user_id)

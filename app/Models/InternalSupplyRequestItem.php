@@ -17,6 +17,8 @@ class InternalSupplyRequestItem extends Model
         'requested_qty',
         'approved_qty',
         'fulfilled_qty',
+        'batch_number',
+        'expiry_date',
     ];
 
     public function request()

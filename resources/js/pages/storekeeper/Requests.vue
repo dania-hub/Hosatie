@@ -732,7 +732,9 @@ const openRequestViewModal = async (shipment) => {
                 receivedQuantity: item.fulfilled_qty || item.receivedQuantity || 0,
                 unit: item.unit || 'وحدة',
                 dosage: item.dosage || item.strength || '',
-                type: item.type || item.form || ''
+                type: item.type || item.form || '',
+                batch_number: item.batch_number || null,
+                expiry_date: item.expiry_date || null
             })),
             notes: response.notes || '',
             storekeeperNotes: response.storekeeperNotes || null,

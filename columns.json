@@ -1,0 +1,1 @@
+["id","drug_id","warehouse_id","pharmacy_id","department_id","current_quantity","expiry_date","batch_number","minimum_level","supplier_id","created_at","updated_at"]

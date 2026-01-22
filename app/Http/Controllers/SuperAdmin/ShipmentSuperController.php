@@ -169,7 +169,7 @@ class ShipmentSuperController extends BaseApiController
             }
 
             try {
-                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'تم الموافقة', $request->input('notes'));
+                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'قيد الشحن الدولي', $request->input('notes'));
             } catch (\Exception $e) {
                 \Log::error('Notification error', ['error' => $e->getMessage()]);
             }

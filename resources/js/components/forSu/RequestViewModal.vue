@@ -78,68 +78,97 @@
                         </span>
                     </h3>
 
-                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                        <div v-if="requestDetails.items && requestDetails.items.length > 0" class="divide-y divide-gray-50">
+                    <div class="bg-white rounded-[1.5rem] border border-gray-200/60 overflow-hidden shadow-sm">
+                        <div v-if="requestDetails.items && requestDetails.items.length > 0" class="divide-y divide-gray-100">
                             <div 
                                 v-for="(item, index) in requestDetails.items" 
                                 :key="index"
-                                class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
+                                class="p-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 hover:bg-gray-50/50 transition-colors"
                             >
-                                <div class="flex-1 w-full md:w-auto">
-                                    <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
-                                    <div class="flex gap-2 mt-1 flex-wrap">
-                                        <span v-if="item.strength || item.dosage" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-medium">
-                                            القوة: {{ item.strength || item.dosage }}
-                                        </span>
-                                        <span v-if="item.unit" class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-medium">
-                                            الوحدة: {{ item.unit }}
-                                        </span>
-                                        <span v-if="item.type || item.form" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
-                                            {{ item.type || item.form }}
-                                        </span>
+                                <!-- Item Info -->
+                                <div class="flex-1 w-full lg:w-auto">
+                                    <div class="flex items-start gap-4 mb-2">
+                                        <div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm shrink-0">
+                                            <Icon icon="solar:pill-bold-duotone" class="w-7 h-7 text-[#4DA1A9]" />
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-[#2E5077] text-lg leading-tight">{{ item.name }}</h4>
+                                            <div class="flex gap-2 mt-2 flex-wrap">
+                                                <span v-if="item.strength || item.dosage" class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-bold border border-blue-100">
+                                                    {{ item.strength || item.dosage }}
+                                                </span>
+                                                <span v-if="item.unit" class="text-[10px] bg-green-50 text-green-600 px-2 py-1 rounded-lg font-bold border border-green-100">
+                                                    {{ item.unit }}
+                                                </span>
+                                                <span v-if="item.type || item.form" class="text-[10px] bg-slate-50 text-slate-500 px-2 py-1 rounded-lg font-bold border border-slate-100">
+                                                    {{ item.type || item.form }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 
-                                <div class="flex items-center gap-6 w-full md:w-auto justify-end">
-                                    <div class="text-center">
-                                        <span class="text-xs text-gray-400 block mb-1">مطلوب</span>
-                                        <span class="font-bold text-[#4DA1A9] text-lg">{{ item.quantity || item.requestedQuantity || item.requested_qty || 0 }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
+                                <div class="flex items-center gap-4 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+                                    <!-- Requested Qty -->
+                                    <div class="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center min-w-[100px]">
+                                        <span class="text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wider">مطلوب</span>
+                                        <div class="flex items-center gap-1">
+                                            <span class="font-black text-[#4DA1A9] text-xl">{{ item.quantity || item.requestedQuantity || item.requested_qty || 0 }}</span>
+                                            <span class="text-[10px] text-slate-400 font-bold mt-1">{{ item.unit || 'وحدة' }}</span>
+                                        </div>
                                     </div>
                                     
-                                    <div v-if="hasSentQuantity(item)" class="text-center pl-4 border-r border-gray-100">
-                                        <span class="text-xs text-gray-400 block mb-1">مرسل</span>
-                                        <div class="flex items-center gap-1">
+                                    <!-- Sent Qty & Details -->
+                                    <div v-if="hasSentQuantity(item)" class="px-4 py-3 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col items-center min-w-[160px] relative group">
+                                        <span class="text-[10px] text-blue-400 font-bold mb-1 uppercase tracking-wider flex items-center gap-1">
+                                            مرسل
+                                            <Icon v-if="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-3 h-3 text-green-500" />
+                                            <Icon v-else icon="solar:info-circle-bold" class="w-3 h-3 text-amber-500" />
+                                        </span>
+                                        <div class="flex items-center gap-1 mb-1">
                                             <span 
-                                                class="font-bold text-lg"
+                                                class="font-black text-xl"
                                                 :class="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0) ? 'text-green-600' : 'text-amber-600'"
                                             >
                                                 {{ getSentQuantity(item) || 0 }}
                                             </span>
-                                            <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
-                                            <Icon v-if="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
-                                            <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
+                                            <span class="text-[10px] text-blue-400/70 font-bold mt-1">{{ item.unit || 'وحدة' }}</span>
+                                        </div>
+                                        
+                                        <!-- Batch Info -->
+                                        <div class="flex flex-col gap-1 w-full mt-1 pt-1 border-t border-blue-100/50">
+                                             <div v-if="getBatchNumber(item)" class="flex items-center gap-1.5 text-[10px] text-blue-600 bg-white/60 px-1.5 py-0.5 rounded-md">
+                                                <Icon icon="solar:tag-bold-duotone" class="w-3 h-3 text-blue-400" />
+                                                <span class="font-mono font-bold">{{ getBatchNumber(item) }}</span>
+                                             </div>
+                                             <div v-if="getExpiryDate(item)" class="flex items-center gap-1.5 text-[10px] text-purple-600 bg-white/60 px-1.5 py-0.5 rounded-md">
+                                                <Icon icon="solar:calendar-bold-duotone" class="w-3 h-3 text-purple-400" />
+                                                <span class="font-bold">{{ formatDateShort(getExpiryDate(item)) }}</span>
+                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <div v-if="hasReceivedQuantity(item)" class="text-center pl-4 border-r border-gray-100">
-                                        <span class="text-xs text-gray-400 block mb-1">مستلم</span>
+                                    <!-- Received Qty -->
+                                    <div v-if="hasReceivedQuantity(item)" class="px-4 py-3 bg-purple-50/50 rounded-2xl border border-purple-100 flex flex-col items-center min-w-[100px]">
+                                        <span class="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider">مستلم</span>
                                         <div class="flex items-center gap-1">
                                             <span 
-                                                class="font-bold text-lg"
+                                                class="font-black text-xl"
                                                 :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-amber-600'"
                                             >
                                                 {{ getReceivedQuantity(item) || 0 }}
                                             </span>
-                                            <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
-                                            <Icon v-if="getReceivedQuantity(item) >= getSentQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
-                                            <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
+                                            <span class="text-[10px] text-purple-400/70 font-bold mt-1">{{ item.unit || 'وحدة' }}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div v-else class="py-8 text-center text-gray-500">
-                            لا توجد أدوية في هذا الطلب.
+                        <div v-else class="py-12 text-center text-gray-400 bg-gray-50/30">
+                            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Icon icon="solar:box-minimalistic-broken" class="w-8 h-8 text-gray-300" />
+                            </div>
+                            <p class="font-bold">لا توجد أدوية في هذا الطلب</p>
                         </div>
                     </div>
                 </div>
@@ -383,6 +412,67 @@ const getSentQuantity = (item) => {
 const hasReceivedQuantity = (item) => {
     const receivedQty = getReceivedQuantity(item);
     return receivedQty > 0;
+};
+
+// دالة لاستخراج تاريخ انتهاء الصلاحية
+const getExpiryDate = (item) => {
+    // 1. محاولة الحصول من المتغير المباشر (الذي تم تمريره من Requests.vue)
+    if (item.expiryDate || item.expiry_date) {
+        return item.expiryDate || item.expiry_date;
+    }
+    
+    // 2. محاولة الحصول من confirmation (التأكيد السابق)
+    if (requestDetails.value.confirmation?.items) {
+        const sentItem = requestDetails.value.confirmation.items.find(
+            si => si.id === item.id || si.drugId === item.id || si.drugId === item.drugId
+        );
+        if (sentItem && (sentItem.expiryDate || sentItem.expiry_date)) {
+            return sentItem.expiryDate || sentItem.expiry_date;
+        }
+    }
+    
+    return null;
+};
+
+// دالة لاستخراج رقم الدفعة
+const getBatchNumber = (item) => {
+    // 1. محاولة الحصول من المتغير المباشر
+    if (item.batchNumber || item.batch_number) {
+        return item.batchNumber || item.batch_number;
+    }
+    
+    // 2. محاولة يس من confirmation
+    if (requestDetails.value.confirmation?.items) {
+        const sentItem = requestDetails.value.confirmation.items.find(
+            si => si.id === item.id || si.drugId === item.id || si.drugId === item.drugId
+        );
+        if (sentItem && (sentItem.batchNumber || sentItem.batch_number)) {
+            return sentItem.batchNumber || sentItem.batch_number;
+        }
+    }
+    
+    // محاولة استنتاج افتراضي إذا كانت مرسلة
+    if (hasSentQuantity(item)) {
+        // إذا كان هناك requestDetails.id، يمكن استنتاج الدفعة التلقائية
+        return requestDetails.value.id ? `RE-${requestDetails.value.id}` : null;
+    }
+    
+    return null;
+};
+
+// تنسيق تاريخ قصير
+const formatDateShort = (dateString) => {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-GB', { // DD/MM/YYYY formatting
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+    } catch {
+        return dateString;
+    }
 };
 
 // دالة لاستخراج الكمية المستلمة

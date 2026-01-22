@@ -50,14 +50,15 @@ class DrugSupplierController extends BaseApiController
                 ->whereNull('inventories.warehouse_id')
                 ->whereNull('inventories.pharmacy_id')
                 ->where('inventories.current_quantity', '>', 0)
-                ->whereRaw("DATE(drugs.expiry_date) <= ?", [$today])
+                ->whereNotNull('inventories.expiry_date')
+                ->whereRaw("DATE(inventories.expiry_date) <= ?", [$today])
                 ->select(
                     'inventories.id as inventory_id',
                     'drugs.id as drug_id',
                     'drugs.name as drug_name',
                     'drugs.strength',
                     'inventories.current_quantity',
-                    'drugs.expiry_date'
+                    'inventories.expiry_date'
                 )
                 ->get();
             
@@ -108,6 +109,11 @@ class DrugSupplierController extends BaseApiController
                         ]),
                         'ip_address' => $request->ip() ?? request()->ip(),
                     ]);
+
+                    // تصفير الكمية فعلياً في قاعدة البيانات
+                    DB::table('inventories')
+                        ->where('id', $expired->inventory_id)
+                        ->update(['current_quantity' => 0]);
                 }
             }
 
@@ -160,42 +166,54 @@ class DrugSupplierController extends BaseApiController
             // جلب معرفات الأدوية المسجلة في مخزون المورد
             $registeredDrugIds = $items->pluck('drug_id')->toArray();
 
-            // تحويل النتيجة للفورمات الذي يحتاجه الـ frontend للأدوية المسجلة
-            // مع حساب الكمية المحتاجة ديناميكياً من الطلبات
-            $registeredDrugs = $items->map(function ($inventory) use ($drugsRequestedQuantities) {
-                $drugId = $inventory->drug_id;
-                $availableQuantity = $inventory->current_quantity;
+            // تجميع الأدوية حسب drug_id وحساب المجموع وتفاصيل الدفعات
+            $registeredDrugs = $items->groupBy('drug_id')->map(function ($group) use ($drugsRequestedQuantities) {
+                $firstItem = $group->first();
+                $drug = $firstItem->drug;
+                
+                $totalQuantity = $group->sum('current_quantity');
+                
+                // تفاصيل الدفعات (الشحنات)
+                $batches = $group->map(function ($inv) {
+                    return [
+                        'batchNumber' => $inv->batch_number ?? 'غير محدد',
+                        'expiryDate' => $inv->expiry_date ? date('Y/m/d', strtotime($inv->expiry_date)) : 'غير محدد',
+                        'quantity' => $inv->current_quantity,
+                    ];
+                })->values();
                 
                 // حساب الكمية المطلوبة من الطلبات لهذا الدواء
                 $totalRequestedQty = 0;
-                if ($drugsRequestedQuantities->has($drugId)) {
-                    $totalRequestedQty = $drugsRequestedQuantities->get($drugId)['total_requested_qty'];
+                if ($drugsRequestedQuantities->has($drug->id)) {
+                    $totalRequestedQty = $drugsRequestedQuantities->get($drug->id)['total_requested_qty'];
                 }
                 
                 // الكمية المحتاجة = مجموع الكميات المطلوبة من الطلبات - الكمية المتوفرة
-                // إذا كانت النتيجة <= 0، تصبح 0
-                $neededQuantity = max(0, $totalRequestedQty - $availableQuantity);
+                $neededQuantity = max(0, $totalRequestedQty - $totalQuantity);
                 
-                // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
-                if ($inventory->minimum_level != $neededQuantity) {
-                    $inventory->minimum_level = $neededQuantity;
-                    $inventory->save();
+                // تحديث minimum_level في قاعدة البيانات لتسجيل النقص
+                foreach ($group as $inventory) {
+                    if ($inventory->minimum_level != $neededQuantity) {
+                        $inventory->minimum_level = $neededQuantity;
+                        $inventory->save();
+                    }
                 }
                 
                 return [
-                    'id' => $inventory->drug->id,
-                    'drugCode' => $inventory->drug->id,
-                    'drugName' => $inventory->drug->name,
-                    'name' => $inventory->drug->name,
-                    'genericName' => $inventory->drug->generic_name ?? null,
-                    'strength' => $inventory->drug->strength ?? 'غير محدد',
-                    'quantity' => $availableQuantity,
+                    'id' => $drug->id,
+                    'drugCode' => $drug->id,
+                    'drugName' => $drug->name,
+                    'name' => $drug->name,
+                    'genericName' => $drug->generic_name ?? null,
+                    'strength' => $drug->strength ?? 'غير محدد',
+                    'quantity' => $totalQuantity,
                     'neededQuantity' => $neededQuantity, // الكمية المحتاجة المحسوبة ديناميكياً
-                    'expiryDate' => $inventory->drug->expiry_date ? date('Y/m/d', strtotime($inventory->drug->expiry_date)) : 'غير محدد',
-                    'category' => $inventory->drug
-                        ? (is_object($inventory->drug->category)
-                            ? ($inventory->drug->category->name ?? $inventory->drug->category)
-                            : ($inventory->drug->category ?? 'غير مصنف'))
+                    'batches' => $batches, // قائمة الدفعات وتواريخ الصلاحية
+                    'expiryDate' => $group->min('expiry_date') ? date('Y/m/d', strtotime($group->min('expiry_date'))) : null, // للأغراض الفرز (أقرب تاريخ)
+                    'category' => $drug
+                        ? (is_object($drug->category)
+                            ? ($drug->category->name ?? $drug->category)
+                            : ($drug->category ?? 'غير مصنف'))
                         : 'غير مصنف',
                     'isUnregistered' => false, // دواء مسجل في مخزون المورد
                 ];
@@ -231,7 +249,6 @@ class DrugSupplierController extends BaseApiController
                         'strength' => $drug->strength ?? 'غير محدد',
                         'quantity' => 0, // الكمية في المخزون = 0 لأنها غير مسجلة
                         'neededQuantity' => $item['total_requested_qty'], // الكمية المطلوبة من جميع الطلبات
-                        'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : 'غير محدد',
                         'category' => is_object($drug->category)
                             ? ($drug->category->name ?? 'غير مصنف')
                             : ($drug->category ?? 'غير مصنف'),
@@ -323,7 +340,6 @@ class DrugSupplierController extends BaseApiController
                     'contraindications' => $drug->contraindications,
                     'quantity' => 0,
                     'neededQuantity' => $totalRequestedQty,
-                    'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : 'غير محدد',
                     'isUnregistered' => true,
                 ];
 
@@ -394,7 +410,7 @@ class DrugSupplierController extends BaseApiController
                     'contraindications' => $drug->contraindications,
                     'quantity' => $inventory->current_quantity,
                     'neededQuantity' => $neededQuantity,
-                    'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : 'غير محدد',
+                    'expiryDate' => $inventory->expiry_date ? date('Y/m/d', strtotime($inventory->expiry_date)) : 'غير محدد',
                     'isUnregistered' => false,
                 ];
 
@@ -707,14 +723,15 @@ class DrugSupplierController extends BaseApiController
                 ->where('inventories.supplier_id', $supplierId)
                 ->whereNull('inventories.warehouse_id')
                 ->whereNull('inventories.pharmacy_id')
-                ->whereRaw("DATE(drugs.expiry_date) <= ?", [$today])
+                ->whereNotNull('inventories.expiry_date')
+                ->whereRaw("DATE(inventories.expiry_date) <= ?", [$today])
                 ->select(
                     'inventories.id as inventory_id',
                     'drugs.id as drug_id',
                     'drugs.name as drug_name',
                     'drugs.strength',
                     'inventories.current_quantity',
-                    'drugs.expiry_date'
+                    'inventories.expiry_date'
                 )
                 ->get();
             

@@ -288,7 +288,6 @@ class DashboardSuperController extends BaseApiController
                         'status' => $drug->status,
                         'manufacturer' => $drug->manufacturer,
                         'country' => $drug->country,
-                        'expiryDate' => $drug->expiry_date,
                         'statistics' => [
                             'totalStock' => $totalStock,
                             'warehousesCount' => $warehousesCount,

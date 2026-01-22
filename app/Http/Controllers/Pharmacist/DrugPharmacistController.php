@@ -117,14 +117,15 @@ class DrugPharmacistController extends BaseApiController
             ->join('drugs', 'inventories.drug_id', '=', 'drugs.id')
             ->where('inventories.pharmacy_id', $pharmacyId)
             ->where('inventories.current_quantity', '>', 0)
-            ->whereRaw("DATE(drugs.expiry_date) <= ?", [$today])
+            ->whereNotNull('inventories.expiry_date')
+            ->whereRaw("DATE(inventories.expiry_date) <= ?", [$today])
             ->select(
                 'inventories.id as inventory_id',
                 'drugs.id as drug_id',
                 'drugs.name as drug_name',
                 'drugs.strength',
                 'inventories.current_quantity',
-                'drugs.expiry_date'
+                'inventories.expiry_date'
             )
             ->get();
         
@@ -173,6 +174,11 @@ class DrugPharmacistController extends BaseApiController
                     ]),
                     'ip_address' => $request->ip() ?? request()->ip(),
                 ]);
+
+                // تصفير الكمية فعلياً في قاعدة البيانات
+                DB::table('inventories')
+                    ->where('id', $expired->inventory_id)
+                    ->update(['current_quantity' => 0]);
             }
             
             $expiredDrugsInfo->push([
@@ -188,13 +194,13 @@ class DrugPharmacistController extends BaseApiController
 
         // جلب الأدوية الموجودة في مخزون هذه الصيدلية فقط
         // سيتم التصفير التلقائي عند جلب البيانات بسبب Inventory::boot()
-        $inventories = Inventory::with('drug')
+        $inventoriesGrouped = Inventory::with('drug')
             ->where('pharmacy_id', $pharmacyId)
             ->whereHas('drug', function($q) {
                 $q->where('status', '!=', Drug::STATUS_ARCHIVED);
             })
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->groupBy('drug_id');
 
         // دالة مساعدة لحساب الكمية المحتاجة بناءً على المرضى المستحقين
         $calculateNeededQuantity = function($drugId, $availableQuantity, $hospitalId, $pharmacyId) {
@@ -255,16 +261,26 @@ class DrugPharmacistController extends BaseApiController
         };
 
         // تحويل البيانات إلى الشكل المطلوب للأدوية المسجلة
-        $registeredDrugs = $inventories->map(function ($inventory) use ($calculateNeededQuantity, $user, $pharmacyId) {
-            $drug = $inventory->drug;
+        $registeredDrugs = $inventoriesGrouped->map(function ($group) use ($calculateNeededQuantity, $user, $pharmacyId) {
+            $firstInventory = $group->first();
+            $drug = $firstInventory->drug;
             
             if (!$drug) {
                 return null;
             }
             
-            $availableQuantity = $inventory->current_quantity;
+            $availableQuantity = $group->sum('current_quantity');
             $hospitalId = $user->hospital_id;
             
+            // تفاصيل الدفعات (الشحنات)
+            $batches = $group->map(function ($inv) {
+                return [
+                    'batchNumber' => $inv->batch_number ?? 'غير محدد',
+                    'expiryDate' => $inv->expiry_date ? date('Y/m/d', strtotime($inv->expiry_date)) : 'غير محدد',
+                    'quantity' => $inv->current_quantity,
+                ];
+            })->values();
+
             // حساب الكمية المحتاجة ديناميكياً
             $neededQuantity = 0;
             if ($hospitalId) {
@@ -277,13 +293,15 @@ class DrugPharmacistController extends BaseApiController
             }
             
             // تحديث minimum_level في قاعدة البيانات تلقائياً بالقيمة المحسوبة
-            if ($inventory->minimum_level != $neededQuantity) {
-                $inventory->minimum_level = $neededQuantity;
-                $inventory->save();
+            foreach ($group as $inventory) {
+                if ($inventory->minimum_level != $neededQuantity) {
+                    $inventory->minimum_level = $neededQuantity;
+                    $inventory->save();
+                }
             }
             
             return [
-                'id' => $inventory->id, // ID المخزون
+                'id' => $drug->id, // ID الدواء للمجموعات
                 'drugCode' => $drug->id,
                 'drugName' => $drug->name,
                 'genericName' => $drug->generic_name,
@@ -302,7 +320,7 @@ class DrugPharmacistController extends BaseApiController
                 'contraindications' => $drug->contraindications,
                 'quantity' => $availableQuantity, // الكمية في المخزون
                 'neededQuantity' => $neededQuantity, // الكمية المحتاجة المحسوبة ديناميكياً
-                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'batches' => $batches,
                 'description' => $drug->description ?? '',
                 'type' => $drug->form ?? 'Tablet',
                 'isUnregistered' => false // دواء مسجل في الصيدلية
@@ -310,7 +328,7 @@ class DrugPharmacistController extends BaseApiController
         })->filter(); // إزالة القيم null
 
         // جلب معرفات الأدوية المسجلة في الصيدلية
-        $registeredDrugIds = $inventories->pluck('drug_id')->toArray();
+        $registeredDrugIds = $inventoriesGrouped->keys()->toArray();
 
         // جلب الأدوية غير المسجلة ولكن موصوفة للمرضى
         $unregisteredDrugs = collect();
@@ -431,7 +449,6 @@ class DrugPharmacistController extends BaseApiController
                         'contraindications' => $drug->contraindications,
                         'quantity' => 0, // الكمية في المخزون = 0 لأنها غير مسجلة
                         'neededQuantity' => $totalNeededQuantity, // الكمية المحتاجة من المرضى المستحقين
-                        'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
                         'description' => $drug->description ?? '',
                         'type' => $drug->form ?? 'Tablet',
                         'isUnregistered' => true // دواء غير مسجل في الصيدلية
@@ -558,7 +575,6 @@ class DrugPharmacistController extends BaseApiController
                 'contraindications' => $drug->contraindications,
                 'quantity' => 0,
                 'neededQuantity' => $neededQuantity,
-                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
                 'isUnregistered' => true,
             ];
 
@@ -605,7 +621,7 @@ class DrugPharmacistController extends BaseApiController
                 'contraindications' => $drug->contraindications,
                 'quantity' => $inventory->current_quantity,
                 'neededQuantity' => $neededQuantity,
-                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'expiryDate' => $inventory->expiry_date ? date('Y/m/d', strtotime($inventory->expiry_date)) : null,
                 'isUnregistered' => false,
             ];
 

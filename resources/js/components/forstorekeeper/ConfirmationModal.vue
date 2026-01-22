@@ -75,6 +75,7 @@
                                     <!-- Item Info -->
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2 mb-1">
+                                            <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
                                             <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name }}</h4>
                                             <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">
                                                 {{ item.dosage }}
@@ -96,6 +97,18 @@
                                                 <span class="font-medium text-xs">متوفر:</span>
                                                 <span class="font-bold text-xs">{{ item.availableQuantity }} {{ item.unit }}</span>
                                                 <Icon v-if="item.availableQuantity < item.originalQuantity" icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                            </div>
+
+                                            <!-- Batch Info Display -->
+                                            <div v-if="item.batchNumber || item.expiryDate" class="flex items-center gap-3 mt-1 text-xs">
+                                                <span v-if="item.batchNumber" class="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 flex items-center gap-1">
+                                                    <Icon icon="solar:tag-bold" class="w-3 h-3" />
+                                                    رقم الشحنة: {{ item.batchNumber }}
+                                                </span>
+                                                <span v-if="item.expiryDate" class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100 flex items-center gap-1">
+                                                    <Icon icon="solar:calendar-bold" class="w-3 h-3" />
+                                                    تاريخ إنتهاء الصلاحية: {{ formatDate(item.expiryDate) }}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -489,10 +502,13 @@ watch(
                 // وعند الإرسال، نستخدم suggestedQty كقيمة افتراضية
                 let finalSentQty = 0;
                 if (isProcessing.value) {
-                    // عند تأكيد الاستلام (قيد الاستلام): استخدام approved_qty (الكمية المرسلة من المستودع)
-                    // approved_qty = الكمية التي أرسلها المستودع (storekeeper)
-                    // fulfilled_qty = الكمية المستلمة من الصيدلية (pharmacist)
-                    if (item.approved_qty !== null && item.approved_qty !== undefined) {
+                    // عند تأكيد الاستلام (قيد الاستلام): استخدام fulfilled_qty (الكمية المرسلة من المورد) إذا وجدت
+                    // إذا لم توجد (مثل حالات التوافق القديمة)، نستخدم approved_qty
+                    if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined) {
+                        finalSentQty = Number(item.fulfilled_qty);
+                    } else if (item.fulfilledQty !== null && item.fulfilledQty !== undefined) {
+                        finalSentQty = Number(item.fulfilledQty);
+                    } else if (item.approved_qty !== null && item.approved_qty !== undefined) {
                         finalSentQty = Number(item.approved_qty);
                     } else if (item.approvedQty !== null && item.approvedQty !== undefined) {
                         finalSentQty = Number(item.approvedQty);
@@ -501,7 +517,7 @@ watch(
                     } else {
                         finalSentQty = 0;
                     }
-                    console.log(`✅ Using approved_qty for sentQuantity: ${finalSentQty} (from approved_qty: ${item.approved_qty}, approvedQty: ${item.approvedQty}, sentQuantity: ${item.sentQuantity})`);
+                    console.log(`✅ Using ${item.fulfilled_qty !== undefined ? 'fulfilled_qty' : 'approved_qty'} for sentQuantity: ${finalSentQty}`);
                 } else {
                     // عند الإرسال: استخدام suggestedQty كقيمة افتراضية، أو approved_qty إذا كان موجوداً
                     if (item.approved_qty !== null && item.approved_qty !== undefined) {
@@ -523,6 +539,8 @@ watch(
                     suggestedQuantity: suggestedQty, // الكمية المقترحة من الـ API
                     sentQuantity: finalSentQty, // استخدام fulfilled_qty عند تأكيد الاستلام، أو suggestedQty عند الإرسال
                     receivedQuantity: item.receivedQuantity || item.received_qty || 0, // الكمية المستلمة
+                    batchNumber: item.batch_number || item.batchNumber || null,
+                    expiryDate: item.expiry_date || item.expiryDate || null,
                     unit: item.unit || "حبة",
                     dosage: item.dosage || item.strength || ''
                 };

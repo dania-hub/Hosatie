@@ -40,7 +40,7 @@ class SupplyRequestSupplierController extends BaseApiController
                 'items.drug:id,name'
             ])
                 ->where('requested_by', $user->id)
-                ->whereIn('status', ['pending', 'approved', 'fulfilled', 'rejected'])
+                // ->whereIn('status', ['pending', 'approved', 'fulfilled', 'rejected']) // Show all statuses
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->map(function ($request) {
@@ -300,8 +300,10 @@ class SupplyRequestSupplierController extends BaseApiController
         $statuses = [
             'pending' => 'قيد الانتظار',
             'approved' => 'جديد',
-            'fulfilled' => 'تم التنفيذ',
+            'fulfilled' => 'قيد الاستلام',
+            'delivered' => 'تم الاستلام',
             'rejected' => 'مرفوض',
+            'cancelled' => 'مرفوض',
         ];
 
         return $statuses[$status] ?? $status;

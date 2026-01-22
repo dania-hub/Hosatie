@@ -78,8 +78,8 @@
                                 <p class="font-semibold text-[#2E5077]">{{ drug.utilization_type || "غير محدد" }}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-gray-400 mb-1">تاريخ الانتهاء</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.expiry_date || drug.expiryDate || "غير محدد" }}</p>
+                                <p class="text-xs text-gray-400 mb-1">تاريخ الأضافة</p>
+                                <p class="font-semibold text-[#2E5077]">{{ drug.createdAt || "غير محدد" }}</p>
                             </div>
                         </div>
                     </div>

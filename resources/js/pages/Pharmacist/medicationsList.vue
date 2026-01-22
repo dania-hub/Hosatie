@@ -69,6 +69,15 @@ const selectedDrug = ref({});
 const isLoading = ref(true);
 const hasData = ref(false);
 const error = ref(null);
+const expandedReviewId = ref(null); // للتحكم في الصف الموسع لعرض الدفعات
+
+const toggleReview = (id) => {
+    if (expandedReviewId.value === id) {
+        expandedReviewId.value = null;
+    } else {
+        expandedReviewId.value = id;
+    }
+};
 
 // ----------------------------------------------------
 // 5. منطق البحث والفرز
@@ -1023,20 +1032,19 @@ onMounted(async () => {
                             <div class="overflow-x-auto h-full">
                                 <table
                                     dir="rtl"
-                                    class="table w-full text-right min-w-[1400px] border-collapse"
+                                    class="table-fixed w-full text-right min-w-[1200px] border-collapse"
                                 >
                                     <thead
                                         class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
                                     >
                                         <tr>
-                                          
-                                            <th class="name-col">اسم الدواء</th>
-                                            <th class="generic-name-col">الاسم العلمي</th>
-                                            <th class="strength-col">التركيز</th>
-                                            <th class="quantity-col">الكمية المتوفرة</th>
-                                            <th class="needed-quantity-col">الكمية المحتاجة</th>
-                                            <th class="expiry-date-col">تاريخ إنتهاء الصلاحية</th>
-                                            <th class="actions-col">الإجراءات</th>
+                                            <th class="name-col px-4 py-3 text-sm font-bold">اسم الدواء</th>
+                                            <th class="generic-name-col px-4 py-3 text-sm font-bold">الاسم العلمي</th>
+                                            <th class="strength-col px-4 py-3 text-sm font-bold">التركيز</th>
+                                            <th class="quantity-col px-4 py-3 text-sm font-bold">الكمية المتوفرة</th>
+                                            <th class="needed-quantity-col px-4 py-3 text-sm font-bold">الكمية المحتاجة</th>
+                                            <th class="expiry-date-col px-4 py-3 text-sm font-bold text-center">تاريخ الإنتهاء</th>
+                                            <th class="actions-col px-4 py-3 text-sm font-bold text-center">الإجراءات</th>
                                         </tr>
                                     </thead>
 
@@ -1052,119 +1060,105 @@ onMounted(async () => {
                                             </td>
                                         </tr>
                                         <template v-else>
-                                            <tr
-                                                v-for="(drug, index) in filteredDrugss"
-                                                :key="drug.id || index"
-                                                :class="[
-                                                    'hover:bg-gray-100',
-                                                    getRowColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    ),
-                                                ]"
-                                            >
-                                           
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    )
-                                                "
-                                            >
-                                                <div class="flex items-center gap-2">
-                                                    <span>{{ drug.drugName || drug.name }}</span>
-                                                    <span v-if="drug.isUnregistered" 
-                                                        class="px-2 py-0.5 text-xs font-bold bg-blue-200 text-blue-800 rounded-full"
-                                                        title="دواء غير مسجل في الصيدلية ولكن موصوف للمرضى">
-                                                        غير مسجل
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.genericName || '-' }}
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.strength || '-' }}
-                                            </td>
-                                          
-                                          
-                                          
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    )
-                                                "
-                                            >
-                                                <span class="font-bold">{{
-                                                    drug.quantity || 0
-                                                }}</span>
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    )
-                                                "
-                                            >
-                                                <span class="font-bold">{{
-                                                    drug.neededQuantity || 0
-                                                }}</span>
-                                               
-                                            </td>
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity,
-                                                        drug.isUnregistered
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.expiryDate || '-' }}
-                                            </td>
-                                            <td class="actions-col">
-                                                <div
-                                                    class="flex gap-3 justify-center"
+                                            <template v-for="(drug, index) in filteredDrugss" :key="drug.id || index">
+                                                <tr
+                                                    :class="[
+                                                        'hover:bg-gray-100',
+                                                        getRowColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered),
+                                                    ]"
                                                 >
-                                                    <button class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
-                                                        @click="
-                                                            showDrugDetails(drug)
-                                                        "
-                                                    >
-                                                        <Icon
-                                                            icon="tabler:eye-minus"
-                                                            :class="[
-                                                                'w-4 h-4 cursor-pointer hover:scale-110 transition-transform text-green-600',
-                                                            ]"
-                                                        />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                                    <td class="name-col px-4 py-3" :class="getTextColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered)">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="truncate" :title="drug.drugName || drug.name">{{ drug.drugName || drug.name }}</span>
+                                                            <span v-if="drug.isUnregistered" 
+                                                                class="shrink-0 px-2 py-0.5 text-[10px] font-bold bg-blue-200 text-blue-800 rounded-full">
+                                                                غير مسجل
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="generic-name-col px-4 py-3" :class="getTextColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered)">
+                                                        <div class="truncate" :title="drug.genericName">{{ drug.genericName || '-' }}</div>
+                                                    </td>
+                                                    <td class="strength-col px-4 py-3 text-center" :class="getTextColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered)">
+                                                        {{ drug.strength || '-' }}
+                                                    </td>
+                                                    <td class="quantity-col px-4 py-3 text-center" :class="getTextColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered)">
+                                                        <span class="font-bold">{{ drug.quantity || 0 }}</span>
+                                                    </td>
+                                                    <td class="needed-quantity-col px-4 py-3 text-center" :class="getTextColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered)">
+                                                        <span class="font-bold">{{ drug.neededQuantity || 0 }}</span>
+                                                    </td>
+                                                    <td class="expiry-date-col px-4 py-3 text-center" :class="getTextColorClass(drug.quantity, drug.neededQuantity, drug.isUnregistered)">
+                                                        {{ drug.expiryDate || '-' }}
+                                                    </td>
+                                                    <td class="actions-col">
+                                                        <div class="flex gap-3 justify-center">
+                                                            <!-- زر التوسيع لإظهار الدفعات -->
+                                                            <button
+                                                                v-if="!drug.isUnregistered && drug.batches && drug.batches.length > 0"
+                                                                class="p-2 rounded-lg hover:bg-slate-100 border border-slate-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                                :class="expandedReviewId === (drug.id || index) ? 'bg-slate-200 border-slate-300' : 'bg-slate-50'"
+                                                                title="عرض التفاصيل والدفعات"
+                                                                @click="toggleReview(drug.id || index)"
+                                                            >
+                                                                <Icon
+                                                                    :icon="expandedReviewId === (drug.id || index) ? 'solar:alt-arrow-up-bold' : 'solar:alt-arrow-down-bold'"
+                                                                    class="w-4 h-4 text-slate-600 transition-transform duration-300"
+                                                                />
+                                                            </button>
+
+                                                            <button
+                                                                class="p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                                title="معاينة الدواء"
+                                                                @click="showDrugDetails(drug)"
+                                                            >
+                                                                <Icon icon="tabler:eye" class="w-4 h-4 text-green-600" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                <!-- الصف الموسع لعرض تفاصيل الدفعات -->
+                                                <tr v-if="expandedReviewId === (drug.id || index)" class="bg-gray-50/50">
+                                                    <td colspan="7" class="p-4 relative">
+                                                        <div class="absolute right-8 top-0 w-0.5 h-full bg-[#4DA1A9]/20"></div>
+                                                        <div class="pr-8">
+                                                            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                                                <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                                    <h4 class="font-bold text-[#2E5077] text-sm flex items-center gap-2">
+                                                                        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                                                        تفاصيل الدفعات 
+                                                                    </h4>
+                                                                    <span class="text-xs font-bold bg-[#4DA1A9]/10 text-[#4DA1A9] px-2 py-1 rounded-lg">
+                                                                        إجمالي الكمية: {{ drug.quantity }}
+                                                                    </span>
+                                                                </div>
+                                                                <table class="w-full text-right text-sm">
+                                                                    <thead class="bg-gray-50/50 text-gray-500 font-medium">
+                                                                        <tr>
+                                                                            <th class="px-4 py-2 font-bold w-1/3">رقم الشحنة </th>
+                                                                            <th class="px-4 py-2 font-bold w-1/3">تاريخ انتهاء</th>
+                                                                            <th class="px-4 py-2 font-bold w-1/3">الكمية</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody class="divide-y divide-gray-50">
+                                                                        <tr v-for="(batch, bIndex) in drug.batches" :key="bIndex" class="hover:bg-gray-50 transition-colors">
+                                                                            <td class="px-4 py-2.5 text-gray-700 font-bold font-mono">{{ batch.batchNumber || '---' }}</td>
+                                                                            <td class="px-4 py-2.5 text-gray-700 font-mono tracking-wide" dir="ltr" style="text-align: right;">{{ batch.expiryDate }}</td>
+                                                                            <td class="px-4 py-2.5 font-bold text-[#4DA1A9]">{{ batch.quantity }}</td>
+                                                                        </tr>
+                                                                        <tr v-if="!drug.batches || drug.batches.length === 0">
+                                                                            <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">
+                                                                                لا توجد تفاصيل متاحة للدفعات
+                                                                            </td>
+                                                                        </tr>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </template>
                                             <tr v-if="filteredDrugss.length === 0">
                                                 <td colspan="7" class="py-12">
                                                     <EmptyState message="لا توجد أدوية لعرضها" />
@@ -1228,41 +1222,25 @@ onMounted(async () => {
     background-color: #3a8c94;
 }
 
-.actions-col {
-    width: 70px;
-    min-width: 70px;
-    max-width: 70px;
-    text-align: center;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-}
-
 .name-col {
-    width: 80px;
-    min-width: 80px;
+    width: 25%;
 }
 .generic-name-col {
-    width: 120px;
-    min-width: 120px;
+    width: 20%;
 }
 .strength-col {
-    width: 100px;
-    min-width: 100px;
+    width: 10%;
 }
-
 .quantity-col {
-    width: 70px; 
-    min-width: 70px;
+    width: 10%; 
 }
 .needed-quantity-col {
-    width: 70px; 
-    min-width: 70px;
+    width: 12%; 
 }
 .expiry-date-col {
-    width: 80px;
-    min-width: 80px;
+    width: 13%;
 }
-.min-w-\[1400px\] {
-    min-width: 100px;
+.actions-col {
+    width: 10%;
 }
 </style>

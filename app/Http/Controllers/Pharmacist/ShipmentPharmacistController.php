@@ -190,7 +190,9 @@ class ShipmentPharmacistController extends BaseApiController
                     'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
                     'unit' => $item->drug->unit ?? 'علبة',
                     'form' => $item->drug->form ?? null,
-                    'type' => $item->drug->form ?? null // للتوافق مع الواجهة
+                    'type' => $item->drug->form ?? null, // للتوافق مع الواجهة
+                    'batch_number' => $item->batch_number,
+                    'expiry_date' => $item->expiry_date,
                 ];
             }),
             'notes' => $shipment->notes,
@@ -288,15 +290,20 @@ class ShipmentPharmacistController extends BaseApiController
                     continue;
                 }
 
-                // البحث عن مخزون هذا الدواء في هذه الصيدلية
+                // البحث عن مخزون هذا الدواء في هذه الصيدلية - مع مراعاة الدُفعة وتاريخ الصلاحية
                 $inventory = Inventory::firstOrNew([
                     'drug_id'    => $item->drug_id,
                     'pharmacy_id'=> $targetPharmacyId,
+                    'batch_number' => $item->batch_number,
+                    'expiry_date' => $item->expiry_date,
                 ]);
 
                 // سجل جديد؟ نتأكد ألا يكون مرتبطاً بمستودع
                 if (!$inventory->exists) {
                     $inventory->warehouse_id = null;
+                    $inventory->department_id = null;
+                    $inventory->current_quantity = 0;
+                    $inventory->minimum_level = 20; // قيمة افتراضية
                 }
 
                 $oldQuantity = (float)($inventory->current_quantity ?? 0);
@@ -324,7 +331,7 @@ class ShipmentPharmacistController extends BaseApiController
                     }
                 }
 
-                // تحديث fulfilled_qty في item بالكمية المستلمة الفعلية:
+                // تحديث fulfilled_qty in item بالكمية المستلمة الفعلية:
                 // ملاحظة: 
                 // - requested_qty: الكمية المطلوبة الأصلية (لا يتم تعديلها)
                 // - approved_qty: الكمية المرسلة من storekeeper (لا يتم تعديلها)

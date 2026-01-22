@@ -304,18 +304,20 @@ class ShipmentDepartmentAdminController extends BaseApiController
                     'quantity' => $item->requested_qty,
                     'requestedQty' => $item->requested_qty,
                     'requested_qty' => $item->requested_qty,
-                    'approvedQty' => $item->approved_qty ?? null,
-                    'approved_qty' => $item->approved_qty ?? null,
-                    'fulfilledQty' => $item->fulfilled_qty ?? null,
-                    'fulfilled_qty' => $item->fulfilled_qty ?? null,
+                    'approvedQty' => $item->approved_qty,
+                    'approved_qty' => $item->approved_qty,
+                    'fulfilledQty' => $item->fulfilled_qty,
+                    'fulfilled_qty' => $item->fulfilled_qty,
                     'sentQuantity' => $sentQuantity, // الكمية المرسلة من storekeeper
-                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط
-                    'unit' => $item->drug->unit ?? 'وحدة',
+                    'receivedQuantity' => $item->fulfilled_qty, // الكمية المستلمة فقط
+                    'unit' => $item->drug->unit ?? 'علبة',
                     'genericName' => $item->drug->generic_name ?? null,
                     'strength' => $item->drug->strength ?? null,
                     'dosage' => $item->drug->strength ?? null,
                     'form' => $item->drug->form ?? null,
-                    'type' => $item->drug->form ?? null
+                    'type' => $item->drug->form ?? null,
+                    'batch_number' => $item->batch_number,
+                    'expiry_date' => $item->expiry_date,
                 ];
             }),
             'notes' => $shipment->notes,
@@ -389,10 +391,10 @@ class ShipmentDepartmentAdminController extends BaseApiController
         $receivedItemsMap = [];
         foreach ($receivedItems as $receivedItem) {
             $itemId = $receivedItem['id'] ?? null;
-            $receivedQty = $receivedItem['receivedQuantity'] ?? null;
-            if ($itemId !== null && $receivedQty !== null) {
+            $receivedQtyInBoxes = $receivedItem['receivedQuantity'] ?? null;
+            if ($itemId !== null && $receivedQtyInBoxes !== null) {
                 // تحويل ID إلى integer للتأكد من المطابقة الصحيحة
-                $receivedItemsMap[(int)$itemId] = (float)$receivedQty;
+                $receivedItemsMap[(int)$itemId] = (float)$receivedQtyInBoxes;
             }
         }
         
@@ -413,9 +415,7 @@ class ShipmentDepartmentAdminController extends BaseApiController
             return $this->sendError('يجب إدخال ملاحظات لتوضيح سبب النقص في الكمية المستلمة.');
         }
 
-        // تحديث fulfilled_qty لكل عنصر
         foreach ($shipment->items as $item) {
-            // أولوية: الكمية المستلمة من الطلب > approved_qty > requested_qty
             $qtyToSet = null;
             
             // التحقق من الكمية المستلمة المرسلة من الواجهة
@@ -432,22 +432,16 @@ class ShipmentDepartmentAdminController extends BaseApiController
             $item->save();
 
             // التحقق من وجود نقص
-            // المقارنة مع الكمية التي أرسلها أمين المستودع (approved_qty)
+            // المقارنة مع الكمية التي أرسلها أمين المستودع (approved_qty) - بالفعل حبات
+            $sentQtyPills = $item->approved_qty ?? $item->requested_qty ?? 0;
             $sentQty = $item->approved_qty ?? $item->requested_qty ?? 0;
 
-            \Log::info("Checking item for shortage", [
-                'item_id' => $item->id,
-                'received' => $qtyToSet,
-                'sent' => $sentQty,
-                'is_shortage' => ($qtyToSet < $sentQty)
-            ]);
-
-            if ($qtyToSet < $sentQty) {
+            if ($item->fulfilled_qty < $sentQty) {
                 $shortageItems[] = [
                     'name'     => $item->drug->name ?? 'غير معروف',
                     'sent'     => $sentQty,
-                    'received' => $qtyToSet,
-                    'unit'     => $item->drug->unit ?? 'وحدة'
+                    'received' => $item->fulfilled_qty,
+                    'unit'     => $item->drug->unit ?? 'قطعة'
                 ];
             }
         }
@@ -484,7 +478,38 @@ class ShipmentDepartmentAdminController extends BaseApiController
             'ip_address' => $request->ip(),
         ]);
         
-        // يمكن إضافة منطق تحديث المخزون هنا لاحقاً
+        // تحديث مخزون القسم
+        $departmentId = $currentDepartment ? $currentDepartment->id : null;
+        if ($departmentId) {
+            foreach ($shipment->items as $item) {
+                if ($item->fulfilled_qty > 0) {
+                    // البحث عن مخزون هذا الدواء في هذا القسم - مع مراعاة الدُفعة وتاريخ الصلاحية
+                    $inventory = \App\Models\Inventory::firstOrNew([
+                        'drug_id'      => $item->drug_id,
+                        'department_id' => $departmentId,
+                        'batch_number' => $item->batch_number,
+                        'expiry_date'  => $item->expiry_date,
+                    ]);
+
+                    if (!$inventory->exists) {
+                        $inventory->warehouse_id = null;
+                        $inventory->pharmacy_id = null;
+                        $inventory->current_quantity = 0;
+                        $inventory->minimum_level = 10; // قيمة افتراضية للقسم
+                    }
+
+                    $inventory->current_quantity += $item->fulfilled_qty;
+                    $inventory->save();
+                    
+                    // التنبيه في حالة انخفاض المخزون
+                    try {
+                        $this->notifications->checkAndNotifyLowStock($inventory);
+                    } catch (\Exception $e) {
+                        \Log::error('Department stock alert notification failed', ['error' => $e->getMessage()]);
+                    }
+                }
+            }
+        }
         
         // إعادة تحميل البيانات المحدثة من قاعدة البيانات
         $shipment = InternalSupplyRequest::with('items.drug')->findOrFail($id);
@@ -496,18 +521,19 @@ class ShipmentDepartmentAdminController extends BaseApiController
                 'confirmedAt' => $shipment->updated_at->format('Y-m-d H:i')
             ],
             'items' => $shipment->items->map(function($item) {
+                $upb = $item->drug->units_per_box ?? 1;
                 return [
                     'id' => $item->id,
                     'drugId' => $item->drug_id,
-                    'name' => $item->drug->name ?? 'Unknown',
+                    'name' => $item->drug->name ?? 'غير معروف',
                     'quantity' => $item->requested_qty,
                     'requestedQty' => $item->requested_qty,
                     'requested_qty' => $item->requested_qty,
-                    'approvedQty' => $item->approved_qty ?? null,
-                    'approved_qty' => $item->approved_qty ?? null,
-                    'fulfilledQty' => $item->fulfilled_qty ?? null,
-                    'fulfilled_qty' => $item->fulfilled_qty ?? null,
-                    'receivedQuantity' => $item->fulfilled_qty ?? null, // الكمية المستلمة فقط - لا نستخدم approved_qty كبديل
+                    'approvedQty' => $item->approved_qty,
+                    'approved_qty' => $item->approved_qty,
+                    'fulfilledQty' => $item->fulfilled_qty,
+                    'fulfilled_qty' => $item->fulfilled_qty,
+                    'receivedQuantity' => $item->fulfilled_qty,
                     'unit' => $item->drug->unit ?? 'علبة'
                 ];
             })

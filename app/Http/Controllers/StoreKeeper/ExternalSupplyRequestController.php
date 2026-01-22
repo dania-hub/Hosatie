@@ -180,18 +180,19 @@ class ExternalSupplyRequestController extends BaseApiController
                         'requested_qty'     => $item->requested_qty,
                         'requestedQty'      => $item->requested_qty,
                         'quantity'          => $item->requested_qty,
-                        'approved'          => $item->approved_qty,
-                        'approved_qty'      => $item->approved_qty,
-                        'approvedQty'       => $item->approved_qty,
-                        'fulfilled'         => $item->fulfilled_qty,
-                        'fulfilled_qty'     => $item->fulfilled_qty,
-                        'fulfilledQty'      => $item->fulfilled_qty,
-                        // sentQuantity يجب أن يكون fulfilled_qty (الكمية الفعلية المرسلة من المورد)
-                        // وليس approved_qty (الكمية المعتمدة من HospitalAdmin)
-                        'sentQuantity'      => $item->fulfilled_qty ?? $item->approved_qty,
-                        'unit'              => $item->drug->unit ?? 'وحدة',
+                        'approved'          => $item->approved_qty ?? 0,
+                        'approved_qty'      => $item->approved_qty ?? 0,
+                        'approvedQty'       => $item->approved_qty ?? 0,
+                        'fulfilled'         => $item->fulfilled_qty ?? 0,
+                        'fulfilled_qty'     => $item->fulfilled_qty ?? 0,
+                        'fulfilledQty'      => $item->fulfilled_qty ?? 0,
+                        'sentQuantity'      => $item->fulfilled_qty ?? $item->approved_qty ?? 0,
+                        'unit'              => $item->drug->unit ?? 'قرص',
                         'dosage'            => $item->drug->strength ?? null,
                         'strength'          => $item->drug->strength ?? null,
+                        'batch_number'      => $item->batch_number,
+                        'expiry_date'       => $item->expiry_date,
+                        'units_per_box'     => $unitsPerBox, // إضافة المعلومة للواجهة
                     ];
                 }),
                 'notes'             => null,
@@ -624,20 +625,25 @@ class ExternalSupplyRequestController extends BaseApiController
                     continue;
                 }
 
-                // البحث عن مخزون هذا الدواء في المستودع
+                // البحث عن مخزون هذا الدواء في المستودع - مع مراعاة الدفعة وتاريخ الصلاحية
                 $inventory = Inventory::firstOrNew([
                     'drug_id' => $item->drug_id,
                     'warehouse_id' => $warehouseId,
+                    'batch_number' => $item->batch_number,
+                    'expiry_date' => $item->expiry_date,
                 ]);
 
-                // إذا كان سجل جديد، نتأكد من عدم ارتباطه بصيدلية
+                // إذا كان سجل جديد، نتأكد من القيم الافتراضية
                 if (!$inventory->exists) {
                     $inventory->pharmacy_id = null;
+                    $inventory->department_id = null;
+                    $inventory->supplier_id = $externalRequest->supplier_id;
                     $inventory->current_quantity = 0;
+                    $inventory->minimum_level = 50; // أو قيمة من إعدادات الدواء
                 }
 
                 // إضافة الكمية المستلمة للمخزون
-                $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $receivedQty;
+                $inventory->current_quantity += $receivedQty;
                 $inventory->save();
 
                 // التنبيه في حالة انخفاض المخزون عن الحد الأدنى (حتى بعد التوريد)

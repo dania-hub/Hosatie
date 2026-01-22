@@ -49,6 +49,19 @@ class UserResource extends JsonResource
                     'updated_at' => $this->department->updated_at ? $this->department->updated_at->toDateTimeString() : null,
                 ];
             }),
+
+            'supplier_id' => $this->supplier_id,
+            'supplier_name' => $this->supplier ? $this->supplier->name : null,
+            'supplier' => $this->whenLoaded('supplier', function () {
+                return [
+                    'id' => $this->supplier->id,
+                    'name' => $this->supplier->name,
+                    'phone' => $this->supplier->phone,
+                    'address' => $this->supplier->address,
+                    'city' => $this->supplier->city,
+                    'status' => $this->supplier->status,
+                ];
+            }),
             
             // add other fields as needed
         ];

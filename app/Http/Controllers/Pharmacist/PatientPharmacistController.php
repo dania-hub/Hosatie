@@ -464,44 +464,58 @@ class PatientPharmacistController extends BaseApiController
                     throw new \Exception("الكمية المتبقية من الدواء (" . $item['drugName'] . ") في الوصفة غير كافية. المتبقي: " . $remainingInPrescription);
                 }
 
-                // ج. فحص المخزون في الصيدلية المحددة
-                $inventory = Inventory::where('drug_id', $drug->id)
+                // ج. فحص المخزون في الصيدلية المحددة - استخدام FEFO (الأقدم أولاً)
+                // الأدوية التي لم تنتهِ صلاحيتها وبها كمية
+                $inventories = Inventory::where('drug_id', $drug->id)
                     ->where('pharmacy_id', $pharmacyId)
-                    ->first();
+                    ->where('current_quantity', '>', 0)
+                    ->orderBy('expiry_date', 'asc')
+                    ->get();
+                
+                $totalAvailable = $inventories->sum('current_quantity');
 
-                if (!$inventory || $inventory->current_quantity < $item['quantity']) {
+                if ($totalAvailable < $item['quantity']) {
                     throw new \Exception("الكمية غير كافية للدواء: " . $item['drugName'] . " في هذه الصيدلية.");
                 }
                 
-                // حفظ الكمية الأصلية للمخزون للتراجع
-                $originalQuantity = $inventory->current_quantity;
-                
-                // د. خصم الكمية من المخزون والحفظ
-                $inventory->current_quantity -= $item['quantity'];
-                $inventory->save();
+                $remainingToDispense = $item['quantity'];
+                $dispensedBatches = [];
 
-                // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
-                try {
-                    $this->notifications->checkAndNotifyLowStock($inventory);
-                } catch (\Exception $e) {
-                    \Log::error('Pharmacy stock alert notification failed', ['error' => $e->getMessage()]);
+                foreach ($inventories as $inventory) {
+                    if ($remainingToDispense <= 0) break;
+
+                    $take = min($inventory->current_quantity, $remainingToDispense);
+                    $inventory->current_quantity -= $take;
+                    $inventory->save();
+
+                    $dispensedBatches[] = [
+                        'batch_number' => $inventory->batch_number,
+                        'expiry_date' => $inventory->expiry_date,
+                        'quantity' => $take
+                    ];
+
+                    $inventoryChanges[] = [
+                        'inventory_id' => $inventory->id,
+                        'drug_id' => $drug->id,
+                        'batch_number' => $inventory->batch_number,
+                        'quantity_added_back' => $take,
+                    ];
+
+                    $remainingToDispense -= $take;
                 }
                 
-                // حفظ معلومات تغيير المخزون للتراجع
-                $inventoryChanges[] = [
-                    'inventory_id' => $inventory->id,
-                    'drug_id' => $drug->id,
-                    'quantity_added_back' => $item['quantity'],
-                ];
+                // دمج بيانات الدُفعات في سجل الصرف
+                $primaryBatch = $dispensedBatches[0] ?? null;
 
                 // و. الخصم من monthly_quantity في جدول prescription_drugs 
-                // كما طلب المستخدم، الخصم يتم مباشرة من الحد الشهري ليعكس المتبقي
                 $prescriptionDrug->monthly_quantity = max(0, $prescriptionDrug->monthly_quantity - $item['quantity']);
                 $prescriptionDrug->save();
                 
-                // حفظ معلومات للتراجع
-                $inventoryChanges[count($inventoryChanges) - 1]['prescription_drug_id'] = $prescriptionDrug->id;
-                $inventoryChanges[count($inventoryChanges) - 1]['monthly_quantity_to_restore'] = $item['quantity'];
+                // إضافة معلومات الوصفة لآخر تغيير مخزون (كافي للتراجع عن خصم الوصفة)
+                if (count($inventoryChanges) > 0) {
+                    $inventoryChanges[count($inventoryChanges) - 1]['prescription_drug_id'] = $prescriptionDrug->id;
+                    $inventoryChanges[count($inventoryChanges) - 1]['monthly_quantity_to_restore'] = $item['quantity'];
+                }
 
                 // هـ. إنشاء سجل صرف جديد (كل عملية صرف = سجل منفصل)
                 // يتم إنشاء سجل جديد لكل عملية صرف حتى لو كان نفس الدواء في نفس الشهر
@@ -517,6 +531,8 @@ class PatientPharmacistController extends BaseApiController
                     'pharmacy_id' => $pharmacyId,
                     'dispense_month' => $dispenseMonth,
                     'quantity_dispensed' => $item['quantity'],
+                    'batch_number' => $primaryBatch['batch_number'] ?? null,
+                    'expiry_date' => $primaryBatch['expiry_date'] ?? null,
                 ]);
                 
                 // حفظ معلومات السجل الجديد للتراجع

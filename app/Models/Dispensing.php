@@ -18,12 +18,12 @@ class Dispensing extends Model
         'patient_id',
         'pharmacist_id',
         'pharmacy_id',
-        'drug_id',            // <--- ADD THIS
-        'quantity_dispensed', // <--- Ensure this matches your DB column name
+        'drug_id',
+        'quantity_dispensed',
+        'batch_number',
+        'expiry_date',
         'dispense_month',
         'reverted',
-        // 'reverted_at',
-        // 'reverted_by'
     ];
 
     protected $casts = [

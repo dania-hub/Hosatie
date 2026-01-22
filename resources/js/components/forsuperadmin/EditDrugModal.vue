@@ -191,20 +191,8 @@
                             />
                         </div>
 
-                        <!-- تاريخ الانتهاء -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                تاريخ الانتهاء <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                v-model="formData.expiry_date"
-                                type="date"
-                                required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                            />
                         </div>
                     </div>
-                </div>
 
                 <!-- Medical Info -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
@@ -313,7 +301,6 @@ watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
             utilization_type: drug.utilization_type || '',
             warnings: drug.warnings || '',
             indications: drug.indications || '',
-            expiry_date: formatDate(drug.expiry_date || drug.expiryDate)
         };
     }
 }, { immediate: true });

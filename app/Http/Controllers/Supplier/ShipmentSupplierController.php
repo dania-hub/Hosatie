@@ -55,7 +55,7 @@ class ShipmentSupplierController extends BaseApiController
                               $q->where('supplier_id', $user->supplier_id);
                           });
                 })
-                ->whereIn('status', ['approved', 'fulfilled', 'rejected']) // جميع الحالات المعتمدة والمكتملة والمرفوضة
+                // ->whereIn('status', ['approved', 'fulfilled', 'rejected']) // Show all statuses
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->map(function ($shipment) {
@@ -326,7 +326,8 @@ class ShipmentSupplierController extends BaseApiController
                     if ($inventory) {
                         $availableQuantity = (int) $inventory->current_quantity;
                     }
-                    
+
+
                     return [
                         'id' => $item->id,
                         'drugId' => $item->drug_id,
@@ -338,16 +339,16 @@ class ShipmentSupplierController extends BaseApiController
                                 ? ($item->drug->category->name ?? $item->drug->category)
                                 : ($item->drug->category ?? 'غير محدد'))
                             : 'غير محدد',
-                        'quantity' => $item->requested_qty ?? $item->requested_quantity ?? 0,
-                        'requestedQuantity' => $item->requested_qty ?? $item->requested_quantity ?? 0,
-                        'requested_qty' => $item->requested_qty ?? 0,
-                        'approvedQuantity' => $item->approved_qty ?? $item->approved_quantity ?? 0,
-                        'approved_qty' => $item->approved_qty ?? 0,
-                        'fulfilled_qty' => $item->fulfilled_qty ?? null,
+                        'quantity' => ($item->requested_qty ?? $item->requested_quantity ?? 0),
+                        'requestedQuantity' => ($item->requested_qty ?? $item->requested_quantity ?? 0),
+                        'requested_qty' => ($item->requested_qty ?? 0),
+                        'approvedQuantity' => ($item->approved_qty ?? $item->approved_quantity ?? 0),
+                        'approved_qty' => ($item->approved_qty ?? 0),
+                        'fulfilled_qty' => $item->fulfilled_qty,
                         'availableQuantity' => $availableQuantity, // الكمية المتوفرة الفعلية من مخزون المورد
                         'sentQuantity' => $sentQty,
                         'receivedQuantity' => $receivedQty,
-                        'unit' => $item->drug->unit ?? 'وحدة',
+                        'unit' => $item->drug->unit ?? 'قرص',
                         'dosage' => $item->drug->strength ?? null,
                         'strength' => $item->drug->strength ?? null,
                         'form' => $item->drug->form ?? null,
@@ -372,8 +373,17 @@ class ShipmentSupplierController extends BaseApiController
      * - fulfilled_qty: الكمية الفعلية المرسلة من Supplier
      * ثم يغير الحالة إلى 'fulfilled' ليتمكن StoreKeeper من تأكيد الاستلام
      */
+    /**
+     * تأكيد الشحنة وإرسالها
+     * POST /api/supplier/shipments/{id}/confirm
+     * عند القبول، يحدد Supplier:
+     * - approved_qty: الكمية المعتمدة من Supplier
+     * - fulfilled_qty: الكمية الفعلية المرسلة من Supplier
+     * ثم يغير الحالة إلى 'fulfilled' ليتمكن StoreKeeper من تأكيد الاستلام
+     */
     public function confirm(ConfirmShipmentRequest $request, $id)
     {
+        \Log::info('=== Starting supplier shipment confirmation ===', ['id' => $id]);
         DB::beginTransaction();
         try {
             $user = $request->user();
@@ -382,121 +392,127 @@ class ShipmentSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            $shipment = ExternalSupplyRequest::with('items')
+            $shipment = ExternalSupplyRequest::with('items.drug')
                 ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
 
-            // يجب أن تكون الحالة 'approved' (معتمدة من HospitalAdmin)
-            if ($shipment->status !== 'approved') {
-                return $this->sendError('لا يمكن تأكيد هذه الشحنة. يجب أن تكون معتمدة من مدير المستشفى أولاً.', null, 400);
+            // التحقق من أن الطلب ليس في حالة مغلقة
+            if (in_array($shipment->status, ['fulfilled', 'rejected', 'cancelled', 'delivered'])) {
+                return $this->sendError('لا يمكن تعديل طلب تم إغلاقه مسبقاً', null, 409);
             }
 
             // التحقق من البيانات المرسلة
             $data = $request->validated();
             
-            // ملاحظة: العلاقة الصحيحة للكميات:
-            // - requested_qty: الكمية المطلوبة من StoreKeeper
-            // - approved_qty: الكمية المعتمدة من Supplier (هنا)
-            // - fulfilled_qty: الكمية الفعلية المرسلة من Supplier (هنا)
-            
             if (isset($data['items']) && is_array($data['items'])) {
                 foreach ($data['items'] as $itemData) {
                     $item = $shipment->items->firstWhere('id', $itemData['id'] ?? null);
-                    if ($item) {
-                        // الكمية المعتمدة من Supplier
-                        $approvedQty = $itemData['approved_qty'] ?? null;
-                        if ($approvedQty === null) {
-                            // إذا لم يتم إرسال approved_qty، نستخدم fulfilled_qty أو sentQuantity أو requested_qty
-                            $approvedQty = $itemData['fulfilled_qty'] ?? 
-                                          $itemData['sentQuantity'] ?? 
-                                          $item->requested_qty;
+                    
+                    // Fallback search logic
+                    if (!$item) {
+                        $searchId = $itemData['id'] ?? null;
+                        $item = $shipment->items->firstWhere('drug_id', $searchId);
+                        
+                        if (!$item && (isset($itemData['drugId']) || isset($itemData['drug_id']))) {
+                            $dId = $itemData['drugId'] ?? $itemData['drug_id'];
+                            $item = $shipment->items->firstWhere('drug_id', $dId);
                         }
-                        
-                        // الكمية الفعلية المرسلة من Supplier
-                        $fulfilledQty = $itemData['fulfilled_qty'] ?? 
-                                       $itemData['sentQuantity'] ?? 
-                                       $approvedQty ?? 
-                                       $item->requested_qty;
-                        
-                        // حفظ الكميات
-                        $item->approved_qty = max(0, (float)$approvedQty); // الكمية المعتمدة من Supplier
-                        $item->fulfilled_qty = max(0, (float)$fulfilledQty); // الكمية الفعلية المرسلة من Supplier
-                        $item->save();
+                    }
 
-                        // خصم الكمية من مخزون المورد
-                        $inventory = Inventory::where('drug_id', $item->drug_id)
+                    if (!$item) continue;
+
+                    $qtyToFulfill = $itemData['receivedQuantity'] ??
+                                     $itemData['fulfilled_qty'] ?? 
+                                     $itemData['sentQuantity'] ?? 
+                                     $itemData['approved_qty'] ?? 
+                                     $item->requested_qty;
+                    
+                    $qtyToFulfill = max(0, (float)$qtyToFulfill);
+                    
+                    if ($qtyToFulfill > 0) {
+                        // 1. التحقق من توفر المخزون الإجمالي للمورد
+                        $supplierInventories = Inventory::where('drug_id', $item->drug_id)
                             ->where('supplier_id', $user->supplier_id)
                             ->whereNull('warehouse_id')
                             ->whereNull('pharmacy_id')
-                            ->first();
+                            ->whereNull('department_id')
+                            ->where('current_quantity', '>', 0)
+                            ->orderBy('expiry_date', 'asc') // FIFO: الأقدم صلاحية أولاً
+                            ->orderBy('created_at', 'asc')
+                            ->get();
 
-                        if ($inventory) {
-                            $inventory->current_quantity -= $item->fulfilled_qty;
+                        $totalAvailable = $supplierInventories->sum('current_quantity');
+
+                        // إذا كانت الكمية المطلوبة أكبر من المتوفر، نرفض العملية
+                        if ($totalAvailable < $qtyToFulfill) {
+                            DB::rollBack();
+                            $drugName = $item->drug ? $item->drug->name : 'Unknown Drug';
+                            return $this->sendError("الكمية غير متوفرة في مخزون المورد للدواء: {$drugName}. المتاح: {$totalAvailable}, المطلوب: {$qtyToFulfill}", null, 409);
+                        }
+
+                        // 2. توزيع الكمية على الدفعات (Splitting Logic)
+                        $remainingToDeduct = $qtyToFulfill;
+                        $batchesUsed = [];
+
+                        foreach ($supplierInventories as $inventory) {
+                            if ($remainingToDeduct <= 0) break;
+
+                            $deducted = min($inventory->current_quantity, $remainingToDeduct);
+                            
+                            // خصم الكمية من المخزون
+                            $inventory->current_quantity -= $deducted;
                             $inventory->save();
 
-                            // التحقق من أرشفة الدواء (خاص بسياسة الإيقاف التدريجي)
-                            $drug = $item->drug;
-                            if ($drug && $drug->status === \App\Models\Drug::STATUS_PHASING_OUT) {
-                                $totalStock = \App\Models\Inventory::where('drug_id', $drug->id)->sum('current_quantity');
-                                if ($totalStock <= 0) {
-                                    $drug->update(['status' => \App\Models\Drug::STATUS_ARCHIVED]);
-                                    
-                                    try {
-                                        $this->notifications->notifyDrugArchived($drug);
-                                    } catch (\Exception $e) {
-                                        \Log::error('Archived notification failed from supplier', ['error' => $e->getMessage()]);
-                                    }
-                                }
-                            }
+                            $remainingToDeduct -= $deducted;
 
-                            // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
-                            try {
-                                $this->notifications->checkAndNotifyLowStock($inventory);
-                            } catch (\Exception $e) {
-                                \Log::error('Supplier stock alert notification failed', ['error' => $e->getMessage()]);
-                            }
+                            // تسجيل الدفعة المستخدمة
+                            $batchesUsed[] = [
+                                'batch_number' => $inventory->batch_number,
+                                'expiry_date' => $inventory->expiry_date,
+                                'quantity' => $deducted
+                            ];
+                        }
+
+                        // 3. تحديث عنصر الشحنة (Shipment Item)
+                        if (count($batchesUsed) > 0) {
+                            // الدفعة الأولى تحدث السطر الأصلي
+                            $firstBatch = array_shift($batchesUsed);
                             
-                            \Log::info("Subtracted {$item->fulfilled_qty} of drug {$item->drug_id} from supplier {$user->supplier_id} inventory.");
-                        } else {
-                            \Log::warning("Inventory record not found for drug {$item->drug_id} and supplier {$user->supplier_id} during shipment confirmation.");
+                            // نضبط approved_qty (الكمية المعتمدة) لتكون نفس الكمية المرسلة لهذه الدفعة، حفاظاً على التناسق
+                            // ملاحظة: approved_qty الأصلية من HospitalAdmin قد تكون مختلفة، لكن هنا المورد يحدد ما تم إرساله
+                            // يمكنك اختيار إبقاء approved_qty الأصلية في السطر الأول فقط إذا أردت
+                            
+                            $item->fulfilled_qty = $firstBatch['quantity'];
+                            $item->batch_number = $firstBatch['batch_number'];
+                            $item->expiry_date = $firstBatch['expiry_date'];
+                            $item->save();
+                            
+                            // إنشاء سجلات جديدة لباقي الدفعات
+                            foreach ($batchesUsed as $batch) {
+                                $newItem = $item->replicate();
+                                $newItem->request_id = $shipment->id;
+                                $newItem->drug_id = $item->drug_id;
+                                $newItem->requested_qty = 0; // سطر فرعي
+                                $newItem->approved_qty = 0; // سطر فرعي
+                                $newItem->fulfilled_qty = $batch['quantity'];
+                                $newItem->batch_number = $batch['batch_number'];
+                                $newItem->expiry_date = $batch['expiry_date'];
+                                $newItem->save();
+                            }
                         }
-                    }
-                }
-            } else {
-                // إذا لم يتم إرسال items، نستخدم requested_qty كقيمة افتراضية
-                foreach ($shipment->items as $item) {
-                    $defaultQty = $item->requested_qty;
-                    $item->approved_qty = $defaultQty; // الكمية المعتمدة من Supplier
-                    $item->fulfilled_qty = $defaultQty; // الكمية الفعلية المرسلة من Supplier
-                    $item->save();
-
-                    // خصم الكمية من مخزون المورد
-                    $inventory = Inventory::where('drug_id', $item->drug_id)
-                        ->where('supplier_id', $user->supplier_id)
-                        ->whereNull('warehouse_id')
-                        ->whereNull('pharmacy_id')
-                        ->first();
-
-                    if ($inventory) {
-                        $inventory->current_quantity -= $item->fulfilled_qty;
-                        $inventory->save();
-
-                        // التنبيه في حالة انخفاض المخزون عن الحد الأدنى
-                        try {
-                            $this->notifications->checkAndNotifyLowStock($inventory);
-                        } catch (\Exception $e) {
-                            \Log::error('Supplier stock alert notification failed (default qty)', ['error' => $e->getMessage()]);
-                        }
+                    } else {
+                        // إذا كانت الكمية 0
+                        $item->fulfilled_qty = 0;
+                        $item->save();
                     }
                 }
             }
 
-            // تحديث الحالة إلى 'fulfilled' (تم الإرسال)
-            // الآن يمكن لـ StoreKeeper تأكيد الاستلام
+            // تحديث الحالة إلى 'fulfilled' (تم التنفيذ/الارسال) لكي تظهر لمسؤول المخزن للاستلام
             $shipment->status = 'fulfilled';
             $shipment->save();
 
-            // حفظ الملاحظات في audit_log إذا كانت موجودة
+            // حفظ الملاحظات
             $notes = $data['notes'] ?? null;
             if ($notes) {
                 try {
@@ -529,7 +545,7 @@ class ShipmentSupplierController extends BaseApiController
             return $this->sendSuccess([
                 'id' => $shipment->id,
                 'status' => $this->translateStatus($shipment->status),
-            ], 'تم تأكيد الشحنة وإرسالها بنجاح. يمكن لمسؤول المخزن تأكيد الاستلام.');
+            ], 'تم تأكيد الشحنة وإرسالها بنجاح.');
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->handleException($e, 'Supplier Confirm Shipment Error');
@@ -624,6 +640,7 @@ class ShipmentSupplierController extends BaseApiController
             'fulfilled' => 'قيد الاستلام',
             'delivered' => 'تم الاستلام',
             'rejected' => 'مرفوض',
+            'cancelled' => 'مرفوض',
         ];
 
         return $statuses[$status] ?? $status;

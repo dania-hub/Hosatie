@@ -15,8 +15,11 @@ class Inventory extends Model
     protected $fillable = [
         'drug_id',
         'warehouse_id',
-        'pharmacy_id', // <--- تمت الإضافة
+        'pharmacy_id',
+        'department_id',
         'current_quantity',
+        'expiry_date',
+        'batch_number',
         'minimum_level',
         'supplier_id',
     ];
@@ -38,6 +41,12 @@ class Inventory extends Model
         return $this->belongsTo(Pharmacy::class);
     }
 
+    // العلاقة مع القسم
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
@@ -50,17 +59,18 @@ class Inventory extends Model
      */
     public function isExpired(): bool
     {
-        if (!$this->drug || !$this->drug->expiry_date) {
+        if (!$this->expiry_date) {
             return false;
         }
 
         // تحويل تاريخ انتهاء الصلاحية إلى تاريخ فقط (Y-m-d) بدون وقت
-        $expiryDate = Carbon::parse($this->drug->expiry_date)->format('Y-m-d');
+        $expiryDate = Carbon::parse($this->expiry_date)->format('Y-m-d');
         // استخدام التاريخ الحالي فقط (Y-m-d) بدون وقت لتجنب مشاكل المنطقة الزمنية
         $today = Carbon::now()->format('Y-m-d');
         
-        // الدواء منتهي الصلاحية إذا كان تاريخ انتهاء الصلاحية اليوم أو قبل اليوم
-        return $expiryDate <= $today;
+        // الدواء منتهي الصلاحية إذا كان تاريخ انتهاء الصلاحية قبل اليوم
+        // (إذا كان يساوي اليوم فهو لا يزال صالحاً حتى نهاية اليوم)
+        return $expiryDate < $today;
     }
 
     /**
@@ -74,17 +84,10 @@ class Inventory extends Model
         // استخدام التاريخ الحالي فقط (Y-m-d) بدون وقت لتجنب مشاكل المنطقة الزمنية
         $today = Carbon::now()->format('Y-m-d');
         
-        // جلب جميع الأدوية المنتهية الصلاحية (اليوم أو قبل اليوم)
-        // استخدام DATE() في MySQL للمقارنة بالتاريخ فقط
-        $expiredDrugIds = Drug::whereRaw("DATE(expiry_date) <= ?", [$today])->pluck('id');
-        
-        if ($expiredDrugIds->isEmpty()) {
-            return 0;
-        }
-
-        // تصفير الكمية لجميع المخزونات المنتهية الصلاحية
-        return static::whereIn('drug_id', $expiredDrugIds)
-            ->where('current_quantity', '>', 0)
+        // تصفير الكمية لجميع المخزونات المنتهية الصلاحية (قبل اليوم)
+        return static::where('current_quantity', '>', 0)
+            ->whereNotNull('expiry_date')
+            ->whereRaw("DATE(expiry_date) < ?", [$today])
             ->update(['current_quantity' => 0]);
     }
 
@@ -95,12 +98,17 @@ class Inventory extends Model
     {
         parent::boot();
 
-        // تصفير الكميات للأدوية المنتهية الصلاحية عند كل عملية جلب
+        // تم تعطيل التصفير التلقائي عند الجلب (retrieved)
+        // لأن ذلك يخفي الأدوية التي انتهت صلاحيتها ولكن لا تزال في المخزون
+        // مما يسبب إرباكاً في عرض الكميات (يظهر الكمية 0 بينما هي موجودة فعلياً)
+        
+        /*
         static::retrieved(function ($inventory) {
             if ($inventory->current_quantity > 0 && $inventory->isExpired()) {
                 $inventory->current_quantity = 0;
                 $inventory->saveQuietly(); // حفظ بدون إطلاق أحداث إضافية
             }
         });
+        */
     }
 }

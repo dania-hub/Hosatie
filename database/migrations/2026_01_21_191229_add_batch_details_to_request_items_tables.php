@@ -12,13 +12,30 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('external_supply_request_items', function (Blueprint $table) {
-            $table->date('expiry_date')->nullable()->after('fulfilled_qty');
-            $table->string('batch_number')->nullable()->after('expiry_date');
+            if (!Schema::hasColumn('external_supply_request_items', 'expiry_date')) {
+                $table->date('expiry_date')->nullable()->after('fulfilled_qty');
+            }
+            if (!Schema::hasColumn('external_supply_request_items', 'batch_number')) {
+                $table->string('batch_number')->nullable()->after('expiry_date');
+            }
         });
 
         Schema::table('internal_supply_request_items', function (Blueprint $table) {
-            $table->date('expiry_date')->nullable()->after('fulfilled_qty');
-            $table->string('batch_number')->nullable()->after('expiry_date');
+            if (!Schema::hasColumn('internal_supply_request_items', 'expiry_date')) {
+                $table->date('expiry_date')->nullable()->after('fulfilled_qty');
+            }
+            if (!Schema::hasColumn('internal_supply_request_items', 'batch_number')) {
+                $table->string('batch_number')->nullable()->after('expiry_date');
+            }
+        });
+
+        Schema::table('inventories', function (Blueprint $table) {
+            if (!Schema::hasColumn('inventories', 'expiry_date')) {
+                $table->date('expiry_date')->nullable()->after('current_quantity');
+            }
+            if (!Schema::hasColumn('inventories', 'batch_number')) {
+                $table->string('batch_number')->nullable()->after('expiry_date');
+            }
         });
     }
 
@@ -32,6 +49,10 @@ return new class extends Migration
         });
 
         Schema::table('internal_supply_request_items', function (Blueprint $table) {
+            $table->dropColumn(['expiry_date', 'batch_number']);
+        });
+
+        Schema::table('inventories', function (Blueprint $table) {
             $table->dropColumn(['expiry_date', 'batch_number']);
         });
     }

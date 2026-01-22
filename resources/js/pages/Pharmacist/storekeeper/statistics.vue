@@ -7,7 +7,7 @@ import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
 // 0. نظام التنبيهات المطور (Toast System)
-// ----------------------------------------------------
+// -----------------------------------------
 const isAlertVisible = ref(false);
 const alertMessage = ref("");
 const alertType = ref("success");

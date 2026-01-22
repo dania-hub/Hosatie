@@ -199,8 +199,8 @@
                         <ul class="divide-y divide-gray-50 max-h-60 overflow-y-auto">
                             <li v-for="(item, index) in dailyDosageList" :key="index" class="p-4 flex justify-between items-center hover:bg-gray-50/50 transition-colors">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm">
-                                        {{ index + 1 }}
+                                    <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+                                        <Icon icon="solar:pill-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
                                     </div>
                                     <div>
                                         <p class="font-bold text-[#2E5077]">

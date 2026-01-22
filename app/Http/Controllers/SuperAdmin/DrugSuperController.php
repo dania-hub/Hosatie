@@ -61,7 +61,6 @@ class DrugSuperController extends BaseApiController
                     'utilization_type' => $drug->utilization_type,
                     'warnings' => $drug->warnings,
                     'indications' => $drug->indications,
-                    'expiryDate' => $drug->expiry_date,
                     'createdAt' => optional($drug->created_at)->format('Y-m-d'),
                 ];
             });
@@ -145,7 +144,6 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => 'required|string|max:100',
                 'warnings' => 'required|string',
                 'indications' => 'required|string',
-                'expiry_date' => 'required|date',
             ], [
                 'name.required' => 'اسم الدواء مطلوب',
                 'generic_name.required' => 'الاسم العلمي مطلوب',
@@ -160,7 +158,6 @@ class DrugSuperController extends BaseApiController
                 'utilization_type.required' => 'نوع الاستخدام مطلوب',
                 'warnings.required' => 'التحذيرات مطلوبة',
                 'indications.required' => 'دواعي الاستعمال مطلوبة',
-                'expiry_date.required' => 'تاريخ الانتهاء مطلوب',
             ]);
 
             if ($validator->fails()) {
@@ -191,7 +188,6 @@ class DrugSuperController extends BaseApiController
                 'warnings' => $request->warnings,
                 'indications' => $request->indications,
                 'contraindications' => $request->contraindications ?? '',
-                'expiry_date' => $request->expiry_date,
             ]);
 
             return $this->sendSuccess([
@@ -209,7 +205,6 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $drug->utilization_type,
                 'warnings' => $drug->warnings,
                 'indications' => $drug->indications,
-                'expiryDate' => $drug->expiry_date,
                 'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم إضافة الدواء بنجاح', 201);
 
@@ -247,7 +242,6 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => 'sometimes|required|string|max:100',
                 'warnings' => 'sometimes|required|string',
                 'indications' => 'sometimes|required|string',
-                'expiry_date' => 'sometimes|required|date',
             ]);
 
             if ($validator->fails()) {
@@ -257,7 +251,7 @@ class DrugSuperController extends BaseApiController
             $drug->update($request->only([
                 'name', 'generic_name', 'strength', 'form', 'category', 
                 'unit', 'max_monthly_dose', 'status', 'manufacturer', 'country',
-                'utilization_type', 'warnings', 'indications', 'expiry_date'
+                'utilization_type', 'warnings', 'indications'
             ]));
 
             return $this->sendSuccess([
@@ -275,7 +269,6 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $drug->utilization_type,
                 'warnings' => $drug->warnings,
                 'indications' => $drug->indications,
-                'expiryDate' => $drug->expiry_date,
                 'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم تعديل بيانات الدواء بنجاح');
 

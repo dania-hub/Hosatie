@@ -242,13 +242,15 @@
                                         <td
                                             :class="{
                                                 'text-red-600 font-semibold':
-                                                    shipment.requestStatus ==='مرفوضة',
+                                                    shipment.requestStatus === 'مرفوض' || shipment.requestStatus === 'مرفوضة',
+                                                'text-blue-600 font-semibold':
+                                                    shipment.requestStatus === 'تم الاستلام' || shipment.requestStatus === 'تم الإستلام',
+                                                'text-amber-500 font-semibold':
+                                                    shipment.requestStatus === 'قيد الاستلام',
                                                 'text-green-600 font-semibold':
-                                                    shipment.requestStatus ===
-                                                    'تم الإستلام',
-                                                'text-blue-500 font-semibold':
-                                                    shipment.requestStatus ===
-                                                    'قيد الاستلام',
+                                                    shipment.requestStatus === 'جديد' || shipment.requestStatus === 'approved',
+                                                'text-gray-500 font-semibold':
+                                                    shipment.requestStatus === 'قيد الانتظار' || shipment.requestStatus === 'pending',
                                             }"
                                         >
                                             {{ shipment.requestStatus }}
@@ -267,7 +269,7 @@
                                                 </button>
                                                 
                                                 <!-- زر الإجراء الثاني يختلف حسب الحالة -->
-                                                <template v-if="shipment.requestStatus === 'مرفوضة'">
+                                                <template v-if="shipment.requestStatus === 'مرفوض' || shipment.requestStatus === 'مرفوضة'">
                                                     <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
                                                         <Icon
                                                             icon="tabler:circle-x" 
@@ -276,7 +278,7 @@
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.requestStatus === 'تم الإستلام'">
+                                                <template v-else-if="shipment.requestStatus === 'تم الاستلام' || shipment.requestStatus === 'تم الإستلام'">
                                                     <!-- علامة الصح عندما تكون الحالة "تم الإستلام" -->
                                                     <button class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="تم الإستلام">
                                                         <Icon
@@ -290,18 +292,21 @@
                                                     <!-- زر تأكيد الاستلام عندما تكون الحالة "قيد الاستلام" -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
-                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                        class="tooltip p-2 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         data-tip="تأكيد الإستلام">
                                                         <Icon
                                                             icon="tabler:truck-delivery"
-                                                            class="w-4 h-4 text-blue-500 cursor-pointer hover:scale-110 transition-transform"
+                                                            class="w-4 h-4 text-amber-500 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
 
                                                 <template v-else-if="shipment.requestStatus === 'تم التنفيذ' || shipment.requestStatus === 'fulfilled'">
                                                     <!-- زر تتبع الشحنة عندما تكون الحالة تم التنفيذ -->
-                                                    <button class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="تم التنفيذ">
+                                                    <button 
+                                                        @click="openConfirmationModal(shipment)"
+                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" 
+                                                        data-tip="معالجة الشحنة (تعديل/تأكيد)">
                                                         <Icon
                                                             icon="tabler:truck-delivery"
                                                             class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
@@ -378,7 +383,7 @@ import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
 import SupplyRequestModal from "@/components/forpharmacist/SupplyRequestModal.vue";
 import RequestViewModal from "@/components/forSu/RequestViewModal.vue"; 
-import ConfirmationModal from "@/components/fordepartment/ConfirmationModal.vue"; 
+import ConfirmationModal from "@/components/forSu/ConfirmationsModal.vue"; 
 import Toast from "@/components/Shared/Toast.vue";
 
 // ----------------------------------------------------
@@ -419,7 +424,7 @@ const endpoints = {
   shipments: {
     getAll: () => api.get('/supply-requests'),
     getById: (id) => api.get(`/supply-requests/${id}`),
-    confirm: (id, data) => api.post(`/supply-requests/${id}/confirm`, data)
+    confirm: (id, data) => api.post(`/shipments/${id}/confirm`, data)
   },
   categories: {
     getAll: () => api.get('/categories')
@@ -831,7 +836,10 @@ const openConfirmationModal = async (shipment) => {
         if (fetchedData) {
             shipment.details = {
                 id: fetchedData.id,
-                date: fetchedData.requestDate || fetchedData.created_at,
+                date: fetchedData.createdAt || fetchedData.requestDate || fetchedData.created_at || shipment.requestDate || shipment.created_at,
+                created_at: fetchedData.created_at || shipment.created_at || shipment.requestDate,
+                createdAt: fetchedData.createdAt || fetchedData.created_at || shipment.created_at || shipment.requestDate,
+                requestDate: fetchedData.requestDate || shipment.requestDate,
                 status: fetchedData.status,
                 items: fetchedData.items || [],
                 notes: fetchedData.notes || '',
@@ -846,7 +854,19 @@ const openConfirmationModal = async (shipment) => {
         console.error('Error fetching shipment details:', err);
     }
     
-    selectedShipmentForConfirmation.value = shipment.details; 
+    selectedShipmentForConfirmation.value = {
+        ...shipment.details,
+        items: (shipment.details.items || []).map(item => ({
+            ...item,
+            // تعيين الكميات للحقل المناسب في Modal
+            originalQuantity: item.quantity || item.requestedQty || item.requested_qty || 0,
+            availableQuantity: item.availableQuantity ?? item.stock ?? item.currentStock ?? 0,
+            // تمرير البيانات الموجودة مسبقاً
+            sentQuantity: item.fulfilled_qty || item.fulfilledQty || item.sentQuantity || item.quantity,
+            batchNumber: item.batch_number || item.batchNumber || null,
+            expiryDate: item.expiry_date || item.expiryDate || null
+        }))
+    }; 
     isConfirmationModalOpen.value = true;
 };
 
@@ -860,8 +880,12 @@ const handleConfirmation = async (confirmationData) => {
     const shipmentId = selectedShipmentForConfirmation.value.id;
     
     try {
-        // إرسال بيانات التأكيد (يمكن أن تكون فارغة أو تحتوي على ملاحظات)
-        const response = await endpoints.shipments.confirm(shipmentId, confirmationData || {});
+        // إعداد بيانات الطلب للتوافق مع الباك إند
+        const payload = {
+            items: confirmationData.receivedItems || [],
+            notes: confirmationData.notes
+        };
+        const response = await endpoints.shipments.confirm(shipmentId, payload);
         // Laravel Resources wrap collections in a 'data' property
         const responseData = response.data?.data ?? response.data;
         

@@ -106,13 +106,28 @@
                                 class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
                             >
                                 <div class="flex-1 w-full md:w-auto">
-                                    <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                    <div class="flex items-center gap-2">
+                                        <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
+                                        <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                    </div>
                                     <div class="flex gap-2 mt-1">
                                         <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
                                             {{ item.dosage }}
                                         </span>
                                         <span v-if="item.type" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
                                             {{ item.type }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Batch Info -->
+                                    <div v-if="item.batch_number || item.batchNumber || item.expiry_date || item.expiryDate" class="flex items-center gap-3 mt-2 text-xs">
+                                        <span v-if="item.batch_number || item.batchNumber" class="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 flex items-center gap-1">
+                                            <Icon icon="solar:tag-bold" class="w-3 h-3" />
+                                            رقم الشحنة: {{ item.batch_number || item.batchNumber }}
+                                        </span>
+                                        <span v-if="item.expiry_date || item.expiryDate" class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100 flex items-center gap-1">
+                                            <Icon icon="solar:calendar-bold" class="w-3 h-3" />
+                                            تاريخ إنتهاء الصلاحية: {{ formatDate(item.expiry_date || item.expiryDate) }}
                                         </span>
                                     </div>
                                 </div>

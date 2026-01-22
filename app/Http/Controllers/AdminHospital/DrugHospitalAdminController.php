@@ -57,13 +57,59 @@ class DrugHospitalAdminController extends BaseApiController
                 return $this->sendSuccess([], 'لا توجد صيدليات أو مستودعات نشطة في المستشفى.');
             }
 
-            // تسجيل للمساعدة في التصحيح
             Log::debug('Hospital Pharmacies and Warehouses', [
                 'hospital_id' => $hospitalId,
                 'pharmacy_ids' => $pharmacyIds,
                 'pharmacy_names' => $pharmacies->pluck('name')->toArray(),
                 'warehouse_ids' => $warehouseIds,
             ]);
+
+            // معالجة الأدوية منتهية الصلاحية لجميع مخازن المستشفى
+            $today = Carbon::now()->format('Y-m-d');
+            $expiredInventories = Inventory::where('current_quantity', '>', 0)
+                ->whereNotNull('expiry_date')
+                ->whereRaw("DATE(expiry_date) <= ?", [$today])
+                ->where(function($q) use ($pharmacyIds, $warehouseIds) {
+                    if (!empty($pharmacyIds)) $q->whereIn('pharmacy_id', $pharmacyIds);
+                    if (!empty($warehouseIds)) $q->orWhereIn('warehouse_id', $warehouseIds);
+                })
+                ->with(['drug', 'pharmacy', 'warehouse'])
+                ->get();
+
+            foreach ($expiredInventories as $expired) {
+                $drugExpiryDate = $expired->expiry_date ? date('Y/m/d', strtotime($expired->expiry_date)) : null;
+                
+                // التحقق من عدم التكرار في سجلات التصفير
+                $exists = \App\Models\AuditLog::where('action', 'drug_expired_zeroed')
+                    ->where('hospital_id', $hospitalId)
+                    ->where('record_id', $expired->id)
+                    ->exists();
+
+                if (!$exists) {
+                    \App\Models\AuditLog::create([
+                        'user_id' => $user->id,
+                        'hospital_id' => $hospitalId,
+                        'action' => 'drug_expired_zeroed',
+                        'table_name' => 'inventories',
+                        'record_id' => $expired->id,
+                        'old_values' => json_encode(['quantity' => $expired->current_quantity]),
+                        'new_values' => json_encode([
+                            'drugName' => $expired->drug?->name,
+                            'drugId' => $expired->drug_id,
+                            'strength' => $expired->drug?->strength,
+                            'quantity' => $expired->current_quantity,
+                            'expiryDate' => $drugExpiryDate,
+                            'pharmacyId' => $expired->pharmacy_id,
+                            'warehouseId' => $expired->warehouse_id,
+                            'locationName' => $expired->pharmacy?->name ?? $expired->warehouse?->name,
+                        ]),
+                        'ip_address' => $request->ip(),
+                    ]);
+
+                    // تصفير الكمية فعلياً 
+                    $expired->update(['current_quantity' => 0]);
+                }
+            }
 
             // جلب المخزون من جميع الصيدليات والمستودعات في المستشفى فقط
             // استخدام joins للتأكد من أن الصيدليات والمستودعات تتبع المستشفى الصحيح
@@ -307,8 +353,19 @@ class DrugHospitalAdminController extends BaseApiController
                     ];
                 })->values();
 
+                // تفاصيل الدفعات (الشحنات) عبر جميع الصيدليات والمستودعات
+                $batches = $drugInventories->map(function ($inv) {
+                    $locationName = $inv->pharmacy?->name ?? $inv->warehouse?->name ?? 'غير معروف';
+                    return [
+                        'batchNumber' => $inv->batch_number ?? 'غير محدد',
+                        'expiryDate' => $inv->expiry_date ? date('Y/m/d', strtotime($inv->expiry_date)) : 'غير محدد',
+                        'quantity' => $inv->current_quantity,
+                        'location' => $locationName,
+                    ];
+                })->values();
+
                 return [
-                    'id' => $drugInventories->first()?->id ?? null, // ID أول مخزون إن وجد
+                    'id' => $drug->id, 
                     'drugCode' => $drug->id,
                     'drugName' => $drug->name,
                     'genericName' => $drug->generic_name,
@@ -328,7 +385,7 @@ class DrugHospitalAdminController extends BaseApiController
                     'neededQuantity' => $pharmacyNeededQuantity + $warehouseNeededQuantity, // الكمية المحتاجة الإجمالية (للتوافق مع الكود القديم)
                     'pharmacyNeededQuantity' => $pharmacyNeededQuantity, // الكمية المحتاجة للصيدليات
                     'warehouseNeededQuantity' => $warehouseNeededQuantity, // الكمية المحتاجة للمستودعات
-                    'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                    'batches' => $batches,
                     'description' => $drug->description ?? '',
                     'type' => $drug->form ?? 'Tablet',
                     'pharmacies' => $pharmaciesInfo, // معلومات الصيدليات التي تحتوي على الدواء
@@ -548,8 +605,25 @@ class DrugHospitalAdminController extends BaseApiController
             }
             $warehouseNeededQuantity = max(0, $totalRequestedQty - $warehouseQuantity);
 
+            // تجميع الدفعات لهذا الدواء عبر جميع صيدليات ومستودعات المستشفى
+            $batches = $inventories->map(function($inv) {
+                $location = 'غير محدد';
+                if ($inv->pharmacy) {
+                    $location = 'صيدلية: ' . $inv->pharmacy->name;
+                } elseif ($inv->warehouse) {
+                    $location = 'مستودع: ' . $inv->warehouse->name;
+                }
+
+                return [
+                    'batchNumber' => $inv->batch_number ?? '-',
+                    'expiryDate' => $inv->expiry_date ? \Carbon\Carbon::parse($inv->expiry_date)->format('Y/m/d') : '-',
+                    'quantity' => (int)$inv->current_quantity,
+                    'location' => $location
+                ];
+            });
+
             $data = [
-                'id' => $inventories->first()->id ?? null,
+                'id' => $drug->id,
                 'drugCode' => $drug->id,
                 'drugName' => $drug->name,
                 'name' => $drug->name,
@@ -573,7 +647,8 @@ class DrugHospitalAdminController extends BaseApiController
                 'neededQuantity' => $pharmacyNeededQuantity + $warehouseNeededQuantity,
                 'pharmacyNeededQuantity' => $pharmacyNeededQuantity,
                 'warehouseNeededQuantity' => $warehouseNeededQuantity,
-                'expiryDate' => $drug->expiry_date ? date('Y/m/d', strtotime($drug->expiry_date)) : null,
+                'batches' => $batches,
+                'description' => $drug->description ?? '',
                 'type' => $drug->form ?? 'Tablet',
             ];
 

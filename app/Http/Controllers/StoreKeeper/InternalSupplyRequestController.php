@@ -325,13 +325,10 @@ class InternalSupplyRequestController extends BaseApiController
             'confirmationNotesSource' => $notes['confirmationNotesSource'],
             'rejectionReason' => $notes['rejectionReason'], // جلب سبب الرفض من audit_log
             'items'          => $req->items->map(function ($item) use ($warehouseId, $req) {
-                // جلب المخزون المتاح لهذا الدواء في المستودع
-                $inventory = Inventory::where('warehouse_id', $warehouseId)
+                // حساب إجمالي المخزون المتاح لهذا الدواء في المستودع (من جميع الدفعات)
+                $availableStock = Inventory::where('warehouse_id', $warehouseId)
                     ->where('drug_id', $item->drug_id)
-                    ->first();
-                
-                // التأكد من جلب الكمية الصحيحة من قاعدة البيانات
-                $availableStock = $inventory ? (int) $inventory->current_quantity : 0;
+                    ->sum('current_quantity');
                 
                 // جلب جميع الطلبات التي بحالة "جديد" (pending) والتي تحتوي نفس الدواء
                 $allPendingRequests = DB::table('internal_supply_request_items')
@@ -413,20 +410,21 @@ class InternalSupplyRequestController extends BaseApiController
                     'name'           => $item->drug->name ?? '', // للتوافق مع المكون
                     'requested_qty'  => $item->requested_qty,
                     'quantity'       => $item->requested_qty, // للتوافق مع المكون
-                    'approved_qty'   => $item->approved_qty,
-                    'fulfilled_qty'  => $item->fulfilled_qty,
-                    'sentQuantity'   => $item->approved_qty ?? $suggestedQuantity, // للتوافق مع المكون - استخدام approved_qty إذا كان موجوداً، وإلا suggestedQuantity
-                    'receivedQuantity' => $item->fulfilled_qty, // للتوافق مع المكون
+                    'approved_qty'   => $item->approved_qty ?? 0,
+                    'fulfilled_qty'  => $item->fulfilled_qty ?? 0,
+                    'sentQuantity'   => ($item->approved_qty ?? $suggestedQuantity), // للتوافق مع المكون - استخدام approved_qty إذا كان موجوداً، وإلا suggestedQuantity
+                    'receivedQuantity' => $item->fulfilled_qty ?? 0, // للتوافق مع المكون
                     'availableQuantity' => $availableStock, // المخزون المتاح
                     'suggestedQuantity' => $suggestedQuantity, // الكمية المقترحة من الـ API
                     'stock'          => $availableStock, // للتوافق مع المكون
-                    'suggestedQuantity' => $suggestedQuantity, // الكمية المقترحة
                     'totalOtherRequestsQty' => $totalOtherRequestsQty, // إجمالي طلبات الأدوية الأخرى
                     'strength'       => $item->drug->strength ?? '',
                     'dosage'         => $item->drug->strength ?? '', // للتوافق مع المكون
                     'form'           => $item->drug->form ?? '',
                     'type'           => $item->drug->form ?? '', // للتوافق مع المكون
-                    'unit'           => $item->drug->unit ?? 'وحدة',
+                    'unit'           => $item->drug->unit ?? 'قرص',
+                    'batch_number'   => $item->batch_number,
+                    'expiry_date'    => $item->expiry_date,
                 ];
             }),
             'confirmationDetails' => null,
@@ -521,7 +519,8 @@ class InternalSupplyRequestController extends BaseApiController
         $validated = $request->validate([
             'items'                 => 'required|array|min:1',
             'items.*.id'            => 'required|exists:internal_supply_request_items,id',
-            'items.*.sentQuantity'  => 'required|integer|min:0',
+            'items.*.sentQuantity'  => 'required|numeric|min:0', // Changed to numeric to support floats if needed
+            'items.*.batch_number'  => 'nullable|string|max:100',
             'notes'                 => 'nullable|string|max:1000',
         ]);
 
@@ -569,78 +568,138 @@ class InternalSupplyRequestController extends BaseApiController
         try {
             \Log::info('Processing items', ['count' => count($validated['items'])]);
             
-            // التحقق من جميع الأدوية قبل البدء في المعالجة
-            $inventoryChecks = [];
             foreach ($validated['items'] as $index => $itemData) {
                 $item = $req->items->firstWhere('id', $itemData['id']);
                 if (!$item) {
                     continue;
                 }
 
-                $qty = (int) $itemData['sentQuantity'];
+                $qtyNeeded = (float) $itemData['sentQuantity'];
+                $batchNumber = $itemData['batch_number'] ?? null;
                 
-                if ($qty > 0) {
+                if ($qtyNeeded > 0) {
                     $drugId = $item->drug_id;
-                    $warehouseInventory = Inventory::where('warehouse_id', $warehouseId)
+                    $inventoryQuery = Inventory::where('warehouse_id', $warehouseId)
                         ->where('drug_id', $drugId)
-                        ->first();
-
-                    if (!$warehouseInventory) {
-                        DB::rollBack();
-                        return response()->json([
-                            'message' => "لا يوجد مخزون للمستودع لهذا الدواء (ID: {$drugId})"
-                        ], 404);
+                        ->where('current_quantity', '>', 0);
+                    
+                    // إذا تم تحديد دفعة معينة يدوياً
+                    if ($batchNumber) {
+                        $inventoryQuery->where('batch_number', $batchNumber);
+                        $inventories = $inventoryQuery->get(); // قد يكون هناك سجل واحد أو أكثر (نادر ولكن ممكن)
+                    } else {
+                        // FEFO (First Expired First Out)
+                        // نجلب جميع الدفعات المتوفرة مرتبة حسب تاريخ الانتهاء
+                        $inventories = $inventoryQuery->orderBy('expiry_date', 'asc')
+                                                      ->orderBy('created_at', 'asc')
+                                                      ->get();
                     }
 
-                    if ($warehouseInventory->current_quantity < $qty) {
+                    if ($inventories->isEmpty()) {
                         DB::rollBack();
                         $drugName = $item->drug ? $item->drug->name : "ID: {$drugId}";
                         return response()->json([
-                            'message' => "الكمية غير متوفرة في المخزن للدواء: {$drugName} (المتاح: {$warehouseInventory->current_quantity}, المطلوب: {$qty})",
+                            'message' => "لا يوجد مخزون للمستودع لهذا الدواء: {$drugName}" . ($batchNumber ? " (الدُفعة: $batchNumber)" : "")
+                        ], 404);
+                    }
+
+                    // التحقق من كفاية المخزون الإجمالي (فقط إذا لم نكن نستخدم دفعة محددة، أو يمكن التحقق للدُفعة المحددة أيضاً)
+                    $totalAvailable = $inventories->sum('current_quantity');
+                    if ($totalAvailable < $qtyNeeded) {
+                        DB::rollBack();
+                        $drugName = $item->drug ? $item->drug->name : "ID: {$drugId}";
+                        return response()->json([
+                            'message' => "الكمية غير متوفرة في المخزن للدواء: {$drugName}" . ($batchNumber ? " (الدُفعة: $batchNumber)" : "") . " (المتاح الكلي: {$totalAvailable}, المطلوب: {$qtyNeeded})",
                         ], 409);
                     }
 
-                    // خصم من المستودع
-                    $warehouseInventory->current_quantity -= $qty;
-                    $warehouseInventory->save();
+                    // توزيع الكمية المطلوبة على الدفعات (Splitting Logic)
+                    $batchesUsed = []; // لتخزين الدفعات التي تم السحب منها: [inventory_id, deducted_qty, batch_number, expiry_date]
+                    $remainingToDeduct = $qtyNeeded;
 
-                    // التنبيه في حالة انخفاض المخزون
-                    try {
-                        $this->notifications->checkAndNotifyLowStock($warehouseInventory);
-                    } catch (\Exception $e) {
-                        \Log::error('Stock alert notification failed', ['error' => $e->getMessage()]);
+                    foreach ($inventories as $inv) {
+                        if ($remainingToDeduct <= 0) break;
+
+                        $deducted = min($inv->current_quantity, $remainingToDeduct);
+                        
+                        // خصم الكمية من المخزون
+                        $inv->current_quantity -= $deducted;
+                        $inv->save();
+                        
+                        // التنبيه في حالة انخفاض المخزون
+                        try {
+                            $this->notifications->checkAndNotifyLowStock($inv);
+                        } catch (\Exception $e) {
+                            // ignore log here to reduce spam
+                        }
+
+                        $remainingToDeduct -= $deducted;
+                        
+                        $batchesUsed[] = [
+                            'batch_number' => $inv->batch_number,
+                            'expiry_date' => $inv->expiry_date,
+                            'quantity' => $deducted
+                        ];
+                    }
+                    
+                    // الآن نقوم بتحديث الـ Items في الطلب
+                    // إذا تم استخدام أكثر من دفعة، نقوم بتقسيم الـ item
+                    if (count($batchesUsed) > 0) {
+                        // استخدام الدفعة الأولى لتحديث السجل الحالي
+                        $firstBatch = array_shift($batchesUsed);
+                        
+                        $item->approved_qty = $firstBatch['quantity'];
+                        $item->fulfilled_qty = 0; // لم يستلم بعد
+                        $item->batch_number = $firstBatch['batch_number'];
+                        $item->expiry_date = $firstBatch['expiry_date'];
+                        $item->save();
+                        
+                        // إنشاء سجلات جديدة لباقي الدفعات
+                        foreach ($batchesUsed as $batch) {
+                            $newItem = $item->replicate();
+                            $newItem->request_id = $req->id; // Ensure link to same request
+                            $newItem->requested_qty = 0; // هذا عنصر منقسم، ليس طلباً جديداً (لتجنب تضخيم الإجماليات)
+                            $newItem->approved_qty = $batch['quantity'];
+                            $newItem->fulfilled_qty = 0;
+                            $newItem->batch_number = $batch['batch_number'];
+                            $newItem->expiry_date = $batch['expiry_date'];
+                            $newItem->save();
+                        }
+                    } else {
+                        // حالة نظرية: الكمية = 0 أو خطأ ما، نحدث السجل الحالي بصفر (تم التحقق من > 0 سابقاً)
+                        $item->approved_qty = 0;
+                        $item->save();
                     }
 
-                    // التحقق من الأرشفة التلقائية بعد خصم المخزون
+                    // التحقق من الأرشفة التلقائية
                     try {
                         if ($item->drug) {
                             $item->drug->checkAndArchiveIfNoStock($user->hospital_id);
                         }
                     } catch (\Exception $e) {
-                        \Log::error('Auto-archiving check failed in InternalSupplyRequestController@confirm', ['error' => $e->getMessage()]);
+                        \Log::error('Auto-archiving check failed', ['error' => $e->getMessage()]);
                     }
+                } else {
+                    // إذا كانت الكمية المرسلة 0
+                    $item->approved_qty = 0;
+                    $item->fulfilled_qty = 0;
+                    $item->save();
                 }
-
-                // تثبيت الكميات في عناصر الطلب الداخلي
-                $item->approved_qty  = $qty; // الكمية المرسلة من storekeeper (حتى لو كانت 0)
-                $item->fulfilled_qty = 0; 
-                $item->save();
             }
 
             \Log::info('Updating request status');
             
             // تحديث حالة الطلب
             $req->status = 'approved';
-            $req->handeled_by = $user->id; // Assign the storekeeper who approved it
+            $req->handeled_by = $user->id; 
             $req->handeled_at = now();
-            // ملاحظة: تم إزالة عمود notes من الجدول، لذا نحفظ الملاحظات في audit_log فقط
             $req->save();
 
             \Log::info('Committing transaction');
             DB::commit();
             \Log::info('Transaction committed successfully');
 
-            // تسجيل عملية تجهيز الطلب الداخلي وخصم الكميات (خارج الـ transaction)
+            // تسجيل العملية
             try {
                 AuditLog::create([
                     'user_id'    => $user->id,
@@ -651,33 +710,23 @@ class InternalSupplyRequestController extends BaseApiController
                     'old_values' => null,
                     'new_values' => json_encode([
                         'status' => $req->status,
-                        'items'  => collect($validated['items'])->map(fn($i) => [
-                            'item_id'       => $i['id'],
-                            'sentQuantity'  => $i['sentQuantity'],
-                        ])->toArray(),
-                        'notes'  => $validated['notes'] ?? null, // ملاحظة storekeeper عند الإرسال
+                        'items_count' => count($validated['items']),
+                        'notes'  => $validated['notes'] ?? null, 
                     ]),
                     'ip_address' => $request->ip(),
                 ]);
 
-                // إنشاء إشعار للمستخدم الطالب (requester)
-                \Log::info('Attempting to create success notification', [
-                    'requested_by' => $req->requested_by,
-                    'handeled_by'  => $user->id,
-                    'request_id'   => $req->id
-                ]);
-
-                 if ($req->requester) {
-                      $this->notifications->notifyRequesterShipmentApproved($req->requester, $req);
-                 } else {
-                      $requester = \App\Models\User::find($req->requested_by);
-                      if ($requester) {
-                           $this->notifications->notifyRequesterShipmentApproved($requester, $req);
-                      }
-                 }
+                // إشعار
+                if ($req->requester) {
+                     $this->notifications->notifyRequesterShipmentApproved($req->requester, $req);
+                } elseif ($req->requested_by) {
+                     $requester = \App\Models\User::find($req->requested_by);
+                     if ($requester) {
+                          $this->notifications->notifyRequesterShipmentApproved($requester, $req);
+                     }
+                }
 
             } catch (\Exception $auditError) {
-                // لا نفشل العملية إذا فشل الـ logging
                 \Log::error('Failed to create audit log/notification', ['error' => $auditError->getMessage()]);
             }
 

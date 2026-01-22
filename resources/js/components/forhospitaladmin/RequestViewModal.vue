@@ -103,7 +103,10 @@
                                     class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
                                 >
                                     <div class="flex-1 w-full md:w-auto">
-                                        <div class="font-bold text-[#2E5077] text-lg">{{ item.name || item.drugName }}</div>
+                                        <div class="flex items-center gap-2">
+                                            <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
+                                            <div class="font-bold text-[#2E5077] text-lg">{{ item.name || item.drugName }}</div>
+                                        </div>
                                         <div class="flex gap-2 mt-1 flex-wrap">
                                             <span v-if="item.strength || item.dosage" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-medium">
                                                 القوة: {{ item.strength || item.dosage }}

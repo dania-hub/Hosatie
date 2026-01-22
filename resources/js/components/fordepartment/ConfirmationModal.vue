@@ -48,7 +48,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
                                 <span class="text-gray-500 font-medium">رقم الشحنة</span>
-                                <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestData.id || 'غير محدد' }}</span>
+                                <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestData.shipmentNumber || requestData.id || 'غير محدد' }}</span>
                             </div>
                             <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
                                 <span class="text-gray-500 font-medium">تاريخ الطلب</span>
@@ -60,7 +60,7 @@
                     <!-- Items List -->
                     <div class="space-y-4">
                         <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:checklist-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            <Icon icon="solar:pill-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                             الكميات المستلمة
                         </h3>
 
@@ -72,10 +72,23 @@
                                     class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
                                 >
                                     <div class="flex-1 w-full md:w-auto">
-                                        <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                        <div class="flex items-center gap-2">
+                                            <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
+                                            <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                        </div>
                                         <div class="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
                                             <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-medium">مطلوب: {{ item.originalQuantity }} {{ item.unit }}</span>
                                             <span v-if="item.sentQuantity !== null && item.sentQuantity !== undefined && !isNaN(item.sentQuantity)" class="bg-green-50 text-green-600 px-2 py-0.5 rounded-md font-medium">مرسل: {{ item.sentQuantity }} {{ item.unit }}</span>
+                                            
+                                            <!-- Batch & Expiry Display -->
+                                            <div v-if="item.batchNumber" class="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 font-medium text-xs">
+                                                <Icon icon="solar:tag-bold" class="w-3 h-3" />
+                                                <span>رقم الشحنة: {{ item.batchNumber }}</span>
+                                            </div>
+                                            <div v-if="item.expiryDate" class="flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100 font-medium text-xs">
+                                                <Icon icon="solar:calendar-bold" class="w-3 h-3" />
+                                                <span>تاريخ انتهاءالصلاحية: {{ formatDate(item.expiryDate) }}</span>
+                                            </div>
                                         </div>
                                     </div>
                                     
@@ -276,6 +289,9 @@ watch(() => props.requestData.items, (newItems) => {
                 originalQuantity: requestedQty,
                 sentQuantity: sentQty,
                 receivedQuantity: Number(receivedQty),
+                // تعيين رقم الدفعة تلقائياً بناءً على رقم الشحنة إذا لم يكن محدداً
+                batchNumber: item.batchNumber || item.batch_number || props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null),
+                expiryDate: item.expiryDate || item.expiry_date || null,
                 unit: item.unit || 'وحدة'
             };
         });
@@ -315,6 +331,8 @@ const confirmReceipt = async () => {
                 name: item.name,
                 originalQuantity: item.originalQuantity,
                 receivedQuantity: item.receivedQuantity,
+                batchNumber: item.batchNumber,
+                expiryDate: item.expiryDate,
                 unit: item.unit
             })),
             notes: notes.value.trim()

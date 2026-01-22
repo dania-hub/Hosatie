@@ -77,6 +77,7 @@
                                     <!-- Item Info -->
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                            <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
                                             <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name }}</h4>
                                             <span v-if="item.strength || item.dosage" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-medium">
                                                 القوة: {{ item.strength || item.dosage }}

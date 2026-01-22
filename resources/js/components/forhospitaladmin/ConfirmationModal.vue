@@ -75,6 +75,7 @@
                                     <!-- Item Info -->
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2 mb-1">
+                                            <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
                                             <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name }}</h4>
                                             <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">
                                                 {{ item.dosage }}
@@ -344,11 +345,13 @@ const closeModal = () => {
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
+    appearance: none;
     margin: 0;
 }
 
 input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .animate-in {

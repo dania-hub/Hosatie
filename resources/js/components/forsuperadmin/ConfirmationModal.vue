@@ -59,7 +59,7 @@
                 <!-- Items Section -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                        <Icon icon="solar:checklist-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        <Icon icon="solar:pill-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         <span v-if="isProcessing">الكميات المستلمة</span>
                         <span v-else>الأدوية المطلوبة والمخزون المتاح</span>
                     </h3>
@@ -75,6 +75,7 @@
                                     <!-- Item Info -->
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2 mb-1">
+                                            <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
                                             <h4 class="font-bold text-[#2E5077] text-lg">{{ item.name }}</h4>
                                             <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">
                                                 {{ item.dosage }}
@@ -767,6 +768,7 @@ const closeModal = () => {
 <style scoped>
 input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .animate-in {

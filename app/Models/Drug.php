@@ -30,7 +30,7 @@ class Drug extends Model
         'country',
         'utilization_type',
         'warnings','indications', 'contraindications',
-        'expiry_date',
+        'units_per_box',
     ];
 
     // ============================================================

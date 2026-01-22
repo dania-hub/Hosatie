@@ -702,7 +702,9 @@ const openRequestViewModal = async (shipment) => {
                 fulfilled_qty: item.fulfilled_qty || null,
                 unit: item.unit || 'وحدة',
                 dosage: item.dosage || item.strength,
-                strength: item.strength || item.dosage
+                strength: item.strength || item.dosage,
+                batchNumber: item.batchNumber || item.batch_number || null,
+                expiryDate: item.expiryDate || item.expiry_date || null
             })),
             notes: data.notes || '',
             storekeeperNotes: data.storekeeperNotes || null,
@@ -764,7 +766,7 @@ const openConfirmationModal = async (shipment) => {
                 strength: item.strength || item.dosage,
                 // للـ ConfirmationModal - استخدام الكمية المتوفرة الفعلية من API (من مخزون المورد)
                 originalQuantity: item.requestedQuantity || item.requested_qty || 0,
-                availableQuantity: item.availableQuantity !== undefined && item.availableQuantity !== null ? item.availableQuantity : 0
+                availableQuantity: item.availableQuantity ?? item.stock ?? item.currentStock ?? 0
             }))
         };
         isConfirmationModalOpen.value = true;
@@ -810,16 +812,22 @@ const handleConfirmation = async (confirmationData) => {
         } else if (confirmationData.items || confirmationData.itemsToSend) {
             // 🟢 معالجة قبول الطلب وإرسال الشحنة
             const items = confirmationData.items || confirmationData.itemsToSend || [];
-            console.log('Confirming shipment with items:', items);
-            const itemsToSend = items.map(item => ({
+            console.log("Confirming shipment with items:", items);
+            const itemsToSend = items.map((item) => ({
                 id: item.id,
-                fulfilled_qty: item.fulfilled_qty || item.sentQuantity || item.approved_qty || item.requested_qty
+                fulfilled_qty:
+                    item.fulfilled_qty ||
+                    item.sentQuantity ||
+                    item.approved_qty ||
+                    item.requested_qty,
+                batch_number: item.batchNumber || item.batch_number || null,
+                expiry_date: item.expiryDate || item.expiry_date || null,
             }));
-            console.log('Items to send:', itemsToSend);
-            
+            console.log("Items to send:", itemsToSend);
+
             const response = await API_ENDPOINTS.shipments.confirm(shipmentId, {
                 items: itemsToSend,
-                notes: confirmationData.notes || ''
+                notes: confirmationData.notes || "",
             });
             console.log('Confirm response:', response);
             

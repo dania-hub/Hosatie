@@ -105,9 +105,6 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                 InternalSupplyRequestItem::create([
                     'request_id' => $supplyRequest->id,
                     'drug_id' => $item['drugId'],
-                    // تخزين الكمية المطلوبة من department في requested_qty
-                    // approved_qty: سيتم تعيينه من storekeeper عند الإرسال
-                    // fulfilled_qty: سيتم تعيينه من department/pharmacist عند الاستلام
                     'requested_qty' => $item['quantity'],
                     'approved_qty' => null,
                     'fulfilled_qty' => null,

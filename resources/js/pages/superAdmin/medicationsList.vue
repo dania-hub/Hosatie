@@ -161,56 +161,6 @@ const filteredDrugss = computed(() => {
     });
   }
 
-  if (dateFrom.value || dateTo.value) {
-    list = list.filter((drug) => {
-      const expiryDate = drug.expiryDate;
-      if (!expiryDate) return false;
-
-      let expiryDateObj;
-      try {
-        if (expiryDate.includes('-')) {
-          expiryDateObj = new Date(expiryDate);
-        } else if (expiryDate.includes('/')) {
-          const parts = expiryDate.split('/');
-          if (parts.length === 3) {
-            if (parts[0].length === 4) {
-              expiryDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-            } else {
-              expiryDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-            }
-          } else {
-            return false;
-          }
-        } else {
-          return false;
-        }
-
-        if (isNaN(expiryDateObj.getTime())) return false;
-      } catch {
-        return false;
-      }
-
-      expiryDateObj.setHours(0, 0, 0, 0);
-
-      let matchesFrom = true;
-      let matchesTo = true;
-
-      if (dateFrom.value) {
-        const fromDate = new Date(dateFrom.value);
-        fromDate.setHours(0, 0, 0, 0);
-        matchesFrom = expiryDateObj >= fromDate;
-      }
-
-      if (dateTo.value) {
-        const toDate = new Date(dateTo.value);
-        toDate.setHours(23, 59, 59, 999);
-        matchesTo = expiryDateObj <= toDate;
-      }
-
-      return matchesFrom && matchesTo;
-    });
-  }
-
   // 2. الفرز
   if (sortKey.value) {
     list.sort((a, b) => {
@@ -220,10 +170,6 @@ const filteredDrugss = computed(() => {
         comparison = (a.drugName || a.name || "").localeCompare(b.drugName || b.name || "", "ar");
       } else if (sortKey.value === "quantity") {
         comparison = (a.quantity || 0) - (b.quantity || 0);
-      } else if (sortKey.value === "expiryDate") {
-        const dateA = a.expiryDate ? new Date(a.expiryDate) : new Date(0);
-        const dateB = b.expiryDate ? new Date(b.expiryDate) : new Date(0);
-        comparison = dateA - dateB;
       } else if (sortKey.value === "manufacturer") {
         comparison = (a.manufacturer || "").localeCompare(b.manufacturer || "", "ar");
       }
@@ -247,7 +193,6 @@ const transformDrugData = (drug) => {
     drugName: drug.name || '',
     scientificName: drug.genericName || drug.generic_name || '',
     therapeuticClass: drug.category || '',
-    expiryDate: drug.expiryDate || drug.expiry_date || '',
     manufacturer: drug.manufacturer || '',
     country: drug.country || '',
     form: drug.form || '',
@@ -556,8 +501,6 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <th>اسم الدواء</th>
  <th>الاسم العلمي</th>
  <th>الفئة العلاجية</th>
-
- <th>تاريخ الانتهاء</th>
  <th>الشركة المصنعة</th>
  </tr>
 </thead>
@@ -572,8 +515,6 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <td>${drug.drugName || ''}</td>
  <td>${drug.scientificName || ''}</td>
  <td>${drug.therapeuticClass || ''}</td>
-
- <td>${drug.expiryDate || ''}</td>
  <td>${drug.manufacturer || ''}</td>
 </tr>
 `;
@@ -825,30 +766,30 @@ onMounted(async () => {
                                     <li
                                         class="menu-title text-gray-700 font-bold text-sm mt-2"
                                     >
-                                        حسب تاريخ الإنتهاء:
+                                        حسب حبات العلبة:
                                     </li>
                                     <li>
                                         <a
-                                            @click="sortDrugs('expiryDate', 'asc')"
+                                            @click="sortDrugs('unitsPerBox', 'asc')"
                                             :class="{
                                                 'font-bold text-[#4DA1A9]':
-                                                    sortKey === 'expiryDate' &&
+                                                    sortKey === 'unitsPerBox' &&
                                                     sortOrder === 'asc',
                                             }"
                                         >
-                                            الأقرب إنتهاءً
+                                            الأقل (علب صغيرة)
                                         </a>
                                     </li>
                                     <li>
                                         <a
-                                            @click="sortDrugs('expiryDate', 'desc')"
+                                            @click="sortDrugs('unitsPerBox', 'desc')"
                                             :class="{
                                                 'font-bold text-[#4DA1A9]':
-                                                    sortKey === 'expiryDate' &&
+                                                    sortKey === 'unitsPerBox' &&
                                                     sortOrder === 'desc',
                                             }"
                                         >
-                                            الأبعد إنتهاءً
+                                            الأكثر (علب كبيرة)
                                         </a>
                                     </li>
                                 </ul>
@@ -902,7 +843,6 @@ onMounted(async () => {
                                         <th class="drug-name-col">اسم الدواء</th>
                                         <th class="scientific-name-col">الاسم العلمي</th>
                                         <th class="category-col">الفئة العلاجية</th>
-                                        <th class="expiry-date-col">تاريخ الانتهاء</th>
                                         <th class="actions-col">الإجراءات</th>
                                     </tr>
                                     </thead>
@@ -976,17 +916,6 @@ onMounted(async () => {
                                                 {{ drug.therapeuticClass }}
                                             </td>
                                             
-                                            <td
-                                                :class="
-                                                    getTextColorClass(
-                                                        drug.quantity,
-                                                        drug.neededQuantity
-                                                    )
-                                                "
-                                            >
-                                                {{ drug.expiryDate }}
-                                            </td>
-                                           
                                                     <td class="actions-col">
                                                         <div class="flex gap-3 justify-center items-center">
                                                             <!-- زر المعاينة -->

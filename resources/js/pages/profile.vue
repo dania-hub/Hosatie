@@ -105,11 +105,11 @@
                                     <span
                                         class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
                                     >
-                                        {{ userData.healthCenter || 'غير محدد' }}
+                                        {{ userData.jobRole === 'supplier_admin' ? userData.supplierName : (userData.healthCenter || 'غير محدد') }}
                                     </span>
                                     <span
                                         class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
-                                        >المركز الصحي</span
+                                        >{{ userData.jobRole === 'supplier_admin' ? 'المستودع' : 'المركز الصحي' }}</span
                                     >
                                 </div>
 
@@ -241,6 +241,7 @@ const userData = ref({
     jobRole: "",
     department: "", // إضافة حقل القسم
     healthCenter: "",
+    supplierName: "",
     email: "",
     phone: "",
     profileImage: null,
@@ -360,12 +361,17 @@ const fetchUserData = async () => {
                              (profile.hospital && profile.hospital.name) || 
                              profile.center || 
                              "غير محدد",
+                supplierName: profile.supplier_name || 
+                             (profile.supplier && profile.supplier.name) || 
+                             "غير محدد",
                 email: profile.email || "",
                 phone: profile.phone || profile.mobile || "",
                 profileImage: profile.profileImage || profile.avatar || null,
                 hospitalId: profile.hospital_id,
+                supplierId: profile.supplier_id,
                 hospitalData: profile.hospital,
-                departmentData: profile.department
+                departmentData: profile.department,
+                supplierData: profile.supplier
             };
             
             console.log("✅ Final userData:", userData.value);

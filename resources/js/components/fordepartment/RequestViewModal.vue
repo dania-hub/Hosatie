@@ -46,8 +46,8 @@
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
-                            <span class="text-gray-500 font-medium">رقم الطلب</span>
-                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestDetails.id || 'غير محدد' }}</span>
+                            <span class="text-gray-500 font-medium">رقم الشحنة</span>
+                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestDetails.shipmentNumber || requestDetails.id || 'غير محدد' }}</span>
                         </div>
                         <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
                             <span class="text-gray-500 font-medium">تاريخ الطلب</span>
@@ -78,13 +78,26 @@
                                 class="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50/50 transition-colors"
                             >
                                 <div class="flex-1 w-full md:w-auto">
-                                    <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                    <div class="flex items-center gap-2">
+                                        <Icon icon="solar:pill-bold" class="w-5 h-5 text-[#4DA1A9]" />
+                                        <div class="font-bold text-[#2E5077] text-lg">{{ item.name }}</div>
+                                    </div>
                                     <div class="flex gap-2 mt-1">
                                         <span v-if="item.dosage" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
                                             {{ item.dosage }}
                                         </span>
                                         <span v-if="item.type" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
                                             {{ item.type }}
+                                        </span>
+                                        <!-- Batch Number -->
+                                        <span v-if="item.batch_number || item.batchNumber" class="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md font-bold border border-amber-100 flex items-center gap-1">
+                                            <Icon icon="solar:tag-bold" class="w-3 h-3" />
+                                            رقم الشحنة: {{ item.batch_number || item.batchNumber }}
+                                        </span>
+                                        <!-- Expiry Date -->
+                                        <span v-if="item.expiry_date || item.expiryDate" class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md font-bold border border-purple-100 flex items-center gap-1">
+                                            <Icon icon="solar:calendar-bold" class="w-3 h-3" />
+                                            تاريخ انتهاءالصلاحية: {{ formatDate(item.expiry_date || item.expiryDate) }}
                                         </span>
                                     </div>
                                 </div>
@@ -251,6 +264,7 @@ const emit = defineEmits(['close']);
 // حالة الطلب
 const requestDetails = ref({
     id: props.requestData.id,
+    shipmentNumber: props.requestData.shipmentNumber || null,
     date: props.requestData.date,
     status: props.requestData.status,
     items: props.requestData.items,
@@ -341,6 +355,7 @@ watch(() => props.requestData, (newVal) => {
     if (newVal) {
         requestDetails.value = {
             id: newVal.id,
+            shipmentNumber: newVal.shipmentNumber || null,
             date: newVal.date,
             status: newVal.status,
             items: newVal.items || [],

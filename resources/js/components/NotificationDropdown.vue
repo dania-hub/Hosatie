@@ -111,6 +111,9 @@ onMounted(() => {
 });
 
 const getIcon = (notification) => {
+    if (notification.type === 'شحنة') {
+        return 'solar:box-bold-duotone';
+    }
     const text = (notification.title + ' ' + (notification.body || '')).toLowerCase();
     
     // Priority 1: Damage/Shortage/Alerts

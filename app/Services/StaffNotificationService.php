@@ -185,7 +185,9 @@ class StaffNotificationService
             $request->load('supplier');
         }
 
-        $supplierName = $request->supplier->name ?? 'المورد';
+        // Use optional() to fail gracefully if supplier relation is null
+        $supplierName = optional($request->supplier)->name ?? 'المورد';
+        
         $this->createNotification(
             $requester,
             'تم قبول الطلب من المورد',
@@ -500,16 +502,18 @@ class StaffNotificationService
             ->where('supplier_id', $request->supplier_id)
             ->get();
 
-        $title = 'رد من الإدارة على طلب التوريد';
-        $message = "قامت الإدارة بالرد على طلب التوريد (رقم #{$request->id}).";
-        $message .= "\nالحالة الجديدة: [{$status}].";
         
-        if ($notes) {
-            $message .= "\n\nملاحظات الإدارة:\n{$notes}";
-        }
+            $title = 'تم إرسال شحنة أدوية جديدة';
+            $message = "قامت الإدارة المركزية بإرسال شحنة أدوية جديدة إلى مخازنكم.";
+            $message .= "\nرقم الشحنة المرجعي: [رقم الشحنة #{$request->id}]";
+            $message .= "\nالحالة: [قيد الاستلام].";
+            $message .= "\nملاحظة: يرجى الاستعداد لاستلام الشحنة وتأكيدها في النظام فور وصولها لتحديث مخزونكم.";
+       
+        
+        
 
         foreach ($supplierAdmins as $admin) {
-            $this->createNotification($admin, $title, $message, 'عادي');
+            $this->createNotification($admin, $title, $message, 'شحنة');
         }
     }
 

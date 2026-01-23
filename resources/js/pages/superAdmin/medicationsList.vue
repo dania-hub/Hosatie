@@ -1030,13 +1030,7 @@ onMounted(async () => {
                         </p>
                         
                         <div class="mt-4 space-y-3 text-right" dir="rtl">
-                            <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'immediate' ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
-                                <input type="radio" value="immediate" v-model="selectedPolicy" class="w-5 h-5 text-red-600 focus:ring-red-500">
-                                <div class="flex-1">
-                                    <div class="font-bold text-gray-800">إيقاف فوري</div>
-                                    <div class="text-xs text-gray-500">يتم إخفاء الدواء ومنع استخدامه فوراً</div>
-                                </div>
-                            </label>
+                            
 
                             <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'dispense_until_zero' ? 'border-orange-500 bg-orange-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
                                 <input type="radio" value="dispense_until_zero" v-model="selectedPolicy" class="w-5 h-5 text-orange-600 focus:ring-orange-500">

@@ -488,6 +488,13 @@ class PatientPharmacistController extends BaseApiController
                     $inventory->current_quantity -= $take;
                     $inventory->save();
 
+                    // التحقق من انخفاض المخزون وإرسال إشعار
+                    try {
+                        $this->notifications->checkAndNotifyLowStock($inventory);
+                    } catch (\Exception $e) {
+                         \Log::error('Low stock notification failed', ['error' => $e->getMessage()]);
+                    }
+
                     $dispensedBatches[] = [
                         'batch_number' => $inventory->batch_number,
                         'expiry_date' => $inventory->expiry_date,

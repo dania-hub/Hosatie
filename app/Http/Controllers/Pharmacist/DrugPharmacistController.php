@@ -227,28 +227,30 @@ class DrugPharmacistController extends BaseApiController
                 foreach ($prescription->drugs as $drug) {
                     if ($drug->id != $drugId) continue;
 
-                    // حساب الكمية الشهرية المطلوبة
-                    $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
-                    if ($monthlyQty === 0 && isset($drug->pivot->daily_quantity)) {
-                        $monthlyQty = (int)($drug->pivot->daily_quantity ?? 0) * 30;
-                    }
-
-                    if ($monthlyQty > 0) {
-                        // حساب الكمية المصروفة في الشهر الحالي
+                    // تحسين منطق حساب الكمية المحتاجة لتجنب الخصم المزدوج
+                    $remainingQuantity = 0;
+                    $pivotMonthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
+                    
+                    if ($pivotMonthlyQty > 0) {
+                        // إذا كانت الكمية الشهرية موجودة في الجدول، فهي تمثل الكمية المتبقية بالفعل
+                        // لأن عملية الصرف تقوم بخصم الكمية مباشرة من هذا الحقل
+                        $remainingQuantity = $pivotMonthlyQty;
+                    } elseif (isset($drug->pivot->daily_quantity) && $drug->pivot->daily_quantity > 0) {
+                        // إذا كانت الكمية الشهرية 0 (استهلكت أو لم تحدد)، نلجأ للحساب بناءً على الجرعة اليومية
+                        // هنا نحسب الحد الأقصى النظري ونخصم منه ما تم صرفه
+                        $theoreticalMonthly = (int)$drug->pivot->daily_quantity * 30;
+                        
                         $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $prescription->patient_id)
                             ->where('drug_id', $drugId)
                             ->where('reverted', false)
                             ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
                             ->sum('quantity_dispensed');
+                            
+                        $remainingQuantity = max(0, $theoreticalMonthly - $totalDispensedThisMonth);
+                    }
 
-                        // حساب الكمية المتبقية (الكمية المطلوبة - المصروفة)
-                        // المريض مستحق إذا كانت الكمية المتبقية > 0
-                        $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
-                        
-                        // إضافة الكمية المتبقية من المرضى المستحقين
-                        if ($remainingQuantity > 0) {
-                            $totalNeededQuantity += $remainingQuantity;
-                        }
+                    if ($remainingQuantity > 0) {
+                        $totalNeededQuantity += $remainingQuantity;
                     }
                 }
             }
@@ -416,24 +418,23 @@ class DrugPharmacistController extends BaseApiController
                         foreach ($prescription->drugs as $prescriptionDrug) {
                             if ($prescriptionDrug->id != $drug->id) continue;
                             
-                            // حساب الكمية الشهرية المطلوبة
-                            $monthlyQty = (int)($prescriptionDrug->pivot->monthly_quantity ?? 0);
-                            if ($monthlyQty === 0 && isset($prescriptionDrug->pivot->daily_quantity)) {
-                                $monthlyQty = (int)($prescriptionDrug->pivot->daily_quantity ?? 0) * 30;
-                            }
-                            
-                            if ($monthlyQty > 0) {
-                                // حساب الكمية المصروفة في الشهر الحالي
+                            // تحسين منطق حساب الكمية المحتاجة لتجنب الخصم المزدوج
+                            $remainingQuantity = 0;
+                            $pivotMonthlyQty = (int)($prescriptionDrug->pivot->monthly_quantity ?? 0);
+
+                            if ($pivotMonthlyQty > 0) {
+                                $remainingQuantity = $pivotMonthlyQty;
+                            } elseif (isset($prescriptionDrug->pivot->daily_quantity) && $prescriptionDrug->pivot->daily_quantity > 0) {
+                                $theoreticalMonthly = (int)$prescriptionDrug->pivot->daily_quantity * 30;
                                 $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $prescription->patient_id)
                                     ->where('drug_id', $drug->id)
                                     ->where('reverted', false)
                                     ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
                                     ->sum('quantity_dispensed');
-                                
-                                // حساب الكمية المتبقية (الكمية المطلوبة - المصروفة)
-                                $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
-                                
-                                // إضافة الكمية المتبقية (لأن الدواء غير متوفر في المخزون)
+                                $remainingQuantity = max(0, $theoreticalMonthly - $totalDispensedThisMonth);
+                            }
+
+                            if ($remainingQuantity > 0) {
                                 $totalNeededQuantity += $remainingQuantity;
                             }
                         }
@@ -529,22 +530,24 @@ class DrugPharmacistController extends BaseApiController
                 foreach ($prescription->drugs as $drug) {
                     if ($drug->id != $drugId) continue;
 
-                    $monthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
-                    if ($monthlyQty === 0 && isset($drug->pivot->daily_quantity)) {
-                        $monthlyQty = (int)($drug->pivot->daily_quantity ?? 0) * 30;
-                    }
+                    // تحسين منطق حساب الكمية المحتاجة لتجنب الخصم المزدوج
+                    $remainingQuantity = 0;
+                    $pivotMonthlyQty = (int)($drug->pivot->monthly_quantity ?? 0);
 
-                    if ($monthlyQty > 0) {
+                    if ($pivotMonthlyQty > 0) {
+                         $remainingQuantity = $pivotMonthlyQty;
+                    } elseif (isset($drug->pivot->daily_quantity) && $drug->pivot->daily_quantity > 0) {
+                        $theoreticalMonthly = (int)$drug->pivot->daily_quantity * 30;
                         $totalDispensedThisMonth = (int)Dispensing::where('patient_id', $prescription->patient_id)
                             ->where('drug_id', $drugId)
                             ->where('reverted', false)
                             ->whereBetween('dispense_month', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
                             ->sum('quantity_dispensed');
+                        $remainingQuantity = max(0, $theoreticalMonthly - $totalDispensedThisMonth);
+                    }
 
-                        $remainingQuantity = max(0, $monthlyQty - $totalDispensedThisMonth);
-                        if ($remainingQuantity > 0) {
-                            $totalNeededQuantity += $remainingQuantity;
-                        }
+                    if ($remainingQuantity > 0) {
+                        $totalNeededQuantity += $remainingQuantity;
                     }
                 }
             }

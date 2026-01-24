@@ -38,6 +38,7 @@ class DashboardSupplierController extends BaseApiController
 
             // حساب الإحصائيات بدقة
             // إجمالي الشحنات: جميع الشحنات المرتبطة بهذا المورد (pending, approved, fulfilled, rejected)
+            // هذه هي الشحنات التي تم إرسالها للمورد (approved, fulfilled, rejected) + الطلبات التي أنشأها المورد
             $totalShipments = (clone $shipmentsBaseQuery)->count();
             
             // الشحنات قيد الانتظار: الشحنات في حالة pending فقط (في انتظار الموافقة)
@@ -46,30 +47,94 @@ class DashboardSupplierController extends BaseApiController
                 ->where('status', 'pending')
                 ->count();
             
-            // تطبيق الفلتر للحالات الأخرى: approved, fulfilled, rejected
-            $shipmentsQuery = (clone $shipmentsBaseQuery)
-                ->whereIn('status', ['approved', 'fulfilled', 'rejected']);
-            
-            // طلبات التوريد الخارجية: إجمالي طلبات التوريد الخارجية التي أنشأها المورد (بجميع الحالات)
-            // هذه هي الطلبات التي requested_by = user.id
-            $approvedShipments = ExternalSupplyRequest::where('requested_by', $user->id)
+            // طلبات التوريد الخارجية (approved): الشحنات التي حالتها approved وتم إرسالها للمورد
+            // هذه هي الشحنات التي تظهر بحالة "جديد" في واجهة المورد
+            $approvedShipments = (clone $shipmentsBaseQuery)
+                ->where('status', 'approved')
                 ->count();
             
-            // الشحنات المكتملة: الشحنات التي تم إرسالها من المورد (fulfilled)
-            $fulfilledShipments = (clone $shipmentsQuery)->where('status', 'fulfilled')->count();
+            // الشحنات المكتملة (fulfilled): الشحنات التي تم إرسالها من المورد
+            $fulfilledShipments = (clone $shipmentsBaseQuery)
+                ->where('status', 'fulfilled')
+                ->count();
             
-            // الشحنات المرفوضة: الشحنات التي تم رفضها من المورد (rejected)
-            $rejectedShipments = (clone $shipmentsQuery)->where('status', 'rejected')->count();
+            // الشحنات المرفوضة (rejected): الشحنات التي تم رفضها من المورد
+            $rejectedShipments = (clone $shipmentsBaseQuery)
+                ->where('status', 'rejected')
+                ->count();
+
+            // حساب إحصائيات الأدوية
+            // إجمالي الأدوية: عدد الأدوية المختلفة في مخزون المورد (حسب drug_id)
+            $totalDrugIds = Inventory::where('supplier_id', $supplierId)
+                ->whereNull('warehouse_id')
+                ->whereNull('pharmacy_id')
+                ->distinct()
+                ->pluck('drug_id')
+                ->toArray();
+            
+            $totalDrugs = count($totalDrugIds);
+            
+            // أدوية منخفضة المخزون: الأدوية التي كمية المخزون الحالية أقل من الحد الأدنى
+            // نحسب الأدوية التي لديها current_quantity < minimum_level أو current_quantity = 0
+            $lowStockDrugIds = Inventory::where('supplier_id', $supplierId)
+                ->whereNull('warehouse_id')
+                ->whereNull('pharmacy_id')
+                ->where(function($query) {
+                    $query->whereColumn('current_quantity', '<', 'minimum_level')
+                          ->orWhere('current_quantity', '<=', 0);
+                })
+                ->distinct()
+                ->pluck('drug_id')
+                ->toArray();
+            
+            $lowStockDrugs = count($lowStockDrugIds);
+
+            // حساب طلبات التوريد الداخلية (InternalSupplyRequest)
+            // يجب أن تساوي عدد الطلبات في Supplier/requests
+            // نفس المنطق المستخدم في ShipmentSupplierController::index
+            $internalSupplyRequestsQuery = ExternalSupplyRequest::where(function($query) use ($user) {
+                    // البحث عن الطلبات التي لها supplier_id مطابق لـ supplier_id الخاص بالمستخدم المورد
+                    $query->where('supplier_id', $user->supplier_id)
+                          // أو البحث عن الطلبات من المستشفيات المرتبطة بنفس المورد
+                          ->orWhereHas('hospital', function($q) use ($user) {
+                              $q->where('supplier_id', $user->supplier_id);
+                          });
+                })
+                ->where('status', '!=', 'pending'); // استبعاد الشحنات التي حالتها pending
+            
+            // تطبيق نفس فلترة الشحنات المرفوضة كما في ShipmentSupplierController
+            $internalSupplyRequests = $internalSupplyRequestsQuery->get()
+                ->filter(function($shipment) {
+                    // استبعاد الشحنات المرفوضة من قبل مدير المستشفى
+                    // نعرض فقط الشحنات المرفوضة من قبل المورد نفسه
+                    if ($shipment->status !== 'rejected') {
+                        return true; // نعرض جميع الشحنات غير المرفوضة
+                    }
+                    
+                    // إذا كانت الحالة rejected، نتحقق من آخر سجل رفض
+                    $lastRejectionLog = \App\Models\AuditLog::where('table_name', 'external_supply_request')
+                        ->where('record_id', $shipment->id)
+                        ->where(function($q) {
+                            $q->where('action', 'supplier_reject_external_supply_request')
+                              ->orWhere('action', 'hospital_admin_reject_external_supply_request');
+                        })
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    // نعرض فقط إذا كان آخر رفض من المورد
+                    return $lastRejectionLog && $lastRejectionLog->action === 'supplier_reject_external_supply_request';
+                })
+                ->count();
 
             $stats = [
-                'totalShipments' => $totalShipments,
+                'totalShipments' => $totalShipments, // إجمالي الطلبات الخارجية (ExternalSupplyRequest)
+                'internalSupplyRequests' => $internalSupplyRequests, // طلبات التوريد الداخلية (InternalSupplyRequest)
                 'pendingShipments' => $pendingShipments,
                 'approvedShipments' => $approvedShipments,
                 'fulfilledShipments' => $fulfilledShipments,
                 'rejectedShipments' => $rejectedShipments,
-                'totalDrugs' => Inventory::where('supplier_id', $supplierId)->count(),
-                'lowStockDrugs' => Inventory::where('supplier_id', $supplierId)
-                    ->whereColumn('current_quantity', '<', 'minimum_level')->count(),
+                'totalDrugs' => $totalDrugs,
+                'lowStockDrugs' => $lowStockDrugs,
             ];
 
             return $this->sendSuccess($stats, 'تم جلب الإحصائيات بنجاح');
@@ -97,10 +162,14 @@ class DashboardSupplierController extends BaseApiController
             $supplierId = $user->supplier_id;
 
             // جلب IDs للطلبات المتعلقة بهذا المورد
-            // فقط الطلبات من external_supply_requests
+            // تشمل: الطلبات التي أنشأها المورد + الطلبات من المستشفيات المرتبطة بالمورد
             $externalRequestIds = ExternalSupplyRequest::where(function($q) use ($user, $supplierId) {
                     $q->where('supplier_id', $supplierId)
-                      ->orWhere('requested_by', $user->id);
+                      ->orWhere('requested_by', $user->id)
+                      // إضافة: الطلبات من المستشفيات المرتبطة بنفس المورد
+                      ->orWhereHas('hospital', function($hq) use ($supplierId) {
+                          $hq->where('supplier_id', $supplierId);
+                      });
                 })
                 ->pluck('id')
                 ->toArray();
@@ -110,24 +179,15 @@ class DashboardSupplierController extends BaseApiController
                 'supplier_create_external_supply_request',  // إنشاء طلب توريد من المورد
                 'supplier_confirm_external_supply_request', // تأكيد وإرسال شحنة
                 'supplier_reject_external_supply_request',  // رفض طلب شحنة
-           'supplier_confirm_external_delivery'
+                'supplier_confirm_external_delivery',       // تأكيد استلام الشحنة
+                'supplier_confirm_receipt',                 // تأكيد استلام الشحنة (الاسم الفعلي المستخدم)
             ];
 
-            $operationsQuery = AuditLog::with('user:id,full_name')
-                ->whereIn('action', $allowedActions);
-
-            $operations = $operationsQuery->where(function ($q) use ($user, $externalRequestIds) {
-                    // 1. العمليات التي قام بها المستخدم الحالي نفسه
-                    $q->where('user_id', $user->id);
-                    
-                    // 2. العمليات المتعلقة بطلبات هذا المورد (حتى لو قام بها مستخدم آخر مثل الـ Super Admin)
-                    if (!empty($externalRequestIds)) {
-                        $q->orWhere(function($subQ) use ($externalRequestIds) {
-                            $subQ->where('table_name', 'external_supply_request')
-                                 ->whereIn('record_id', $externalRequestIds);
-                        });
-                    }
-                })
+            // جلب جميع العمليات التي قام بها المستخدم الحالي أو المتعلقة بطلبات المورد
+            // أولاً: العمليات التي قام بها المستخدم الحالي نفسه
+            $operations = AuditLog::with('user:id,full_name')
+                ->whereIn('action', $allowedActions)
+                ->where('user_id', $user->id)
                 ->orderBy('created_at', 'desc')
                 ->limit(100)
                 ->get()
@@ -191,6 +251,7 @@ class DashboardSupplierController extends BaseApiController
             'supplier_reject_external_supply_request' => 'رفض طلب شحنة',
             'supplier_approve_external_supply_request' => 'موافقة على طلب توريد',
             'supplier_confirm_external_delivery' => 'تأكيد استلام الشحنة',
+            'supplier_confirm_receipt' => 'تأكيد استلام شحنة',
             // عمليات StoreKeeper
             'create_external_supply_request' => 'إنشاء طلب توريد من المخزن',
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام الشحنة',

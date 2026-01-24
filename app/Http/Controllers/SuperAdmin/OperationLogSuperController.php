@@ -381,7 +381,7 @@ class OperationLogSuperController extends BaseApiController
             'supplier_create_external_supply_request' => 'إنشاء طلب توريد (مورد)',
             'supplier_update_external_supply_request' => 'تعديل طلب توريد (مورد)',
             'supplier_cancel_external_supply_request' => 'إلغاء طلب توريد (مورد)',
-            'super_admin_confirm_external_supply_request' => 'تأكيد استلام طلب توريد (إدارة)',
+            'super_admin_confirm_external_supply_request' => 'إرسال شحنة (إدارة)',
             'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
             'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
             

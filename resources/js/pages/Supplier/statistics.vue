@@ -64,7 +64,7 @@ const fetchStats = async () => {
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
         stats.value.shipments = {
-            total: data.totalShipments || 0,
+            total: data.internalSupplyRequests || 0, // طلبات التوريد الداخلية
             pending: data.pendingShipments || 0,
             approved: data.approvedShipments || 0,
             fulfilled: data.fulfilledShipments || 0,

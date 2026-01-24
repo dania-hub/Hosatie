@@ -10,7 +10,7 @@
         class="w-full max-w-[470px] grid gap-6 text-center relative custom-container mx-auto"
       >
         <a
-          href="/"
+          href="/otp"
           class="absolute top-6 left-6 w-10 h-10 rounded-full flex items-center justify-center
                    text-gray-500 transition-all duration-300 z-20
                    hover:text-white hover:bg-[#2E5077] hover:scale-105"
@@ -19,10 +19,11 @@
         </a>
 
         <div
-          class="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+          class="sm:w-20 sm:h-18 rounded-full flex items-center justify-center border-3  shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
         >
-          <Stethoscope class="w-8 h-8 sm:w-12 sm:h-12 text-[#2E5077]" />
+          <img src="/assets/logo.png" class="w-8 h-8 sm:w-30 sm:h-30 object-cover" alt="Logo" />
         </div>
+
 
         <div class="flex flex-col items-center gap-2 mt-4 sm:mt-0">
           <h1
@@ -39,17 +40,28 @@
             <div class="relative">
               <input
                 id="newPassword"
-                type="password"
+                :type="showNewPassword ? 'text' : 'password'"
                 v-model="newPassword"
                 @blur="validateField('newPassword')"
                 @input="newPasswordError = ''"
                 placeholder="أدخل كلمة المرور الجديدة"
-                class="custom-input text-right text-sm sm:text-base"
+                class="custom-input text-right text-sm sm:text-base pr-20"
                 :class="{ 'input-error': newPasswordError }"
               />
               <Lock
                 class="absolute right-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
               />
+              <button
+                type="button"
+                @click="showNewPassword = !showNewPassword"
+                class="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                tabindex="-1"
+              >
+                <Icon
+                  :icon="showNewPassword ? 'solar:eye-bold' : 'solar:eye-closed-bold'"
+                  class="w-5 h-5"
+                />
+              </button>
             </div>
             <span
               v-if="newPasswordError"
@@ -67,17 +79,28 @@
             <div class="relative">
               <input
                 id="confirmPassword"
-                type="password"
+                :type="showConfirmPassword ? 'text' : 'password'"
                 v-model="confirmPassword"
                 @blur="validateField('confirmPassword')"
                 @input="confirmPasswordError = ''"
                 placeholder="تأكيد كلمة المرور الجديدة"
-                class="custom-input text-right text-sm sm:text-base"
+                class="custom-input text-right text-sm sm:text-base pr-20"
                 :class="{ 'input-error': confirmPasswordError }"
               />
               <Lock
                 class="absolute right-5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
               />
+              <button
+                type="button"
+                @click="showConfirmPassword = !showConfirmPassword"
+                class="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                tabindex="-1"
+              >
+                <Icon
+                  :icon="showConfirmPassword ? 'solar:eye-bold' : 'solar:eye-closed-bold'"
+                  class="w-5 h-5"
+                />
+              </button>
             </div>
             <span
               v-if="confirmPasswordError"
@@ -114,7 +137,7 @@
             </div>
             
             <p class="mt-6 sm:mt-8 text-center text-xs text-gray-400">
-              2024© حصتي. جميع الحقوق محفوظة
+              2026© حصتي. جميع الحقوق محفوظة
             </p>
           </div>
         </form>
@@ -138,6 +161,10 @@ const confirmPasswordError = ref("");
 const apiError = ref("");
 const loading = ref(false);
 
+// متغيرات لإظهار/إخفاء كلمة المرور
+const showNewPassword = ref(false);
+const showConfirmPassword = ref(false);
+
 // التحقق من وجود بيانات التحقق عند تحميل الصفحة
 onMounted(() => {
   const email = localStorage.getItem('reset_password_email');
@@ -145,7 +172,7 @@ onMounted(() => {
   
   if (!email || !otp) {
     // إذا لم تكن البيانات موجودة، إعادة التوجيه لصفحة نسيت كلمة المرور
-    alert('يرجى إكمال عملية التحقق من البريد الإلكتروني و OTP أولاً.');
+
     router.visit('/forgot-password');
   }
 });
@@ -259,7 +286,7 @@ const handleResetPassword = async () => {
     localStorage.removeItem('reset_password_otp');
 
     // عرض رسالة نجاح والانتقال لصفحة تسجيل الدخول
-    alert('تم إعادة تعيين كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.');
+  
     router.visit('/');
   } catch (error) {
     console.error("خطأ في إعادة تعيين كلمة المرور:", error);

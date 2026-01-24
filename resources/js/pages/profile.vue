@@ -99,17 +99,35 @@
                                     >
                                 </div>
 
+                                <!-- قسم المستودع - يظهر فقط للمورد -->
                                 <div
+                                    v-if="userData.jobRole === 'supplier_admin'"
                                     class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
                                 >
                                     <span
                                         class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
                                     >
-                                        {{ userData.jobRole === 'supplier_admin' ? userData.supplierName : (userData.healthCenter || 'غير محدد') }}
+                                        {{ userData.supplierName || 'غير محدد' }}
                                     </span>
                                     <span
                                         class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
-                                        >{{ userData.jobRole === 'supplier_admin' ? 'المستودع' : 'المركز الصحي' }}</span
+                                        >المستودع</span
+                                    >
+                                </div>
+
+                                <!-- قسم المركز الصحي - يظهر فقط للمستخدمين الذين لديهم مركز صحي (ليس super_admin وليس supplier_admin) -->
+                                <div
+                                    v-if="userData.jobRole !== 'supplier_admin' && userData.jobRole !== 'super_admin' && userData.healthCenter && userData.healthCenter !== 'غير محدد'"
+                                    class="flex flex-col sm:flex-row-reverse sm:items-center gap-2 sm:gap-4 py-3 px-3 border-b border-[#4DA1A9] hover:bg-gray-50 transition-colors rounded-md"
+                                >
+                                    <span
+                                        class=" text-gray-800 text-base sm:text-lg text-right flex-1 break-words"
+                                    >
+                                        {{ userData.healthCenter }}
+                                    </span>
+                                    <span
+                                        class="text-gray-500 text-sm sm:text-base font-medium min-w-[140px] sm:min-w-[160px] text-right"
+                                        >المركز الصحي</span
                                     >
                                 </div>
 

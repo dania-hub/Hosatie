@@ -246,8 +246,7 @@
                                                 'text-red-600 font-semibold':
                                                     shipment.requestStatus === 'مرفوضة',
                                                 'text-green-600 font-semibold':
-                                                    shipment.requestStatus ===
-                                                    'تم الإستلام',
+                                                    shipment.requestStatus === 'تم الإستلام',
                                                 'text-yellow-600 font-semibold':
                                                     shipment.requestStatus ===
                                                     'قيد الاستلام' || shipment.requestStatus === 'جديد' || shipment.requestStatus === 'قيد الإستلام',
@@ -267,11 +266,14 @@
                                                     />
                                                 </button>
                                                 
-                                                <template v-if="shipment.requestStatus === 'مرفوضة'">
-                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
+                                                <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض' || shipment.requestStatus === 'rejected'">
+                                                    <button 
+                                                        @click="openRequestViewModal(shipment)"
+                                                        class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" 
+                                                        data-tip="طلب مرفوض - عرض التفاصيل">
                                                         <Icon
-                                                            icon="tabler:circle-x" 
-                                                            class="w-4 h-4 text-red-600"
+                                                            icon="solar:close-circle-bold" 
+                                                            class="w-4 h-4 text-red-600 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
@@ -280,7 +282,7 @@
                                                     <button 
                                                         @click="openReviewModal(shipment)"
                                                         class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
-                                                        data-tip="مراجعة تفاصيل الشحنة">
+                                                        data-tip="مراجعة تفاصيل الشحنة - تم الاستلام">
                                                         <Icon
                                                             icon="healthicons:yes-outline"
                                                             class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
@@ -504,35 +506,72 @@ const fetchShipments = async () => {
         // Ensure it is an array
         const finalShipments = Array.isArray(shipmentsArray) ? shipmentsArray : [];
         
-        shipmentsData.value = finalShipments.map(shipment => ({
-            id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.createdAt,
-            requestStatus: shipment.requestStatus || shipment.status || 'جديد',
-            requestingDepartment: shipment.requestingDepartment || shipment.department || 'قسم غير محدد',
-            received: shipment.received || (shipment.status === 'تم الإستلام' || shipment.status === 'fulfilled'),
-            details: {
+        const normalizeRequestStatus = (status, received) => {
+            if (!status) return 'جديد';
+            
+            // ترجمة delivered/deliverd إلى تم الإستلام
+            if (status === 'delivered' || status === 'deliverd') {
+                return 'تم الإستلام';
+            }
+            
+            const isReceivedStatus = status === 'تم الإستلام' || status === 'تم الاستلام';
+            const isFulfilledStatus = status === 'fulfilled' || status === 'تم التنفيذ';
+
+            if (!received && (isReceivedStatus || isFulfilledStatus)) {
+                return 'قيد الاستلام';
+            }
+
+            if (received && isFulfilledStatus) {
+                return 'تم الإستلام';
+            }
+
+            return status;
+        };
+
+        shipmentsData.value = finalShipments.map(shipment => {
+            const rawStatus = shipment.requestStatus || shipment.status || shipment.statusOriginal || 'جديد';
+            // إذا كانت الحالة delivered/deliverd، نعتبرها مستلمة
+            const isDelivered = rawStatus === 'delivered' || rawStatus === 'deliverd';
+            const received = Boolean(
+                isDelivered ||
+                shipment.received ||
+                shipment.isDelivered ||
+                shipment.receivedAt ||
+                shipment.received_at
+            );
+            const displayStatus = normalizeRequestStatus(rawStatus, received);
+
+            return {
                 id: shipment.id,
                 shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
-                department: shipment.requestingDepartment || shipment.department,
-                date: shipment.requestDate || shipment.createdAt,
-                status: shipment.status || 'جديد',
-                items: (shipment.items || []).map(item => ({
-                   ...item,
-                   requestedQty: parseInt(item.quantity) || parseInt(item.requested_qty) || 0,
-                   name: item.name || item.drugName || 'Unknown Drug'
-                })),
-                notes: shipment.notes || '',
-                createdAt: shipment.createdAt,
-                updatedAt: shipment.updatedAt,
-                rejectionReason: shipment.rejectionReason,
-                confirmedBy: shipment.confirmedBy,
-                confirmedAt: shipment.confirmedAt,
-                ...(shipment.confirmationDetails && {
-                    confirmationDetails: shipment.confirmationDetails
-                })
-            }
-        }));
+                requestDate: shipment.requestDate || shipment.createdAt,
+                requestStatus: displayStatus,
+                requestingDepartment: shipment.requestingDepartment || shipment.department || 'قسم غير محدد',
+                received,
+                details: {
+                    id: shipment.id,
+                    shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+                    department: shipment.requestingDepartment || shipment.department,
+                    date: shipment.requestDate || shipment.createdAt,
+                    status: displayStatus,
+                    items: (shipment.items || []).map(item => ({
+                       ...item,
+                       requestedQty: parseInt(item.quantity) || parseInt(item.requested_qty) || 0,
+                       name: item.name || item.drugName || 'Unknown Drug'
+                    })),
+                    notes: shipment.notes || '',
+                    createdAt: shipment.createdAt,
+                    updatedAt: shipment.updatedAt,
+                    rejectionReason: shipment.rejectionReason || shipment.rejection_reason,
+                    rejectedAt: shipment.rejectedAt || shipment.rejected_at,
+                    confirmedBy: shipment.confirmedBy,
+                    confirmedAt: shipment.confirmedAt,
+                    ...(shipment.confirmationDetails && {
+                        confirmationDetails: shipment.confirmationDetails
+                    })
+                }
+            };
+        });
     } catch (err) {
         console.error('Error fetching shipments:', err);
         throw err;
@@ -749,6 +788,7 @@ const openRequestViewModal = async (shipment) => {
                 sentQuantity: item.approved_qty || item.sentQuantity || 0,
                 receivedQuantity: item.fulfilled_qty || item.receivedQuantity || 0,
                 unit: item.unit || 'وحدة',
+                units_per_box: item.units_per_box || item.unitsPerBox || 1,
                 dosage: item.dosage || item.strength || '',
                 type: item.type || item.form || ''
             })),
@@ -769,7 +809,8 @@ const openRequestViewModal = async (shipment) => {
             } : null),
             confirmationNotes: response.confirmationNotes || null,
             confirmationNotesSource: response.confirmationNotesSource || null,
-            rejectionReason: response.rejectionReason || null
+            rejectionReason: response.rejectionReason || response.rejection_reason || null,
+            rejectedAt: response.rejectedAt || response.rejected_at || null
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {
@@ -875,8 +916,8 @@ const handleConfirmation = async (confirmationData) => {
         if (confirmationData.rejectionReason) {
             // 🔴 معالجة رفض الطلب
             await API_ENDPOINTS.shipments.reject(shipmentId, {
-                rejectionReason: confirmationData.rejectionReason,
-                rejectedBy: 'أمين المخزن' // يجب أن يكون هذا من بيانات المستخدم
+                rejection_reason: confirmationData.rejectionReason,
+                notes: confirmationData.rejectionReason // أيضاً كملاحظة
             });
             
             // تحديث البيانات محلياً
@@ -1021,7 +1062,8 @@ const openReviewModal = async (shipment) => {
             } : null),
             confirmationNotes: response.confirmationNotes || null,
             confirmationNotesSource: response.confirmationNotesSource || null,
-            rejectionReason: response.rejectionReason || null
+            rejectionReason: response.rejectionReason || response.rejection_reason || null,
+            rejectedAt: response.rejectedAt || response.rejected_at || null
         };
         isRequestViewModalOpen.value = true;
     } catch (err) {

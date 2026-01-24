@@ -99,10 +99,19 @@ const processEmployeeData = (employeeData) => {
 
         return {
             ...emp,
-            isActive,
+            id: emp.id,
+            fileNumber: emp.id || emp.fileNumber || "",
+            name: name,
             nameDisplay: name,
+            nationalId: emp.nationalId || "",
             nationalIdDisplay: emp.nationalId || "",
+            birth: birthDate,
+            birthDate: birthDate,
             birthDisplay: birthDate ? formatDateForDisplay(birthDate) : "",
+            phone: emp.phone || "",
+            email: emp.email || "",
+            isActive,
+            status: emp.status || (isActive ? 'active' : 'inactive'),
             hospitalName,
             hospitalId,
             supplierName,
@@ -110,7 +119,8 @@ const processEmployeeData = (employeeData) => {
             departmentName: emp.department?.name || "-",
             departmentId: emp.department?.id || null,
             roleName,
-            roleId
+            roleId,
+            lastUpdated: emp.updatedAt || emp.createdAt || new Date().toISOString()
         };
     });
 };
@@ -418,7 +428,7 @@ const printTable = () => {
             }
         </style>
 
-        <h1>قائمة الموظفين (تقرير طباعة)</h1>
+        <h1>قائمة الموظفين</h1>
         
         <div class="filters-info">
             <strong>المستشفى:</strong> ${hospitalFilter.value === 'all' ? 'الكل' : (availableHospitals.value.find(h => h.id == hospitalFilter.value)?.name || hospitalFilter.value)}<br>
@@ -438,31 +448,41 @@ const printTable = () => {
                     <th>الدور الوظيفي</th>
                     <th>القسم</th>
                     <th>المستشفى</th>
-                    <th>حالة الحساب</th>
+                
                     <th>الرقم الوطني</th>
                     <th>تاريخ الميلاد</th>
                     <th>رقم الهاتف</th>
-                    <th>البريد الإلكتروني</th>
+                   
                 </tr>
             </thead>
             <tbody>
     `;
 
     filteredEmployees.value.forEach((employee) => {
+        // استخدام الحقول المعالجة مع fallback للحقول الخام
+        const fileNumber = employee.fileNumber || employee.id || '';
+        const name = employee.nameDisplay || employee.name || employee.fullName || employee.full_name || '';
+        const roleName = employee.roleName || employee.typeArabic || employee.role?.name || employee.role || 'غير محدد';
+        const departmentName = employee.departmentName || employee.department?.name || 'غير محدد';
+        const hospitalName = employee.hospitalName || employee.hospital?.name || 'غير محدد';
+        const nationalId = employee.nationalIdDisplay || employee.nationalId || 'غير محدد';
+        const birthDate = employee.birthDisplay || (employee.birth ? formatDateForDisplay(employee.birth) : '') || (employee.birthDate ? formatDateForDisplay(employee.birthDate) : '') || 'غير محدد';
+        const phone = employee.phone || 'غير محدد';
+        const email = employee.email || 'غير محدد';
+        const status = employee.isActive ? "مفعل" : "معطل";
+        
         tableHtml += `
             <tr>
-                <td>${employee.fileNumber || ''}</td>
-                <td>${employee.name || ''}</td>
-                <td>${employee.roleName}</td>
-                <td>${employee.departmentName}</td>
-                <td>${employee.hospitalName}</td>
-                <td class="${employee.isActive ? "status-active" : "status-inactive"}">
-                    ${employee.isActive ? "مفعل" : "معطل"}
-                </td>
-                <td>${employee.nationalId || ''}</td>
-                <td>${employee.birth || ''}</td>
-                <td>${employee.phone || ''}</td>
-                <td>${employee.email || ''}</td>
+                <td>${fileNumber}</td>
+                <td>${name}</td>
+                <td>${roleName}</td>
+                <td>${departmentName}</td>
+                <td>${hospitalName}</td>
+              
+                <td>${nationalId}</td>
+                <td>${birthDate}</td>
+                <td>${phone}</td>
+           
             </tr>
         `;
     });

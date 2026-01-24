@@ -485,7 +485,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 .print-date { text-align: left; margin-bottom: 10px; font-size: 12px; color: #666; }
 </style>
 
-<h1>قائمة الأدوية (تقرير طباعة)</h1>
+<h1>قائمة الأدوية </h1>
 <p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
 `;
 
@@ -599,9 +599,9 @@ onMounted(async () => {
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
                         <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                            <div class="relative w-full sm:max-w-sm">
+                     
                                 <search v-model="searchTerm" />
-                            </div>
+                          
 
                         <button
                             @click="showDateFilter = !showDateFilter"

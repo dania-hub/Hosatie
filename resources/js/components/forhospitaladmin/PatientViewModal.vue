@@ -153,9 +153,7 @@ const getMonthlyQuantityDisplay = (med) => {
                                         <div class="space-y-1">
                                             <div class="font-medium">{{ getMonthlyQuantityDisplay(med) }}</div>
                                             <div v-if="med.totalDispensedThisMonth > 0" class="text-xs space-y-0.5">
-                                                <div class="text-red-600">
-                                                    مصروف: {{ med.totalDispensedThisMonth }} {{ med.unit || 'حبة' }}
-                                                </div>
+                                              
                                                 <div v-if="med.remainingQuantity > 0" class="text-green-600 font-semibold">
                                                     متبقي: {{ med.remainingQuantity }} {{ med.unit || 'حبة' }}
                                                 </div>

@@ -298,7 +298,14 @@
             </div>
 
             <!-- Footer -->
-            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+            <div class="bg-gray-50 px-8 py-5 flex justify-between items-center gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="printRequest" 
+                    class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2"
+                >
+                    <Icon icon="solar:printer-bold-duotone" class="w-5 h-5" />
+                    طباعة
+                </button>
                 <button 
                     @click="closeModal" 
                     class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
@@ -607,5 +614,176 @@ const statusClass = computed(() => {
 
 const closeModal = () => {
     emit('close');
+};
+
+// دالة لتنسيق الكمية بالعبوة للطباعة (نص بدون HTML)
+const getFormattedQuantityForPrint = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
+};
+
+// دالة الطباعة
+const printRequest = () => {
+    try {
+        const printWindow = window.open('', '_blank', 'height=600,width=800');
+        
+        if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+            console.error('فشل في فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة.');
+            return;
+        }
+        
+        const details = requestDetails.value;
+        
+        // إعداد بيانات الأدوية للطباعة
+        const itemsHtml = (details.items || []).map(item => {
+            const requestedQty = getRequestedQuantity(item);
+            const sentQty = getSentQuantity(item);
+            const receivedQty = getReceivedQuantity(item);
+            const unitsPerBox = item.units_per_box || item.unitsPerBox || 1;
+            const unit = item.unit || 'وحدة';
+            
+            // استخدام getFormattedQuantityForPrint لعرض الكميات
+            const formattedRequested = getFormattedQuantityForPrint(requestedQty, unit, unitsPerBox);
+            const formattedSent = getFormattedQuantityForPrint(sentQty, unit, unitsPerBox);
+            const formattedReceived = getFormattedQuantityForPrint(receivedQty, unit, unitsPerBox);
+            
+            // معلومات الدفعة وتاريخ الانتهاء
+            let expiryInfo = '-';
+            if (item.batch_number || item.batchNumber || item.expiry_date || item.expiryDate) {
+                const batchStr = (item.batch_number || item.batchNumber) ? `دفعة: ${item.batch_number || item.batchNumber}` : '';
+                const expiryStr = (item.expiry_date || item.expiryDate) ? `انتهاء: ${formatDate(item.expiry_date || item.expiryDate)}` : '';
+                expiryInfo = [batchStr, expiryStr].filter(Boolean).join(' - ') || '-';
+            }
+            
+            return `
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedRequested}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedSent}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedReceived}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px;">${expiryInfo}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        const printContent = `
+            <!DOCTYPE html>
+            <html dir="rtl" lang="ar">
+            <head>
+                <meta charset="UTF-8">
+                <title>طباعة تفاصيل طلب التوريد</title>
+                <style>
+                    body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                    h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                    .info-section { margin-bottom: 20px; }
+                    .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                    .info-label { font-weight: bold; color: #666; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                    th { background-color: #9aced2; font-weight: bold; }
+                    .rejection-section { background-color: #fee; padding: 15px; border: 1px solid #fcc; margin-top: 20px; border-radius: 5px; }
+                    .notes-section { background-color: #f0f9ff; padding: 15px; border: 1px solid #4DA1A9; margin-top: 20px; border-radius: 5px; }
+                    @media print {
+                        button { display: none; }
+                        @page { margin: 1cm; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>تفاصيل طلب التوريد</h1>
+                
+                <div class="info-section">
+                    <div class="info-row">
+                        <span class="info-label">رقم الشحنة:</span>
+                        <span>${details.shipmentNumber || details.id || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">الجهة الطالبة:</span>
+                        <span>${details.department || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">تاريخ الطلب:</span>
+                        <span>${formatDate(details.date) || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">حالة الطلب:</span>
+                        <span>${details.status || 'جديد'}</span>
+                    </div>
+                    ${details.confirmation?.confirmedAt ? `
+                    <div class="info-row">
+                        <span class="info-label">تاريخ التأكيد:</span>
+                        <span>${formatDate(details.confirmation.confirmedAt)}</span>
+                    </div>
+                    ` : ''}
+                </div>
+
+                ${details.rejectionReason ? `
+                    <div class="rejection-section">
+                        <h3 style="color: #c00; margin-top: 0;">سبب الرفض:</h3>
+                        <p>${details.rejectionReason}</p>
+                    </div>
+                ` : ''}
+
+                <h2 style="margin-top: 30px;">الأدوية المطلوبة</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>اسم الدواء</th>
+                            <th>الكمية المطلوبة</th>
+                            <th>الكمية المرسلة</th>
+                            <th>الكمية المستلمة</th>
+                            <th>الدفعة / تاريخ الانتهاء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml || '<tr><td colspan="5" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                    </tbody>
+                </table>
+
+                ${details.storekeeperNotes || details.supplierNotes || details.notes ? `
+                <div class="notes-section">
+                    <h3 style="color: #2E5077; margin-top: 0;">الملاحظات</h3>
+                    ${details.storekeeperNotes ? `<p><strong>ملاحظة الطلب:</strong> ${details.storekeeperNotes}</p>` : ''}
+                    ${details.supplierNotes ? `<p><strong>من المورد:</strong> ${details.supplierNotes}</p>` : ''}
+                    ${details.notes ? `<p><strong>ملاحظة:</strong> ${details.notes}</p>` : ''}
+                    ${details.confirmation?.confirmationNotes || details.confirmationNotes ? `<p><strong>ملاحظة تأكيد الاستلام:</strong> ${details.confirmation?.confirmationNotes || details.confirmationNotes}</p>` : ''}
+                </div>
+                ` : ''}
+
+                <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                    تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+                </p>
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // استخدام setTimeout لضمان تحميل المحتوى قبل الطباعة
+        setTimeout(() => {
+            if (printWindow && !printWindow.closed) {
+                printWindow.focus();
+                printWindow.print();
+            }
+        }, 250);
+    } catch (error) {
+        console.error('خطأ في عملية الطباعة:', error);
+    }
 };
 </script>

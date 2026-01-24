@@ -7,6 +7,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Hospital;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class SupplierSuperController extends BaseApiController
@@ -194,20 +195,85 @@ class SupplierSuperController extends BaseApiController
                 }
             }
 
-            $supplier->update($request->only([
-                'name', 'code', 'phone', 'address', 'city'
-            ]));
+            DB::beginTransaction();
 
-            // ربط/فك ربط المسؤول بالمورد
-            if ($request->has('admin_id')) {
-                // فك ربط المسؤول القديم
-                if ($supplier->admin) {
-                    User::where('id', $supplier->admin->id)->update(['supplier_id' => null]);
+            try {
+                $supplier->update($request->only([
+                    'name', 'code', 'phone', 'address', 'city'
+                ]));
+
+                // ربط/فك ربط المسؤول بالمورد
+                if ($request->has('admin_id')) {
+                    $adminId = $request->input('admin_id');
+                    
+                    // إذا تم إرسال null، إزالة المدير الحالي وتعطيله
+                    if ($adminId === null || $adminId === '') {
+                        // إزالة supplier_id من المدير الحالي إن وجد وتعطيله
+                        if ($supplier->admin) {
+                            $supplier->admin->update([
+                                'supplier_id' => null,
+                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة supplier_id
+                            ]);
+                            // حذف جميع tokens للمستخدم
+                            $supplier->admin->tokens()->delete();
+                        }
+                    } else {
+                        // التحقق من أن المستخدم المحدد هو supplier_admin
+                        $newAdmin = User::where('type', 'supplier_admin')
+                            ->where('id', $adminId)
+                            ->first();
+                        
+                        if (!$newAdmin) {
+                            DB::rollBack();
+                            return $this->sendError('المستخدم المحدد ليس مدير مورد', ['admin_id' => ['المستخدم المحدد ليس مدير مورد']], 422);
+                        }
+
+                        // إزالة supplier_id من المدير الحالي إن وجد وتعطيله
+                        if ($supplier->admin && $supplier->admin->id != $adminId) {
+                            $oldAdmin = $supplier->admin;
+                            $oldAdmin->update([
+                                'supplier_id' => null,
+                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة supplier_id
+                            ]);
+                            // حذف جميع tokens للمستخدم
+                            $oldAdmin->tokens()->delete();
+                        }
+
+                        // إزالة supplier_id من أي مستخدم آخر مرتبط بنفس المورد وتعطيلهم
+                        $otherAdmins = User::where('supplier_id', $supplier->id)
+                            ->where('type', 'supplier_admin')
+                            ->where('id', '!=', $adminId)
+                            ->get();
+                        
+                        foreach ($otherAdmins as $otherAdmin) {
+                            $otherAdmin->update([
+                                'supplier_id' => null,
+                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة supplier_id
+                            ]);
+                            // حذف جميع tokens للمستخدم
+                            $otherAdmin->tokens()->delete();
+                        }
+
+                        // تعيين المدير الجديد
+                        $newAdmin->update(['supplier_id' => $supplier->id]);
+                        
+                        // تفعيل المدير إذا كان معطلاً
+                        if ($newAdmin->status === 'inactive') {
+                            $newAdmin->update(['status' => 'active']);
+                        }
+                    }
                 }
-                // ربط المسؤول الجديد
-                if ($request->filled('admin_id')) {
-                    User::where('id', $request->admin_id)->update(['supplier_id' => $supplier->id]);
-                }
+
+                DB::commit();
+
+                return $this->sendSuccess([
+                    'id' => $supplier->id,
+                    'name' => $supplier->name,
+                ], 'تم تعديل بيانات المورد بنجاح');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
             }
 
             return $this->sendSuccess([

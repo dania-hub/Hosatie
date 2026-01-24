@@ -79,10 +79,10 @@
                     </h3>
 
                     <div class="bg-white rounded-[1.5rem] border border-gray-200/60 overflow-hidden shadow-sm">
-                        <div v-if="requestDetails.items && requestDetails.items.length > 0" class="divide-y divide-gray-100">
+                        <div v-if="mergedItems && mergedItems.length > 0" class="divide-y divide-gray-100">
                             <div 
-                                v-for="(item, index) in requestDetails.items" 
-                                :key="index"
+                                v-for="(item, index) in mergedItems" 
+                                :key="item.drugId || item.id || index"
                                 class="p-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 hover:bg-gray-50/50 transition-colors"
                             >
                                 <!-- Item Info -->
@@ -115,48 +115,55 @@
                                         <div class="flex items-center gap-1 font-bold">
                                             <span 
                                                 class="text-gray-700 text-sm"
-                                                v-html="getFormattedQuantity(item.quantity || item.requestedQuantity || item.requested_qty || 0, item)"
+                                                v-html="getFormattedQuantity(item.totalRequestedQty || item.quantity || item.requestedQuantity || item.requested_qty || 0, item)"
                                             ></span>
                                         </div>
                                     </div>
                                     
                                     <!-- Sent Qty & Details -->
-                                    <div v-if="hasSentQuantity(item)" class="px-4 py-3 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col items-center min-w-[160px] relative group">
+                                    <div v-if="item.totalSentQty > 0" class="px-4 py-3 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col items-center min-w-[160px] relative group">
                                         <span class="text-[10px] text-blue-400 font-bold mb-1 uppercase tracking-wider flex items-center gap-1">
                                             مرسل
-                                            <Icon v-if="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0)" icon="solar:check-circle-bold" class="w-3 h-3 text-green-500" />
+                                            <Icon v-if="item.totalSentQty >= item.totalRequestedQty" icon="solar:check-circle-bold" class="w-3 h-3 text-green-500" />
                                             <Icon v-else icon="solar:info-circle-bold" class="w-3 h-3 text-amber-500" />
                                         </span>
                                         <div class="flex items-center gap-1 mb-1 font-bold">
                                             <span 
                                                 class="text-sm"
-                                                :class="getSentQuantity(item) >= (item.quantity || item.requestedQuantity || item.requested_qty || 0) ? 'text-green-600' : 'text-amber-600'"
-                                                v-html="getFormattedQuantity(getSentQuantity(item) || 0, item)"
+                                                :class="item.totalSentQty >= item.totalRequestedQty ? 'text-green-600' : 'text-amber-600'"
+                                                v-html="getFormattedQuantity(item.totalSentQty || 0, item)"
                                             ></span>
-                                        </div>
-                                        
-                                        <!-- Batch Info -->
-                                        <div class="flex flex-col gap-1 w-full mt-1 pt-1 border-t border-blue-100/50">
-                                             <div v-if="getBatchNumber(item)" class="flex items-center gap-1.5 text-[10px] text-blue-600 bg-white/60 px-1.5 py-0.5 rounded-md">
-                                                <Icon icon="solar:tag-bold-duotone" class="w-3 h-3 text-blue-400" />
-                                                <span class="font-mono font-bold">{{ getBatchNumber(item) }}</span>
-                                             </div>
-                                             <div v-if="getExpiryDate(item)" class="flex items-center gap-1.5 text-[10px] text-purple-600 bg-white/60 px-1.5 py-0.5 rounded-md">
-                                                <Icon icon="solar:calendar-bold-duotone" class="w-3 h-3 text-purple-400" />
-                                                <span class="font-bold">{{ formatDateShort(getExpiryDate(item)) }}</span>
-                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <!-- Received Qty -->
-                                    <div v-if="hasReceivedQuantity(item)" class="px-4 py-3 bg-purple-50/50 rounded-2xl border border-purple-100 flex flex-col items-center min-w-[100px]">
-                                        <span class="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider">مستلم</span>
-                                        <div class="flex items-center gap-1 font-bold">
+                                    <!-- Received Qty (يظهر فقط إذا كانت الحالة "تم الاستلام" وهناك كمية مستلمة فعلية) -->
+                                    <div v-if="isReceivedStatus && item.totalReceivedQty > 0" class="px-4 py-3 bg-purple-50/50 rounded-2xl border border-purple-100 flex flex-col items-center min-w-[160px] relative group">
+                                        <span class="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider flex items-center gap-1">
+                                            مستلم
+                                            <Icon v-if="item.totalReceivedQty >= item.totalSentQty && item.totalReceivedQty > 0" icon="solar:check-circle-bold" class="w-3 h-3 text-green-500" />
+                                            <Icon v-else-if="item.totalReceivedQty > 0" icon="solar:info-circle-bold" class="w-3 h-3 text-amber-500" />
+                                        </span>
+                                        <div class="flex items-center gap-1 mb-1 font-bold">
                                             <span 
                                                 class="text-sm"
-                                                :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-amber-600'"
-                                                v-html="getFormattedQuantity(getReceivedQuantity(item) || 0, item)"
+                                                :class="item.totalReceivedQty >= item.totalSentQty ? 'text-green-600' : 'text-amber-600'"
+                                                v-html="getFormattedQuantity(item.totalReceivedQty || 0, item)"
                                             ></span>
+                                        </div>
+                                        
+                                        <!-- Expiry Dates Info - عرض جميع تواريخ الانتهاء -->
+                                        <div v-if="isReceivedStatus && item.allExpiryDates && item.allExpiryDates.length > 0" class="flex flex-col gap-1 w-full mt-1 pt-1 border-t border-purple-100/50">
+                                            <div v-for="(expiryEntry, expiryIndex) in item.allExpiryDates" :key="expiryIndex" class="flex flex-col gap-0.5 text-[10px]">
+                                                <div v-if="expiryEntry.batchNumber" class="flex items-center gap-1.5 text-purple-600 bg-white/60 px-1.5 py-0.5 rounded-md">
+                                                    <Icon icon="solar:tag-bold-duotone" class="w-3 h-3 text-purple-400" />
+                                                    <span class="font-mono font-bold">{{ expiryEntry.batchNumber }}</span>
+                                                </div>
+                                                <div v-if="expiryEntry.expiryDate" class="flex items-center gap-1.5 text-purple-600 bg-white/60 px-1.5 py-0.5 rounded-md">
+                                                    <Icon icon="solar:calendar-bold-duotone" class="w-3 h-3 text-purple-400" />
+                                                    <span class="font-bold">{{ formatDateShort(expiryEntry.expiryDate) }}</span>
+                                                    <span class="text-purple-500 font-bold">({{ getQuantityInBoxes(expiryEntry.quantity || 0, item) }})</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -193,7 +200,7 @@
 
 
                 <!-- Notes -->
-                <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.notes || (requestDetails.confirmation && requestDetails.confirmation.notes)" class="space-y-4">
+                <div v-if="hasActualNotes" class="space-y-4">
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
@@ -226,25 +233,42 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <!-- Supplier Message (Always Visible) -->
-                    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                        <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
+                    <!-- رسائل المورد فقط -->
+                    <div v-if="supplierMessages.length > 0" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                        <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             رسالة المورد
                         </h4>
-                        <div v-if="Array.isArray(requestDetails.notes) && requestDetails.notes.length > 0" class="space-y-3">
-                            <div v-for="(msg, index) in requestDetails.notes" :key="index" class="bg-white/60 p-3 rounded-lg border border-blue-100/50">
+                        <div class="space-y-3">
+                            <div v-for="(msg, index) in supplierMessages" :key="index" class="bg-white/60 p-3 rounded-lg border border-green-100/50">
                                 <div class="flex justify-between items-start mb-1">
-                                    <span class="text-xs font-bold" :class="msg.by === 'supplier_admin' ? 'text-green-700' : 'text-blue-700'">
-                                        {{ msg.by === 'supplier_admin' ? (msg.user_name || 'المورد') : 'الإدارة' }}
+                                    <span class="text-xs font-bold text-green-700">
+                                        {{ msg.user_name || 'المورد' }}
                                     </span>
                                     <span class="text-[10px] text-gray-400" dir="ltr">{{ formatDate(msg.created_at) }}</span>
                                 </div>
                                 <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ msg.message }}</p>
                             </div>
                         </div>
-                        <p v-else-if="requestDetails.notes && typeof requestDetails.notes === 'string'" class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
-                        <p v-else class="text-blue-400 text-sm leading-relaxed italic">لا توجد رسالة مرفقة</p>
+                    </div>
+
+                    <!-- رسائل الإدارة فقط -->
+                    <div v-if="adminMessages.length > 0" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            رسالة الإدارة
+                        </h4>
+                        <div class="space-y-3">
+                            <div v-for="(msg, index) in adminMessages" :key="index" class="bg-white/60 p-3 rounded-lg border border-blue-100/50">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs font-bold text-blue-700">
+                                        {{ msg.user_name || 'الإدارة' }}
+                                    </span>
+                                    <span class="text-[10px] text-gray-400" dir="ltr">{{ formatDate(msg.created_at) }}</span>
+                                </div>
+                                <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ msg.message }}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -285,7 +309,14 @@
             </div>
 
             <!-- Footer -->
-            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+            <div class="bg-gray-50 px-8 py-5 flex justify-between gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="printRequest" 
+                    class="px-6 py-2.5 rounded-xl text-white font-medium bg-[#4DA1A9] hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2"
+                >
+                    <Icon icon="solar:printer-bold" class="w-5 h-5" />
+                    طباعة
+                </button>
                 <button 
                     @click="closeModal" 
                     class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
@@ -370,6 +401,22 @@ const getFormattedQuantity = (quantity, item) => {
         return `<span>${qty}</span> <span class="text-[10px] text-gray-400 mr-0.5">${unit}</span>`;
     }
 };
+
+// دالة لتحويل الكمية إلى علب فقط (بدون باقي)
+const getQuantityInBoxes = (quantity, item) => {
+    if (!item || !quantity) return '0';
+    const unitsPerBox = Number(item.units_per_box || 1);
+    const qty = Number(quantity || 0);
+    
+    if (unitsPerBox > 1) {
+        const boxes = Math.floor(qty / unitsPerBox);
+        const boxUnit = (item.unit || 'حبة') === 'مل' ? 'عبوة' : 'علبة';
+        return boxes > 0 ? `${boxes} ${boxUnit}` : '0';
+    } else {
+        const unit = item.unit || 'حبة';
+        return `${qty} ${unit}`;
+    }
+};
 // دالة تنسيق التاريخ
 const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -435,14 +482,28 @@ const hasReceivedQuantity = (item) => {
     return receivedQty > 0;
 };
 
+// دالة للحصول على جميع تواريخ انتهاء الصلاحية للكمية المستلمة
+const getReceivedExpiryDates = (item) => {
+    if (item.expiryDates && Array.isArray(item.expiryDates) && item.expiryDates.length > 0) {
+        return item.expiryDates.filter(ed => ed.quantity > 0 && ed.expiryDate);
+    }
+    return [];
+};
+
 // دالة لاستخراج تاريخ انتهاء الصلاحية
 const getExpiryDate = (item) => {
-    // 1. محاولة الحصول من المتغير المباشر (الذي تم تمريره من Requests.vue)
+    // 1. محاولة الحصول من expiryDates (الأولوية الأولى)
+    if (item.expiryDates && Array.isArray(item.expiryDates) && item.expiryDates.length > 0) {
+        // إرجاع أول تاريخ انتهاء صلاحية
+        return item.expiryDates[0].expiryDate || item.expiryDates[0].expiry_date || null;
+    }
+    
+    // 2. محاولة الحصول من المتغير المباشر (الذي تم تمريره من Requests.vue)
     if (item.expiryDate || item.expiry_date) {
         return item.expiryDate || item.expiry_date;
     }
     
-    // 2. محاولة الحصول من confirmation (التأكيد السابق)
+    // 3. محاولة الحصول من confirmation (التأكيد السابق)
     if (requestDetails.value.confirmation?.items) {
         const sentItem = requestDetails.value.confirmation.items.find(
             si => si.id === item.id || si.drugId === item.id || si.drugId === item.drugId
@@ -457,12 +518,18 @@ const getExpiryDate = (item) => {
 
 // دالة لاستخراج رقم الدفعة
 const getBatchNumber = (item) => {
-    // 1. محاولة الحصول من المتغير المباشر
+    // 1. محاولة الحصول من expiryDates (الأولوية الأولى)
+    if (item.expiryDates && Array.isArray(item.expiryDates) && item.expiryDates.length > 0) {
+        // إرجاع أول رقم دفعة
+        return item.expiryDates[0].batchNumber || item.expiryDates[0].batch_number || null;
+    }
+    
+    // 2. محاولة الحصول من المتغير المباشر
     if (item.batchNumber || item.batch_number) {
         return item.batchNumber || item.batch_number;
     }
     
-    // 2. محاولة يس من confirmation
+    // 3. محاولة من confirmation
     if (requestDetails.value.confirmation?.items) {
         const sentItem = requestDetails.value.confirmation.items.find(
             si => si.id === item.id || si.drugId === item.id || si.drugId === item.drugId
@@ -498,12 +565,28 @@ const formatDateShort = (dateString) => {
 
 // دالة لاستخراج الكمية المستلمة
 const getReceivedQuantity = (item) => {
-    // أولاً: محاولة الحصول من الحقول المباشرة في item (الأولوية الأولى)
+    // أولاً: محاولة الحصول من expiryDates (مجموع الكميات)
+    if (item.expiryDates && Array.isArray(item.expiryDates) && item.expiryDates.length > 0) {
+        const totalFromExpiryDates = item.expiryDates.reduce((sum, ed) => sum + Number(ed.quantity || 0), 0);
+        if (totalFromExpiryDates > 0) {
+            return totalFromExpiryDates;
+        }
+    }
+    
+    // ثانياً: محاولة الحصول من الحقول المباشرة في item
     if (item.receivedQuantity !== null && item.receivedQuantity !== undefined) {
         return item.receivedQuantity;
     }
     
-    // ثانياً: محاولة الحصول من confirmationDetails
+    // ثالثاً: محاولة الحصول من fulfilled_qty
+    if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined) {
+        return item.fulfilled_qty;
+    }
+    if (item.fulfilledQty !== null && item.fulfilledQty !== undefined) {
+        return item.fulfilledQty;
+    }
+    
+    // رابعاً: محاولة الحصول من confirmationDetails
     if (requestDetails.value.confirmationDetails?.receivedItems) {
         const receivedItem = requestDetails.value.confirmationDetails.receivedItems.find(
             ri => ri.id === item.id || ri.drugId === item.id
@@ -513,7 +596,7 @@ const getReceivedQuantity = (item) => {
         }
     }
     
-    // ثالثاً: محاولة الحصول من confirmation
+    // خامساً: محاولة الحصول من confirmation
     if (requestDetails.value.confirmation?.items) {
         const receivedItem = requestDetails.value.confirmation.items.find(
             ri => ri.id === item.id || ri.drugId === item.id
@@ -557,12 +640,71 @@ const isReceivedStatus = computed(() => {
         return true;
     }
     
-    // التحقق من الحالة
-    return status && (
+    // التحقق من الحالة - فقط "تم الاستلام" وليس "قيد الاستلام"
+    if (!status) return false;
+    
+    // استثناء "قيد الاستلام"
+    if (status.includes('قيد الاستلام') || statusOriginal === 'fulfilled' || statusOriginal === 'approved') {
+        return false;
+    }
+    
+    // التحقق من "تم الاستلام" فقط
+    return (
         status.includes('تم الاستلام') ||
         status === 'تم الإستلام' ||
         statusOriginal === 'delivered'
     );
+});
+
+// فلترة الرسائل لاستثناء رسائل سبب الرفض
+const filteredMessages = computed(() => {
+    const notes = requestDetails.value.notes;
+    const rejectionReason = requestDetails.value.rejectionReason;
+    
+    if (!Array.isArray(notes) || notes.length === 0) {
+        // إذا كانت notes نص عادي، نتحقق مما إذا كانت نفس سبب الرفض
+        if (notes && typeof notes === 'string' && notes.trim()) {
+            if (rejectionReason && notes.trim() === rejectionReason.trim()) {
+                return []; // استثناء لأنها سبب الرفض
+            }
+            return [{ message: notes, by: 'supplier_admin' }];
+        }
+        return [];
+    }
+    
+    // فلترة الرسائل التي هي نفسها سبب الرفض
+    if (!rejectionReason) {
+        return notes;
+    }
+    
+    return notes.filter(msg => {
+        const msgText = msg.message?.trim() || '';
+        return msgText !== rejectionReason.trim();
+    });
+});
+
+// فلترة رسائل المورد فقط (supplier_admin)
+const supplierMessages = computed(() => {
+    return filteredMessages.value.filter(msg => msg.by === 'supplier_admin');
+});
+
+// فلترة رسائل الإدارة فقط (super_admin أو أي شيء آخر)
+const adminMessages = computed(() => {
+    return filteredMessages.value.filter(msg => msg.by !== 'supplier_admin');
+});
+
+// التحقق من وجود رسائل المورد الفعلية (بعد استثناء سبب الرفض)
+const hasSupplierMessages = computed(() => {
+    return filteredMessages.value.length > 0;
+});
+
+// التحقق من وجود أي ملاحظات فعلية (ليس سبب الرفض)
+const hasActualNotes = computed(() => {
+    return requestDetails.value.storekeeperNotes || 
+           requestDetails.value.supplierNotes || 
+           supplierMessages.value.length > 0 ||
+           adminMessages.value.length > 0 ||
+           (requestDetails.value.confirmation && requestDetails.value.confirmation.notes);
 });
 
 // التحقق من وجود أي كمية مرسلة في أي item
@@ -571,8 +713,9 @@ const hasAnySent = computed(() => {
     return requestDetails.value.items.some(item => hasSentQuantity(item));
 });
 
-// التحقق من وجود أي كمية مستلمة في أي item
+// التحقق من وجود أي كمية مستلمة في أي item (فقط إذا كانت الحالة "تم الاستلام")
 const hasAnyReceived = computed(() => {
+    if (!isReceivedStatus.value) return false;
     if (!requestDetails.value.items || requestDetails.value.items.length === 0) return false;
     return requestDetails.value.items.some(item => hasReceivedQuantity(item));
 });
@@ -580,6 +723,84 @@ const hasAnyReceived = computed(() => {
 // التحقق من وجود أي كمية مرسلة أو مستلمة
 const hasAnySentOrReceived = computed(() => {
     return hasAnySent.value || hasAnyReceived.value;
+});
+
+// دمج الأدوية المتشابهة (نفس drug_id) وعرض تواريخ الانتهاء بجانب كل دواء
+const mergedItems = computed(() => {
+    if (!requestDetails.value.items || requestDetails.value.items.length === 0) {
+        return [];
+    }
+    
+    const merged = {};
+    
+    requestDetails.value.items.forEach(item => {
+        const drugId = item.drugId || item.id;
+        
+        if (!merged[drugId]) {
+            // إنشاء عنصر جديد للدواء
+            merged[drugId] = {
+                ...item,
+                // تجميع جميع تواريخ الانتهاء من جميع النسخ
+                allExpiryDates: [],
+                // تجميع الكميات
+                totalRequestedQty: 0,
+                totalSentQty: 0,
+                totalReceivedQty: 0
+            };
+        }
+        
+        // جمع الكميات
+        merged[drugId].totalRequestedQty += (item.quantity || item.requestedQuantity || item.requested_qty || 0);
+        merged[drugId].totalSentQty += (getSentQuantity(item) || 0);
+        merged[drugId].totalReceivedQty += (getReceivedQuantity(item) || 0);
+        
+        // جمع تواريخ الانتهاء من جميع المصادر
+        // 1. من expiryDates array
+        if (item.expiryDates && Array.isArray(item.expiryDates) && item.expiryDates.length > 0) {
+            item.expiryDates.forEach(ed => {
+                if (ed.expiryDate || ed.batchNumber) {
+                    merged[drugId].allExpiryDates.push({
+                        batchNumber: ed.batchNumber || ed.batch_number || null,
+                        expiryDate: ed.expiryDate || ed.expiry_date || null,
+                        quantity: ed.quantity || 0
+                    });
+                }
+            });
+        }
+        
+        // 2. من الحقول المباشرة (expiryDate, batchNumber)
+        if (item.expiryDate || item.expiry_date || item.batchNumber || item.batch_number) {
+            // التحقق من عدم تكرار نفس التاريخ
+            const existingDate = merged[drugId].allExpiryDates.find(ed => 
+                (ed.expiryDate === (item.expiryDate || item.expiry_date)) &&
+                (ed.batchNumber === (item.batchNumber || item.batch_number))
+            );
+            
+            if (!existingDate) {
+                merged[drugId].allExpiryDates.push({
+                    batchNumber: item.batchNumber || item.batch_number || null,
+                    expiryDate: item.expiryDate || item.expiry_date || null,
+                    quantity: getReceivedQuantity(item) || item.fulfilled_qty || 0
+                });
+            }
+        }
+        
+        // 3. من getExpiryDate و getBatchNumber (fallback)
+        const expiryDate = getExpiryDate(item);
+        const batchNumber = getBatchNumber(item);
+        if ((expiryDate || batchNumber) && !merged[drugId].allExpiryDates.find(ed => 
+            ed.expiryDate === expiryDate && ed.batchNumber === batchNumber
+        )) {
+            merged[drugId].allExpiryDates.push({
+                batchNumber: batchNumber,
+                expiryDate: expiryDate,
+                quantity: getReceivedQuantity(item) || 0
+            });
+        }
+    });
+    
+    // تحويل إلى مصفوفة
+    return Object.values(merged);
 });
 
 // تنسيق فئة الحالة
@@ -604,5 +825,172 @@ const statusClass = computed(() => {
 
 const closeModal = () => {
     emit('close');
+};
+
+// دالة لتنسيق الكمية بالعبوة للطباعة (نص بدون HTML)
+const getFormattedQuantityForPrint = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = 'عبوة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
+};
+
+// دالة الطباعة
+const printRequest = () => {
+    const printWindow = window.open('', '_blank', 'height=600,width=800');
+    
+    if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+        return;
+    }
+    
+    const details = requestDetails.value;
+    
+    // إعداد بيانات الأدوية للطباعة (استخدام mergedItems)
+    const itemsHtml = mergedItems.value.map(item => {
+        const requestedQty = item.totalRequestedQty || item.quantity || item.requestedQuantity || item.requested_qty || 0;
+        const sentQty = item.totalSentQty || 0;
+        const receivedQty = item.totalReceivedQty || 0;
+        const unitsPerBox = item.units_per_box || item.unitsPerBox || 1;
+        const unit = item.unit || 'وحدة';
+        
+        // استخدام getFormattedQuantityForPrint لعرض الكميات بالعبوة
+        const formattedRequested = getFormattedQuantityForPrint(requestedQty, unit, unitsPerBox);
+        const formattedSent = getFormattedQuantityForPrint(sentQty, unit, unitsPerBox);
+        const formattedReceived = getFormattedQuantityForPrint(receivedQty, unit, unitsPerBox);
+        
+        // إعداد تواريخ انتهاء الصلاحية من allExpiryDates
+        let expiryInfo = '';
+        if (item.allExpiryDates && item.allExpiryDates.length > 0) {
+            expiryInfo = item.allExpiryDates.map(ed => {
+                const batchStr = ed.batchNumber ? `دفعة: ${ed.batchNumber}` : '';
+                const expiryStr = ed.expiryDate ? `انتهاء: ${formatDateShort(ed.expiryDate)}` : '';
+                // عرض الكمية دائماً حتى لو كانت 0
+                const qtyStr = `(${getFormattedQuantityForPrint(ed.quantity || 0, unit, unitsPerBox)})`;
+                return [batchStr, expiryStr, qtyStr].filter(Boolean).join(' - ');
+            }).join('<br>');
+        } else if (getExpiryDate(item) || getBatchNumber(item)) {
+            const batchStr = getBatchNumber(item) ? `دفعة: ${getBatchNumber(item)}` : '';
+            const expiryStr = getExpiryDate(item) ? `انتهاء: ${formatDateShort(getExpiryDate(item))}` : '';
+            const qty = getReceivedQuantity(item) || 0;
+            const qtyStr = `(${getFormattedQuantityForPrint(qty, unit, unitsPerBox)})`;
+            expiryInfo = [batchStr, expiryStr, qtyStr].filter(Boolean).join(' - ');
+        }
+        
+        return `
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedRequested}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedSent}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedReceived}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px;">${expiryInfo || '-'}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    const printContent = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <title>طباعة تفاصيل طلب التوريد</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                .info-section { margin-bottom: 20px; }
+                .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                .info-label { font-weight: bold; color: #666; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                th { background-color: #9aced2; font-weight: bold; }
+                .rejection-section { background-color: #fee; padding: 15px; border: 1px solid #fcc; margin-top: 20px; border-radius: 5px; }
+                .notes-section { background-color: #f0f9ff; padding: 15px; border: 1px solid #4DA1A9; margin-top: 20px; border-radius: 5px; }
+                @media print {
+                    button { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>تفاصيل طلب التوريد</h1>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">رقم الشحنة:</span>
+                    <span>${details.shipmentNumber || details.id || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">تاريخ الطلب:</span>
+                    <span>${formatDate(details.date) || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">حالة الطلب:</span>
+                    <span>${details.status || 'جديد'}</span>
+                </div>
+                ${details.confirmation?.confirmedAt ? `
+                <div class="info-row">
+                    <span class="info-label">تاريخ التأكيد:</span>
+                    <span>${formatDate(details.confirmation.confirmedAt)}</span>
+                </div>
+                ` : ''}
+            </div>
+
+            ${details.rejectionReason ? `
+                <div class="rejection-section">
+                    <h3 style="color: #c00; margin-top: 0;">سبب الرفض:</h3>
+                    <p>${details.rejectionReason}</p>
+                    ${details.rejectedAt ? `<p style="font-size: 12px; color: #666;">تاريخ الرفض: ${formatDate(details.rejectedAt)}</p>` : ''}
+                </div>
+            ` : ''}
+
+            <h2 style="margin-top: 30px;">الأدوية المطلوبة</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>اسم الدواء</th>
+                        <th>الكمية المطلوبة</th>
+                        <th>الكمية المرسلة</th>
+                        <th>الكمية المستلمة</th>
+                        <th>الدفعة / تاريخ الانتهاء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml || '<tr><td colspan="5" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                </tbody>
+            </table>
+
+            ${details.storekeeperNotes || details.supplierNotes ? `
+            <div class="notes-section">
+                <h3 style="color: #2E5077; margin-top: 0;">الملاحظات</h3>
+                ${details.storekeeperNotes ? `<p><strong>ملاحظة الطلب:</strong> ${details.storekeeperNotes}</p>` : ''}
+                ${details.supplierNotes ? `<p><strong>من مدير المخزن:</strong> ${details.supplierNotes}</p>` : ''}
+            </div>
+            ` : ''}
+
+            <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+            </p>
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    
+    printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+    };
 };
 </script>

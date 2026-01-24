@@ -26,7 +26,10 @@ class OperationLogController extends BaseApiController
             ], 400);
         }
 
-        // جلب السجلات مع فلترة حسب hospital_id واستبعاد جميع العمليات التي قام بها مدير المستشفى
+        // جلب السجلات مع فلترة حسب hospital_id واستبعاد جميع العمليات التي قام بها:
+        // 1. مدير المستشفى (hospital_admin)
+        // 2. المدير الأعلى (super_admin)
+        // 3. المورد (supplier_admin)
         // نستخدم whereHas للفلترة في قاعدة البيانات مباشرة لتحسين الأداء
         $logs = AuditLog::where('hospital_id', $hospitalId)
             ->where(function ($query) {
@@ -34,13 +37,15 @@ class OperationLogController extends BaseApiController
                 $query->whereNull('user_id')
                     // أو يوجد user_id لكن user غير موجود (تم حذفه)
                     ->orWhereDoesntHave('user')
-                    // أو يوجد user لكنه ليس hospital_admin (استبعاد جميع عمليات hospital_admin)
+                    // أو يوجد user لكنه ليس hospital_admin أو super_admin أو supplier_admin
                     ->orWhereHas('user', function ($q) {
-                        $q->where('type', '!=', 'hospital_admin');
+                        $q->where('type', '!=', 'hospital_admin')
+                          ->where('type', '!=', 'super_admin')
+                          ->where('type', '!=', 'supplier_admin');
                     });
             })->latest()->get();
         
-        // فلترة إضافية للتأكد من عدم وجود أي عمليات لمدير المستشفى
+        // فلترة إضافية للتأكد من عدم وجود أي عمليات لمدير المستشفى أو المدير الأعلى أو المورد
         $logs = $logs->filter(function ($log) {
             if (!$log->user_id) {
                 return true; // السجلات القديمة بدون user_id تظهر
@@ -51,8 +56,8 @@ class OperationLogController extends BaseApiController
                 return true; // المستخدم المحذوف تظهر عملياته
             }
             
-            // استبعاد جميع عمليات hospital_admin
-            return $user->type !== 'hospital_admin';
+            // استبعاد جميع عمليات hospital_admin و super_admin و supplier_admin
+            return !in_array($user->type, ['hospital_admin', 'super_admin', 'supplier_admin']);
         });
 
         $data = $logs->map(function ($log) {

@@ -197,6 +197,7 @@ class HospitalSuperController extends BaseApiController
                     'regex:/^(021|092|091|093|094)\d{7}$/',
                 ],
                 'supplier_id' => 'nullable|exists:suppliers,id',
+                'manager_id' => 'nullable|exists:users,id',
             ]);
 
             if ($validator->fails()) {
@@ -214,14 +215,87 @@ class HospitalSuperController extends BaseApiController
                 }
             }
 
-            $hospital->update($request->only([
-                'name', 'code', 'type', 'city', 'address', 'phone', 'supplier_id'
-            ]));
+            DB::beginTransaction();
 
-            return $this->sendSuccess([
-                'id' => $hospital->id,
-                'name' => $hospital->name,
-            ], 'تم تعديل بيانات المؤسسة بنجاح');
+            try {
+                // تحديث بيانات المستشفى
+                $hospital->update($request->only([
+                    'name', 'code', 'type', 'city', 'address', 'phone', 'supplier_id'
+                ]));
+
+                // معالجة تعيين المدير
+                if ($request->has('manager_id')) {
+                    $managerId = $request->input('manager_id');
+                    
+                    // إذا تم إرسال null، إزالة المدير الحالي
+                    if ($managerId === null || $managerId === '') {
+                        // إزالة hospital_id من المدير الحالي وإن وجد وتعطيله
+                        if ($hospital->admin) {
+                            $hospital->admin->update([
+                                'hospital_id' => null,
+                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة hospital_id
+                            ]);
+                            // حذف جميع tokens للمستخدم
+                            $hospital->admin->tokens()->delete();
+                        }
+                    } else {
+                        // التحقق من أن المستخدم المحدد هو hospital_admin
+                        $newManager = User::where('type', 'hospital_admin')
+                            ->where('id', $managerId)
+                            ->first();
+                        
+                        if (!$newManager) {
+                            DB::rollBack();
+                            return $this->sendError('المستخدم المحدد ليس مدير مستشفى', ['manager_id' => ['المستخدم المحدد ليس مدير مستشفى']], 422);
+                        }
+
+                        // إزالة hospital_id من المدير الحالي إن وجد وتعطيله
+                        if ($hospital->admin && $hospital->admin->id != $managerId) {
+                            $oldAdmin = $hospital->admin;
+                            $oldAdmin->update([
+                                'hospital_id' => null,
+                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة hospital_id
+                            ]);
+                            // حذف جميع tokens للمستخدم
+                            $oldAdmin->tokens()->delete();
+                        }
+
+                        // إزالة hospital_id من أي مستخدم آخر مرتبط بنفس المستشفى وتعطيلهم
+                        $otherAdmins = User::where('hospital_id', $hospital->id)
+                            ->where('type', 'hospital_admin')
+                            ->where('id', '!=', $managerId)
+                            ->get();
+                        
+                        foreach ($otherAdmins as $otherAdmin) {
+                            $otherAdmin->update([
+                                'hospital_id' => null,
+                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة hospital_id
+                            ]);
+                            // حذف جميع tokens للمستخدم
+                            $otherAdmin->tokens()->delete();
+                        }
+
+                        // تعيين المدير الجديد
+                        $newManager->update(['hospital_id' => $hospital->id]);
+                        
+                        // تفعيل المدير إذا كان معطلاً
+                        if ($newManager->status === 'inactive') {
+                            $newManager->update(['status' => 'active']);
+                        }
+                    }
+                }
+
+                DB::commit();
+
+                return $this->sendSuccess([
+                    'id' => $hospital->id,
+                    'name' => $hospital->name,
+                ], 'تم تعديل بيانات المؤسسة بنجاح');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Hospital Update Error');

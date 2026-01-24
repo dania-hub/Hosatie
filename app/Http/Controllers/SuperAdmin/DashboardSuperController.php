@@ -607,7 +607,7 @@ class DashboardSuperController extends BaseApiController
                     return [
                         'id' => $activity->id,
                         'action' => $activity->action,
-                        'actionArabic' => $this->translateAction($activity->action),
+                        'actionArabic' => $this->translateAction($activity->action, $activity->table_name),
                         'tableName' => $activity->table_name,
                         'recordId' => $activity->record_id,
                         'userName' => $activity->user_name,
@@ -677,8 +677,40 @@ class DashboardSuperController extends BaseApiController
     /**
      * Helper: ترجمة الإجراء
      */
-    private function translateAction($action)
+    private function translateAction($action, $tableName = null)
     {
+        // التحقق من إذا كانت النص يحتوي على أحرف عربية (نسبة بسيطة من الأحرف العربية)
+        // إذا كانت النص يحتوي على أحرف عربية أكثر من الإنجليزية، أعدها كما هي
+        $arabicChars = preg_match_all('/[\x{0600}-\x{06FF}]/u', $action);
+        $totalChars = mb_strlen($action);
+        if ($totalChars > 0 && ($arabicChars / $totalChars) > 0.3) {
+            return $action;
+        }
+
+        // ترجمة النشاطات العامة بناءً على table_name إذا كان متاحاً
+        if ($tableName && in_array($action, ['create', 'update', 'delete', 'created', 'updated', 'deleted'])) {
+            $tableTranslations = [
+                'users' => 'مستخدم',
+                'hospitals' => 'مؤسسة صحية',
+                'suppliers' => 'مورد',
+                'drugs' => 'دواء',
+                'departments' => 'قسم',
+                'pharmacies' => 'صيدلية',
+                'warehouses' => 'مخزن',
+                'complaints' => 'شكوى',
+                'patient_transfer_requests' => 'طلب نقل مريض',
+            ];
+            
+            $entityName = $tableTranslations[$tableName] ?? $tableName;
+            
+            return match($action) {
+                'create', 'created' => "إضافة {$entityName}",
+                'update', 'updated' => "تعديل {$entityName}",
+                'delete', 'deleted' => "حذف {$entityName}",
+                default => $action,
+            };
+        }
+
         return match($action) {
             // General Actions
             'created' => 'إنشاء',
@@ -700,6 +732,11 @@ class DashboardSuperController extends BaseApiController
             'activated' => 'تفعيل',
             'deactivated' => 'تعطيل',
             'suspended' => 'إيقاف',
+            'assign' => 'إسناد',
+            'confirm' => 'تأكيد',
+            'reject' => 'رفض',
+            'rejection' => 'رفض',
+            'dispense' => 'صرف وصفة طبية',
             
             // Patient Actions
             'create_patient' => 'إضافة ملف مريض',
@@ -713,6 +750,10 @@ class DashboardSuperController extends BaseApiController
             'delete_drug' => 'حذف دواء',
             'dispense_drug' => 'صرف دواء',
             'drug_expired_zeroed' => 'تصفير كمية دواء منتهية',
+            'إضافة دواء' => 'إضافة دواء للمريض',
+            'تعديل دواء' => 'تعديل دواء للمريض',
+            'حذف دواء' => 'حذف دواء من المريض',
+            'تراجع عن صرف وصفة طبية' => 'تراجع عن صرف وصفة طبية',
             
             // User Actions
             'create_user' => 'إضافة مستخدم',
@@ -732,6 +773,9 @@ class DashboardSuperController extends BaseApiController
             'cancel_order' => 'إلغاء طلب',
             'approve_order' => 'الموافقة على طلب',
             'reject_order' => 'رفض طلب',
+            'إنشاء طلب توريد' => 'إنشاء طلب توريد',
+            'استلام شحنة' => 'استلام شحنة',
+            'رفض طلب توريد داخلي' => 'رفض طلب توريد داخلي',
 
              // External Supply Requests (General/StoreKeeper)
             'create_external_supply_request' => 'إنشاء طلب توريد خارجي',
@@ -740,13 +784,21 @@ class DashboardSuperController extends BaseApiController
             'approve_external_supply_request' => 'الموافقة على طلب توريد خارجي',
             'reject_external_supply_request' => 'رفض طلب توريد خارجي',
             'cancel_external_supply_request' => 'إلغاء طلب توريد خارجي',
+            'storekeeper_confirm_external_delivery' => 'تأكيد استلام توريد خارجي',
+            'super_admin_approve_external_supply_request' => 'موافقة إدارة على طلب توريد خارجي',
+            'super_admin_reject_external_supply_request' => 'رفض إدارة لطلب توريد خارجي',
 
             // Supplier Specific Actions
             'supplier_create_external_supply_request' => 'إنشاء طلب توريد (مورد)',
             'supplier_update_external_supply_request' => 'تعديل طلب توريد (مورد)',
             'supplier_cancel_external_supply_request' => 'إلغاء طلب توريد (مورد)',
             'supplier_ship_external_supply_request' => 'شحن طلب توريد',
-            'super_admin_confirm_external_supply_request' => 'تأكيد استلام طلب توريد (إدارة)',
+            'supplier_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مورد)',
+            'supplier_approve_external_supply_request' => 'موافقة مورد على طلب توريد خارجي',
+            'supplier_reject_external_supply_request' => 'رفض طلب توريد خارجي (مورد)',
+            'supplier_confirm_receipt' => 'تأكيد استلام (مورد)',
+            'supplier_confirm_external_delivery' => 'تأكيد استلام توريد خارجي (مورد)',
+            'super_admin_confirm_external_supply_request' => 'إرسال شحنة (إدارة)',
 
             // Internal Supply Requests
             'create_internal_supply_request' => 'إنشاء طلب صرف داخلي',
@@ -756,19 +808,49 @@ class DashboardSuperController extends BaseApiController
             'reject_internal_supply_request' => 'رفض طلب صرف داخلي',
             'dispense_internal_supply_request' => 'صرف طلب داخلي',
             'acknowledge_internal_supply_request' => 'استلام طلب صرف داخلي',
+            'storekeeper_confirm_internal_request' => 'تأكيد طلب توريد داخلي',
 
             // Pharmacist and Department specific actions
             'pharmacist_create_supply_request' => 'إنشاء طلب توريد داخلي (صيدلي)',
             'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (صيدلي)',
             'department_create_supply_request' => 'إنشاء طلب توريد داخلي (قسم)',
             'department_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (قسم)',
-            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (إدارة)',
+            'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
+            'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
+            'hospital_admin_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مدير مستشفى)',
 
             // Patient Transfer Requests
             'create_patient_transfer_request' => 'إنشاء طلب نقل مريض',
             'update_patient_transfer_request' => 'تعديل طلب نقل مريض',
             'approve_patient_transfer_request' => 'الموافقة على نقل مريض',
             'reject_patient_transfer_request' => 'رفض نقل مريض',
+
+            // Department Actions
+            'إضافة قسم' => 'إضافة قسم',
+            'تعديل قسم' => 'تعديل قسم',
+            'تعديل بيانات القسم' => 'تعديل بيانات القسم',
+            'تفعيل قسم' => 'تفعيل قسم',
+            'تعطيل قسم' => 'تعطيل قسم',
+
+            // Staff/Employee Actions
+            'إضافة موظف' => 'إضافة موظف',
+            'تعديل موظف' => 'تعديل موظف',
+            'تفعيل موظف' => 'تفعيل موظف',
+            'تعطيل موظف' => 'تعطيل موظف',
+            'تفعيل' => 'تفعيل',
+            'تعطيل' => 'تعطيل',
+
+            // Complaint Actions
+            'الرد على شكوى' => 'الرد على شكوى',
+            'preapprove' => 'موافقة مسبقة',
+            'approve' => 'موافقة',
+
+            // Auto Actions
+            'auto_deactivate_inactive_patient' => 'تعطيل تلقائي لمريض غير نشط',
+            'auto_deactivate_inactive_login' => 'تعطيل تلقائي لحساب غير نشط',
+
+            // Drug Dispensing Actions
+            'صرف دواء' => 'صرف دواء',
 
             default => $action,
         };

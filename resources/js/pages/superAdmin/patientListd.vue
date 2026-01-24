@@ -128,6 +128,20 @@ const fetchPatients = async () => {
     // إذا كانت هناك بيانات مستشفيات، ربط اسم المستشفى
     patients.value = patientsData.map(patient => {
       // API returns: fileNumber, fullName, nationalId, birthDate, phone, hospitalName
+      const hospitalName = patient.hospitalName || patient.hospital || '';
+      
+      // البحث عن ID المستشفى من قائمة المستشفيات بناءً على الاسم
+      let hospitalId = patient.hospitalId || null;
+      if (!hospitalId && hospitalName && hospitals.value.length > 0) {
+        const foundHospital = hospitals.value.find(h => 
+          h.name === hospitalName || 
+          h.name.includes(hospitalName) || 
+          hospitalName.includes(h.name)
+        );
+        if (foundHospital) {
+          hospitalId = foundHospital.id;
+        }
+      }
       
       return {
         id: patient.fileNumber, // or patient.id if available, but controller maps fileNumber => id
@@ -136,7 +150,9 @@ const fetchPatients = async () => {
         nationalIdDisplay: patient.nationalId || '',
         birthDisplay: patient.birthDate ? formatDateForDisplay(patient.birthDate) : (patient.birth ? formatDateForDisplay(patient.birth) : ''),
         phone: patient.phone,
-        hospitalDisplay: patient.hospitalName || 'غير محدد',
+        hospitalDisplay: hospitalName || 'غير محدد',
+        hospitalId: hospitalId, // إضافة hospitalId للتصفية
+        hospitalName: hospitalName, // حفظ اسم المستشفى الأصلي
         // Keep original fields just in case
         ...patient
       };
@@ -328,9 +344,24 @@ const filteredPatients = computed(() => {
     
     // تصفية حسب المستشفى
     if (selectedHospital.value !== 'all') {
-        list = list.filter(patient => 
-            patient.hospitalId && patient.hospitalId.toString() === selectedHospital.value
-        );
+        const selectedHospitalId = selectedHospital.value.toString();
+        const selectedHospitalObj = hospitals.value.find(h => h.id.toString() === selectedHospitalId);
+        
+        list = list.filter(patient => {
+            // التحقق من ID المستشفى أولاً
+            if (patient.hospitalId && patient.hospitalId.toString() === selectedHospitalId) {
+                return true;
+            }
+            
+            // إذا لم يكن هناك ID، المقارنة بناءً على اسم المستشفى
+            if (selectedHospitalObj && patient.hospitalDisplay) {
+                return patient.hospitalDisplay === selectedHospitalObj.name ||
+                       patient.hospitalName === selectedHospitalObj.name ||
+                       patient.hospital === selectedHospitalObj.name;
+            }
+            
+            return false;
+        });
     }
 
     if (dateFrom.value || dateTo.value) {
@@ -640,7 +671,7 @@ const printTable = () => {
             .empty-message { text-align: center; padding: 40px; color: #666; font-size: 16px; }
         </style>
 
-        <h1>قائمة المرضى (تقرير طباعة)</h1>
+        <h1>قائمة المرضى </h1>
     `;
 
     if (resultsCount > 0) {
@@ -662,13 +693,18 @@ const printTable = () => {
         `;
 
         filteredPatients.value.forEach(patient => {
+            // استخدام الحقول الصحيحة للعرض
+            const name = patient.nameDisplay || patient.fullName || patient.name || 'غير محدد';
+            const nationalId = patient.nationalIdDisplay || patient.nationalId || 'غير محدد';
+            const birthDate = patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || 'غير محدد';
+            
             tableHtml += `
                 <tr>
-                    <td>${patient.fileNumber || 'N/A'}</td>
-                    <td>${patient.name || 'N/A'}</td>
-                    <td>${patient.nationalId || 'N/A'}</td>
-                    <td>${formatDateForDisplay(patient.birth) || 'N/A'}</td>
-                    <td>${patient.phone || 'N/A'}</td>
+                    <td>${patient.fileNumber || 'غير محدد'}</td>
+                    <td>${name}</td>
+                    <td>${nationalId}</td>
+                    <td>${birthDate}</td>
+                    <td>${patient.phone || 'غير محدد'}</td>
                     <td>${patient.hospitalDisplay || 'غير محدد'}</td>
                 </tr>
             `;

@@ -167,8 +167,9 @@
                             <input
                                 type="number"
                                 min="0"
-                                :step="quantityUnit === 'مل' ? '0.5' : '1'"
+                                step="1"
                                 v-model.number="dailyQuantity"
+                                @input="handleQuantityInput"
                                 class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all disabled:bg-gray-100 disabled:text-gray-400"
                                 placeholder="0"
                                 :disabled="!selectedDrugName || isSaving"
@@ -501,12 +502,17 @@ const quantityError = computed(() => {
     const quantity = dailyQuantity.value;
     if (quantity === null || quantity === "") return null;
 
-    const numericQuantity = Number(quantity); 
+    const numericQuantity = parseInt(quantity); 
     
-    if (isNaN(numericQuantity)) return "الكمية يجب أن تكون رقماً.";
+    if (isNaN(numericQuantity)) return "الكمية يجب أن تكون رقماً صحيحاً.";
 
     if (numericQuantity <= 0) {
         return "يجب أن تكون الكمية أكبر من الصفر.";
+    }
+
+    // التحقق من أن القيمة هي رقم صحيح (وليس عشري)
+    if (Number(quantity) !== numericQuantity) {
+        return "الكمية يجب أن تكون رقماً صحيحاً (بدون أرقام عشرية).";
     }
 
     const unit = quantityUnit.value;
@@ -518,9 +524,9 @@ const quantityError = computed(() => {
     }
 
     // التحقق من الحد الأقصى اليومي بناءً على الجرعة الشهرية القصوى
-    const dailyLimit = selectedDrugMaxMonthlyDose.value / 30;
+    const dailyLimit = Math.floor(selectedDrugMaxMonthlyDose.value / 30);
     if (dailyLimit > 0 && numericQuantity > dailyLimit) {
-        return `الحد الأقصى المسموح به يومياً لهذا الدواء هو ${dailyLimit.toFixed(2)} ${unitName}.`;
+        return `الحد الأقصى المسموح به يومياً لهذا الدواء هو ${dailyLimit} ${unitName}.`;
     }
     
     return null;
@@ -702,6 +708,23 @@ const addNewDrug = () => {
 const removeItem = (index) => {
     if (!isSaving.value) {
         dailyDosageList.value.splice(index, 1);
+    }
+};
+
+// معالج إدخال الكمية لضمان الأرقام الصحيحة فقط
+const handleQuantityInput = (event) => {
+    let value = event.target.value;
+    // إزالة أي أرقام عشرية
+    if (value.includes('.')) {
+        value = Math.floor(parseFloat(value) || 0);
+        dailyQuantity.value = value;
+    } else {
+        const numValue = parseInt(value) || 0;
+        if (numValue >= 0) {
+            dailyQuantity.value = numValue;
+        } else {
+            dailyQuantity.value = 0;
+        }
     }
 };
 

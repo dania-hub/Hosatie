@@ -44,14 +44,14 @@ const handleEditMedication = (medIndex) => {
     editingIndex.value = medIndex;
     const medication = props.patient.medications[medIndex];
     
-    // استخراج الرقم العشري من النص
+    // استخراج الرقم الصحيح من النص
     const currentDosageText = medication.dosage;
-    const numericDosage = parseFloat(currentDosageText.match(/\d+(?:\.\d+)?/)?.[0] || medication.dailyQuantity || '1');
+    const numericDosage = parseInt(currentDosageText.match(/\d+/)?.[0] || medication.dailyQuantity || '1');
     editingDosage.value = numericDosage;
     
     // حساب الحد الأقصى اليومي من max_monthly_dose
     if (medication.maxMonthlyDose !== null && medication.maxMonthlyDose !== undefined) {
-        maxDailyDose.value = parseFloat(medication.maxMonthlyDose) / 30;
+        maxDailyDose.value = Math.floor(parseFloat(medication.maxMonthlyDose) / 30);
     } else {
         maxDailyDose.value = null;
     }
@@ -59,19 +59,36 @@ const handleEditMedication = (medIndex) => {
     showEditModal.value = true;
 };
 
+// معالج إدخال الجرعة لضمان الأرقام الصحيحة فقط
+const handleDosageInput = (event) => {
+    let value = event.target.value;
+    // إزالة أي أرقام عشرية
+    if (value.includes('.')) {
+        value = Math.floor(parseFloat(value) || 0);
+        editingDosage.value = value;
+    } else {
+        const numValue = parseInt(value) || 0;
+        if (numValue >= 0) {
+            editingDosage.value = numValue;
+        } else {
+            editingDosage.value = 0;
+        }
+    }
+};
+
 // حفظ التعديل وتحديث البيانات محلياً (للجدول)
 const saveEdit = () => {
-    const newDosage = parseFloat(editingDosage.value);
+    const newDosage = parseInt(editingDosage.value);
     
     // التحقق من صحة الرقم
     if (isNaN(newDosage) || newDosage <= 0) {
-        alert('يرجى إدخال جرعة صحيحة (رقم موجب).');
+        alert('يرجى إدخال جرعة صحيحة (رقم صحيح موجب).');
         return;
     }
     
     // التحقق من الحد الأقصى إذا كان موجوداً
     if (maxDailyDose.value !== null && newDosage > maxDailyDose.value) {
-        alert(`الجرعة اليومية يجب ألا تتجاوز ${maxDailyDose.value.toFixed(2)} (الحد الأقصى الشهري: ${props.patient.medications[editingIndex.value].maxMonthlyDose})`);
+        alert(`الجرعة اليومية يجب ألا تتجاوز ${maxDailyDose.value} (الحد الأقصى الشهري: ${props.patient.medications[editingIndex.value].maxMonthlyDose})`);
         return;
     }
     
@@ -95,10 +112,10 @@ const cancelEdit = () => {
 
 // حساب الكمية الشهرية المحدثة (computed للتحديث التلقائي)
 const updatedMonthlyQuantity = computed(() => {
-    const dosage = parseFloat(editingDosage.value) || 0;
+    const dosage = parseInt(editingDosage.value) || 0;
     const monthly = dosage * 30; // افتراض: 30 يوماً في الشهر
-    // إرجاع الرقم العشري إذا لزم الأمر
-    return monthly % 1 === 0 ? monthly : monthly.toFixed(2);
+    // إرجاع الرقم الصحيح دائماً
+    return Math.floor(monthly);
 });
 
 // دالة لحساب الكمية الشهرية للعرض (دائماً الجرعة اليومية * 30)
@@ -242,9 +259,7 @@ const getMonthlyQuantityDisplay = (med) => {
                                         <div class="flex flex-col space-y-2">
                                             <div class="font-medium">{{ getMonthlyQuantityDisplay(med) }}</div>
                                             <div class="text-xs space-y-1">
-                                                <div class="text-orange-600">
-                                                    <span class="font-semibold">مصروف:</span> {{ med.totalDispensedThisMonth || 0 }} {{ med.unit || 'حبة' }}
-                                                </div>
+                                                
                                                 <div class="text-green-600">
                                                     <span class="font-semibold">متبقي:</span> {{ med.remainingQuantity !== undefined ? Math.max(0, med.remainingQuantity) : Math.max(0, (med.monthlyQuantityNum || 0) - (med.totalDispensedThisMonth || 0)) }} {{ med.unit || 'حبة' }}
                                                 </div>
@@ -383,14 +398,15 @@ const getMonthlyQuantityDisplay = (med) => {
                         <label class="text-sm font-semibold text-[#2E5077]">
                             الجرعة اليومية (عدد الحبوب أو الوحدات)
                             <span v-if="maxDailyDose !== null" class="text-xs text-gray-500 font-normal">
-                                (الحد الأقصى: {{ maxDailyDose.toFixed(2) }})
+                                (الحد الأقصى: {{ maxDailyDose }})
                             </span>
                         </label>
                         <input
                             v-model="editingDosage"
+                            @input="handleDosageInput"
                             type="number"
-                            step="0.01"
-                            min="0.01"
+                            step="1"
+                            min="1"
                             :max="maxDailyDose !== null ? maxDailyDose : undefined"
                             class="w-full h-11 px-4 bg-white border border-gray-200 rounded-xl text-gray-700 focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 transition-all"
                             placeholder="أدخل الجرعة الجديدة"

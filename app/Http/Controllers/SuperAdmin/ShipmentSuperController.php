@@ -18,12 +18,18 @@ class ShipmentSuperController extends BaseApiController
 
     /**
      * عرض قائمة الشحنات (طلبات التوريد الخارجية)
+     * فقط الطلبات التي أنشأها الموردون وليس المستشفيات
      */
     public function index(Request $request)
     {
         try {
             // جلب البيانات مع العلاقات
-            $query = ExternalSupplyRequest::with(['supplier', 'items.drug']);
+            // فقط الطلبات التي أنشأها الموردون (supplier_admin) وليس المستشفيات (warehouse_manager)
+            $query = ExternalSupplyRequest::with(['supplier', 'items.drug', 'requester'])
+                ->whereHas('requester', function($q) {
+                    // فقط الطلبات من الموردين
+                    $q->where('type', 'supplier_admin');
+                });
 
             // يمكنك إضافة فلاتر هنا إذا لزم الأمر
             if ($request->has('status')) {
@@ -40,11 +46,13 @@ class ShipmentSuperController extends BaseApiController
                     'createdAt' => $shipment->created_at,
                     'status' => match($shipment->status) {
                         'pending' => 'جديد',
-                        'approved' => 'تم الإرسال', 
+                        'approved' => 'قيد الاستلام', 
                         'fulfilled' => 'تم الإستلام',
                         'rejected' => 'مرفوض',
                         default => $shipment->status,
                     },
+                    'rejectionReason' => $shipment->rejection_reason,
+                    'rejectedAt' => $shipment->status === 'rejected' && $shipment->handeled_at ? $shipment->handeled_at->format('Y-m-d H:i:s') : null,
                     'confirmedAt' => $shipment->updated_at, // افتراضاً
                     'items' => $shipment->items->map(function ($item) {
                         return [
@@ -68,11 +76,17 @@ class ShipmentSuperController extends BaseApiController
 
     /**
      * عرض تفاصيل الشحنة
+     * فقط الطلبات التي أنشأها الموردون
      */
     public function show($id)
     {
         try {
-            $shipment = ExternalSupplyRequest::with(['supplier', 'items.drug'])->findOrFail($id);
+            $shipment = ExternalSupplyRequest::with(['supplier', 'items.drug', 'requester'])
+                ->whereHas('requester', function($q) {
+                    // فقط الطلبات من الموردين
+                    $q->where('type', 'supplier_admin');
+                })
+                ->findOrFail($id);
 
             // Extract the initial supplier message for the frontend "Supplier Message" box
             $messages = $shipment->messages ?? [];
@@ -94,7 +108,15 @@ class ShipmentSuperController extends BaseApiController
                 'shipmentNumber' => 'EXT-' . $shipment->id,
                 'department' => $shipment->supplier ? $shipment->supplier->name : 'غير محدد',
                 'date' => $shipment->created_at->format('Y-m-d'),
-                'status' => $shipment->status,
+                'status' => match($shipment->status) {
+                    'pending' => 'جديد',
+                    'approved' => 'قيد الاستلام',
+                    'fulfilled' => 'تم الإستلام',
+                    'rejected' => 'مرفوض',
+                    default => $shipment->status,
+                },
+                'rejectionReason' => $shipment->rejection_reason,
+                'rejectedAt' => $shipment->rejected_at ? $shipment->rejected_at->format('Y-m-d H:i:s') : null,
                 'notes' => $messages, // Return full thread (array or string fallback)
                 'notes_initial' => $initialNote, // Keep mainly for backup/debugging
                 'conversation' => $messages, // Return full thread
@@ -137,11 +159,17 @@ class ShipmentSuperController extends BaseApiController
     /**
      * قبول طلب التوريد
      * PUT /api/super-admin/shipments/{id}/approve
+     * فقط الطلبات التي أنشأها الموردون
      */
     public function approve(Request $request, $id)
     {
         try {
-            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital'])->findOrFail($id);
+            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital', 'requester'])
+                ->whereHas('requester', function($q) {
+                    // فقط الطلبات من الموردين
+                    $q->where('type', 'supplier_admin');
+                })
+                ->findOrFail($id);
 
             if ($shipment->status !== 'pending') {
                  return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
@@ -185,11 +213,17 @@ class ShipmentSuperController extends BaseApiController
     /**
      * رفض طلب التوريد
      * PUT /api/super-admin/shipments/{id}/reject
+     * فقط الطلبات التي أنشأها الموردون
      */
     public function reject(Request $request, $id)
     {
         try {
-            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital'])->findOrFail($id);
+            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital', 'requester'])
+                ->whereHas('requester', function($q) {
+                    // فقط الطلبات من الموردين
+                    $q->where('type', 'supplier_admin');
+                })
+                ->findOrFail($id);
 
             if ($shipment->status !== 'pending') {
                  return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
@@ -198,7 +232,7 @@ class ShipmentSuperController extends BaseApiController
             $shipment->status = 'rejected';
             $shipment->handeled_by = $request->user()->id;
             $shipment->handeled_at = now();
-            $shipment->rejection_reason = $request->input('rejection_reason', $request->input('notes')); // Use notes as reason if not provided explicitly
+            $shipment->rejection_reason = $request->input('rejection_reason', $request->input('rejectionReason', $request->input('notes'))); // Use notes as reason if not provided explicitly
             $shipment->save();
 
             if ($request->filled('notes')) {
@@ -212,7 +246,11 @@ class ShipmentSuperController extends BaseApiController
                     'action' => 'super_admin_reject_external_supply_request',
                     'table_name' => 'external_supply_requests',
                     'record_id' => $shipment->id,
-                    'new_values' => json_encode(['status' => 'rejected']),
+                    'new_values' => json_encode([
+                        'status' => 'rejected',
+                        'rejection_reason' => $shipment->rejection_reason,
+                        'handeled_at' => $shipment->handeled_at
+                    ]),
                     'ip_address' => $request->ip(),
                 ]);
             } catch (\Exception $e) {
@@ -233,13 +271,54 @@ class ShipmentSuperController extends BaseApiController
 
     /**
      * تأكيد استلام الشحنة وتحديث المخزون
+     * فقط الطلبات التي أنشأها الموردون
      */
     public function confirm(Request $request, $id)
     {
         DB::beginTransaction();
         try {
-            $shipment = ExternalSupplyRequest::with(['items', 'hospital.warehouse'])->findOrFail($id);
+            $shipment = ExternalSupplyRequest::with(['items', 'hospital.warehouse', 'requester'])
+                ->whereHas('requester', function($q) {
+                    // فقط الطلبات من الموردين
+                    $q->where('type', 'supplier_admin');
+                })
+                ->findOrFail($id);
             
+            // مسار "تأكيد الإرسال": تحديث approved_qty فقط (بدون fulfilled_qty)
+            $sentItems = $request->input('items', []);
+            if (!empty($sentItems) && empty($request->input('receivedItems'))) {
+                $sentItemsMap = [];
+                foreach ($sentItems as $sentItem) {
+                    $itemId = $sentItem['id'] ?? null;
+                    $qty = $sentItem['approved_qty'] ?? $sentItem['sentQuantity'] ?? $sentItem['sent_quantity'] ?? null;
+                    if ($itemId !== null && $qty !== null) {
+                        $sentItemsMap[(int)$itemId] = (float)$qty;
+                    }
+                }
+
+                foreach ($shipment->items as $item) {
+                    if (!array_key_exists((int)$item->id, $sentItemsMap)) {
+                        continue;
+                    }
+                    $item->approved_qty = $sentItemsMap[(int)$item->id];
+                    $item->save();
+                }
+
+                if ($shipment->status === 'pending') {
+                    $shipment->status = 'approved';
+                    $shipment->handeled_by = $request->user()->id;
+                    $shipment->handeled_at = now();
+                    $shipment->save();
+                }
+
+                if ($request->filled('notes')) {
+                    $shipment->addNote($request->input('notes'), $request->user());
+                }
+
+                DB::commit();
+                return $this->sendSuccess($shipment, 'تم تأكيد إرسال الشحنة بنجاح');
+            }
+
             // تحقق من أن الشحنة لم يتم استلامها مسبقاً
             if ($shipment->status === 'fulfilled' || $shipment->status === 'تم الإستلام') {
                 return $this->sendError('تم استلام هذه الشحنة مسبقاً', null, 400);

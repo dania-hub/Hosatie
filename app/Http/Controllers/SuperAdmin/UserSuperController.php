@@ -7,6 +7,7 @@ use App\Models\Hospital;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -339,16 +340,37 @@ class UserSuperController extends BaseApiController
                 return $this->sendError('الحساب معطل بالفعل', null, 400);
             }
 
-            $targetUser->update(['status' => 'inactive']);
+            DB::beginTransaction();
 
-            // حذف جميع tokens للمستخدم
-            $targetUser->tokens()->delete();
+            try {
+                // تعطيل الحساب
+                $targetUser->update(['status' => 'inactive']);
 
-            return $this->sendSuccess([
-                'id' => $targetUser->id,
-                'fullName' => $targetUser->full_name,
-                'status' => 'inactive',
-            ], '✅ تم تعطيل الحساب بنجاح');
+                // إذا كان مدير مستشفى، إزالة hospital_id منه
+                if ($targetUser->type === 'hospital_admin' && $targetUser->hospital_id) {
+                    $targetUser->update(['hospital_id' => null]);
+                }
+
+                // إذا كان مدير مورد، إزالة supplier_id منه
+                if ($targetUser->type === 'supplier_admin' && $targetUser->supplier_id) {
+                    $targetUser->update(['supplier_id' => null]);
+                }
+
+                // حذف جميع tokens للمستخدم
+                $targetUser->tokens()->delete();
+
+                DB::commit();
+
+                return $this->sendSuccess([
+                    'id' => $targetUser->id,
+                    'fullName' => $targetUser->full_name,
+                    'status' => 'inactive',
+                ], '✅ تم تعطيل الحساب بنجاح');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Deactivate Error');
@@ -373,6 +395,38 @@ class UserSuperController extends BaseApiController
 
             if ($targetUser->status === 'active') {
                 return $this->sendError('الحساب مفعل بالفعل', null, 400);
+            }
+
+            // التحقق من أن مدير المستشفى مربوط بمستشفى قبل التفعيل
+            if ($targetUser->type === 'hospital_admin') {
+                if (!$targetUser->hospital_id) {
+                    return $this->sendError(
+                        'لا يمكن تفعيل حساب مدير المستشفى إلا إذا كان مربوطاً بمستشفى. يرجى تعيينه لمستشفى من صفحة المستشفيات أولاً.',
+                        ['hospital_id' => ['المدير غير مربوط بأي مستشفى']],
+                        422
+                    );
+                }
+
+                // التحقق من أن المستشفى موجود ونشط
+                $hospital = Hospital::find($targetUser->hospital_id);
+                if (!$hospital) {
+                    return $this->sendError(
+                        'المستشفى المرتبط بهذا المدير غير موجود',
+                        ['hospital_id' => ['المستشفى غير موجود']],
+                        422
+                    );
+                }
+            }
+
+            // التحقق من أن مدير المورد مربوط بمورد قبل التفعيل
+            if ($targetUser->type === 'supplier_admin') {
+                if (!$targetUser->supplier_id) {
+                    return $this->sendError(
+                        'لا يمكن تفعيل حساب مدير المورد إلا إذا كان مربوطاً بمورد. يرجى تعيينه لمورد أولاً.',
+                        ['supplier_id' => ['المدير غير مربوط بأي مورد']],
+                        422
+                    );
+                }
             }
 
             $targetUser->update(['status' => 'active']);

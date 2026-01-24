@@ -485,11 +485,14 @@ class StaffController extends BaseApiController
                     (\Carbon\Carbon::parse($staff->getOriginal('birth_date'))->format('Y-m-d')) : null,
             ];
 
-            $staff->save();
+            // حفظ التغييرات بدون تشغيل Events (لتجنب إنشاء سجل مزدوج من UserObserver)
+            User::withoutEvents(function () use ($staff) {
+                $staff->save();
+            });
 
             DB::commit();
 
-            // تسجيل العملية في audit_log
+            // تسجيل العملية في audit_log (سجل واحد فقط)
             try {
                 \App\Models\AuditLog::create([
                     'user_id' => $currentUser->id,
@@ -586,9 +589,13 @@ class StaffController extends BaseApiController
             
             // تحديث الحالة
             $staff->status = $validated['isActive'] ? 'active' : 'inactive';
-            $staff->save();
+            
+            // حفظ التغييرات بدون تشغيل Events (لتجنب إنشاء سجل مزدوج من UserObserver)
+            User::withoutEvents(function () use ($staff) {
+                $staff->save();
+            });
 
-            // تسجيل العملية في audit_log
+            // تسجيل العملية في audit_log (سجل واحد فقط)
             try {
                 \App\Models\AuditLog::create([
                     'user_id' => $currentUser->id,

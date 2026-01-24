@@ -33,14 +33,19 @@ class SupplyRequestSupplierController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
-            // جلب الطلبات التي أنشأها المورد (الطلبات التي قام المورد بطلب توريد لها)
+            // جلب الطلبات التي أنشأها المورد فقط (وليس المستشفى)
+            // نستخدم whereHas للتحقق من أن المستخدم الذي أنشأ الطلب هو supplier_admin وله نفس supplier_id
             $requests = ExternalSupplyRequest::with([
                 'hospital:id,name,city',
-                'requester:id,full_name',
+                'requester:id,full_name,type,supplier_id',
                 'approver:id,full_name',
                 'items.drug:id,name'
             ])
-                ->where('requested_by', $user->id)
+                ->whereHas('requester', function($query) use ($user) {
+                    $query->where('type', 'supplier_admin')
+                          ->where('supplier_id', $user->supplier_id);
+                })
+                ->where('supplier_id', $user->supplier_id)
                 // ->whereIn('status', ['pending', 'approved', 'fulfilled', 'rejected']) // Show all statuses
                 ->orderBy('created_at', 'desc')
                 ->get()
@@ -78,11 +83,32 @@ class SupplyRequestSupplierController extends BaseApiController
 
             $supplyRequest = ExternalSupplyRequest::with([
                 'hospital:id,name,city,address,phone',
-                'requester:id,full_name,email,phone',
+                'requester:id,full_name,email,phone,type,supplier_id',
                 'items.drug:id,name,category,form,strength,unit,units_per_box',
             ])
-                ->where('requested_by', $user->id)
+                ->whereHas('requester', function($query) use ($user) {
+                    $query->where('type', 'supplier_admin')
+                          ->where('supplier_id', $user->supplier_id);
+                })
+                ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
+
+            // جلب ملاحظة تأكيد الاستلام من AuditLog
+            $confirmationNotes = null;
+            $confirmedAt = null;
+            if ($supplyRequest->status === 'delivered') {
+                $auditLog = AuditLog::where('table_name', 'external_supply_request')
+                    ->where('record_id', $supplyRequest->id)
+                    ->where('action', 'supplier_confirm_receipt')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                if ($auditLog) {
+                    $newValues = json_decode($auditLog->new_values, true);
+                    $confirmationNotes = $newValues['notes'] ?? null;
+                    $confirmedAt = $auditLog->created_at ? $auditLog->created_at->format('Y-m-d H:i:s') : null;
+                }
+            }
 
             $data = [
                 'id' => $supplyRequest->id,
@@ -101,12 +127,54 @@ class SupplyRequestSupplierController extends BaseApiController
                 'department' => $supplyRequest->hospital->name ?? 'غير محدد',
                 'status' => $this->translateStatus($supplyRequest->status),
                 'statusOriginal' => $supplyRequest->status,
-                'items' => $supplyRequest->items->map(function ($item) {
+                'items' => $supplyRequest->items->map(function ($item) use ($user) {
                     $drug = $item->drug;
                     // التأكد من استخراج الكمية بشكل صحيح
                     // الحقل في قاعدة البيانات هو requested_qty
                     $requestedQty = (int) ($item->requested_qty ?? 0);
                     $approvedQty = $item->approved_qty !== null ? (int) $item->approved_qty : null;
+                    $fulfilledQty = $item->fulfilled_qty !== null ? (int) $item->fulfilled_qty : null;
+                    
+                    // جلب تواريخ انتهاء الصلاحية من Inventory للكمية المستلمة المرتبطة بهذا الطلب فقط
+                    // نستخدم batch_number من item للبحث عن الكميات الصحيحة
+                    // (قد يكون هناك عدة expiry dates لنفس batch_number)
+                    $expiryDates = [];
+                    if ($fulfilledQty > 0 && $user->supplier_id) {
+                        // البحث عن الكميات في Inventory التي تطابق batch_number من item
+                        // هذا يضمن أننا نجلب فقط الكميات المرتبطة بهذا الطلب المحدد
+                        if ($item->batch_number) {
+                            // البحث عن جميع الكميات التي تطابق batch_number من item
+                            // (قد يكون هناك عدة expiry dates لنفس batch_number)
+                            $inventories = Inventory::where('drug_id', $item->drug_id)
+                                ->where('supplier_id', $user->supplier_id)
+                                ->where('batch_number', $item->batch_number)
+                                ->where('current_quantity', '>', 0)
+                                ->orderBy('expiry_date', 'asc')
+                                ->get();
+                            
+                            $totalQuantity = 0;
+                            foreach ($inventories as $inv) {
+                                if ($inv->expiry_date && $totalQuantity < $fulfilledQty) {
+                                    // نحدد الكمية بناءً على fulfilled_qty فقط
+                                    $remainingNeeded = $fulfilledQty - $totalQuantity;
+                                    $qtyToAdd = min($inv->current_quantity, $remainingNeeded);
+                                    
+                                    if ($qtyToAdd > 0) {
+                                        $expiryDates[] = [
+                                            'batchNumber' => $inv->batch_number,
+                                            'expiryDate' => $inv->expiry_date,
+                                            'quantity' => $qtyToAdd
+                                        ];
+                                        $totalQuantity += $qtyToAdd;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // إذا لم نجد كميات تطابق batch_number من item،
+                        // نستخدم fulfilled_qty فقط بدون تفاصيل expiry dates
+                        // (هذا يعني أن الكمية المستلمة موجودة لكن لا توجد تفاصيل expiry dates محددة)
+                    }
                     
                     return [
                         'id' => $item->id,
@@ -124,6 +192,9 @@ class SupplyRequestSupplierController extends BaseApiController
                         'approvedQuantity' => $approvedQty !== null ? (int) $approvedQty : null,
                         'approved_qty' => $approvedQty !== null ? (int) $approvedQty : null,
                         'approvedQty' => $approvedQty !== null ? (int) $approvedQty : null,
+                        'fulfilled_qty' => $fulfilledQty !== null ? (int) $fulfilledQty : null,
+                        'fulfilledQty' => $fulfilledQty !== null ? (int) $fulfilledQty : null,
+                        'receivedQuantity' => $fulfilledQty !== null ? (int) $fulfilledQty : null,
                         'quantity' => (int) $requestedQty,
                         'strength' => $drug->strength ?? null,
                         'dosage' => $drug->strength ?? null,
@@ -131,10 +202,24 @@ class SupplyRequestSupplierController extends BaseApiController
                         'type' => $drug->form ?? 'Tablet',
                         'unit' => $drug->unit ?? 'وحدة',
                         'units_per_box' => $drug->units_per_box ?? 1,
+                        'expiryDates' => $expiryDates,
+                        'batchNumber' => $item->batch_number,
+                        'batch_number' => $item->batch_number,
+                        'expiryDate' => $item->expiry_date,
+                        'expiry_date' => $item->expiry_date,
                     ];
                 }),
                 'createdAt' => $supplyRequest->created_at->format('Y/m/d H:i'),
                 'notes' => $supplyRequest->messages, // Return the conversation thread
+                'rejectionReason' => $supplyRequest->rejection_reason,
+                'rejectedAt' => $supplyRequest->status === 'rejected' && $supplyRequest->handeled_at 
+                    ? $supplyRequest->handeled_at->format('Y-m-d H:i:s') 
+                    : null,
+                'confirmationNotes' => $confirmationNotes,
+                'confirmation' => $supplyRequest->status === 'delivered' ? [
+                    'confirmedAt' => $confirmedAt,
+                    'confirmationNotes' => $confirmationNotes,
+                ] : null,
             ];
 
             return $this->sendSuccess($data, 'تم جلب تفاصيل الطلب بنجاح');
@@ -272,11 +357,15 @@ class SupplyRequestSupplierController extends BaseApiController
             }
 
             $supplyRequest = ExternalSupplyRequest::with('items.drug')
-                ->where('requested_by', $user->id)
+                ->whereHas('requester', function($query) use ($user) {
+                    $query->where('type', 'supplier_admin')
+                          ->where('supplier_id', $user->supplier_id);
+                })
+                ->where('supplier_id', $user->supplier_id)
                 ->findOrFail($id);
 
-            // التحقق من أن الطلب في حالة fulfilled (قيد الاستلام)
-            if ($supplyRequest->status !== 'fulfilled') {
+            // التحقق من أن الطلب في حالة قيد الاستلام (fulfilled) أو approved
+            if (!in_array($supplyRequest->status, ['fulfilled', 'approved'], true)) {
                 return $this->sendError('لا يمكن تأكيد استلام هذا الطلب. يجب أن يكون في حالة قيد الاستلام.', null, 400);
             }
 
@@ -286,8 +375,22 @@ class SupplyRequestSupplierController extends BaseApiController
             foreach ($receivedItems as $receivedItem) {
                 $itemId = $receivedItem['id'] ?? null;
                 $receivedQty = $receivedItem['receivedQuantity'] ?? 0;
-                $batchNumber = $receivedItem['batchNumber'] ?? null;
-                $expiryDate = $receivedItem['expiryDate'] ?? null;
+                
+                // دعم قائمة تواريخ انتهاء الصلاحية المتعددة
+                $expiryDates = $receivedItem['expiryDates'] ?? [];
+                
+                // للتوافق مع الكود القديم: إذا لم تكن هناك expiryDates، استخدم batchNumber وexpiryDate القديم
+                if (empty($expiryDates)) {
+                    $batchNumber = $receivedItem['batchNumber'] ?? null;
+                    $expiryDate = $receivedItem['expiryDate'] ?? null;
+                    if ($batchNumber || $expiryDate) {
+                        $expiryDates = [[
+                            'batchNumber' => $batchNumber,
+                            'expiryDate' => $expiryDate,
+                            'quantity' => $receivedQty
+                        ]];
+                    }
+                }
 
                 if (!$itemId || $receivedQty <= 0) {
                     continue;
@@ -298,33 +401,48 @@ class SupplyRequestSupplierController extends BaseApiController
                     continue;
                 }
 
-                // إضافة الكمية المستلمة إلى مخزون المورد
-                $inventory = Inventory::firstOrCreate(
-                    [
-                        'drug_id' => $item->drug_id,
-                        'supplier_id' => $user->supplier_id,
-                        'warehouse_id' => null,
-                        'pharmacy_id' => null,
-                        'department_id' => null,
-                        'batch_number' => $batchNumber,
-                        'expiry_date' => $expiryDate,
-                    ],
-                    [
-                        'current_quantity' => 0,
-                    ]
-                );
+                // معالجة كل تاريخ انتهاء صلاحية كسجل مخزون منفصل
+                foreach ($expiryDates as $expiryEntry) {
+                    $batchNumber = $expiryEntry['batchNumber'] ?? null;
+                    $expiryDate = $expiryEntry['expiryDate'] ?? null;
+                    $qty = $expiryEntry['quantity'] ?? 0;
+                    
+                    if ($qty <= 0) {
+                        continue;
+                    }
 
-                $inventory->current_quantity += $receivedQty;
-                $inventory->save();
+                    // إضافة الكمية المستلمة إلى مخزون المورد
+                    $inventory = Inventory::firstOrCreate(
+                        [
+                            'drug_id' => $item->drug_id,
+                            'supplier_id' => $user->supplier_id,
+                            'warehouse_id' => null,
+                            'pharmacy_id' => null,
+                            'department_id' => null,
+                            'batch_number' => $batchNumber,
+                            'expiry_date' => $expiryDate,
+                        ],
+                        [
+                            'current_quantity' => 0,
+                        ]
+                    );
 
-                // تحديث fulfilled_qty في العنصر
+                    $inventory->current_quantity += $qty;
+                    $inventory->save();
+                }
+
+                // تحديث fulfilled_qty في العنصر (إجمالي الكمية المستلمة)
                 $item->fulfilled_qty = $receivedQty;
-                $item->batch_number = $batchNumber;
-                $item->expiry_date = $expiryDate;
+                // حفظ أول batch وexpiry للتوافق مع الكود القديم
+                if (!empty($expiryDates) && isset($expiryDates[0])) {
+                    $item->batch_number = $expiryDates[0]['batchNumber'] ?? null;
+                    $item->expiry_date = $expiryDates[0]['expiryDate'] ?? null;
+                }
                 $item->save();
             }
 
             // تحديث حالة الطلب إلى delivered
+            $previousStatus = $supplyRequest->status;
             $supplyRequest->status = 'delivered';
             $supplyRequest->save();
 
@@ -336,7 +454,7 @@ class SupplyRequestSupplierController extends BaseApiController
                     'action' => 'supplier_confirm_receipt',
                     'table_name' => 'external_supply_request',
                     'record_id' => $supplyRequest->id,
-                    'old_values' => json_encode(['status' => 'fulfilled']),
+                    'old_values' => json_encode(['status' => $previousStatus]),
                     'new_values' => json_encode([
                         'status' => 'delivered',
                         'notes' => $notes,
@@ -406,7 +524,7 @@ class SupplyRequestSupplierController extends BaseApiController
     {
         $statuses = [
             'pending' => 'قيد الانتظار',
-            'approved' => 'جديد',
+            'approved' => 'قيد الاستلام',
             'fulfilled' => 'قيد الاستلام',
             'delivered' => 'تم الاستلام',
             'rejected' => 'مرفوض',

@@ -85,10 +85,77 @@ class UserObserver
     }
 
     /**
-     * Handle the User "updated" event.
+     * Handle the User "updating" event.
+     */
+    public function updating(User $user)
+    {
+        // تعطيل/تفعيل الحساب تلقائياً عند تغيير hospital_id أو supplier_id
+        $original = $user->getOriginal();
+        $changes = $user->getDirty();
+        
+        // إذا كان مدير مستشفى
+        if ($user->type === 'hospital_admin') {
+            if (isset($changes['hospital_id'])) {
+                // إذا تم إزالة hospital_id (أصبح null)
+                if ($original['hospital_id'] !== null && $user->hospital_id === null) {
+                    // تعطيل الحساب تلقائياً
+                    $user->status = 'inactive';
+                }
+                // إذا تم ربطه بمستشفى (أصبح له hospital_id)
+                elseif ($original['hospital_id'] === null && $user->hospital_id !== null) {
+                    // تفعيل الحساب تلقائياً
+                    $user->status = 'active';
+                }
+            }
+        }
+        
+        // إذا كان مدير مورد
+        if ($user->type === 'supplier_admin') {
+            if (isset($changes['supplier_id'])) {
+                // إذا تم إزالة supplier_id (أصبح null)
+                if ($original['supplier_id'] !== null && $user->supplier_id === null) {
+                    // تعطيل الحساب تلقائياً
+                    $user->status = 'inactive';
+                }
+                // إذا تم ربطه بمورد (أصبح له supplier_id)
+                elseif ($original['supplier_id'] === null && $user->supplier_id !== null) {
+                    // تفعيل الحساب تلقائياً
+                    $user->status = 'active';
+                }
+            }
+        }
+    }
+    
+    /**
+     * Handle the User "updated" event - حذف tokens بعد التحديث
      */
     public function updated(User $user)
     {
+        // حذف tokens إذا تم تعطيل الحساب بسبب إزالة hospital_id أو supplier_id
+        $original = $user->getOriginal();
+        $changes = $user->getChanges();
+        
+        // إذا كان مدير مستشفى وتم إزالة hospital_id
+        if ($user->type === 'hospital_admin') {
+            if (isset($changes['hospital_id']) && 
+                $original['hospital_id'] !== null && 
+                $user->hospital_id === null) {
+                // حذف جميع tokens
+                $user->tokens()->delete();
+            }
+        }
+        
+        // إذا كان مدير مورد وتم إزالة supplier_id
+        if ($user->type === 'supplier_admin') {
+            if (isset($changes['supplier_id']) && 
+                $original['supplier_id'] !== null && 
+                $user->supplier_id === null) {
+                // حذف جميع tokens
+                $user->tokens()->delete();
+            }
+        }
+        
+        // تسجيل التحديث في AuditLog
         if (!Auth::check()) return;
         $currentUser = Auth::user();
 
@@ -132,6 +199,7 @@ class UserObserver
             'ip_address' => request()->ip(),
         ]);
     }
+
 
     /**
      * Handle the User "deleting" event.

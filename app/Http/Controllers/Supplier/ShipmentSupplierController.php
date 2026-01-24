@@ -55,9 +55,30 @@ class ShipmentSupplierController extends BaseApiController
                               $q->where('supplier_id', $user->supplier_id);
                           });
                 })
-                // ->whereIn('status', ['approved', 'fulfilled', 'rejected']) // Show all statuses
+                ->where('status', '!=', 'pending') // استبعاد الشحنات التي حالتها pending
                 ->orderBy('created_at', 'desc')
                 ->get()
+                ->filter(function($shipment) {
+                    // استبعاد الشحنات المرفوضة من قبل مدير المستشفى
+                    // نعرض فقط الشحنات المرفوضة من قبل المورد نفسه
+                    if ($shipment->status !== 'rejected') {
+                        return true; // نعرض جميع الشحنات غير المرفوضة
+                    }
+                    
+                    // إذا كانت الحالة rejected، نتحقق من آخر سجل رفض
+                    $lastRejectionLog = \App\Models\AuditLog::where('table_name', 'external_supply_request')
+                        ->where('record_id', $shipment->id)
+                        ->where(function($q) {
+                            $q->where('action', 'supplier_reject_external_supply_request')
+                              ->orWhere('action', 'hospital_admin_reject_external_supply_request');
+                        })
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    // نعرض فقط إذا كان آخر رفض من المورد
+                    return $lastRejectionLog && $lastRejectionLog->action === 'supplier_reject_external_supply_request';
+                })
+                ->values()
                 ->map(function ($shipment) {
                     // التحقق من تأكيد الاستلام من قبل مسؤول المخزن
                     $isDelivered = false;
@@ -318,13 +339,54 @@ class ShipmentSupplierController extends BaseApiController
                     $receivedQty = $actualReceivedQuantities[$item->id] ?? null;
                     
                     // التحقق من وجود الدواء في مخزون المورد والحصول على الكمية المتوفرة الفعلية
-                    $availableQuantity = 0;
-                    $inventory = Inventory::where('drug_id', $item->drug_id)
+                    // جمع جميع الكميات المتوفرة من جميع الدفعات
+                    $availableQuantity = Inventory::where('drug_id', $item->drug_id)
                         ->where('supplier_id', $user->supplier_id)
-                        ->first();
+                        ->whereNull('warehouse_id')
+                        ->whereNull('pharmacy_id')
+                        ->whereNull('department_id')
+                        ->sum('current_quantity');
                     
-                    if ($inventory) {
-                        $availableQuantity = (int) $inventory->current_quantity;
+                    $availableQuantity = (int) $availableQuantity;
+                    
+                    // جلب تواريخ انتهاء الصلاحية من Inventory للكمية المرسلة
+                    $expiryDates = [];
+                    if ($sentQty > 0 && $user->supplier_id) {
+                        // البحث عن الكميات في Inventory التي تطابق batch_number من item
+                        if ($item->batch_number) {
+                            $inventories = Inventory::where('drug_id', $item->drug_id)
+                                ->where('supplier_id', $user->supplier_id)
+                                ->where('batch_number', $item->batch_number)
+                                ->where('current_quantity', '>', 0)
+                                ->orderBy('expiry_date', 'asc')
+                                ->get();
+                            
+                            $totalQuantity = 0;
+                            foreach ($inventories as $inv) {
+                                if ($inv->expiry_date && $totalQuantity < $sentQty) {
+                                    $remainingNeeded = $sentQty - $totalQuantity;
+                                    $qtyToAdd = min($inv->current_quantity, $remainingNeeded);
+                                    
+                                    if ($qtyToAdd > 0) {
+                                        $expiryDates[] = [
+                                            'batchNumber' => $inv->batch_number,
+                                            'expiryDate' => $inv->expiry_date,
+                                            'quantity' => $qtyToAdd
+                                        ];
+                                        $totalQuantity += $qtyToAdd;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // إذا لم نجد كميات تطابق batch_number، نستخدم expiry_date و batch_number من item مباشرة
+                        if (empty($expiryDates) && ($item->expiry_date || $item->batch_number)) {
+                            $expiryDates[] = [
+                                'batchNumber' => $item->batch_number,
+                                'expiryDate' => $item->expiry_date,
+                                'quantity' => $sentQty
+                            ];
+                        }
                     }
 
 
@@ -354,6 +416,11 @@ class ShipmentSupplierController extends BaseApiController
                         'strength' => $item->drug->strength ?? null,
                         'form' => $item->drug->form ?? null,
                         'type' => $item->drug->form ?? null,
+                        'expiryDates' => $expiryDates,
+                        'batchNumber' => $item->batch_number,
+                        'batch_number' => $item->batch_number,
+                        'expiryDate' => $item->expiry_date,
+                        'expiry_date' => $item->expiry_date,
                     ];
                 }),
                 'createdAt' => $shipment->created_at->format('Y/m/d H:i'),
@@ -511,29 +578,50 @@ class ShipmentSupplierController extends BaseApiController
             }
 
             // تحديث الحالة إلى 'fulfilled' (تم التنفيذ/الارسال) لكي تظهر لمسؤول المخزن للاستلام
+            $oldStatus = $shipment->status;
             $shipment->status = 'fulfilled';
             $shipment->save();
 
-            // حفظ الملاحظات
+            // حفظ الملاحظات وتسجيل العملية في audit_log (دائماً، مع أو بدون ملاحظات)
             $notes = $data['notes'] ?? null;
-            if ($notes) {
-                try {
-                    \App\Models\AuditLog::create([
-                        'user_id' => $user->id,
-                        'hospital_id' => $shipment->hospital_id,
-                        'action' => 'supplier_confirm_external_supply_request',
-                        'table_name' => 'external_supply_request',
-                        'record_id' => $shipment->id,
-                        'old_values' => json_encode(['status' => 'approved']),
-                        'new_values' => json_encode([
-                            'status' => 'fulfilled',
-                            'notes' => $notes
-                        ]),
-                        'ip_address' => $request->ip(),
-                    ]);
-                } catch (\Exception $e) {
-                    \Log::warning('Failed to log confirmation notes', ['error' => $e->getMessage()]);
+            try {
+                // إعداد البيانات للـ audit log
+                $newValues = [
+                    'status' => 'fulfilled',
+                ];
+                
+                // إضافة معلومات الكميات المرسلة
+                $sentItems = [];
+                foreach ($shipment->items as $item) {
+                    if ($item->fulfilled_qty > 0) {
+                        $sentItems[] = [
+                            'item_id' => $item->id,
+                            'drug_id' => $item->drug_id,
+                            'drug_name' => $item->drug->name ?? 'غير محدد',
+                            'sentQuantity' => $item->fulfilled_qty,
+                            'batch_number' => $item->batch_number,
+                            'expiry_date' => $item->expiry_date,
+                        ];
+                    }
                 }
+                $newValues['items'] = $sentItems;
+                
+                if ($notes) {
+                    $newValues['notes'] = $notes;
+                }
+                
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $shipment->hospital_id,
+                    'action' => 'supplier_confirm_external_supply_request',
+                    'table_name' => 'external_supply_request',
+                    'record_id' => $shipment->id,
+                    'old_values' => json_encode(['status' => $oldStatus]),
+                    'new_values' => json_encode($newValues),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log confirmation', ['error' => $e->getMessage()]);
             }
 
             try {

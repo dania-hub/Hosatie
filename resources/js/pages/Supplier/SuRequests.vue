@@ -482,23 +482,31 @@ const fetchShipments = async () => {
         const data = response.data?.data ?? response.data;
         const shipments = Array.isArray(data) ? data : [];
         
-        shipmentsData.value = shipments.map(shipment => ({
-            id: shipment.id,
-            shipmentNumber: shipment.shipmentNumber || `SHP-${shipment.id}`,
-            requestDate: shipment.requestDate || shipment.created_at,
-            requestStatus: shipment.status || 'قيد الانتظار',
-            received: shipment.received || (shipment.status === 'تم الإستلام' || shipment.status === 'fulfilled'),
-            details: {
+        shipmentsData.value = shipments.map(shipment => {
+            const normalizedStatus =
+                shipment.status === 'fulfilled' ? 'قيد الاستلام' : (shipment.status || 'قيد الانتظار');
+
+            // جلب تاريخ الطلب من createdAt أو requestDate أو created_at
+            const requestDate = shipment.createdAt || shipment.requestDate || shipment.created_at || 'غير محدد';
+
+            return {
                 id: shipment.id,
-                date: shipment.requestDate || shipment.created_at,
-                status: shipment.status,
-                items: shipment.items || [],
-                notes: shipment.notes || '',
-                ...(shipment.confirmationDetails && {
-                    confirmationDetails: shipment.confirmationDetails
-                })
-            }
-        }));
+                shipmentNumber: shipment.shipmentNumber || `SHP-${shipment.id}`,
+                requestDate: requestDate,
+                requestStatus: normalizedStatus,
+                received: shipment.received || (shipment.status === 'تم الإستلام' || shipment.status === 'fulfilled'),
+                details: {
+                    id: shipment.id,
+                    date: requestDate,
+                    status: normalizedStatus,
+                    items: shipment.items || [],
+                    notes: shipment.notes || '',
+                    ...(shipment.confirmationDetails && {
+                        confirmationDetails: shipment.confirmationDetails
+                    })
+                }
+            };
+        });
     } catch (err) {
         console.error('Error fetching shipments:', err);
         throw err;
@@ -825,12 +833,17 @@ const openRequestViewModal = async (shipment) => {
             // معلومات إضافية
             unit: item.unit || 'وحدة',
             dosage: item.dosage || item.strength || '',
-            type: item.type || item.form || ''
+            type: item.type || item.form || '',
+            units_per_box: item.units_per_box || item.unitsPerBox || 1,
+            // تواريخ انتهاء الصلاحية
+            expiryDates: item.expiryDates || [],
+            batchNumber: item.batchNumber || item.batch_number || null,
+            batch_number: item.batch_number || item.batchNumber || null,
+            expiryDate: item.expiryDate || item.expiry_date || null,
+            expiry_date: item.expiry_date || item.expiryDate || null
         })),
-        confirmation: shipment.details.confirmationDetails || (shipment.requestStatus === 'تم الإستلام' || shipment.received || fetchedData?.status === 'تم الإستلام' ? {
-            confirmedAt: shipment.details.confirmationDetails?.confirmedAt || fetchedData?.confirmationDetails?.confirmedAt || new Date().toISOString(),
-            confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null
-        } : null),
+        confirmation: fetchedData?.confirmation || shipment.details.confirmationDetails || shipment.details.confirmation || null,
+        confirmationDetails: fetchedData?.confirmation || shipment.details.confirmationDetails || shipment.details.confirmation || null,
         confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null
     };
     isRequestViewModalOpen.value = true;
@@ -910,8 +923,8 @@ const handleConfirmation = async (confirmationData) => {
         );
         
         if (shipmentIndex !== -1) {
-            // تحديث الحالة إلى approved بدلاً من تم الإستلام
-            shipmentsData.value[shipmentIndex].requestStatus = 'approved';
+            // تحديث الحالة إلى قيد الاستلام
+            shipmentsData.value[shipmentIndex].requestStatus = 'قيد الاستلام';
             shipmentsData.value[shipmentIndex].received = true;
             
             // تحديث تفاصيل الشحنة مع البيانات المحدثة

@@ -781,8 +781,8 @@ class ExternalSupplyRequestController extends BaseApiController
     {
         return match ($status) {
             'pending'           => 'قيد الانتظار', // في انتظار موافقة HospitalAdmin
-            'approved'          => 'قيد الاستلام', // معتمدة من HospitalAdmin، في انتظار StoreKeeper
-            'partially_approved'=> 'قيد الاستلام', // حالة خاصة للعرض
+            'approved'          => 'تمت الموافقة مبدئياً', // معتمدة من HospitalAdmin، في انتظار Supplier
+            'partially_approved'=> 'تمت الموافقة مبدئياً', // حالة خاصة للعرض
             'fulfilled'         => 'قيد الاستلام', // أرسلها Supplier، يمكن تأكيد الاستلام
             'delivered'         => 'تم الاستلام', // تم تأكيد الاستلام من StoreKeeper
             'rejected'          => 'مرفوضة', // مرفوضة من HospitalAdmin أو Supplier

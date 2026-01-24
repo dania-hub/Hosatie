@@ -72,7 +72,10 @@
                             </div>
                             <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
                                 <span class="text-gray-500 font-medium">حالة الطلب</span>
-                                <span :class="statusClass" class="px-3 py-1 rounded-lg text-sm font-bold">{{ requestDetails.status || 'جديد' }}</span>
+                                <span :class="statusClass" class="px-3 py-1 rounded-lg text-sm font-bold flex items-center gap-2">
+                                    <Icon v-if="isInReceivingStatus" icon="solar:check-circle-bold" class="w-4 h-4" />
+                                    {{ translateStatus(requestDetails.status) || 'جديد' }}
+                                </span>
                             </div>
                             
                             <div v-if="isReceivedStatus && requestDetails.confirmation?.confirmedAt" class="p-4 bg-gray-50 rounded-xl flex justify-between items-center md:col-span-2">
@@ -113,8 +116,6 @@
                         <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:box-minimalistic-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                             الأدوية المطلوبة
-                            <span v-if="isSentStatus && !isReceivedStatus" class="text-sm font-normal text-gray-400 mr-2">(مطلوب / مُرسل)</span>
-                            <span v-if="isReceivedStatus" class="text-sm font-normal text-gray-400 mr-2">(مطلوب / مُرسل / مُستلم)</span>
                         </h3>
 
                         <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -143,36 +144,32 @@
                                         <!-- الكمية المطلوبة -->
                                         <div class="text-center">
                                             <span class="text-xs text-gray-400 block mb-1">مطلوب</span>
-                                            <span class="font-bold text-[#4DA1A9] text-lg">{{ getRequestedQuantity(item) }} <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span></span>
+                                            <div class="font-bold text-[#4DA1A9] text-lg" v-html="getFormattedQuantity(getRequestedQuantity(item), item.unit || 'وحدة', item.units_per_box || 1)"></div>
                                         </div>
                                         
-                                        <!-- الكمية المرسلة -->
-                                        <div v-if="isSentStatus || isReceivedStatus" class="text-center pl-4 border-r border-gray-100">
+                                        <!-- الكمية المرسلة (تظهر فقط إذا كانت حالة الطلب تم الاستلام أو إذا كان هناك كمية مرسلة) -->
+                                        <div v-if="isReceivedStatus || getSentQuantity(item) > 0" class="text-center pl-4 border-r border-gray-100">
                                             <span class="text-xs text-gray-400 block mb-1">مرسل</span>
                                             <div class="flex items-center gap-1">
-                                                <span 
+                                                <div 
                                                     class="font-bold text-lg"
                                                     :class="getSentQuantity(item) >= getRequestedQuantity(item) ? 'text-green-600' : 'text-amber-600'"
-                                                >
-                                                    {{ getSentQuantity(item) || 0 }}
-                                                </span>
-                                                <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                                    v-html="getFormattedQuantity(getSentQuantity(item), item.unit || 'وحدة', item.units_per_box || 1)"
+                                                ></div>
                                                 <Icon v-if="getSentQuantity(item) >= getRequestedQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                                 <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-amber-500" />
                                             </div>
                                         </div>
                                         
-                                        <!-- الكمية المستلمة (تظهر فقط عند الاستلام) -->
+                                        <!-- الكمية المستلمة (تظهر فقط إذا كانت حالة الطلب تم الاستلام) -->
                                         <div v-if="isReceivedStatus" class="text-center pl-4 border-r border-gray-100">
                                             <span class="text-xs text-gray-400 block mb-1">مستلم</span>
                                             <div class="flex items-center gap-1">
-                                                <span 
+                                                <div 
                                                     class="font-bold text-lg"
                                                     :class="getReceivedQuantity(item) >= getSentQuantity(item) ? 'text-green-600' : 'text-orange-600'"
-                                                >
-                                                    {{ getReceivedQuantity(item) || 0 }}
-                                                </span>
-                                                <span class="text-xs text-gray-500 font-normal">{{ item.unit || 'وحدة' }}</span>
+                                                    v-html="getFormattedQuantity(getReceivedQuantity(item), item.unit || 'وحدة', item.units_per_box || 1)"
+                                                ></div>
                                                 <Icon v-if="getReceivedQuantity(item) >= getSentQuantity(item)" icon="solar:check-circle-bold" class="w-5 h-5 text-green-500" />
                                                 <Icon v-else icon="solar:danger-circle-bold" class="w-5 h-5 text-orange-600" />
                                             </div>
@@ -186,7 +183,7 @@
                         </div>
                     </div>
 
-                    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div v-if="requestDetails.senderNotes || (requestDetails.notes && !Array.isArray(requestDetails.notes) && requestDetails.notes.trim())" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                             <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                                 <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                                 رسالة المرسل
@@ -198,9 +195,6 @@
                             <!-- Fallback for legacy format -->
                             <div v-else-if="requestDetails.notes && !Array.isArray(requestDetails.notes)">
                                 <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
-                            </div>
-                            <div v-else>
-                                <p class="text-blue-400 text-sm leading-relaxed italic">لا توجد رسالة مرفقة</p>
                             </div>
                         </div> 
 
@@ -278,7 +272,14 @@
             </div>
 
             <!-- Footer -->
-            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
+            <div class="bg-gray-50 px-8 py-5 flex justify-between gap-3 border-t border-gray-100 sticky bottom-0">
+                <button 
+                    @click="printDetails" 
+                    class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2"
+                >
+                    <Icon icon="mdi-light:printer" class="w-5 h-5" />
+                    طباعة
+                </button>
                 <button 
                     @click="closeModal" 
                     class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
@@ -414,6 +415,7 @@ const loadRequestDetails = async () => {
                 supplierNotes: supplierMsg || responseData.supplierNotes,
 
                 rejectionReason: responseData.rejection_reason || responseData.rejectionReason,
+                rejectedAt: responseData.rejected_at || responseData.rejectedAt,
                 
                 items: responseData.items || []
             };
@@ -469,150 +471,78 @@ const getPriorityClass = (priority) => {
 
 // دالة لاستخراج الكمية المطلوبة
 const getRequestedQuantity = (item) => {
-    return item.requested_qty || item.quantity || 0;
+    // المطلوب: من requested_qty فقط
+    const val = item.requested_qty ?? item.requestedQty ?? item.quantity ?? 0;
+    return Number(val) || 0;
 };
 
 // دالة لاستخراج الكمية المرسلة
 const getSentQuantity = (item) => {
-    // أولوية 1: الحصول من confirmation.receivedItems (يحتوي على الكمية المرسلة الأصلية من audit_log)
-    if (requestDetails.value.confirmation?.receivedItems) {
-        const receivedItem = requestDetails.value.confirmation.receivedItems.find(
-            ri => (item.id && ri.id === item.id) || (ri.name && item.name && ri.name === item.name)
-        );
-        if (receivedItem && receivedItem.sentQuantity !== null && receivedItem.sentQuantity !== undefined) {
-            const val = Number(receivedItem.sentQuantity);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-    }
-    // أولوية 2: محاولة الحصول من confirmation.items (للتوافق مع الإصدارات القديمة)
-    if (requestDetails.value.confirmation?.items) {
-        const sentItem = requestDetails.value.confirmation.items.find(
-            si => si.id === item.id || si.drugId === item.id
-        );
-        if (sentItem && sentItem.sentQuantity !== null && sentItem.sentQuantity !== undefined) {
-            const val = Number(sentItem.sentQuantity);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-    }
-    // أولوية 3: إذا تم تأكيد الاستلام، نستخدم sentQuantity من confirmation.receivedItems فقط
-    // لأن fulfilled_qty بعد تأكيد الاستلام يكون الكمية المستلمة وليس المرسلة
-    if (isReceivedStatus.value) {
-        // إذا تم تأكيد الاستلام، لا نستخدم fulfilled_qty لأنه أصبح الكمية المستلمة
-        // نستخدم approved_qty أو sentQuantity من item
-        if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
-            const val = Number(item.sentQuantity);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
-            const val = Number(item.approved_qty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
-            const val = Number(item.approvedQty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-    } else {
-        // لم يتم تأكيد الاستلام بعد (قيد الاستلام): نستخدم approved_qty (الكمية المرسلة من المستودع)
-        // approved_qty = الكمية التي أرسلها المستودع (storekeeper)
-        // fulfilled_qty = الكمية المستلمة من الصيدلية (pharmacist) - تكون 0 عند الحالة "قيد الاستلام"
-        if (item.approved_qty !== null && item.approved_qty !== undefined && item.approved_qty !== '') {
-            const val = Number(item.approved_qty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        if (item.approvedQty !== null && item.approvedQty !== undefined && item.approvedQty !== '') {
-            const val = Number(item.approvedQty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        if (item.sentQuantity !== null && item.sentQuantity !== undefined && item.sentQuantity !== '') {
-            const val = Number(item.sentQuantity);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        // كحل احتياطي فقط: استخدام fulfilled_qty (لكن هذا يجب ألا يحدث عادة عند الحالة "قيد الاستلام")
-        if (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined && item.fulfilled_qty !== '' && item.fulfilled_qty > 0) {
-            const val = Number(item.fulfilled_qty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-        if (item.fulfilledQty !== null && item.fulfilledQty !== undefined && item.fulfilledQty !== '' && item.fulfilledQty > 0) {
-            const val = Number(item.fulfilledQty);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
-        }
-    }
-    return 0;
+    // المرسل: من approved_qty فقط
+    const val = item.approved_qty ?? item.approvedQty ?? 0;
+    return Number(val) || 0;
 };
 
 // دالة لاستخراج الكمية المستلمة
 const getReceivedQuantity = (item) => {
-    // أولوية 1: receivedQuantity من confirmation.receivedItems (الكمية المستلمة الفعلية من audit_log)
-    if (requestDetails.value.confirmation?.receivedItems) {
-        const receivedItem = requestDetails.value.confirmation.receivedItems.find(
-            ri => (item.id && ri.id === item.id) || (ri.name && item.name && ri.name === item.name)
-        );
-        if (receivedItem && receivedItem.receivedQuantity !== null && receivedItem.receivedQuantity !== undefined) {
-            const val = Number(receivedItem.receivedQuantity);
-            if (!isNaN(val) && val >= 0) {
-                return val;
-            }
+    // المستلم: من fulfilled_qty فقط
+    const val = item.fulfilled_qty ?? item.fulfilledQty ?? 0;
+    return Number(val) || 0;
+};
+
+// دالة لتنسيق الكمية بالعبوة (كما في نموذج معالجة الشحنة)
+const getFormattedQuantity = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = 'عبوة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += `<br><span class="text-[10px] text-gray-400 font-normal">و ${remainder} ${unit}</span>`;
         }
+        return display;
     }
-    // أولوية 2: receivedQuantity مباشرة من item (إذا تم تمريره من الصفحة)
-    if (item.receivedQuantity !== null && item.receivedQuantity !== undefined && item.receivedQuantity !== '') {
-        const val = Number(item.receivedQuantity);
-        if (!isNaN(val) && val >= 0) {
-            return val;
-        }
-    }
-    // ملاحظة: لا نستخدم fulfilled_qty هنا لأنه قد يكون الكمية المرسلة وليس المستلمة
-    // فقط نستخدمه كحل أخير إذا لم نجد receivedQuantity في أي مكان
-    // ولكن فقط إذا كانت الحالة "تم الاستلام" (لأن fulfilled_qty بعد تأكيد الاستلام يكون الكمية المستلمة)
-    if (isReceivedStatus.value && (item.fulfilled_qty !== null && item.fulfilled_qty !== undefined)) {
-        const val = Number(item.fulfilled_qty);
-        if (!isNaN(val) && val >= 0) {
-            return val;
-        }
-    }
-    return 0;
+    return `${qty} ${unit}`;
 };
 
 // تحديد حالة الإرسال
 const isSentStatus = computed(() => {
     const status = requestDetails.value.status;
-    return status && (
+    if (!status) return false;
+    
+    const statusLower = status.toLowerCase().trim();
+    
+    return (
         status.includes('تم الإرسال') || 
         status.includes('مُرسَل') || 
         status.includes('مؤكد') || 
         status.includes('تم الاستلام') ||
         status === 'تم الإستلام' ||
-        status.includes('قيد الاستلام')
+        status.includes('قيد الاستلام') ||
+        statusLower === 'fulfilled' ||
+        statusLower === 'delivered' ||
+        statusLower === 'deliverd'
     );
 });
 
 // تحديد حالة الاستلام
 const isReceivedStatus = computed(() => {
     const status = requestDetails.value.status;
-    return status && (
+    if (!status) return false;
+    
+    const statusLower = status.toLowerCase().trim();
+    
+    return (
         status.includes('تم الاستلام') ||
         status === 'تم الإستلام' ||
-        status === 'fulfilled'
+        statusLower === 'delivered' ||
+        statusLower === 'deliverd'
     );
 });
 
@@ -633,18 +563,65 @@ const hasRejectionReason = computed(() => {
     return reason && typeof reason === 'string' && reason.trim() !== '';
 });
 
+// دالة لترجمة حالة الطلب
+const translateStatus = (status) => {
+    if (!status) return 'جديد';
+    
+    const statusLower = status.toLowerCase().trim();
+    
+    // ترجمة الحالات الإنجليزية
+    if (statusLower === 'approved') {
+        return 'قيد الاستلام';
+    }
+    if (statusLower === 'fulfilled') {
+        return 'قيد الاستلام';
+    }
+    if (statusLower === 'delivered' || statusLower === 'deliverd') {
+        return 'تم الاستلام';
+    }
+    if (statusLower === 'pending') {
+        return 'جديد';
+    }
+    
+    // إذا كانت الحالة بالعربية بالفعل، نعيدها كما هي
+    return status;
+};
+
+// تحديد حالة قيد الاستلام
+const isInReceivingStatus = computed(() => {
+    const status = requestDetails.value.status;
+    if (!status) return false;
+    
+    const statusLower = status.toLowerCase().trim();
+    
+    return (
+        statusLower === 'approved' ||
+        statusLower === 'fulfilled' ||
+        status.includes('قيد الاستلام')
+    );
+});
+
 // تنسيق فئة الحالة
 const statusClass = computed(() => {
     const status = requestDetails.value.status;
     if (!status) return 'bg-gray-200 text-gray-700';
     
-    if (status.includes('تم الاستلام') || status.includes('مُستلَم') || status === 'تم الإستلام') {
+    const statusLower = status.toLowerCase().trim();
+    
+    // التحقق من الحالات المترجمة
+    if (statusLower === 'approved' || statusLower === 'fulfilled' || status.includes('قيد الاستلام')) {
+        return 'bg-yellow-100 text-yellow-700';
+    }
+    if (statusLower === 'delivered' || statusLower === 'deliverd' || status.includes('تم الاستلام') || status.includes('مُستلَم') || status === 'تم الإستلام') {
         return 'bg-green-100 text-green-700';
+    }
+    if (statusLower === 'pending' || status.includes('جديد')) {
+        return 'bg-gray-200 text-gray-700';
     }
     if (status.includes('مؤكد') || status.includes('تم الإرسال')) {
         return 'bg-blue-100 text-blue-700';
     }
-    if (status.includes('قيد الانتظار') || status.includes('قيد المراجعة') || status.includes('قيد الاستلام')) {
+    if (status.includes('قيد الانتظار') || status.includes('قيد المراجعة')) {
         return 'bg-yellow-100 text-yellow-700';
     }
     if (status.includes('ملغي') || status.includes('مرفوضة')) {
@@ -653,6 +630,120 @@ const statusClass = computed(() => {
     return 'bg-gray-200 text-gray-700';
 });
 
+
+// دالة الطباعة
+const printDetails = () => {
+    const printWindow = window.open("", "_blank", "height=600,width=800");
+    
+    if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
+        alert("فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        return;
+    }
+
+    const details = requestDetails.value;
+    const itemsHtml = (details.items || []).map(item => {
+        const requestedQty = getRequestedQuantity(item);
+        const sentQty = getSentQuantity(item);
+        const receivedQty = getReceivedQuantity(item);
+        const unitsPerBox = item.units_per_box || item.unitsPerBox || 1;
+        const unit = item.unit || 'وحدة';
+        
+        // استخدام getFormattedQuantity لعرض الكميات بالعلبة
+        const formattedRequested = getFormattedQuantity(requestedQty, unit, unitsPerBox);
+        const formattedSent = getFormattedQuantity(sentQty, unit, unitsPerBox);
+        const formattedReceived = getFormattedQuantity(receivedQty, unit, unitsPerBox);
+        
+        return `
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedRequested.replace(/<br>/g, ' - ')}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedSent.replace(/<br>/g, ' - ')}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedReceived.replace(/<br>/g, ' - ')}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const printHtml = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <title>طباعة تفاصيل طلب التوريد</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                .info-section { margin-bottom: 20px; }
+                .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                .info-label { font-weight: bold; color: #666; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                th { background-color: #9aced2; font-weight: bold; }
+                .rejection-section { background-color: #fee; padding: 15px; border: 1px solid #fcc; margin-top: 20px; border-radius: 5px; }
+                @media print {
+                    button { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>تفاصيل طلب التوريد</h1>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">رقم الشحنة:</span>
+                    <span>${details.shipmentNumber || details.id || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">الجهة الطالبة:</span>
+                    <span>${details.department || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">تاريخ الطلب:</span>
+                    <span>${formatDate(details.date) || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">حالة الطلب:</span>
+                    <span>${translateStatus(details.status) || 'جديد'}</span>
+                </div>
+            </div>
+
+            ${details.rejectionReason ? `
+                <div class="rejection-section">
+                    <h3 style="color: #c00; margin-top: 0;">سبب الرفض:</h3>
+                    <p>${details.rejectionReason}</p>
+                    ${details.rejectedAt ? `<p style="font-size: 12px; color: #666;">تاريخ الرفض: ${formatDate(details.rejectedAt)}</p>` : ''}
+                </div>
+            ` : ''}
+
+            <h2 style="margin-top: 30px;">الأدوية المطلوبة</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>اسم الدواء</th>
+                        <th>الكمية المطلوبة</th>
+                        <th>الكمية المرسلة</th>
+                        <th>الكمية المستلمة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml || '<tr><td colspan="4" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                </tbody>
+            </table>
+
+            <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+            </p>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    
+    printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+    };
+};
 
 const closeModal = () => {
     isLoading.value = false;

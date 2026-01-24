@@ -115,30 +115,51 @@ const fetchEmployees = async () => {
         }
         
         // تحويل البيانات من API إلى التنسيق المستخدم في الصفحة
-        employees.value = data.map(emp => ({
-            id: emp.id,
-            fileNumber: emp.id, // استخدام id كـ fileNumber للتوافق
-            name: emp.fullName || "",
-            fullName: emp.fullName || "",
-            email: emp.email || "",
-            phone: emp.phone || "",
-            nationalId: emp.nationalId || "",
-            birthDate: emp.birthDate || "",
-            role: emp.typeArabic || emp.type || "",
-            type: emp.type || "",
-            typeArabic: emp.typeArabic || "",
-            hospital: emp.hospital ? emp.hospital.name : "",
-            hospitalId: emp.hospital ? emp.hospital.id : null,
-            supplier: emp.supplier ? emp.supplier.name : "",
-            supplierId: emp.supplier ? emp.supplier.id : null,
-            isActive: emp.status === 'active',
-            status: emp.status || "",
-            statusArabic: emp.statusArabic || "",
-            nameDisplay: emp.fullName || "",
-            nationalIdDisplay: emp.nationalId || "",
-            birthDisplay: emp.birthDate ? formatDateForDisplay(emp.birthDate) : "",
-            lastUpdated: emp.updatedAt || emp.createdAt || new Date().toISOString(),
-        }));
+        employees.value = data.map(emp => {
+            const hospitalId = emp.hospital ? emp.hospital.id : null;
+            const supplierId = emp.supplier ? emp.supplier.id : null;
+            
+            // تحديد الحالة الفعلية: يجب أن يكون status = 'active' ومربوط بمستشفى/مورد
+            let actualStatus = emp.status || 'inactive';
+            let actualIsActive = emp.status === 'active';
+            
+            // إذا كان مدير مستشفى وغير مربوط بمستشفى، يعتبر معطلاً
+            if (emp.type === 'hospital_admin' && !hospitalId) {
+                actualStatus = 'inactive';
+                actualIsActive = false;
+            }
+            
+            // إذا كان مدير مورد وغير مربوط بمورد، يعتبر معطلاً
+            if (emp.type === 'supplier_admin' && !supplierId) {
+                actualStatus = 'inactive';
+                actualIsActive = false;
+            }
+            
+            return {
+                id: emp.id,
+                fileNumber: emp.id, // استخدام id كـ fileNumber للتوافق
+                name: emp.fullName || "",
+                fullName: emp.fullName || "",
+                email: emp.email || "",
+                phone: emp.phone || "",
+                nationalId: emp.nationalId || "",
+                birthDate: emp.birthDate || "",
+                role: emp.typeArabic || emp.type || "",
+                type: emp.type || "",
+                typeArabic: emp.typeArabic || "",
+                hospital: emp.hospital ? emp.hospital.name : "",
+                hospitalId: hospitalId,
+                supplier: emp.supplier ? emp.supplier.name : "",
+                supplierId: supplierId,
+                isActive: actualIsActive,
+                status: actualStatus,
+                statusArabic: actualStatus === 'active' ? 'نشط' : 'معطل',
+                nameDisplay: emp.fullName || "",
+                nationalIdDisplay: emp.nationalId || "",
+                birthDisplay: emp.birthDate ? formatDateForDisplay(emp.birthDate) : "",
+                lastUpdated: emp.updatedAt || emp.createdAt || new Date().toISOString(),
+            };
+        });
         
     } catch (err) {
         console.error("Error fetching employees:", err);

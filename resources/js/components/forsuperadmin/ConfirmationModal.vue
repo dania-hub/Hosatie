@@ -268,13 +268,23 @@
 
             <!-- Footer -->
             <div class="bg-gray-50 px-8 py-5 flex flex-col-reverse sm:flex-row justify-between gap-3 border-t border-gray-100 sticky bottom-0">
-                <button
-                    @click="closeModal"
-                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
-                    :disabled="props.isLoading || isConfirming"
-                >
-                    إلغاء
-                </button>
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button
+                        @click="printDetails"
+                        class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        <Icon icon="mdi-light:printer" class="w-5 h-5" />
+                        طباعة
+                    </button>
+                    <button
+                        @click="closeModal"
+                        class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        إلغاء
+                    </button>
+                </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <!-- Rejection Actions -->
@@ -822,6 +832,112 @@ const sendShipment = async () => {
         alert("حدث خطأ أثناء تحضير بيانات الشحنة.");
         isConfirming.value = false;
     }
+};
+
+// دالة الطباعة
+const printDetails = () => {
+    const printWindow = window.open("", "_blank", "height=600,width=800");
+    
+    if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
+        alert("فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+        return;
+    }
+
+    const requestData = props.requestData;
+    const itemsHtml = receivedItems.value.map(item => {
+        const requestedQty = item.originalQuantity || 0;
+        const sentQty = item.sentQuantity || 0;
+        const receivedQty = item.receivedQuantity || 0;
+        
+        return `
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${getFormattedQuantity(requestedQty, item.unit, item.units_per_box).replace(/<br>/g, ' - ')}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${getFormattedQuantity(sentQty, item.unit, item.units_per_box).replace(/<br>/g, ' - ')}</td>
+                ${isProcessing.value ? `<td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${getFormattedQuantity(receivedQty, item.unit, item.units_per_box).replace(/<br>/g, ' - ')}</td>` : ''}
+            </tr>
+        `;
+    }).join('');
+
+    const printHtml = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <title>طباعة ${isProcessing.value ? 'تأكيد الاستلام' : 'معالجة الشحنة'}</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                .info-section { margin-bottom: 20px; }
+                .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                .info-label { font-weight: bold; color: #666; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                th { background-color: #9aced2; font-weight: bold; }
+                .notes-section { background-color: #f0f9ff; padding: 15px; border: 1px solid #bae6fd; margin-top: 20px; border-radius: 5px; }
+                @media print {
+                    button { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>${isProcessing.value ? 'تأكيد الاستلام' : 'معالجة الشحنة'} - ${requestData.shipmentNumber || requestData.id || 'غير محدد'}</h1>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">رقم الشحنة:</span>
+                    <span>${requestData.shipmentNumber || requestData.id || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">الجهة الطالبة:</span>
+                    <span>${requestData.department || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">تاريخ الطلب:</span>
+                    <span>${formatDate(requestData.date) || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">الحالة:</span>
+                    <span>${getStatusArabic(requestData.status || 'pending')}</span>
+                </div>
+            </div>
+
+            <h2 style="margin-top: 30px;">${isProcessing.value ? 'الكميات المستلمة' : 'الأدوية المطلوبة'}</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>اسم الدواء</th>
+                        <th>الكمية المطلوبة</th>
+                        <th>الكمية المرسلة</th>
+                        ${isProcessing.value ? '<th>الكمية المستلمة</th>' : ''}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml || '<tr><td colspan="' + (isProcessing.value ? '4' : '3') + '" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                </tbody>
+            </table>
+
+            ${additionalNotes.value ? `
+                <div class="notes-section">
+                    <h3 style="margin-top: 0;">${isProcessing.value ? 'ملاحظات الاستلام' : 'ملاحظات الإرسال'}:</h3>
+                    <p>${additionalNotes.value}</p>
+                </div>
+            ` : ''}
+
+            <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+            </p>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    
+    printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+    };
 };
 
 // إغلاق النموذج

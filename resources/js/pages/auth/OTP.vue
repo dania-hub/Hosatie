@@ -10,19 +10,17 @@
                 class="w-full max-w-[470px] grid gap-6 text-center relative custom-container mx-auto"
             >
                 <a
-                    href="/login"
+                    href="/forgot-password"
                     class="absolute top-6 left-6 w-10 h-10 rounded-full flex items-center justify-center text-gray-500 transition-all duration-300 z-20 hover:text-white hover:bg-[#2E5077] hover:scale-105"
                 >
                     <Icon icon="mdi:arrow-left" class="w-7 h-7" />
                 </a>
+ <div
+          class="sm:w-20 sm:h-18 rounded-full flex items-center justify-center border-3  shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+        >
+          <img src="/assets/logo.png" class="w-8 h-8 sm:w-30 sm:h-30 object-cover" alt="Logo" />
+        </div>
 
-                <div
-                    class="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl bg-white z-20 absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
-                >
-                    <Stethoscope
-                        class="w-8 h-8 sm:w-12 sm:h-12 text-[#2E5077]"
-                    />
-                </div>
 
                 <div class="flex flex-col items-center gap-2 mt-4 sm:mt-0">
                     <h1
@@ -98,7 +96,7 @@
                         <p
                             class="mt-6 sm:mt-8 text-center text-xs text-gray-400"
                         >
-                            2024© حصتي. جميع الحقوق محفوظة
+                            2026© حصتي. جميع الحقوق محفوظة
                         </p>
                     </div>
                 </form>
@@ -247,7 +245,7 @@ const handleResendOtp = async () => {
             throw new Error(data.message || 'حدث خطأ أثناء إعادة إرسال الرمز');
         }
 
-        alert('✅ تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني.');
+
         // مسح الحقول الحالية
         otp.fill("");
         if (otpInputs.value[0]) otpInputs.value[0].focus();

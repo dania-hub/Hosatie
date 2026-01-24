@@ -105,17 +105,18 @@ const fetchAllData = async () => {
                 isActive: supplier.status === 'active' || supplier.status === true
             }));
         
-        // معالجة بيانات المدراء (فقط hospital_admin الذين لم يتم تعيينهم في مستشفى)
+        // معالجة بيانات المدراء (جميع hospital_admin النشطين)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'hospital_admin')
+            .filter(user => user.type === 'hospital_admin' && (user.status === 'active' || user.status === true))
             .map(user => ({
                 ...user,
                 id: user.id,
                 name: user.fullName || user.full_name || user.name || '',
                 email: user.email || '',
                 phone: user.phone || '',
-                isActive: user.status === 'active' || user.status === true
+                isActive: user.status === 'active' || user.status === true,
+                hospitalId: user.hospital?.id || user.hospital_id || null
             }));
         
     } catch (err) {
@@ -179,9 +180,16 @@ const availableManagersForHospitals = computed(() => {
         assignedManagerIds.delete(selectedHospital.value.managerId);
     }
     
-    return availableManagers.value.filter(manager => 
-        manager.isActive && !assignedManagerIds.has(manager.id)
-    );
+    // إرجاع جميع المدراء النشطين غير المعينين في مستشفى آخر
+    // أو المدير الحالي للمستشفى (للسماح بالاحتفاظ به)
+    return availableManagers.value.filter(manager => {
+        // السماح بالمدير الحالي للمستشفى
+        if (selectedHospital.value?.managerId === manager.id) {
+            return true;
+        }
+        // السماح فقط بالمدراء النشطين وغير المعينين في مستشفى آخر
+        return manager.isActive && !assignedManagerIds.has(manager.id);
+    });
 });
 
 // ----------------------------------------------------
@@ -403,7 +411,8 @@ const updateHospital = async (updatedHospital) => {
             city: updatedHospital.city,
             address: updatedHospital.address || null,
             phone: updatedHospital.phone || null,
-            supplier_id: updatedHospital.supplierId || null
+            supplier_id: updatedHospital.supplierId || null,
+            manager_id: updatedHospital.manager_id || updatedHospital.managerId || null // إضافة manager_id
         };
 
         const response = await api.put(

@@ -240,17 +240,26 @@
                                                     shipment.status === 'مرفوضة' ||
                                                     shipment.status === 'rejected',
                                                 'text-green-600 font-semibold':
+                                                    shipment.status === 'تم الاستلام' ||
                                                     shipment.status === 'تم الإستلام' ||
-                                                    shipment.status === 'fulfilled' ||
-                                                    shipment.status === 'قيد التجهيز',
+                                                    shipment.status === 'delivered',
+                                                'text-blue-600 font-semibold':
+                                                shipment.status === 'تمت الموافقة' ||
+                                                    shipment.status === 'قيد الاستلام' ||
+                                                    shipment.status === 'fulfilled',
                                                 'text-yellow-600 font-semibold':
                                                     shipment.status === 'جديد' ||
                                                     shipment.status === 'قيد الانتظار' ||
-                                                    shipment.status === 'pending' ||
+                                                    shipment.status === 'pending',
+                                                'text-orange-600 font-semibold':
+                                                  
                                                     shipment.status === 'approved',
                                             }"
                                         >
-                                            {{ shipment.status }}
+                                            <div class="flex items-center gap-2">
+                                                <span>{{ translateStatus(shipment.status) }}</span>
+                                               
+                                            </div>
                                         </td>
                                         <td class="actions-col">
                                             <div class="flex gap-3 justify-center">
@@ -273,7 +282,7 @@
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.status === 'تم الإرسال' || shipment.status === 'fulfilled' || shipment.status === 'تم الإستلام'">
+                                                <template v-else-if="shipment.status === 'delivered' || shipment.status === 'تم الاستلام' || shipment.status === 'تم الإستلام'">
                                                     <button 
                                                         @click="openReviewModal(shipment)"
                                                         class="tooltip p-2 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-all duration-200 hover:scale-110 active:scale-95" 
@@ -281,6 +290,18 @@
                                                         <Icon
                                                             icon="healthicons:yes-outline"
                                                             class="w-4 h-4 text-green-600 cursor-pointer hover:scale-110 transition-transform"
+                                                        />
+                                                    </button>
+                                                </template>
+                                                
+                                                <template v-else-if="shipment.status === 'fulfilled' || shipment.status === 'قيد الاستلام' || shipment.status === 'تم الإرسال'">
+                                                    <button 
+                                                        @click="openReviewModal(shipment)"
+                                                        class="tooltip p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95" 
+                                                        data-tip="مراجعة تفاصيل الشحنة">
+                                                        <Icon
+                                                            icon="famicons:open-outline"
+                                                            class="w-4 h-4 text-blue-600 cursor-pointer hover:scale-110 transition-transform"
                                                         />
                                                     </button>
                                                 </template>
@@ -467,9 +488,9 @@ const fetchShipments = async () => {
                 id: shipment.id,
                 shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
                 requestDate: shipment.requestDate || shipment.createdAt,
-                status: shipment.status,
+                status: shipment.status, // الحالة الأصلية من API
                 requestingDepartment: shipment.requestingDepartment || shipment.department || 'مسؤول المخزن',
-                received: shipment.status === 'تم الإستلام',
+                received: shipment.status === 'delivered' || shipment.status === 'تم الاستلام' || shipment.status === 'تم الإستلام',
                 details: {
                     ...shipment,
                     items: shipment.items || []
@@ -495,7 +516,7 @@ const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     try {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
+        return date.toLocaleDateString( {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
@@ -503,6 +524,33 @@ const formatDate = (dateString) => {
     } catch {
         return dateString;
     }
+};
+
+const translateStatus = (status) => {
+    if (!status) return 'غير محدد';
+    
+    // الحالة قد تأتي بالعربية من الـ Backend أو بالإنجليزية من الـ DB
+    const statusMap = {
+        // الحالات الإنجليزية
+        'pending': 'جديد',
+        'approved': 'تمت الموافقة',
+        'fulfilled': 'قيد الاستلام',
+        'delivered': 'تم الاستلام',
+        'rejected': 'مرفوضة',
+        // الحالات العربية (من الـ Backend)
+        'جديد': 'جديد',
+        'تمت الموافقة': 'تمت الموافقة',
+        'قيد الاستلام': 'قيد الاستلام',
+        'تم الاستلام': 'تم الاستلام',
+        'تم الإستلام': 'تم الاستلام',
+        'مرفوضة': 'مرفوضة',
+        // حالات متوافقة قديمة
+        'قيد الانتظار': 'جديد',
+        'تم الإرسال': 'قيد الاستلام',
+        'قيد التجهيز': 'قيد الاستلام'
+    };
+    
+    return statusMap[status] || status;
 };
 
 // ----------------------------------------------------
@@ -664,6 +712,9 @@ const closeRequestViewModal = () => {
 };
 
 const openConfirmationModal = async (shipment) => {
+    // إعادة تعيين حالة التحميل عند فتح نموذج جديد
+    isConfirming.value = false;
+    
     try {
         const response = await API_ENDPOINTS.shipments.getById(shipment.id);
         let data = response.data || response;
@@ -683,10 +734,13 @@ const openConfirmationModal = async (shipment) => {
     } catch (err) {
         console.error('Error fetching shipment details:', err);
         showErrorAlert(' فشل في تحميل تفاصيل الشحنة');
+        isConfirming.value = false;
     }
 };
 
 const closeConfirmationModal = () => {
+    // إعادة تعيين حالة التحميل عند إغلاق النموذج
+    isConfirming.value = false;
     isConfirmationModalOpen.value = false;
     selectedShipmentForConfirmation.value = { 
         id: null, 
@@ -782,12 +836,12 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
 `;
 
     filteredShipments.value.forEach((shipment) => {
-
+        const statusText = translateStatus(shipment.status);
         tableHtml += `
 <tr>
     <td>${shipment.shipmentNumber || 'غير محدد'}</td>
     <td>${formatDate(shipment.requestDate)}</td>
-
+    <td>${statusText}</td>
 </tr>
 `;
     });

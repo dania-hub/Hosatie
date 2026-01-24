@@ -27,221 +27,397 @@
                 </button>
             </div>
 
-            <form @submit.prevent="submitForm" class="p-8 space-y-6">
+            <form @submit.prevent="submitForm" class="p-8 space-y-8">
                 <!-- Basic Info -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4">المعلومات الأساسية</h3>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:document-text-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
+                        المعلومات الأساسية
+                    </h3>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- اسم الدواء -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:pill-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 اسم الدواء <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.name"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل اسم الدواء"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.name ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('name')"
                             />
+                            <p v-if="errors.name" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.name }}
+                            </p>
                         </div>
 
                         <!-- الاسم العلمي -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:atom-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الاسم العلمي <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.generic_name"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل الاسم العلمي"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.generic_name ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('generic_name')"
                             />
+                            <p v-if="errors.generic_name" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.generic_name }}
+                            </p>
                         </div>
 
                         <!-- التركيز -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:weight-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 التركيز <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.strength"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="مثال: 500mg"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.strength ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('strength')"
                             />
+                            <p v-if="errors.strength" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.strength }}
+                            </p>
                         </div>
 
                         <!-- الشكل الصيدلاني -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:pill-2-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الشكل الصيدلاني <span class="text-red-500">*</span>
                             </label>
-                            <input
-                                v-model="formData.form"
-                                type="text"
-                                required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                                placeholder="مثال: أقراص، كبسولات"
-                            />
+                            <div class="relative">
+                                <select
+                                    v-model="formData.form"
+                                    required
+                                    :class="[
+                                        'w-full h-9 px-4 pr-10 border rounded-xl bg-white text-right font-medium transition-all duration-200 appearance-none cursor-pointer',
+                                        'focus:outline-none focus:ring-1',
+                                        errors.form 
+                                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                            : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                                    ]"
+                                    @change="validateField('form')"
+                                >
+                                    <option value="">اختر الشكل الصيدلاني</option>
+                                    <option value="أقراص">أقراص</option>
+                                    <option value="كبسولات">كبسولات</option>
+                                    <option value="شراب">شراب</option>
+                                    <option value="حقن">حقن</option>
+                                    <option value="مرهم">مرهم</option>
+                                    <option value="كريم">كريم</option>
+                                </select>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4 text-[#4DA1A9] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                            <p v-if="errors.form" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.form }}
+                            </p>
                         </div>
 
                         <!-- الفئة العلاجية -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:medical-kit-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الفئة العلاجية <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.category"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل الفئة العلاجية"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.category ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('category')"
                             />
+                            <p v-if="errors.category" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.category }}
+                            </p>
                         </div>
 
                         <!-- الوحدة -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:ruler-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الوحدة <span class="text-red-500">*</span>
                             </label>
-                            <select
-                                v-model="formData.unit"
-                                required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                            >
-                                <option value="">اختر الوحدة</option>
-                                <option value="قرص">قرص</option>
-                                <option value="مل">مل</option>
-                                <option value="حقنة">حقنة</option>
-                                <option value="جرام">جرام</option>
-                            </select>
+                            <div class="relative">
+                                <select
+                                    v-model="formData.unit"
+                                    required
+                                    :class="[
+                                        'w-full h-9 px-4 pr-10 border rounded-xl bg-white text-right font-medium transition-all duration-200 appearance-none cursor-pointer',
+                                        'focus:outline-none focus:ring-1',
+                                        errors.unit 
+                                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                            : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                                    ]"
+                                    @change="validateField('unit')"
+                                >
+                                    <option value="">اختر الوحدة</option>
+                                    <option value="قرص">قرص</option>
+                                    <option value="مل">مل</option>
+                                    <option value="حقنة">حقنة</option>
+                                    <option value="جرام">جرام</option>
+                                </select>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4 text-[#4DA1A9] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                            <p v-if="errors.unit" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.unit }}
+                            </p>
                         </div>
 
                         <!-- الجرعة الشهرية القصوى -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:calendar-mark-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الجرعة الشهرية القصوى <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.max_monthly_dose"
                                 type="number"
                                 required
                                 min="1"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل الجرعة الشهرية القصوى"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.max_monthly_dose ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('max_monthly_dose')"
                             />
+                            <p v-if="errors.max_monthly_dose" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.max_monthly_dose }}
+                            </p>
                         </div>
 
                         <!-- الحالة -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:check-circle-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الحالة <span class="text-red-500">*</span>
                             </label>
-                            <select
-                                v-model="formData.status"
-                                required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
-                            >
-                                <option value="">اختر الحالة</option>
-                                <option value="متوفر">متوفر</option>
-                                <option value="غير متوفر">غير متوفر</option>
-                                <option value="تم الصرف">تم الصرف</option>
-                            </select>
+                            <div class="relative">
+                                <select
+                                    v-model="formData.status"
+                                    required
+                                    :class="[
+                                        'w-full h-9 px-4 pr-10 border rounded-xl bg-white text-right font-medium transition-all duration-200 appearance-none cursor-pointer',
+                                        'focus:outline-none focus:ring-1',
+                                        errors.status 
+                                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                            : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                                    ]"
+                                    @change="validateField('status')"
+                                >
+                                    <option value="">اختر الحالة</option>
+                                    <option value="متوفر">متوفر</option>
+                                    <option value="غير متوفر">غير متوفر</option>
+                                    <option value="تم الصرف">تم الصرف</option>
+                                </select>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4 text-[#4DA1A9] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                            <p v-if="errors.status" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.status }}
+                            </p>
                         </div>
 
                         <!-- الشركة المصنعة -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:factory-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الشركة المصنعة <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.manufacturer"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل اسم الشركة المصنعة"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.manufacturer ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('manufacturer')"
                             />
+                            <p v-if="errors.manufacturer" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.manufacturer }}
+                            </p>
                         </div>
 
                         <!-- الدولة -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:global-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الدولة <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.country"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="أدخل الدولة"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.country ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('country')"
                             />
+                            <p v-if="errors.country" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.country }}
+                            </p>
                         </div>
 
                         <!-- نوع الاستخدام -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:heart-pulse-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 نوع الاستخدام <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.utilization_type"
                                 type="text"
                                 required
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="مثال: مزمن، حاد"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.utilization_type ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('utilization_type')"
                             />
+                            <p v-if="errors.utilization_type" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.utilization_type }}
+                            </p>
                         </div>
 
                         <!-- عدد الوحدات في العلبة/العبوة -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                                <Icon icon="solar:box-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 عدد {{ formData.unit === 'مل' ? 'المليات في العبوة' : 'الحبات في العلبة' }} <span class="text-red-500">*</span>
                             </label>
-                            <input
+                            <Input
                                 v-model="formData.units_per_box"
                                 type="number"
                                 required
                                 min="1"
-                                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                                 placeholder="مثال: 30"
+                                :class="[
+                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                    errors.units_per_box ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                                ]"
+                                @input="validateField('units_per_box')"
                             />
-                        </div>
+                            <p v-if="errors.units_per_box" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                                {{ errors.units_per_box }}
+                            </p>
                         </div>
                     </div>
+                </div>
 
                 <!-- Medical Info -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                    <h3 class="text-lg font-bold text-[#2E5077] mb-4">المعلومات الطبية</h3>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:medical-case-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
+                        المعلومات الطبية
+                    </h3>
                     
                     <!-- دواعي الاستعمال -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:heart-pulse-2-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             دواعي الاستعمال <span class="text-red-500">*</span>
                         </label>
                         <textarea
                             v-model="formData.indications"
                             rows="4"
                             required
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                             placeholder="أدخل دواعي الاستعمال..."
+                            :class="[
+                                'w-full px-4 py-2.5 border rounded-xl bg-white text-right font-medium transition-all duration-200 resize-none',
+                                'focus:outline-none focus:ring-1',
+                                errors.indications 
+                                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                    : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                            ]"
+                            @input="validateField('indications')"
+                        ></textarea>
+                        <p v-if="errors.indications" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.indications }}
+                        </p>
+                    </div>
+
+                    <!-- موانع الاستعمال -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:forbidden-circle-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                            موانع الاستعمال
+                        </label>
+                        <textarea
+                            v-model="formData.contraindications"
+                            rows="4"
+                            placeholder="أدخل موانع الاستعمال..."
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-right font-medium focus:outline-none focus:ring-1 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 transition-all duration-200 resize-none"
                         ></textarea>
                     </div>
 
                     <!-- تحذيرات هامة -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
+                            <Icon icon="solar:danger-triangle-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                             تحذيرات هامة <span class="text-red-500">*</span>
                         </label>
                         <textarea
                             v-model="formData.warnings"
                             rows="4"
                             required
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#4DA1A9] focus:border-transparent transition-all duration-200"
                             placeholder="أدخل التحذيرات الهامة..."
+                            :class="[
+                                'w-full px-4 py-2.5 border rounded-xl bg-white text-right font-medium transition-all duration-200 resize-none',
+                                'focus:outline-none focus:ring-1',
+                                errors.warnings 
+                                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                    : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                            ]"
+                            @input="validateField('warnings')"
                         ></textarea>
+                        <p v-if="errors.warnings" class="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.warnings }}
+                        </p>
                     </div>
                 </div>
 
@@ -249,16 +425,17 @@
                 <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
                     <button
                         type="button"
-                        class="px-6 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 transition-colors duration-200"
+                        class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2"
                         @click="closeModal"
                     >
                         إلغاء
                     </button>
                     <button
                         type="submit"
-                        class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3d8c94] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        :disabled="isSubmitting"
+                        class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="isSubmitting || !isFormValid"
                     >
+                        <Icon icon="solar:check-read-bold" class="w-5 h-5" />
                         <span v-if="isSubmitting">جاري التحديث...</span>
                         <span v-else>تحديث البيانات</span>
                     </button>
@@ -269,8 +446,9 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, watch } from "vue";
+import { ref, defineProps, defineEmits, watch, computed } from "vue";
 import { Icon } from "@iconify/vue";
+import Input from "@/components/ui/input/Input.vue";
 
 const props = defineProps({
     isOpen: {
@@ -286,20 +464,53 @@ const props = defineProps({
 const emit = defineEmits(['close', 'update-drug']);
 
 const formData = ref({});
+const errors = ref({});
 const isSubmitting = ref(false);
 
-const formatDate = (date) => {
-    if (!date) return '';
-    // If it's already a date string like YYYY-MM-DD, just return it
-    if (typeof date === 'string') {
-        return date.split('T')[0].split(' ')[0];
-    }
-    try {
-        return new Date(date).toISOString().split('T')[0];
-    } catch (e) {
-        return date;
+// التحقق من صحة الحقل
+const validateField = (field) => {
+    const value = formData.value[field];
+    
+    if (field === 'max_monthly_dose' || field === 'units_per_box') {
+        if (!value || value <= 0) {
+            errors.value[field] = 'يجب إدخال قيمة أكبر من صفر';
+        } else {
+            errors.value[field] = '';
+        }
+    } else if (field === 'indications' || field === 'warnings') {
+        if (!value || value.trim().length < 10) {
+            errors.value[field] = 'يجب إدخال نص لا يقل عن 10 أحرف';
+        } else {
+            errors.value[field] = '';
+        }
+    } else {
+        if (!value || value.trim() === '') {
+            errors.value[field] = 'هذا الحقل مطلوب';
+        } else {
+            errors.value[field] = '';
+        }
     }
 };
+
+// التحقق من صحة النموذج
+const isFormValid = computed(() => {
+    const requiredFields = ['name', 'generic_name', 'strength', 'form', 'category', 'unit', 'max_monthly_dose', 'status', 'manufacturer', 'country', 'utilization_type', 'warnings', 'indications'];
+    
+    for (const field of requiredFields) {
+        const value = formData.value[field];
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+            return false;
+        }
+        if (field === 'max_monthly_dose' || field === 'units_per_box') {
+            if (value <= 0) return false;
+        }
+        if (field === 'indications' || field === 'warnings') {
+            if (value.trim().length < 10) return false;
+        }
+    }
+    
+    return true;
+});
 
 // عند تغيير الدواء أو فتح النافذة، نسخ البيانات
 watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
@@ -319,8 +530,10 @@ watch(() => [props.isOpen, props.drug], ([isOpen, drug]) => {
             utilization_type: drug.utilization_type || '',
             warnings: drug.warnings || '',
             indications: drug.indications || '',
+            contraindications: drug.contraindications || '',
             units_per_box: drug.units_per_box || drug.unitsPerBox || 1,
         };
+        errors.value = {};
     }
 }, { immediate: true });
 
@@ -331,6 +544,14 @@ const closeModal = () => {
 
 // إرسال النموذج
 const submitForm = async () => {
+    // التحقق من جميع الحقول
+    const requiredFields = ['name', 'generic_name', 'strength', 'form', 'category', 'unit', 'max_monthly_dose', 'status', 'manufacturer', 'country', 'utilization_type', 'warnings', 'indications'];
+    requiredFields.forEach(field => validateField(field));
+    
+    if (!isFormValid.value) {
+        return;
+    }
+    
     isSubmitting.value = true;
     
     try {

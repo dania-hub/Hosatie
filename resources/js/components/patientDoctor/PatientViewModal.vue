@@ -93,7 +93,7 @@ const saveEdit = () => {
         return;
     }
     
-    const newDosage = parseFloat(editingDosage.value);
+    const newDosage = parseInt(editingDosage.value);
     emit('edit-medication', editingIndex.value, newDosage);
     showEditModal.value = false;
     editingIndex.value = null;
@@ -113,10 +113,10 @@ const cancelEdit = () => {
 
 // حساب الكمية الشهرية المحدثة
 const updatedMonthlyQuantity = computed(() => {
-    const dosage = parseFloat(editingDosage.value) || 0;
+    const dosage = parseInt(editingDosage.value) || 0;
     const monthly = dosage * 30; // افتراض: 30 يوماً في الشهر
-    // إرجاع الرقم العشري إذا لزم الأمر
-    return monthly % 1 === 0 ? monthly : monthly.toFixed(2);
+    // إرجاع الرقم الصحيح دائماً
+    return Math.floor(monthly);
 });
 
 // دالة لحساب الكمية الشهرية للعرض (دائماً الجرعة اليومية * 30)
@@ -278,9 +278,7 @@ const formatDate = (dateString) => {
                                         <div class="flex flex-col space-y-2">
                                             <div class="font-medium">{{ getMonthlyQuantityDisplay(med) }}</div>
                                             <div class="text-xs space-y-1">
-                                                <div class="text-orange-600">
-                                                    <span class="font-semibold">مصروف:</span> {{ med.totalDispensedThisMonth || 0 }} {{ med.unit || 'حبة' }}
-                                                </div>
+                                               
                                                 <div class="text-green-600">
                                                     <span class="font-semibold">متبقي:</span> {{ med.remainingQuantity !== undefined ? Math.max(0, med.remainingQuantity) : Math.max(0, (med.monthlyQuantityNum || 0) - (med.totalDispensedThisMonth || 0)) }} {{ med.unit || 'حبة' }}
                                                 </div>
@@ -388,17 +386,17 @@ const formatDate = (dateString) => {
                     <label class="text-sm font-semibold text-[#2E5077]">
                         الجرعة اليومية (عدد الحبوب أو الوحدات)
                         <span v-if="maxDailyDose !== null" class="text-xs text-gray-500 font-normal">
-                            (الحد الأقصى: {{ maxDailyDose.toFixed(2) }})
+                            (الحد الأقصى: {{ maxDailyDose }})
                         </span>
                     </label>
                     <Input
                         v-model="editingDosage"
-                        @input="validateDosage"
+                        @input="handleDosageInput"
                         @blur="validateDosage"
                         type="number"
-                        step="0.01"
-                        min="0.01"
-                        :max="maxDailyDose !== null ? maxDailyDose : undefined"
+                        step="1"
+                        min="1"
+                        :max="maxDailyDose !== null ? Math.floor(maxDailyDose) : undefined"
                         :class="['bg-white border-gray-200 focus:border-[#4DA1A9]', dosageError ? 'border-red-500 focus:border-red-500' : '']"
                         placeholder="أدخل العدد"
                     />

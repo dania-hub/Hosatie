@@ -80,22 +80,23 @@ const fetchAllData = async () => {
             isActive: supplier.status === 'active',
             status: supplier.status,
             admin: supplier.admin || null,
-            managerName: supplier.admin?.name || '',
+            managerName: supplier.admin?.name || supplier.admin?.full_name || supplier.admin?.fullName || '',
             managerId: supplier.admin?.id || null,
             lastUpdated: supplier.createdAt || new Date().toISOString()
         }));
         
-        // معالجة بيانات المدراء (فقط supplier_admin الذين لم يتم تعيينهم في مورد)
+        // معالجة بيانات المدراء (جميع supplier_admin النشطين)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'supplier_admin' && !user.supplier)
+            .filter(user => user.type === 'supplier_admin' && (user.status === 'active' || user.status === true))
             .map(user => ({
                 ...user,
                 id: user.id,
                 name: user.fullName || user.full_name || user.name || '',
                 email: user.email || '',
                 phone: user.phone || '',
-                isActive: user.status === 'active' || user.status === true
+                isActive: user.status === 'active' || user.status === true,
+                supplierId: user.supplier?.id || user.supplier_id || null
             }));
         
     } catch (err) {
@@ -138,9 +139,16 @@ const availableManagersForSuppliers = computed(() => {
         assignedManagerIds.delete(selectedSupplier.value.managerId);
     }
     
-    return availableManagers.value.filter(manager => 
-        manager.isActive && !assignedManagerIds.has(manager.id)
-    );
+    // إرجاع جميع المدراء النشطين غير المعينين في مورد آخر
+    // أو المدير الحالي للمورد (للسماح بالاحتفاظ به)
+    return availableManagers.value.filter(manager => {
+        // السماح بالمدير الحالي للمورد
+        if (selectedSupplier.value?.managerId === manager.id) {
+            return true;
+        }
+        // السماح فقط بالمدراء النشطين وغير المعينين في مورد آخر
+        return manager.isActive && !assignedManagerIds.has(manager.id);
+    });
 });
 
 // ----------------------------------------------------

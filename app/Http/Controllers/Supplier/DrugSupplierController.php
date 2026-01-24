@@ -119,6 +119,7 @@ class DrugSupplierController extends BaseApiController
 
             // جلب طلبات التوريد الخارجية المعتمدة والمُرسلة للمورد
             // الطلبات المعتمدة (approved) هي التي تمت الموافقة عليها من مدير المستشفى وتم إرسالها للمورد
+            // هذه الطلبات تظهر بحالة "جديد" في واجهة المورد
             $reqQuery = ExternalSupplyRequest::where('status', 'approved') // فقط الطلبات المعتمدة والمُرسلة للمورد
                 ->where('supplier_id', $supplier_id); // التأكد من أن الطلب مُرسل لهذا المورد
             
@@ -126,27 +127,31 @@ class DrugSupplierController extends BaseApiController
                 $reqQuery->where('hospital_id', $hospital_id);
             }
 
-            $externalRequests = $reqQuery->with(['items.drug'])->get();
+            // جلب معرفات الطلبات أولاً
+            $requestIds = $reqQuery->pluck('id')->toArray();
 
-            // جمع جميع الأدوية من الطلبات مع الكميات المطلوبة
+            // جلب العناصر مباشرة من جدول external_supply_request_item
+            // للطلبات بحالة "جديد" (approved)، نستخدم requested_qty مباشرة
+            // لأن approved_qty قد يكون null أو 0 في هذه المرحلة (قبل أن يحدد المورد الكمية المعتمدة)
             $requestItems = collect();
-            foreach ($externalRequests as $request) {
-                foreach ($request->items as $item) {
-                    if ($item->drug) {
-                        // استخدام approved_qty إذا كان موجوداً، وإلا requested_qty
-                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
-                        if ($qty > 0) {
-                            $requestItems->push([
-                                'drug_id' => $item->drug_id,
-                                'requested_qty' => $qty,
-                            ]);
-                        }
-                    }
-                }
+            if (!empty($requestIds)) {
+                $requestItems = ExternalSupplyRequestItem::whereIn('request_id', $requestIds)
+                    ->whereNotNull('drug_id')
+                    ->select('drug_id', 'requested_qty')
+                    ->get()
+                    ->map(function ($item) {
+                        return [
+                            'drug_id' => $item->drug_id,
+                            'requested_qty' => (int)($item->requested_qty ?? 0),
+                        ];
+                    })
+                    ->filter(function ($item) {
+                        return $item['requested_qty'] > 0;
+                    });
             }
 
             // تجميع الأدوية حسب drug_id وحساب المجموع المطلوب من جميع الطلبات
-            $drugsRequestedQuantities = $requestItems
+            $drugsRequestedQuantities = collect($requestItems)
                 ->groupBy('drug_id')
                 ->map(function ($items, $drugId) {
                     return [
@@ -322,7 +327,8 @@ class DrugSupplierController extends BaseApiController
                 $totalRequestedQty = 0;
                 foreach ($externalRequests as $request) {
                     foreach ($request->items as $item) {
-                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
+                        // للطلبات بحالة "جديد" (approved)، نستخدم requested_qty مباشرة
+                        $qty = (int)($item->requested_qty ?? 0);
                         $totalRequestedQty += $qty;
                     }
                 }
@@ -385,7 +391,8 @@ class DrugSupplierController extends BaseApiController
                 $totalRequestedQty = 0;
                 foreach ($externalRequests as $request) {
                     foreach ($request->items as $item) {
-                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
+                        // للطلبات بحالة "جديد" (approved)، نستخدم requested_qty مباشرة
+                        $qty = (int)($item->requested_qty ?? 0);
                         $totalRequestedQty += $qty;
                     }
                 }

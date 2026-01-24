@@ -31,7 +31,7 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
             }
 
             // جلب جميع الطلبات من StoreKeeper (جميع الحالات)
-            $requests = ExternalSupplyRequest::with(['supplier', 'requester'])
+            $requests = ExternalSupplyRequest::with(['supplier', 'requester', 'items'])
                 ->where('hospital_id', $hospitalId)
                 ->whereHas('requester', function($q) {
                     // فقط الطلبات من StoreKeeper (requested_by هو warehouse_manager)
@@ -40,12 +40,35 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
                 ->latest()
                 ->get()
                 ->map(function ($r) {
+                    // التحقق من أن الطلب تم استلامه (fulfilled + تم تأكيد الاستلام من storekeeper)
+                    $isDelivered = false;
+                    if ($r->status === 'fulfilled') {
+                        $requestUpdatedAt = $r->updated_at;
+                        // التحقق من أن items تم تحديثها بعد تحديث الطلب (يعني تم تأكيد الاستلام)
+                        $itemsUpdatedAfterDelivery = $r->items->some(function($item) use ($requestUpdatedAt) {
+                            if (!$item->updated_at) return false;
+                            $diffInSeconds = $item->updated_at->diffInSeconds($requestUpdatedAt);
+                            return $item->updated_at->gt($requestUpdatedAt) && $diffInSeconds > 1;
+                        });
+                        
+                        if (!$itemsUpdatedAfterDelivery) {
+                            $itemsUpdatedAfterDelivery = $r->items->every(function($item) use ($requestUpdatedAt) {
+                                return $item->updated_at && $item->updated_at->gt($requestUpdatedAt);
+                            });
+                        }
+                        
+                        $isDelivered = $itemsUpdatedAfterDelivery;
+                    }
+                    
+                    // إذا كان الطلب تم استلامه، نستخدم 'delivered' بدلاً من 'fulfilled'
+                    $status = $isDelivered ? 'delivered' : $r->status;
+                    
                     return [
                         'id'                  => $r->id,
                         'shipmentNumber'      => 'EXT-' . $r->id,
                         'requestDate'         => optional($r->created_at)->toIso8601String(),
                         'createdAt'           => optional($r->created_at)->toIso8601String(),
-                        'status'              => $this->mapStatusToArabic($r->status),
+                        'status'              => $this->mapStatusToArabic($status),
                         'requestingDepartment'=> $r->requester?->full_name ?? 'مسؤول المخزن',
                         'department'          => $r->requester?->full_name ?? 'مسؤول المخزن',
                     ];
@@ -545,8 +568,9 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
     {
         return match ($status) {
             'pending'   => 'جديد',
-            'approved'  => 'قيد الاستلام', // معتمدة من HospitalAdmin، في انتظار StoreKeeper/Supplier
+            'approved'  => 'تمت الموافقة', // معتمدة من HospitalAdmin، في انتظار Supplier
             'fulfilled' => 'قيد الاستلام', // أرسلها Supplier، في انتظار StoreKeeper
+            'delivered' => 'تم الاستلام', // تم تأكيد الاستلام من StoreKeeper
             'rejected'  => 'مرفوضة',
             default     => $status,
         };

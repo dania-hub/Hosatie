@@ -212,18 +212,28 @@
             </div>
 
             <!-- Footer -->
-            <div class="bg-gray-50 px-8 py-5 flex justify-end gap-3 border-t border-gray-100 sticky bottom-0">
-                <button 
-                    @click="closeModal" 
-                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200"
-                    :disabled="props.isLoading || isConfirming"
-                >
-                    إلغاء
-                </button>
+            <div class="bg-gray-50 px-8 py-5 flex flex-col-reverse sm:flex-row justify-between gap-3 border-t border-gray-100 sticky bottom-0">
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button
+                        @click="printConfirmation"
+                        class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center justify-center gap-2 w-full sm:w-auto"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        <Icon icon="solar:printer-bold-duotone" class="w-5 h-5" />
+                        طباعة
+                    </button>
+                    <button 
+                        @click="closeModal" 
+                        class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        إلغاء
+                    </button>
+                </div>
                 <button
                     @click="confirmReceipt"
                     :disabled="props.isLoading || isConfirming"
-                    class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200"
+                    class="px-6 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 w-full sm:w-auto"
                     :class="(props.isLoading || isConfirming) ? 'bg-gray-300 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5'"
                 >
                     <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
@@ -442,6 +452,157 @@ const confirmReceipt = async () => {
 const closeModal = () => {
     if (!props.isLoading) {
         emit('close');
+    }
+};
+
+// دالة لتنسيق الكمية بالعبوة للطباعة (نص بدون HTML)
+const getFormattedQuantityForPrint = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = unit === 'مل' ? 'عبوة' : 'علبة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
+};
+
+// دالة الطباعة
+const printConfirmation = () => {
+    try {
+        const printWindow = window.open('', '_blank', 'height=600,width=800');
+        
+        if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+            console.error('فشل في فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة.');
+            return;
+        }
+        
+        const requestData = props.requestData;
+        
+        // إعداد بيانات الأدوية للطباعة
+        const itemsHtml = receivedItems.value.map(item => {
+            const requestedQty = item.originalQuantity || 0;
+            const sentQty = item.sentQuantity || 0;
+            const receivedQty = item.receivedQuantity || 0;
+            const unitsPerBox = item.units_per_box || 1;
+            const unit = item.unit || 'وحدة';
+            
+            // استخدام getFormattedQuantityForPrint لعرض الكميات
+            const formattedRequested = getFormattedQuantityForPrint(requestedQty, unit, unitsPerBox);
+            const formattedSent = getFormattedQuantityForPrint(sentQty, unit, unitsPerBox);
+            const formattedReceived = getFormattedQuantityForPrint(receivedQty, unit, unitsPerBox);
+            
+            // معلومات الدفعة وتاريخ الانتهاء
+            let expiryInfo = '-';
+            if (item.batchNumber || item.expiryDate) {
+                const batchStr = item.batchNumber ? `دفعة: ${item.batchNumber}` : '';
+                const expiryStr = item.expiryDate ? `انتهاء: ${formatDate(item.expiryDate)}` : '';
+                expiryInfo = [batchStr, expiryStr].filter(Boolean).join(' - ') || '-';
+            }
+            
+            return `
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedRequested}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedSent}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedReceived}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px;">${expiryInfo}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        const printContent = `
+            <!DOCTYPE html>
+            <html dir="rtl" lang="ar">
+            <head>
+                <meta charset="UTF-8">
+                <title>طباعة تأكيد استلام الشحنة</title>
+                <style>
+                    body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                    h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                    h2 { color: #2E5077; margin-top: 20px; }
+                    .info-section { margin-bottom: 20px; }
+                    .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                    .info-label { font-weight: bold; color: #666; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                    th { background-color: #9aced2; font-weight: bold; }
+                    .notes-section { background-color: #f0f9ff; padding: 15px; border: 1px solid #4DA1A9; margin-top: 20px; border-radius: 5px; }
+                    @media print {
+                        button { display: none; }
+                        @page { margin: 1cm; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>تأكيد استلام الشحنة</h1>
+                
+                <div class="info-section">
+                    <div class="info-row">
+                        <span class="info-label">رقم الشحنة:</span>
+                        <span>${requestData.shipmentNumber || requestData.id || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">تاريخ الطلب:</span>
+                        <span>${formatDate(requestData.date) || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">حالة الطلب:</span>
+                        <span>${requestData.status || 'قيد الاستلام'}</span>
+                    </div>
+                </div>
+
+                <h2>الأدوية المستلمة</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>اسم الدواء</th>
+                            <th>الكمية المطلوبة</th>
+                            <th>الكمية المرسلة</th>
+                            <th>الكمية المستلمة</th>
+                            <th>الدفعة / تاريخ الانتهاء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml || '<tr><td colspan="5" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                    </tbody>
+                </table>
+
+                ${notes.value ? `
+                <div class="notes-section">
+                    <h3 style="color: #2E5077; margin-top: 0;">ملاحظات الاستلام</h3>
+                    <p>${notes.value}</p>
+                </div>
+                ` : ''}
+
+                <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                    تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+                </p>
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // استخدام setTimeout لضمان تحميل المحتوى قبل الطباعة
+        setTimeout(() => {
+            if (printWindow && !printWindow.closed) {
+                printWindow.focus();
+                printWindow.print();
+            }
+        }, 250);
+    } catch (error) {
+        console.error('خطأ في عملية الطباعة:', error);
     }
 };
 </script>

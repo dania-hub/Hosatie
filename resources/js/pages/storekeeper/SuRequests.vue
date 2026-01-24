@@ -243,17 +243,33 @@
                                             :class="{
                                                 'text-red-600 font-semibold':
                                                     shipment.requestStatus === 'مرفوضة' || 
-                                                    shipment.requestStatus === 'مرفوض',
+                                                    shipment.requestStatus === 'مرفوض' ||
+                                                    shipment.status === 'rejected',
                                                 'text-green-600 font-semibold':
                                                     shipment.requestStatus === 'تم الإستلام' ||
-                                                    shipment.requestStatus === 'تم الاستلام',
+                                                    shipment.requestStatus === 'تم الاستلام' ||
+                                                    shipment.status === 'delivered',
                                                 'text-blue-500 font-semibold':
-                                                    shipment.requestStatus === 'قيد الاستلام',
+                                                    shipment.requestStatus === 'قيد الاستلام' ||
+                                                    shipment.status === 'fulfilled',
                                                 'text-yellow-600 font-semibold':
-                                                    shipment.requestStatus === 'قيد الانتظار',
+                                                    shipment.requestStatus === 'قيد الانتظار' ||
+                                                    shipment.status === 'pending'||
+                                               
+                                                    shipment.requestStatus === 'تمت الموافقة مبدئياً' ||
+                                                    shipment.status === 'approved',
                                             }"
                                         >
-                                            {{ shipment.requestStatus }}
+                                            <div class="flex items-center gap-2">
+                                                <span>{{ translateStatus(shipment.requestStatus || shipment.status) }}</span>
+                                                <Icon 
+                                                    v-if="(shipment.requestStatus === 'قيد الانتظار' || shipment.status === 'pending') || 
+                                                          (shipment.requestStatus === 'تمت الموافقة مبدئياً' || shipment.status === 'approved') ||
+                                                          (shipment.requestStatus === 'قيد الاستلام' || shipment.status === 'fulfilled')"
+                                                    
+                                                />
+                                                
+                                            </div>
                                         </td>
                                         <td class="actions-col">
                                             <div class="flex gap-3 justify-center">
@@ -269,7 +285,7 @@
                                                 </button>
                                                 
                                                 <!-- زر الإجراء الثاني يختلف حسب الحالة -->
-                                                <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض'">
+                                                <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض' || shipment.status === 'rejected'">
                                                     <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
                                                         <Icon
                                                             icon="tabler:circle-x" 
@@ -278,7 +294,7 @@
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.requestStatus === 'قيد الاستلام'">
+                                                <template v-else-if="shipment.requestStatus === 'قيد الاستلام' || shipment.status === 'fulfilled'">
                                                     <!-- إذا كانت قيد الاستلام (أرسلها Supplier)، تظهر زر تأكيد الاستلام -->
                                                     <button
                                                         @click="openConfirmationModal(shipment)" 
@@ -291,7 +307,7 @@
                                                     </button>
                                                 </template>
                                                 
-                                                <template v-else-if="shipment.requestStatus === 'تم الإستلام' || shipment.requestStatus === 'تم الاستلام'">
+                                                <template v-else-if="shipment.requestStatus === 'تم الإستلام' || shipment.requestStatus === 'تم الاستلام' || shipment.status === 'delivered'">
                                                     <!-- إذا كانت تم الاستلام، تظهر علامة الصح -->
                                                     <button 
                                                         @click="openReviewModal(shipment)"
@@ -691,6 +707,33 @@ const formatDate = (dateString) => {
     } catch {
         return dateString;
     }
+};
+
+const translateStatus = (status) => {
+    if (!status) return 'غير محدد';
+    
+    // الحالة قد تأتي بالعربية من الـ Backend أو بالإنجليزية من الـ DB
+    const statusMap = {
+        // الحالات الإنجليزية
+        'pending': 'قيد الانتظار',
+        'approved': 'تمت الموافقة مبدئياً',
+        'fulfilled': 'قيد الاستلام',
+        'delivered': 'تم الاستلام',
+        'rejected': 'مرفوضة',
+        // الحالات العربية (من الـ Backend)
+        'قيد الانتظار': 'قيد الانتظار',
+        'تمت الموافقة مبدئياً': 'تمت الموافقة مبدئياً',
+        'قيد الاستلام': 'قيد الاستلام',
+        'تم الاستلام': 'تم الاستلام',
+        'تم الإستلام': 'تم الاستلام',
+        'مرفوضة': 'مرفوضة',
+        'مرفوض': 'مرفوضة',
+        // حالات متوافقة قديمة
+        'قيد التجهيز': 'قيد الاستلام',
+        'تم الإرسال': 'قيد الاستلام'
+    };
+    
+    return statusMap[status] || status;
 };
 
 // ----------------------------------------------------

@@ -40,25 +40,19 @@
             <div class="p-4 sm:p-8 space-y-8 overflow-y-auto custom-scrollbar">
                 
                 <!-- Shipment Info Section -->
-                <div class="bg-white p-6 rounded-[1.5rem] shadow-sm border border-slate-200/60 relative overflow-hidden group">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-[#4DA1A9] transition-all duration-300 group-hover:w-1.5"></div>
-                    <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-3">
-                            <div class="p-2 bg-slate-50 rounded-lg">
-                                <Icon icon="solar:info-circle-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
-                            </div>
-                            بيانات الشحنة المستلمة
-                        </h3>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-100 transition-all hover:bg-slate-50 flex flex-col gap-1">
-                            <span class="text-slate-400 text-xs font-bold">رقم الشحنة</span>
-                            <span class="font-bold text-[#2E5077] text-base font-mono">{{ requestData.shipmentNumber || requestData.id || "غير محدد" }}</span>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold text-[#2E5077] mb-4 flex items-center gap-2">
+                        <Icon icon="solar:info-circle-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                        بيانات الشحنة المستلمة
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">رقم الشحنة</span>
+                            <span class="font-bold text-[#2E5077] font-mono text-lg">{{ requestData.shipmentNumber || requestData.id || "غير محدد" }}</span>
                         </div>
-                        <div class="p-4 bg-slate-50/80 rounded-2xl border border-slate-100 transition-all hover:bg-slate-50 flex flex-col gap-1">
-                            <span class="text-slate-400 text-xs font-bold">تاريخ الطلب</span>
-                            <span class="font-bold text-[#2E5077] text-base">{{ formatDate(requestData.created_at || requestData.createdAt || requestData.date || requestData.requestDate || requestData.request_date) || "غير محدد" }}</span>
+                        <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">تاريخ الطلب</span>
+                            <span class="font-bold text-[#2E5077]">{{ formatDate(requestData.created_at || requestData.createdAt || requestData.date || requestData.requestDate || requestData.request_date) || "غير محدد" }}</span>
                         </div>
                     </div>
                 </div>
@@ -108,137 +102,152 @@
                                                 <Icon icon="solar:box-minimalistic-bold" class="w-3.5 h-3.5" />
                                                 مرسل: <span v-html="getFormattedQuantity(item.sentQuantity, item.unit, item.units_per_box)"></span>
                                             </div>
+                                            <div class="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-xl text-xs font-bold border border-purple-100 flex items-center gap-2">
+                                                <Icon icon="solar:check-circle-bold" class="w-3.5 h-3.5" />
+                                                مستلم: <span v-html="getFormattedQuantity(getTotalReceivedForItem(item), item.unit, item.units_per_box)"></span>
+                                            </div>
                                         </div>
                                         
                                     </div>
 
-                                    <!-- Action: Receive Quantity -->
+                                    <!-- Status Indicator & Batch & Expiry Fields -->
                                     <div class="flex flex-col gap-4 w-full lg:w-auto items-end">
-                                        <div class="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-200 justify-between lg:justify-end w-full lg:w-auto">
-                                            <label class="text-sm font-bold text-slate-500 px-2 flex items-center gap-2">
-                                                <Icon icon="solar:file-check-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                                                مستلم:
-                                            </label>
-                                            
-                                            <div class="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                                <template v-if="item.units_per_box > 1">
-                                                    <button 
-                                                        @click="decrementBoxes(index)"
-                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
-                                                        :disabled="item.receivedBoxes <= 0 || props.isLoading || isConfirming"
-                                                    >
-                                                        <Icon icon="solar:minus-circle-bold" class="w-6 h-6" />
-                                                    </button>
-
-                                                    <div class="flex items-center px-2">
-                                                        <input
-                                                            type="number"
-                                                            v-model.number="item.receivedBoxes"
-                                                            class="w-16 h-10 text-center border-none focus:ring-0 font-black text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                            :class="{
-                                                                'text-green-600': item.receivedQuantity === (item.sentQuantity || item.originalQuantity),
-                                                                'text-amber-500': item.receivedQuantity < (item.sentQuantity || item.originalQuantity) && item.receivedQuantity > 0,
-                                                                'text-red-500': item.receivedQuantity === 0
-                                                            }"
-                                                            @input="handleBoxInput(index)"
-                                                            :disabled="props.isLoading || isConfirming"
-                                                        />
-                                                        <span class="text-xs font-bold text-slate-400 mr-1">عبوة</span>
-                                                    </div>
-                                                    
-                                                    <button 
-                                                        @click="incrementBoxes(index)"
-                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
-                                                        :disabled="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity) || props.isLoading || isConfirming"
-                                                    >
-                                                        <Icon icon="solar:add-circle-bold" class="w-6 h-6" />
-                                                    </button>
-                                                </template>
-                                                <template v-else>
-                                                    <button 
-                                                        @click="decrementQuantity(index)"
-                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
-                                                        :disabled="item.receivedQuantity <= 0 || props.isLoading || isConfirming"
-                                                    >
-                                                        <Icon icon="solar:minus-circle-bold" class="w-6 h-6" />
-                                                    </button>
-
-                                                    <input
-                                                        type="number"
-                                                        v-model.number="item.receivedQuantity"
-                                                        :max="item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity"
-                                                        min="0"
-                                                        class="w-16 h-10 text-center border-none focus:ring-0 font-black text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                        :class="{
-                                                            'text-green-600': item.receivedQuantity === (item.sentQuantity || item.originalQuantity),
-                                                            'text-amber-500': item.receivedQuantity < (item.sentQuantity || item.originalQuantity) && item.receivedQuantity > 0,
-                                                            'text-red-500': item.receivedQuantity === 0
-                                                        }"
-                                                        @input="validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity)"
-                                                    />
-                                                    
-                                                    <button 
-                                                        @click="incrementQuantity(index)"
-                                                        class="p-2 hover:bg-slate-50 text-slate-400 hover:text-[#4DA1A9] transition-colors"
-                                                        :disabled="item.receivedQuantity >= (item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity) || props.isLoading || isConfirming"
-                                                    >
-                                                        <Icon icon="solar:add-circle-bold" class="w-6 h-6" />
-                                                    </button>
-                                                </template>
-                                            </div>
-                                            
+                                        <!-- Status Indicator -->
+                                        <div class="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-200 justify-end w-full lg:w-auto">
                                             <div 
-                                                class="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm"
+                                                class="w-6 h-5 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm"
                                                 :class="{
-                                                    'bg-green-100 text-green-600 shadow-green-200/50': item.receivedQuantity >= (item.sentQuantity || item.originalQuantity),
-                                                    'bg-amber-100 text-amber-600 shadow-amber-200/50': item.receivedQuantity > 0 && item.receivedQuantity < (item.sentQuantity || item.originalQuantity),
-                                                    'bg-red-100 text-red-600 shadow-red-200/50': item.receivedQuantity === 0
+                                                    'bg-green-100 text-green-600 shadow-green-200/50': getTotalReceivedForItem(item) >= (item.sentQuantity || item.originalQuantity),
+                                                    'bg-amber-100 text-amber-600 shadow-amber-200/50': getTotalReceivedForItem(item) > 0 && getTotalReceivedForItem(item) < (item.sentQuantity || item.originalQuantity),
+                                                    'bg-red-100 text-red-600 shadow-red-200/50': getTotalReceivedForItem(item) === 0
                                                 }"
                                             >
-                                                <Icon v-if="item.receivedQuantity >= (item.sentQuantity || item.originalQuantity)" icon="solar:check-circle-bold" class="w-6 h-6" />
-                                                <Icon v-else-if="item.receivedQuantity > 0" icon="solar:danger-circle-bold" class="w-6 h-6" />
-                                                <Icon v-else icon="solar:close-circle-bold" class="w-6 h-6" />
+                                                <Icon v-if="getTotalReceivedForItem(item) >= (item.sentQuantity || item.originalQuantity)" icon="solar:check-circle-bold" class="w-7 h-7" />
+                                                <Icon v-else-if="getTotalReceivedForItem(item) > 0" icon="solar:danger-circle-bold" class="w-7 h-7" />
+                                                <Icon v-else icon="solar:close-circle-bold" class="w-7 h-7" />
                                             </div>
                                         </div>
 
-                                        <!-- Batch & Expiry Fields (New Location) -->
-                                        <div class="flex flex-col gap-3 w-[260px] lg:w-[320px] mt-4 self-end">
-                                            <!-- Batch Number -->
-                                            <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-amber-100 focus-within:border-amber-300 focus-within:ring-2 focus-within:ring-amber-100 transition-all shadow-sm">
-                                                <div class="flex items-center gap-2 border-l border-amber-100 pl-3 min-w-[110px]">
-                                                    <div class="p-1.5 bg-amber-50 rounded-lg">
-                                                        <Icon icon="solar:tag-bold-duotone" class="w-5 h-5 text-amber-600" />
-                                                    </div>
-                                                    <span class="text-xs font-bold text-amber-900">رقم الدفعة:</span>
-                                                </div>
-                                                <input
-                                                    v-model="item.batchNumber"
-                                                    placeholder="Batch Number"
-                                                    class="bg-transparent border-none text-sm focus:ring-0 w-full text-amber-800 placeholder:text-amber-300 font-bold text-left tracking-wide"
-                                                    dir="ltr"
+                                        <!-- Batch & Expiry Fields (Multiple Dates Support) -->
+                                        <div class="flex flex-col gap-3 w-full lg:w-[400px]">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-bold text-slate-600">تواريخ انتهاء الصلاحية:</span>
+                                                <button
+                                                    v-if="getTotalReceivedForItem(item) < item.sentQuantity"
+                                                    @click="addExpiryDate(index)"
+                                                    type="button"
+                                                    class="px-3 py-1 text-xs bg-[#4DA1A9] text-white rounded-lg hover:bg-[#3a8c94] transition-colors flex items-center gap-1"
                                                     :disabled="props.isLoading || isConfirming"
-                                                />
+                                                >
+                                                    <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                    إضافة تاريخ
+                                                </button>
                                             </div>
                                             
-                                            <!-- Expiry Date -->
-                                            <div 
-                                                class="flex items-center gap-3 bg-white p-3 rounded-xl border border-purple-100 focus-within:border-purple-300 focus-within:ring-2 focus-within:ring-purple-100 transition-all shadow-sm cursor-pointer hover:bg-purple-50/30"
-                                                @click="$event.currentTarget.querySelector('input').showPicker()"
-                                            >
-                                                <div class="flex items-center gap-2 border-l border-purple-100 pl-3 min-w-[110px]">
-                                                    <div class="p-1.5 bg-purple-50 rounded-lg">
-                                                        <Icon icon="solar:calendar-bold-duotone" class="w-5 h-5 text-purple-600" />
+                                            <div v-for="(expiryEntry, expiryIndex) in item.expiryDates" :key="expiryIndex" class="flex flex-col gap-2 p-3 bg-white rounded-xl border border-purple-100 shadow-sm">
+                                                <div class="flex items-center gap-2">
+                                                    <!-- Batch Number -->
+                                                    <div class="flex-1 flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-100">
+                                                        <Icon icon="solar:tag-bold-duotone" class="w-4 h-4 text-amber-600" />
+                                                        <input
+                                                            v-model="expiryEntry.batchNumber"
+                                                            placeholder="رقم الدفعة"
+                                                            class="bg-transparent border-none text-xs focus:ring-0 w-full text-amber-800 placeholder:text-amber-300 font-bold"
+                                                            dir="ltr"
+                                                            :disabled="props.isLoading || isConfirming"
+                                                        />
                                                     </div>
-                                                    <span class="text-xs font-bold text-purple-900">تاريخ إنتهاء الصلاحية:</span>
+                                                    
+                                                    <!-- Expiry Date -->
+                                                    <div 
+                                                        class="flex-1 flex items-center gap-2 p-2 rounded-lg border transition-colors relative"
+                                                        :class="expiryEntry.expiryDate ? 'bg-purple-50 border-purple-100 cursor-pointer hover:bg-purple-100/50' : 'bg-red-50 border-red-200'"
+                                                        @click="$event.currentTarget.querySelector('input').showPicker()"
+                                                    >
+                                                        <Icon icon="solar:calendar-bold-duotone" class="w-4 h-4" :class="expiryEntry.expiryDate ? 'text-purple-600' : 'text-red-500'" />
+                                                        <input
+                                                            type="date"
+                                                            v-model="expiryEntry.expiryDate"
+                                                            required
+                                                            class="bg-transparent border-none text-xs focus:ring-0 w-full cursor-pointer font-bold"
+                                                            :class="expiryEntry.expiryDate ? 'text-purple-800' : 'text-red-700'"
+                                                            dir="ltr"
+                                                            :disabled="props.isLoading || isConfirming"
+                                                            @click.stop
+                                                        />
+                                                        <Icon v-if="!expiryEntry.expiryDate" icon="solar:close-circle-bold" class="w-3 h-3 text-red-500 flex-shrink-0" />
+                                                    </div>
+                                                    
+                                                    <!-- Delete Button -->
+                                                    <button
+                                                        v-if="item.expiryDates.length > 1"
+                                                        @click="removeExpiryDate(index, expiryIndex)"
+                                                        type="button"
+                                                        class="p-1 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center"
+                                                        :disabled="props.isLoading || isConfirming"
+                                                    >
+                                                        <Icon icon="solar:close-circle-bold" class="w-3 h-3" />
+                                                    </button>
                                                 </div>
-                                                <input
-                                                    type="date"
-                                                    v-model="item.expiryDate"
-                                                    class="bg-transparent border-none text-sm focus:ring-0 w-full text-purple-800 cursor-pointer font-bold text-left tracking-wide"
-                                                    dir="ltr"
-                                                    :disabled="props.isLoading || isConfirming"
-                                                    @click.stop
-                                                />
+                                                
+                                                <!-- Quantity for this expiry date -->
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-xs font-bold text-slate-600 min-w-[80px]">الكمية:</span>
+                                                    <div class="flex-1 flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                                                        <template v-if="item.units_per_box > 1">
+                                                            <button 
+                                                                @click="decrementExpiryBoxes(index, expiryIndex)"
+                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                :disabled="expiryEntry.quantity <= 0 || props.isLoading || isConfirming"
+                                                            >
+                                                                <Icon icon="solar:minus-circle-bold" class="w-4 h-4" />
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                v-model.number="expiryEntry.boxes"
+                                                                @blur="validateExpiryBoxesInput(index, expiryIndex)"
+                                                                class="w-16 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm [appearance:textfield]"
+                                                                :max="getMaxBoxesForExpiry(index, expiryIndex)"
+                                                                min="0"
+                                                                :disabled="props.isLoading || isConfirming"
+                                                            />
+                                                            <span class="text-xs font-bold text-slate-400 px-1">عبوة</span>
+                                                            <button 
+                                                                @click="incrementExpiryBoxes(index, expiryIndex)"
+                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                :disabled="getTotalReceivedForItem(item) >= item.sentQuantity || props.isLoading || isConfirming"
+                                                            >
+                                                                <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                            </button>
+                                                        </template>
+                                                        <template v-else>
+                                                            <button 
+                                                                @click="decrementExpiryQuantity(index, expiryIndex)"
+                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                :disabled="expiryEntry.quantity <= 0 || props.isLoading || isConfirming"
+                                                            >
+                                                                <Icon icon="solar:minus-circle-bold" class="w-4 h-4" />
+                                                            </button>
+                                                            <input
+                                                                type="number"
+                                                                v-model.number="expiryEntry.quantity"
+                                                                @blur="validateExpiryQuantityInput(index, expiryIndex)"
+                                                                class="w-16 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm [appearance:textfield]"
+                                                                :max="getMaxQuantityForExpiry(index, expiryIndex)"
+                                                                min="0"
+                                                                :disabled="props.isLoading || isConfirming"
+                                                            />
+                                                            <span class="text-xs font-bold text-slate-400 px-1">{{ item.unit }}</span>
+                                                            <button 
+                                                                @click="incrementExpiryQuantity(index, expiryIndex)"
+                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                :disabled="getTotalReceivedForItem(item) >= item.sentQuantity || props.isLoading || isConfirming"
+                                                            >
+                                                                <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                            </button>
+                                                        </template>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -284,24 +293,34 @@
             </div>
 
             <!-- Footer -->
-            <div class="bg-slate-50/80 backdrop-blur-md px-8 py-5 flex justify-end gap-3 border-t border-slate-200 sticky bottom-0 z-20">
+            <div class="bg-slate-50/80 backdrop-blur-md px-8 py-5 flex justify-between gap-3 border-t border-slate-200 sticky bottom-0 z-20">
                 <button 
-                    @click="closeModal" 
-                    class="px-6 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-200 hover:text-slate-800 transition-all duration-200 active:scale-95"
+                    @click="printConfirmation" 
+                    class="px-6 py-2.5 rounded-xl text-white font-bold bg-[#4DA1A9] hover:bg-[#3a8c94] transition-all duration-200 active:scale-95 flex items-center gap-2"
                     :disabled="props.isLoading || isConfirming"
                 >
-                    إلغاء الأمر
+                    <Icon icon="solar:printer-bold" class="w-5 h-5" />
+                    طباعة
                 </button>
-                <button
-                    @click="confirmReceipt"
-                    :disabled="props.isLoading || isConfirming"
-                    class="px-8 py-2.5 rounded-xl text-white font-bold shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 active:scale-95"
-                    :class="(props.isLoading || isConfirming) ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5'"
-                >
-                    <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
-                    <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
-                    {{ isConfirming ? 'جاري التأكيد...' : 'تأكيد الاستلام' }}
-                </button>
+                <div class="flex gap-3">
+                    <button 
+                        @click="closeModal" 
+                        class="px-6 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-200 hover:text-slate-800 transition-all duration-200 active:scale-95"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        إلغاء الأمر
+                    </button>
+                    <button
+                        @click="confirmReceipt"
+                        :disabled="props.isLoading || isConfirming"
+                        class="px-8 py-2.5 rounded-xl text-white font-bold shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 active:scale-95"
+                        :class="(props.isLoading || isConfirming) ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:bg-[#3a8c94] hover:-translate-y-0.5'"
+                    >
+                        <Icon v-if="isConfirming" icon="svg-spinners:ring-resize" class="w-5 h-5 animate-spin" />
+                        <Icon v-else icon="solar:check-read-bold" class="w-5 h-5" />
+                        {{ isConfirming ? 'جاري التأكيد...' : 'تأكيد الاستلام' }}
+                    </button>
+                </div>
             </div>
 
             <!-- Error Alert Notification -->
@@ -374,7 +393,7 @@ const showLocalAlert = (msg) => {
 const isShortageDetected = computed(() => {
     return receivedItems.value.some(item => {
         const sent = Number((item.sentQuantity !== null && item.sentQuantity !== undefined) ? item.sentQuantity : (item.originalQuantity || 0));
-        const received = Number(item.receivedQuantity || 0);
+        const received = getTotalReceivedForItem(item);
         return received < sent;
     });
 });
@@ -412,6 +431,26 @@ watch(() => props.requestData.items, (newItems) => {
             let receivedQty = 0; 
             
             const upb = Number(item.units_per_box || 1);
+            // تهيئة قائمة تواريخ انتهاء الصلاحية (قائمة واحدة على الأقل)
+            const expiryDates = [];
+            if (item.expiryDates && Array.isArray(item.expiryDates) && item.expiryDates.length > 0) {
+                // إذا كانت هناك تواريخ موجودة مسبقاً، استخدمها
+                expiryDates.push(...item.expiryDates.map(ed => ({
+                    batchNumber: ed.batchNumber || ed.batch_number || props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null),
+                    expiryDate: ed.expiryDate || ed.expiry_date || null,
+                    quantity: Number(ed.quantity || 0),
+                    boxes: Math.floor(Number(ed.quantity || 0) / upb)
+                })));
+            } else {
+                // إضافة تاريخ واحد افتراضي
+                expiryDates.push({
+                    batchNumber: item.batchNumber || item.batch_number || props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null),
+                    expiryDate: item.expiryDate || item.expiry_date || null,
+                    quantity: 0,
+                    boxes: 0
+                });
+            }
+            
             return {
                 id: item.id || item.drugId,
                 name: item.name || item.drugName || 'دواء غير محدد',
@@ -420,10 +459,9 @@ watch(() => props.requestData.items, (newItems) => {
                 receivedQuantity: receivedQty,
                 receivedBoxes: Math.floor(receivedQty / upb),
                 units_per_box: upb,
-                // تعيين رقم الدفعة تلقائياً بناءً على رقم الشحنة إذا لم يكن محدداً
-                batchNumber: item.batchNumber || item.batch_number || props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null),
-                expiryDate: item.expiryDate || item.expiry_date || null,
-                unit: item.unit || 'وحدة'
+                expiryDates: expiryDates,
+                unit: item.unit || 'وحدة',
+                availableQuantity: item.availableQuantity ?? item.available_quantity ?? item.stock ?? item.currentStock ?? 0 // الكمية المتوفرة في المخزون
             };
         });
         notes.value = '';
@@ -488,6 +526,184 @@ const handleBoxInput = (index) => {
     validateQuantity(index, item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity);
 };
 
+// دوال التعامل مع تواريخ انتهاء الصلاحية المتعددة
+const addExpiryDate = (itemIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const upb = Number(item.units_per_box || 1);
+    const defaultBatch = props.requestData.shipmentNumber || (props.requestData.id ? `RE-${props.requestData.id}` : null);
+    
+    item.expiryDates.push({
+        batchNumber: defaultBatch,
+        expiryDate: null,
+        quantity: 0,
+        boxes: 0
+    });
+};
+
+const removeExpiryDate = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    if (item.expiryDates.length > 1) {
+        const removedEntry = item.expiryDates.splice(expiryIndex, 1)[0];
+        // تحديث الكمية الإجمالية المستلمة
+        updateItemTotalReceived(itemIndex);
+    }
+};
+
+const updateExpiryQuantity = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    const upb = Number(item.units_per_box || 1);
+    
+    if (upb > 1) {
+        // تحديث الكمية بناءً على عدد العلب
+        expiryEntry.quantity = expiryEntry.boxes * upb;
+    }
+    
+    // التحقق من عدم تجاوز الحد الأقصى
+    const maxQty = getMaxQuantityForExpiry(itemIndex, expiryIndex);
+    if (expiryEntry.quantity > maxQty) {
+        expiryEntry.quantity = maxQty;
+        if (upb > 1) {
+            expiryEntry.boxes = Math.floor(maxQty / upb);
+        }
+    }
+    
+    // تحديث الكمية الإجمالية المستلمة
+    updateItemTotalReceived(itemIndex);
+};
+
+const validateExpiryQuantityInput = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    const currentQty = Number(expiryEntry.quantity || 0);
+    const maxQty = getMaxQuantityForExpiry(itemIndex, expiryIndex);
+    
+    // تصحيح القيمة إذا كانت أكبر من الحد الأقصى أو سالبة
+    if (currentQty > maxQty) {
+        expiryEntry.quantity = maxQty;
+    } else if (currentQty < 0) {
+        expiryEntry.quantity = 0;
+    }
+    
+    // تحديث العلب إذا كان units_per_box > 1
+    const upb = Number(item.units_per_box || 1);
+    if (upb > 1) {
+        expiryEntry.boxes = Math.floor(expiryEntry.quantity / upb);
+    }
+    
+    // تحديث الكمية الإجمالية المستلمة
+    updateItemTotalReceived(itemIndex);
+};
+
+const validateExpiryBoxesInput = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    const upb = Number(item.units_per_box || 1);
+    const currentBoxes = Number(expiryEntry.boxes || 0);
+    const maxBoxes = getMaxBoxesForExpiry(itemIndex, expiryIndex);
+    
+    // تصحيح القيمة إذا كانت أكبر من الحد الأقصى أو سالبة
+    if (currentBoxes > maxBoxes) {
+        expiryEntry.boxes = maxBoxes;
+    } else if (currentBoxes < 0) {
+        expiryEntry.boxes = 0;
+    }
+    
+    // تحديث الكمية بناءً على عدد العلب
+    expiryEntry.quantity = expiryEntry.boxes * upb;
+    
+    // تحديث الكمية الإجمالية المستلمة
+    updateItemTotalReceived(itemIndex);
+};
+
+const incrementExpiryBoxes = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    const upb = Number(item.units_per_box || 1);
+    const maxBoxes = getMaxBoxesForExpiry(itemIndex, expiryIndex);
+    
+    if (expiryEntry.boxes < maxBoxes) {
+        expiryEntry.boxes++;
+        expiryEntry.quantity = expiryEntry.boxes * upb;
+        updateItemTotalReceived(itemIndex);
+    }
+};
+
+const decrementExpiryBoxes = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    
+    if (expiryEntry.boxes > 0) {
+        expiryEntry.boxes--;
+        expiryEntry.quantity = expiryEntry.boxes * Number(item.units_per_box || 1);
+        updateItemTotalReceived(itemIndex);
+    }
+};
+
+const incrementExpiryQuantity = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    const maxQty = getMaxQuantityForExpiry(itemIndex, expiryIndex);
+    
+    if (expiryEntry.quantity < maxQty) {
+        expiryEntry.quantity++;
+        updateItemTotalReceived(itemIndex);
+    }
+};
+
+const decrementExpiryQuantity = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const expiryEntry = item.expiryDates[expiryIndex];
+    
+    if (expiryEntry.quantity > 0) {
+        expiryEntry.quantity--;
+        updateItemTotalReceived(itemIndex);
+    }
+};
+
+const getMaxQuantityForExpiry = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const sentQty = item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity;
+    const currentEntryQty = Number(item.expiryDates[expiryIndex].quantity || 0);
+    
+    // حساب الكمية الإجمالية المستلمة (باستثناء الكمية الحالية في هذا التاريخ)
+    let totalReceivedWithoutCurrent = 0;
+    if (item.expiryDates && Array.isArray(item.expiryDates)) {
+        item.expiryDates.forEach((ed, idx) => {
+            if (idx !== expiryIndex) {
+                totalReceivedWithoutCurrent += Number(ed.quantity || 0);
+            }
+        });
+    }
+    
+    // الكمية المتبقية من المرسلة (بما في ذلك الكمية الحالية في هذا التاريخ)
+    const remainingFromSent = sentQty - totalReceivedWithoutCurrent;
+    
+    // الحد الأقصى هو الكمية المتبقية من المرسلة (يجب ألا تتجاوز الكمية المرسلة)
+    return Math.max(0, Math.min(remainingFromSent, sentQty));
+};
+
+const getMaxBoxesForExpiry = (itemIndex, expiryIndex) => {
+    const item = receivedItems.value[itemIndex];
+    const upb = Number(item.units_per_box || 1);
+    const maxQty = getMaxQuantityForExpiry(itemIndex, expiryIndex);
+    return Math.floor(maxQty / upb);
+};
+
+const getTotalReceivedForItem = (item) => {
+    if (!item.expiryDates || !Array.isArray(item.expiryDates)) {
+        return item.receivedQuantity || 0;
+    }
+    return item.expiryDates.reduce((total, entry) => total + Number(entry.quantity || 0), 0);
+};
+
+const updateItemTotalReceived = (itemIndex) => {
+    const item = receivedItems.value[itemIndex];
+    item.receivedQuantity = getTotalReceivedForItem(item);
+    const upb = Number(item.units_per_box || 1);
+    item.receivedBoxes = Math.floor(item.receivedQuantity / upb);
+};
+
 const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
     const qty = Number(quantity || 0);
     const upb = Number(unitsPerBox || 1);
@@ -509,12 +725,29 @@ const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
 };
 
 const confirmReceipt = async () => {
-    const hasInvalidQuantity = receivedItems.value.some(item => 
-        item.receivedQuantity === null || item.receivedQuantity === undefined || item.receivedQuantity < 0
-    );
+    const hasInvalidQuantity = receivedItems.value.some(item => {
+        const totalReceived = getTotalReceivedForItem(item);
+        return totalReceived === null || totalReceived === undefined || totalReceived < 0;
+    });
     
     if (hasInvalidQuantity) {
         showLocalAlert('يرجى التأكد من إدخال كميات صحيحة لجميع الأصناف.');
+        return;
+    }
+
+    // التحقق من أن جميع تواريخ انتهاء الصلاحية مملوءة
+    const hasMissingExpiryDate = receivedItems.value.some(item => {
+        if (!item.expiryDates || !Array.isArray(item.expiryDates)) {
+            return false;
+        }
+        return item.expiryDates.some(ed => {
+            const qty = Number(ed.quantity || 0);
+            return qty > 0 && !ed.expiryDate;
+        });
+    });
+
+    if (hasMissingExpiryDate) {
+        showLocalAlert('يجب إدخال تاريخ انتهاء الصلاحية لجميع الكميات المستلمة.');
         return;
     }
 
@@ -532,8 +765,11 @@ const confirmReceipt = async () => {
                 name: item.name,
                 originalQuantity: item.originalQuantity,
                 receivedQuantity: item.receivedQuantity,
-                batchNumber: item.batchNumber,
-                expiryDate: item.expiryDate,
+                expiryDates: (item.expiryDates || []).filter(ed => ed.quantity > 0 && ed.expiryDate).map(ed => ({
+                    batchNumber: ed.batchNumber,
+                    expiryDate: ed.expiryDate,
+                    quantity: ed.quantity
+                })),
                 unit: item.unit
             })),
             notes: notes.value.trim()
@@ -550,6 +786,162 @@ const confirmReceipt = async () => {
 const closeModal = () => {
     if (!props.isLoading) {
         emit('close');
+    }
+};
+
+// دالة لتنسيق الكمية بالعبوة للطباعة (نص بدون HTML)
+const getFormattedQuantityForPrint = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = 'عبوة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
+};
+
+// دالة الطباعة
+const printConfirmation = () => {
+    try {
+        const printWindow = window.open('', '_blank', 'height=600,width=800');
+        
+        if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+            console.error('فشل في فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة.');
+            return;
+        }
+    
+    // إعداد بيانات الأدوية للطباعة
+    const itemsHtml = receivedItems.value.map(item => {
+        const totalReceived = getTotalReceivedForItem(item);
+        const sentQty = item.sentQuantity !== null && item.sentQuantity !== undefined ? item.sentQuantity : item.originalQuantity;
+        const unitsPerBox = item.units_per_box || 1;
+        const unit = item.unit || 'وحدة';
+        
+        // استخدام getFormattedQuantityForPrint لعرض الكميات بالعبوة
+        const formattedRequested = getFormattedQuantityForPrint(item.originalQuantity, unit, unitsPerBox);
+        const formattedSent = getFormattedQuantityForPrint(sentQty, unit, unitsPerBox);
+        const formattedReceived = getFormattedQuantityForPrint(totalReceived, unit, unitsPerBox);
+        
+        // إعداد تواريخ انتهاء الصلاحية
+        let expiryInfo = '';
+        if (item.expiryDates && item.expiryDates.length > 0) {
+            expiryInfo = item.expiryDates.filter(ed => ed.quantity > 0).map(ed => {
+                const batchStr = ed.batchNumber ? `دفعة: ${ed.batchNumber}` : '';
+                const expiryStr = ed.expiryDate ? `انتهاء: ${ed.expiryDate}` : '';
+                const qtyStr = ed.quantity ? `(${getFormattedQuantityForPrint(ed.quantity, unit, unitsPerBox)})` : '';
+                return [batchStr, expiryStr, qtyStr].filter(Boolean).join(' - ');
+            }).join('<br>');
+        }
+        
+        return `
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedRequested}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedSent}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; text-align: center; ${totalReceived < sentQty ? 'color: #dc2626; font-weight: bold;' : 'color: #16a34a;'}">${formattedReceived}</td>
+                <td style="padding: 10px; border: 1px solid #ddd; font-size: 11px;">${expiryInfo || '-'}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    const printContent = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <title>طباعة تفاصيل طلب التوريد</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                .info-section { margin-bottom: 20px; }
+                .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                .info-label { font-weight: bold; color: #666; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                th { background-color: #9aced2; font-weight: bold; }
+                .notes-section { background-color: #f0f9ff; padding: 15px; border: 1px solid #4DA1A9; margin-top: 20px; border-radius: 5px; }
+                .shortage-warning { background: #fef2f2; border: 1px solid #fca5a5; padding: 10px; border-radius: 5px; margin-top: 20px; color: #dc2626; }
+                @media print {
+                    button { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>تفاصيل طلب التوريد</h1>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">رقم الشحنة:</span>
+                    <span>${props.requestData.shipmentNumber || props.requestData.id || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">تاريخ الطلب:</span>
+                    <span>${formatDate(props.requestData.created_at || props.requestData.createdAt || props.requestData.date || props.requestData.requestDate) || 'غير محدد'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">عدد الأصناف:</span>
+                    <span>${receivedItems.value.length}</span>
+                </div>
+            </div>
+
+            <h2 style="margin-top: 30px;">الأدوية المطلوبة</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>اسم الدواء</th>
+                        <th>الكمية المطلوبة</th>
+                        <th>الكمية المرسلة</th>
+                        <th>الكمية المستلمة</th>
+                        <th>الدفعة / تاريخ الانتهاء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml || '<tr><td colspan="5" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                </tbody>
+            </table>
+            
+            ${isShortageDetected.value ? `
+            <div class="shortage-warning">
+                <strong>تنبيه:</strong> يوجد نقص في بعض الكميات المستلمة مقارنة بالكميات المرسلة.
+            </div>
+            ` : ''}
+            
+            ${notes.value ? `
+            <div class="notes-section">
+                <h3 style="color: #2E5077; margin-top: 0;">ملاحظات الاستلام</h3>
+                <p>${notes.value}</p>
+            </div>
+            ` : ''}
+
+            <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+            </p>
+        </body>
+        </html>
+    `;
+    
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // استخدام setTimeout لضمان تحميل المحتوى قبل الطباعة
+        setTimeout(() => {
+            if (printWindow && !printWindow.closed) {
+                printWindow.focus();
+                printWindow.print();
+            }
+        }, 250);
+    } catch (error) {
+        console.error('خطأ في عملية الطباعة:', error);
     }
 };
 </script>

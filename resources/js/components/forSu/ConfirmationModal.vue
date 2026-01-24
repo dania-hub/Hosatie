@@ -114,39 +114,58 @@
                                          </label>
                                          <div class="flex items-center bg-white border rounded-lg overflow-hidden shadow-sm">
                                              <template v-if="item.units_per_box > 1">
+                                                 <button 
+                                                     @click="decrementBoxes(index)"
+                                                     class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                     :disabled="item.sentBoxes <= 0 || props.isLoading || isConfirming"
+                                                 >
+                                                     <Icon icon="solar:minus-circle-bold" class="w-4 h-4" />
+                                                 </button>
                                                  <div class="flex items-center px-2">
                                                      <input
                                                          type="number"
                                                          v-model.number="item.sentBoxes"
                                                          class="w-16 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                          @input="handleBoxInput(index)"
+                                                         :max="getMaxBoxesForSent(index)"
+                                                         :min="0"
                                                          :disabled="props.isLoading || isConfirming"
                                                      />
                                                      <span class="text-xs font-bold text-gray-400 mr-1">{{ item.unit === 'مل' ? 'عبوة' : 'علبة' }}</span>
                                                  </div>
-                                                 <div class="w-px h-6 bg-gray-200"></div>
-                                                 <div class="flex items-center px-2">
-                                                     <input
-                                                         type="number"
-                                                         v-model.number="item.sentRemainder"
-                                                         class="w-12 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                         @input="handleRemainderInput(index)"
-                                                         :disabled="props.isLoading || isConfirming"
-                                                     />
-                                                     <span class="text-xs font-bold text-gray-400 mr-1">{{ item.unit }}</span>
-                                                 </div>
+                                                 <button 
+                                                     @click="incrementBoxes(index)"
+                                                     class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                     :disabled="item.sentBoxes >= getMaxBoxesForSent(index) || props.isLoading || isConfirming"
+                                                 >
+                                                     <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                 </button>
                                              </template>
                                              <template v-else>
+                                                 <button 
+                                                     @click="decrementSentQuantity(index)"
+                                                     class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                     :disabled="item.sentQuantity <= 0 || props.isLoading || isConfirming"
+                                                 >
+                                                     <Icon icon="solar:minus-circle-bold" class="w-4 h-4" />
+                                                 </button>
                                                  <input
                                                      :id="`sent-qty-${index}`"
                                                      type="number"
                                                      v-model.number="item.sentQuantity"
-                                                     :max="item.availableQuantity"
+                                                     :max="getMaxSentQuantity(index)"
                                                      :min="0"
-                                                     class="w-24 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg"
-                                                     @input="validateQuantity(index, item.availableQuantity)"
+                                                     class="w-24 h-10 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                     @input="validateQuantity(index, getMaxSentQuantity(index))"
                                                      :disabled="props.isLoading || isConfirming"
                                                  />
+                                                 <button 
+                                                     @click="incrementSentQuantity(index)"
+                                                     class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                     :disabled="item.sentQuantity >= getMaxSentQuantity(index) || props.isLoading || isConfirming"
+                                                 >
+                                                     <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                 </button>
                                              </template>
                                          </div>
                                      </div>
@@ -217,13 +236,23 @@
 
             <!-- Footer -->
             <div class="bg-gray-50 px-8 py-5 flex flex-col-reverse sm:flex-row justify-between gap-3 border-t border-gray-100 sticky bottom-0">
-                <button
-                    @click="closeModal"
-                    class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
-                    :disabled="props.isLoading || isConfirming"
-                >
-                    إلغاء
-                </button>
+                <div class="flex gap-3 w-full sm:w-auto">
+                    <button
+                        @click="printConfirmation"
+                        class="px-6 py-2.5 rounded-xl text-white font-medium bg-[#4DA1A9] hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        <Icon icon="solar:printer-bold" class="w-5 h-5" />
+                        طباعة
+                    </button>
+                    <button
+                        @click="closeModal"
+                        class="px-6 py-2.5 rounded-xl text-[#2E5077] font-medium hover:bg-gray-200 transition-colors duration-200 w-full sm:w-auto"
+                        :disabled="props.isLoading || isConfirming"
+                    >
+                        إلغاء
+                    </button>
+                </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <!-- Rejection Actions -->
@@ -342,9 +371,9 @@ watch(
                     name: item.name || item.drugName,
                     originalQuantity: requested,
                     availableQuantity: available,
-                    sentQuantity: sentQty, 
+                    // تقريب الكمية المرسلة إلى أقرب مضاعف لـ units_per_box (فقط علب كاملة)
+                    sentQuantity: upb > 1 ? Math.floor(sentQty / upb) * upb : sentQty, 
                     sentBoxes: Math.floor(sentQty / upb),
-                    sentRemainder: sentQty % upb,
                     unit: item.unit || "وحدة",
                     dosage: item.dosage || item.strength,
                     units_per_box: upb
@@ -412,28 +441,47 @@ const validateQuantity = (index, maxQuantity) => {
         value = 0;
     }
 
-    receivedItems.value[index].sentQuantity = Math.floor(value);
-    
-    // تزامن الصناديق والباقي
+    // تقريب الكمية إلى أقرب مضاعف لـ units_per_box (فقط علب كاملة)
     const item = receivedItems.value[index];
     const upb = Number(item.units_per_box || 1);
-    item.sentBoxes = Math.floor(item.sentQuantity / upb);
-    item.sentRemainder = item.sentQuantity % upb;
+    const roundedValue = Math.floor(Math.floor(value) / upb) * upb;
+    receivedItems.value[index].sentQuantity = roundedValue;
+    
+    // تزامن الصناديق
+    item.sentBoxes = Math.floor(roundedValue / upb);
+    // إزالة sentRemainder لأنه لم يعد مستخدماً
+    if (item.sentRemainder !== undefined) {
+        item.sentRemainder = 0;
+    }
 };
 
 const handleBoxInput = (index) => {
     const item = receivedItems.value[index];
     const upb = Number(item.units_per_box || 1);
     const boxes = Number(item.sentBoxes || 0);
-    const remainder = Number(item.sentRemainder || 0);
     
-    let total = (boxes * upb) + remainder;
+    // حساب الحد الأقصى من العلب (الحد الأدنى بين المطلوبة والمتوفرة)
+    const maxBoxes = getMaxBoxesForSent(index);
     
-    if (total > item.availableQuantity) {
-        total = item.availableQuantity;
-        syncQuantities(index, total);
-    } else {
-        item.sentQuantity = total;
+    // الكمية تكون دائماً مضاعفاً لـ units_per_box (فقط علب كاملة)
+    let total = boxes * upb;
+    
+    if (boxes > maxBoxes) {
+        item.sentBoxes = maxBoxes;
+        total = maxBoxes * upb;
+    }
+    
+    // التأكد من أن الكمية لا تتجاوز الحد الأقصى
+    const maxQty = getMaxSentQuantity(index);
+    if (total > maxQty) {
+        total = Math.floor(maxQty / upb) * upb;
+        item.sentBoxes = Math.floor(total / upb);
+    }
+    
+    item.sentQuantity = total;
+    // إزالة sentRemainder لأنه لم يعد مستخدماً
+    if (item.sentRemainder !== undefined) {
+        item.sentRemainder = 0;
     }
 };
 
@@ -461,16 +509,41 @@ const handleRemainderInput = (index) => {
 const syncQuantities = (index, total) => {
     const item = receivedItems.value[index];
     const upb = Number(item.units_per_box || 1);
-    item.sentQuantity = total;
-    item.sentBoxes = Math.floor(total / upb);
-    item.sentRemainder = total % upb;
+    // تقريب الكمية إلى أقرب مضاعف لـ units_per_box (فقط علب كاملة)
+    const roundedTotal = Math.floor(total / upb) * upb;
+    item.sentQuantity = roundedTotal;
+    item.sentBoxes = Math.floor(roundedTotal / upb);
+    // إزالة sentRemainder لأنه لم يعد مستخدماً
+    if (item.sentRemainder !== undefined) {
+        item.sentRemainder = 0;
+    }
+};
+
+// حساب الحد الأقصى للكمية المرسلة (الحد الأدنى بين المطلوبة والمتوفرة)
+const getMaxSentQuantity = (index) => {
+    const item = receivedItems.value[index];
+    const requestedQty = item.originalQuantity || 0;
+    const availableQty = item.availableQuantity || 0;
+    return Math.min(requestedQty, availableQty);
+};
+
+// حساب الحد الأقصى للعلب المرسلة
+const getMaxBoxesForSent = (index) => {
+    const item = receivedItems.value[index];
+    const upb = Number(item.units_per_box || 1);
+    const maxQty = getMaxSentQuantity(index);
+    return Math.floor(maxQty / upb);
 };
 
 // دوال الزيادة والنقصان للعلب
 const incrementBoxes = (index) => {
     const item = receivedItems.value[index];
-    item.sentBoxes = Number(item.sentBoxes || 0) + 1;
-    handleBoxInput(index);
+    const maxBoxes = getMaxBoxesForSent(index);
+    const current = Number(item.sentBoxes || 0);
+    if (current < maxBoxes) {
+        item.sentBoxes = current + 1;
+        handleBoxInput(index);
+    }
 };
 
 const decrementBoxes = (index) => {
@@ -479,6 +552,26 @@ const decrementBoxes = (index) => {
     if (current > 0) {
         item.sentBoxes = current - 1;
         handleBoxInput(index);
+    }
+};
+
+// دوال الزيادة والنقصان للكمية المرسلة (عندما units_per_box = 1)
+const incrementSentQuantity = (index) => {
+    const item = receivedItems.value[index];
+    const maxQty = getMaxSentQuantity(index);
+    const current = Number(item.sentQuantity || 0);
+    if (current < maxQty) {
+        item.sentQuantity = current + 1;
+        validateQuantity(index, maxQty);
+    }
+};
+
+const decrementSentQuantity = (index) => {
+    const item = receivedItems.value[index];
+    const current = Number(item.sentQuantity || 0);
+    if (current > 0) {
+        item.sentQuantity = current - 1;
+        validateQuantity(index, getMaxSentQuantity(index));
     }
 };
 
@@ -654,6 +747,149 @@ const sendShipment = async () => {
 };
 
 // إغلاق النموذج
+// دالة لتنسيق الكمية بالعبوة للطباعة (نص بدون HTML)
+const getFormattedQuantityForPrint = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
+    const qty = Number(quantity || 0);
+    const upb = Number(unitsPerBox || 1);
+    const boxUnit = 'عبوة';
+
+    if (upb > 1) {
+        const boxes = Math.floor(qty / upb);
+        const remainder = qty % upb;
+        
+        if (boxes === 0 && qty > 0) return `${qty} ${unit}`;
+        
+        let display = `${boxes} ${boxUnit}`;
+        if (remainder > 0) {
+            display += ` و ${remainder} ${unit}`;
+        }
+        return display;
+    }
+    return `${qty} ${unit}`;
+};
+
+// دالة الطباعة
+const printConfirmation = () => {
+    try {
+        const printWindow = window.open('', '_blank', 'height=600,width=800');
+        
+        if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+            console.error('فشل في فتح نافذة الطباعة. يرجى السماح بفتح النوافذ المنبثقة.');
+            return;
+        }
+        
+        const requestData = props.requestData;
+        
+        // إعداد بيانات الأدوية للطباعة
+        const itemsHtml = receivedItems.value.map(item => {
+            const sentQty = item.sentQuantity || 0;
+            const unitsPerBox = item.units_per_box || 1;
+            const unit = item.unit || 'وحدة';
+            
+            // استخدام getFormattedQuantityForPrint لعرض الكميات بالعبوة
+            const formattedRequested = getFormattedQuantityForPrint(item.originalQuantity, unit, unitsPerBox);
+            const formattedSent = getFormattedQuantityForPrint(sentQty, unit, unitsPerBox);
+            
+            return `
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${item.name || 'غير محدد'}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedRequested}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${formattedSent}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        const printContent = `
+            <!DOCTYPE html>
+            <html dir="rtl" lang="ar">
+            <head>
+                <meta charset="UTF-8">
+                <title>طباعة تفاصيل طلب التوريد</title>
+                <style>
+                    body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+                    h1 { text-align: center; color: #2E5077; margin-bottom: 20px; }
+                    h2 { color: #2E5077; margin-top: 20px; }
+                    .info-section { margin-bottom: 20px; }
+                    .info-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+                    .info-label { font-weight: bold; color: #666; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+                    th { background-color: #9aced2; font-weight: bold; }
+                    .notes-section { background-color: #f0f9ff; padding: 15px; border: 1px solid #4DA1A9; margin-top: 20px; border-radius: 5px; }
+                    @media print {
+                        button { display: none; }
+                        @page { margin: 1cm; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>معالجة الشحنة</h1>
+                
+                <div class="info-section">
+                    <div class="info-row">
+                        <span class="info-label">رقم الشحنة:</span>
+                        <span>${requestData.shipmentNumber || requestData.id || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">تاريخ الطلب:</span>
+                        <span>${formatDate(requestData.createdAt || requestData.date) || 'غير محدد'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">حالة الطلب:</span>
+                        <span>${requestData.status || 'جديد'}</span>
+                    </div>
+                </div>
+
+                <h2>الأدوية المطلوبة</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>اسم الدواء</th>
+                            <th>الكمية المطلوبة</th>
+                            <th>الكمية المرسلة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml || '<tr><td colspan="3" style="text-align: center;">لا توجد أدوية</td></tr>'}
+                    </tbody>
+                </table>
+
+                ${rejectionNote.value ? `
+                <div class="notes-section" style="background: #fef2f2; border-color: #ef4444;">
+                    <h3 style="color: #dc2626; margin-top: 0;">سبب الرفض</h3>
+                    <p>${rejectionNote.value}</p>
+                </div>
+                ` : ''}
+
+                ${additionalNotes.value ? `
+                <div class="notes-section">
+                    <h3 style="color: #2E5077; margin-top: 0;">ملاحظات الإرسال</h3>
+                    <p>${additionalNotes.value}</p>
+                </div>
+                ` : ''}
+
+                <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
+                    تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+                </p>
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // استخدام setTimeout لضمان تحميل المحتوى قبل الطباعة
+        setTimeout(() => {
+            if (printWindow && !printWindow.closed) {
+                printWindow.focus();
+                printWindow.print();
+            }
+        }, 250);
+    } catch (error) {
+        console.error('خطأ في عملية الطباعة:', error);
+    }
+};
+
 const closeModal = () => {
     if (!props.isLoading && !isConfirming.value) {
         if (showRejectionNote.value) {

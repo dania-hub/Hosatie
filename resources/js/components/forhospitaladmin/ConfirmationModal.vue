@@ -235,6 +235,20 @@ const showRejectionNote = ref(false);
 const rejectionNote = ref("");
 const rejectionError = ref(false);
 
+// إعادة تعيين حالة التحميل عند فتح/إغلاق النموذج
+watch(
+    () => props.isOpen,
+    (isOpen) => {
+        if (isOpen) {
+            // إعادة تعيين الحالة عند فتح النموذج
+            isConfirming.value = false;
+            showRejectionNote.value = false;
+            rejectionNote.value = "";
+            rejectionError.value = false;
+        }
+    }
+);
+
 // تهيئة receivedItems
 watch(
     () => props.requestData.items,

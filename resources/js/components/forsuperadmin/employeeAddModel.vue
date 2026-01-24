@@ -155,76 +155,89 @@ const isHospitalAdminRole = (role) => {
     return roleName === "مدير نظام المستشفى" || roleName === "hospital_admin";
 };
 
+// التحقق من حقل محدد
+const validateField = (fieldName) => {
+    const data = form.value;
+    
+    switch (fieldName) {
+        case 'nationalId':
+            const nationalIdRegex = /^\d{12}$/;
+            errors.value.nationalId = !nationalIdRegex.test(data.nationalId);
+            break;
+            
+        case 'name':
+            const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
+            errors.value.name = !nameRegex.test(data.name.trim());
+            break;
+            
+        case 'birth':
+            errors.value.birth = !data.birth;
+            break;
+            
+        case 'phone':
+            const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+            const isValidFormat = phoneRegex.test(data.phone.trim());
+            errors.value.phone = !isValidFormat || phoneExists.value;
+            break;
+            
+        case 'email':
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            errors.value.email = !emailRegex.test(data.email.trim());
+            break;
+            
+        case 'role':
+            const roleList = getRoleList.value;
+            errors.value.role = !data.role || !roleList.includes(data.role);
+            // إعادة تعيين الأخطاء للحقول المشروطة عند تغيير الدور
+            if (!isDepartmentManagerRole(data.role)) {
+                errors.value.department = false;
+            }
+            break;
+            
+        case 'department':
+            if (isDepartmentManagerRole(data.role)) {
+                errors.value.department = !data.department || props.departmentsWithManager.includes(data.department);
+            } else {
+                errors.value.department = false;
+            }
+            break;
+            
+        case 'hospital':
+            // اختياري
+            errors.value.hospital = false;
+            break;
+            
+        case 'supplier':
+            // اختياري
+            errors.value.supplier = false;
+            break;
+    }
+};
+
 // التحقق من صحة النموذج
 const validateForm = () => {
-    let isValid = true;
     const data = form.value;
-
-    const nationalIdRegex = /^\d{12}$/;
-    errors.value.nationalId = !nationalIdRegex.test(data.nationalId);
-    if (errors.value.nationalId) isValid = false;
-
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    errors.value.name = !nameRegex.test(data.name.trim());
-    if (errors.value.name) isValid = false;
-
-    errors.value.birth = !data.birth;
-    if (errors.value.birth) isValid = false;
-
-    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
-    const isValidFormat = phoneRegex.test(data.phone.trim());
-    errors.value.phone = !isValidFormat;
-    if (errors.value.phone) isValid = false;
-    if (!isValidFormat || phoneExists.value) isValid = false;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    errors.value.email = !emailRegex.test(data.email.trim());
-    if (errors.value.email) isValid = false;
-
-    // التحقق من حقل الدور الوظيفي
-    const roleList = getRoleList.value;
-    errors.value.role = !data.role || !roleList.includes(data.role);
-    if (errors.value.role) isValid = false;
-
-    // التحقق من حقل القسم إذا كان الدور هو "مدير القسم"
+    
+    // التحقق من جميع الحقول الأساسية
+    validateField('nationalId');
+    validateField('name');
+    validateField('birth');
+    validateField('phone');
+    validateField('email');
+    validateField('role');
+    
+    // التحقق من الحقول المشروطة
     if (isDepartmentManagerRole(data.role)) {
-        errors.value.department = !data.department;
-        if (errors.value.department) isValid = false;
-        
-        if (props.departmentsWithManager.includes(data.department)) {
-            errors.value.department = true;
-            isValid = false;
-        }
+        validateField('department');
     }
-
+    
     // التحقق من وجود مدير مخزن إذا كان الدور هو "مدير المخزن"
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
-        alert("⛔ عذراً، يوجد بالفعل مدير مخزن مفعل في النظام.");
-        isValid = false;
+        return false;
     }
-
-    // التحقق من حقل المستشفى
-    // تم تعطيل التحقق من المستشفى لجعله خيارياً
-    // if (isHospitalAdminRole(data.role)) {
-    //     errors.value.hospital = !data.hospital || !props.availableHospitals?.includes(data.hospital);
-    //     if (errors.value.hospital) isValid = false;
-    // } else {
-    //     errors.value.hospital = false;
-    // }
-    errors.value.hospital = false; // Always valid/optional
-
-    // التحقق من حقل المورد
-    // تم تعطيل التحقق من المورد لجعله خيارياً
-    // if (isSupplierAdminRole(data.role)) {
-    //     errors.value.supplier = !data.supplier || !props.availableSuppliers?.includes(data.supplier);
-    //     if (errors.value.supplier) isValid = false;
-    // } else {
-    //     errors.value.supplier = false;
-    // }
-    errors.value.supplier = false; // Always valid/optional
-
-
-    return isValid;
+    
+    // التحقق من أن جميع الحقول المطلوبة صحيحة
+    return isFormValid.value;
 };
 
 // التحقق من صحة النموذج (computed)
@@ -282,6 +295,39 @@ const isFormValid = computed(() => {
 
 // إرسال النموذج
 const submitForm = () => {
+    // التحقق من جميع الحقول أولاً
+    if (!isFormValid.value) {
+        // التحقق من كل حقل لإظهار رسائل الخطأ
+        validateField('nationalId');
+        validateField('name');
+        validateField('birth');
+        validateField('phone');
+        validateField('email');
+        validateField('role');
+        
+        if (isDepartmentManagerRole(form.value.role)) {
+            validateField('department');
+        }
+        
+        // إظهار رسالة للمستخدم
+        const missingFields = [];
+        if (errors.value.nationalId) missingFields.push('الرقم الوطني');
+        if (errors.value.name) missingFields.push('الاسم الرباعي');
+        if (errors.value.birth) missingFields.push('تاريخ الميلاد');
+        if (errors.value.phone || phoneExists.value) missingFields.push('رقم الهاتف');
+        if (errors.value.email) missingFields.push('البريد الإلكتروني');
+        if (errors.value.role) missingFields.push('الدور الوظيفي');
+        if (errors.value.department) missingFields.push('القسم');
+        
+        if (missingFields.length > 0) {
+            // يمكن إضافة toast notification هنا إذا كان متاحاً
+            console.warn('الحقول المطلوبة:', missingFields.join(', '));
+        }
+        
+        return;
+    }
+    
+    // إذا كان النموذج صحيحاً، التحقق مرة أخرى قبل فتح نافذة التأكيد
     if (validateForm()) {
         showConfirmationModal();
     }
@@ -384,7 +430,9 @@ watch(() => form.value.phone, (newPhone) => {
 watch(() => form.value.role, (newRole) => {
     if (!isDepartmentManagerRole(newRole)) {
         form.value.department = "";
+        errors.value.department = false;
     }
+    validateField('role');
 });
 
 const dateInput = ref(null);
@@ -434,6 +482,8 @@ const openDatePicker = () => {
                             maxlength="12"
                             :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.nationalId }"
                             class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium"
+                            @input="validateField('nationalId')"
+                            @blur="validateField('nationalId')"
                         />
                         <p v-if="errors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -476,6 +526,7 @@ const openDatePicker = () => {
                                         ? 'border-red-500 focus:border-red-500' 
                                         : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
                                 ]"
+                                @change="validateField('role')"
                             >
                                 <option value="" disabled selected>اختر الدور الوظيفي</option>
                                 <option v-for="role in getRoleList" :key="role" :value="role">
@@ -510,6 +561,7 @@ const openDatePicker = () => {
                                         ? 'border-red-500 hover:border-red-500 focus:border-red-500' 
                                         : 'border-gray-200 hover:border-[#4DA1A9] focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
                                 ]"
+                                @change="validateField('birth')"
                             />
                             <div 
                                 class="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer" 
@@ -604,6 +656,7 @@ const openDatePicker = () => {
                                         ? 'border-red-500 focus:border-red-500' 
                                         : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-1 focus:ring-[#4DA1A9]/20'
                                 ]"
+                                @change="validateField('department')"
                             >
                                 <option value="" disabled selected>اختر القسم</option>
                                 <option v-for="dept in filteredDepartments" :key="dept" :value="dept">
@@ -635,6 +688,8 @@ const openDatePicker = () => {
                                 'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
                                 (errors.phone || phoneExists) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
                             ]"
+                            @input="validateField('phone')"
+                            @blur="validateField('phone')"
                         />
                         <p v-if="errors.phone && form.phone && !phoneExists" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
@@ -659,6 +714,8 @@ const openDatePicker = () => {
                             placeholder="example@domain.com"
                             :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.email }"
                             class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            @input="validateField('email')"
+                            @blur="validateField('email')"
                         />
                         <p v-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />

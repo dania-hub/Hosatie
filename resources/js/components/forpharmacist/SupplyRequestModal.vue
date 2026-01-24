@@ -80,6 +80,7 @@
                                         type="text"
                                         v-model="searchTermDrug"
                                         @input="handleInput"
+                                        @keyup="handleInput"
                                         @focus="showAllDrugsOnFocus"
                                         @blur="handleBlur"
                                         placeholder="ابحث عن دواء..."
@@ -384,7 +385,7 @@ const handleInput = () => {
         hasInteractedWithQuantity.value = false;
     }
 
-    // تصفية الأدوية
+    // تصفية الأدوية مباشرة
     filterDrugs();
     
     // عرض النتائج دائماً (سواء كان هناك فئة مختارة أو نص بحث أو لا شيء)
@@ -431,13 +432,15 @@ const filterDrugs = () => {
     }
 
     // البحث حسب الاسم (بعد التصفية بالفئة)
-    if (searchTermDrug.value) {
-        const searchTerm = searchTermDrug.value.toLowerCase();
+    if (searchTermDrug.value && searchTermDrug.value.trim()) {
+        const searchTerm = searchTermDrug.value.trim().toLowerCase();
         drugs = drugs.filter(drug => {
-            const drugName = drug.name || drug.drugName || '';
-            const drugCode = drug.drugCode || '';
-            return drugName.toLowerCase().includes(searchTerm) || 
-                   drugCode.toLowerCase().includes(searchTerm);
+            const drugName = (drug.name || drug.drugName || '').toLowerCase();
+            const drugCode = (drug.drugCode || '').toLowerCase();
+            const genericName = (drug.genericName || '').toLowerCase();
+            return drugName.includes(searchTerm) || 
+                   drugCode.includes(searchTerm) ||
+                   genericName.includes(searchTerm);
         });
     }
 
@@ -765,6 +768,41 @@ watch(() => selectedCategory.value, (newCategory) => {
     }
 });
 
+// مراقبة تغيير نص البحث لضمان تحديث النتائج (مع immediate: true لضمان التحديث الفوري)
+watch(() => searchTermDrug.value, (newValue) => {
+    // تصفية الأدوية عند تغيير نص البحث
+    filterDrugs();
+    
+    // عرض النتائج دائماً عند الكتابة
+    if (newValue && newValue.length > 0) {
+        showResults.value = true;
+    } else if (!selectedCategory.value) {
+        // إذا لم يكن هناك نص بحث ولا فئة مختارة، عرض جميع الأدوية
+        showResults.value = true;
+    }
+}, { immediate: false });
+// مراقبة تغيير نص البحث لضمان تحديث النتائج
+watch(() => searchTermDrug.value, (newValue, oldValue) => {
+    // إذا كان المستخدم يكتب، امسح الاختيار السابق
+    if (newValue !== selectedDrugName.value) {
+        selectedDrugName.value = "";
+        selectedDrugType.value = "";
+        selectedDrugData.value = null;
+        dailyQuantity.value = null;
+        hasInteractedWithQuantity.value = false;
+    }
+
+    // تصفية الأدوية عند تغيير نص البحث
+    filterDrugs();
+    
+    // عرض النتائج دائماً عند الكتابة
+    if (newValue && newValue.length > 0) {
+        showResults.value = true;
+    } else if (!selectedCategory.value) {
+        // إذا لم يكن هناك نص بحث ولا فئة مختارة، عرض جميع الأدوية
+        showResults.value = true;
+    }
+});
 watch(() => props.isOpen, (isOpen) => {
     if (isOpen) {
         clearForm();
@@ -774,39 +812,60 @@ watch(() => props.isOpen, (isOpen) => {
         showResults.value = true;
         
         // التحقق من الأدوية التي تحتاج توريد
+        // الأدوية الناقصة هي التي لديها neededQuantity > 0
         if (props.drugsData && props.drugsData.length > 0) {
             const drugsNeedingSupply = [];
             
             props.drugsData.forEach((drug) => {
-                const neededSupply = (drug.neededQuantity || 0) - (drug.quantity || 0);
+                // neededQuantity هو بالفعل الكمية المحتاجة (الفرق بين المطلوب والمتاح)
+                const neededQuantity = Number(drug.neededQuantity || 0);
                 
-                if (neededSupply > 0) {
-                    const drugInfo = props.allDrugsData.find(d => 
-                        (d.name === drug.drugName) || 
-                        (d.drugName === drug.drugName) ||
-                        (d.id === drug.drugCode) ||
-                        (drug.drugName && drug.drugName.includes((d.name || d.drugName || '').split(' ')[0]))
-                    );
+                if (neededQuantity > 0) {
+                    const drugInfo = props.allDrugsData.find(d => {
+                        const dName = d.name || d.drugName || '';
+                        const drugName = drug.drugName || drug.name || '';
+                        const dId = d.id || d.drugId || '';
+                        const drugId = drug.id || drug.drugCode || drug.drugId || '';
+                        
+                        // البحث بعدة طرق لضمان العثور على الدواء
+                        return dName.toLowerCase() === drugName.toLowerCase() ||
+                               dId.toString() === drugId.toString() ||
+                               (drugName && dName.toLowerCase().includes(drugName.toLowerCase().split(' ')[0])) ||
+                               (drugName && drugName.toLowerCase().includes(dName.toLowerCase().split(' ')[0]));
+                    });
                     
                     // التأكد من أن drugInfo يحتوي على id
                     if (!drugInfo || !drugInfo.id) {
-                        console.warn(`Drug ID not found for: ${drug.drugName}`);
+                        console.warn(`Drug ID not found for: ${drug.drugName || drug.name}`);
                         return; // تخطي هذا الدواء
                     }
                     
-                    const drugType = drugInfo.type || 'Tablet';
-                    const unit = getDrugUnit({ type: drugType });
+                    // التحقق من عدم وجود الدواء في القائمة مسبقاً
+                    const alreadyAdded = dailyDosageList.value.some(item => 
+                        item.drugId === drugInfo.id || item.id === drugInfo.id
+                    );
                     
+                    if (alreadyAdded) {
+                        return; // تخطي إذا كان موجوداً بالفعل
+                    }
+                    
+                    const drugType = drugInfo.type || drugInfo.form || 'Tablet';
+                    const unit = drugInfo.unit || getDrugUnit({ type: drugType });
+                    const unitsPerBox = Number(drugInfo.units_per_box || drugInfo.unitsPerBox || 1);
+                    
+                    // استخدام neededQuantity مباشرة ككمية التوريد المطلوبة
                     drugsNeedingSupply.push({
-                        drugId: drugInfo.id, // استخدام ID من allDrugsData وليس من inventories
+                        drugId: drugInfo.id,
                         id: drugInfo.id,
-                        drugCode: drug.drugCode,
-                        name: drug.drugName,
-                        currentQuantity: drug.quantity,
-                        neededQuantity: drug.neededQuantity,
-                        quantity: neededSupply,
+                        drugCode: drug.drugCode || drug.id,
+                        name: drug.drugName || drug.name,
+                        currentQuantity: drug.quantity || 0,
+                        neededQuantity: neededQuantity,
+                        quantity: neededQuantity, // الكمية المطلوبة للتوريد
                         unit: unit,
                         type: drugType,
+                        strength: drugInfo.strength || drug.strength || null,
+                        units_per_box: unitsPerBox,
                         expiryDate: drug.expiryDate
                     });
                 }

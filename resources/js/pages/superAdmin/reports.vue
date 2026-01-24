@@ -351,7 +351,7 @@ const buildActivitiesPrintHtml = (logs, meta) => {
                 <tr class="data-row">
                     <td class="col-user">${escapeHtml(log.userName || 'غير معروف')}</td>
                     <td class="col-type">${escapeHtml(log.userTypeArabic || log.userType || '-')}</td>
-                    <td class="col-hosp">${escapeHtml(log.hospitalName || '-')}</td>
+                    <td class="col-hosp">${escapeHtml((log.userType === 'supplier_admin' || log.userType === 'super_admin') ? '-' : (log.hospitalName || '-'))}</td>
                     <td class="col-act">${escapeHtml(log.actionArabic || log.action || '-')}</td>
                     <td class="col-date" dir="ltr">${escapeHtml(createdAt)}</td>
                 </tr>
@@ -811,6 +811,21 @@ const fieldTranslations = {
     'rejected_by': 'تم الرفض بواسطة',
     'rejectedBy': 'تم الرفض بواسطة',
     'Rejected By': 'تم الرفض بواسطة',
+    'approved_by': 'تمت الموافقة بواسطة',
+    'approvedBy': 'تمت الموافقة بواسطة',
+    'Approved By': 'تمت الموافقة بواسطة',
+    'confirmed_at': 'تاريخ التأكيد',
+    'confirmedAt': 'تاريخ التأكيد',
+    'Confirmed At': 'تاريخ التأكيد',
+    'confirmed_delivery': 'تأكيد التسليم',
+    'confirmedDelivery': 'تأكيد التسليم',
+    'Confirmed Delivery': 'تأكيد التسليم',
+    'reply_message': 'رسالة الرد',
+    'replyMessage': 'رسالة الرد',
+    'Reply Message': 'رسالة الرد',
+    'items_count': 'عدد العناصر',
+    'itemsCount': 'عدد العناصر',
+    'Items Count': 'عدد العناصر',
     
     // المؤسسات (Entities: Hospital, Pharmacy, Warehouse)
     'hospital_id': 'المؤسسة الصحية',
@@ -844,6 +859,8 @@ const fieldTranslations = {
     'drug_id': 'الدواء',
     'drug_name': 'اسم الدواء',
     'drugName': 'اسم الدواء',
+    'drugId': 'معرف الدواء',
+    'Drug Id': 'معرف الدواء',
     'generic_name': 'الاسم العلمي',
     'genericName': 'الاسم العلمي',
     'strength': 'القوة/التركيز',
@@ -943,6 +960,17 @@ const fieldTranslations = {
     'fulfilled_qty': 'الكمية الموفرة',
     'fulfilledQty': 'الكمية الموفرة',
     'Fulfilled Qty': 'الكمية الموفرة',
+    'sentQuantity': 'الكمية المرسلة',
+    'sent_quantity': 'الكمية المرسلة',
+    'Sent Quantity': 'الكمية المرسلة',
+    'receivedQuantity': 'الكمية المستلمة',
+    'received_quantity': 'الكمية المستلمة',
+    'Received Quantity': 'الكمية المستلمة',
+    'drugs': 'الأدوية',
+    'Drugs': 'الأدوية',
+    'manager_name': 'اسم المدير',
+    'managerName': 'اسم المدير',
+    'Manager Name': 'اسم المدير',
     'metadata': 'بيانات إضافية',
     'Drug': 'الدواء',
     'Patient': 'المريض',
@@ -965,6 +993,8 @@ const valueTranslations = {
     'rejected': 'مرفوض',
     'completed': 'مكتمل',
     'cancelled': 'ملغى',
+    'delivered': 'تم الاستلام',
+    'fulfilled': 'مكتمل',
     'yes': 'نعم',
     'no': 'لا',
     'true': 'نعم',
@@ -2021,7 +2051,7 @@ const uniquePatientsCount = computed(() => {
                                 <td class="p-4 text-gray-600 text-sm">{{ log.userTypeArabic || log.userType }}</td>
                                 <td class="p-4">
                                      <span class="px-2 py-1  text-[#2C5282]">
-                                         {{ log.hospitalName }}
+                                         {{ (log.userType === 'supplier_admin' || log.userType === 'super_admin') ? '-' : (log.hospitalName || '-') }}
                                      </span>
                                 </td>
                                 <td class="p-4">

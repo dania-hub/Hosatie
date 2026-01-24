@@ -109,6 +109,9 @@ class AuditLogHospitalAdminController extends BaseApiController
                 $translatedAction = $this->translateAction($log->action, $log->table_name, $log);
                 $operationDetails = $this->getOperationDetails($log);
                 
+                // جلب اسم الموظف/المريض
+                $targetName = $this->getTargetName($log);
+                
                 // دمج نوع العملية مع التفاصيل
                 // للعمليات المتعلقة بطلبات التوريد الخارجية من مدير المستشفى (قبول/رفض)
                 // نعرض فقط: "قبول/رفض طلب توريد خارجي - رقم الشحنة: [رقم]" بدون تفاصيل أخرى
@@ -118,15 +121,17 @@ class AuditLogHospitalAdminController extends BaseApiController
                     $operationType = $operationDetails 
                         ? $translatedAction . ' - رقم الشحنة: ' . $operationDetails
                         : $translatedAction;
+                } elseif ($log->table_name === 'users' && $targetName && $targetName !== '-') {
+                    // للعمليات المتعلقة بالأشخاص (users)، نضيف اسم الشخص في نوع العملية
+                    $operationType = $operationDetails 
+                        ? $translatedAction . ' - ' . $targetName . ' - ' . $operationDetails
+                        : $translatedAction . ' - ' . $targetName;
                 } else {
                     // للعمليات الأخرى، نعرض التفاصيل الكاملة
                     $operationType = $operationDetails 
                         ? $translatedAction . ' - ' . $operationDetails
                         : $translatedAction;
                 }
-                
-                // جلب اسم الموظف/المريض
-                $targetName = $this->getTargetName($log);
                 
                 return [
                     'fileNumber'    => $log->id ?? 0,          // معرف العملية

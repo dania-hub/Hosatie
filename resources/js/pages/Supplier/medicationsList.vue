@@ -292,15 +292,21 @@ const submitSupplyRequest = async (requestData) => {
 // ----------------------------------------------------
 const getRowColorClass = (quantity, neededQuantity, isUnregistered) => {
     if (isUnregistered) return 'bg-blue-50/70 border-r-4 border-blue-400';
-    if (Number(quantity) <= 0) return 'bg-red-50/70 border-r-4 border-red-500';
-    if (Number(quantity) < Number(neededQuantity)) return 'bg-orange-50/70 border-r-4 border-orange-400';
+    const qty = Number(quantity) || 0;
+    const neededQty = Number(neededQuantity) || 0;
+    // إذا كانت الكمية المتوفرة = 0 والكمية المطلوبة = 0، لا نلون باللون الأحمر
+    if (qty <= 0 && neededQty > 0) return 'bg-red-50/70 border-r-4 border-red-500';
+    if (qty > 0 && qty < neededQty) return 'bg-orange-50/70 border-r-4 border-orange-400';
     return 'bg-white border-gray-100';
 };
 
 const getTextColorClass = (quantity, neededQuantity, isUnregistered) => {
     if (isUnregistered) return 'text-blue-600 font-bold';
-    if (Number(quantity) <= 0) return 'text-red-600 font-bold';
-    if (Number(quantity) < Number(neededQuantity)) return 'text-orange-600 font-bold text-lg';
+    const qty = Number(quantity) || 0;
+    const neededQty = Number(neededQuantity) || 0;
+    // إذا كانت الكمية المتوفرة = 0 والكمية المطلوبة = 0، لا نلون باللون الأحمر
+    if (qty <= 0 && neededQty > 0) return 'text-red-600 font-bold';
+    if (qty > 0 && qty < neededQty) return 'text-orange-600 font-bold text-lg';
     return '';
 };
 

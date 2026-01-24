@@ -211,9 +211,7 @@ const getMonthlyQuantityDisplay = (med) => {
                                     <td class="p-4">
                                         <div class="font-bold text-gray-700">{{ getMonthlyQuantityDisplay(med) }}</div>
                                         <div class="text-xs space-y-1">
-                                                <div class="text-orange-600">
-                                                    <span class="font-semibold">مصروف:</span>  {{ med.dispensedQty }} {{ med.unit }}
-                                                </div>
+                                                
                                                 <div class="text-green-600">
                                                     <span class="font-semibold">متبقي:</span> {{ med.remainingQty }} {{ med.unit }}
                                                 </div>

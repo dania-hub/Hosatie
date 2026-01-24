@@ -252,9 +252,7 @@ const validateDispensingQuantity = (med) => {
                                         <div class="space-y-1">
                                             <div class="font-medium">{{ getMonthlyQuantityDisplay(med) }}</div>
                                             <div v-if="med.totalDispensedThisMonth > 0" class="text-xs space-y-0.5">
-                                                <div class="text-orange-600">
-                                                    مصروف: {{ med.totalDispensedThisMonth }} {{ med.unit || 'حبة' }}
-                                                </div>
+                                               
                                                 <div v-if="med.remainingQuantity > 0" class="text-green-600 font-semibold">
                                                     متبقي: {{ med.remainingQuantity }} {{ med.unit || 'حبة' }}
                                                 </div>
@@ -302,7 +300,7 @@ const validateDispensingQuantity = (med) => {
                                                 @input="validateDispensingQuantity(med)"
                                             />
                                             <div v-if="med.dispensedQuantity > getMaxDispensingQuantity(med)" class="mt-2 text-xs text-red-600 font-semibold text-center">
-                                                ⚠️ الكمية المدخلة ({{ med.dispensedQuantity }}) تتجاوز الكمية المتوفرة في المخزون ({{ getMaxDispensingQuantity(med) }})
+                                                الكمية المدخلة ({{ med.dispensedQuantity }}) تتجاوز الكمية المتوفرة في المخزون ({{ getMaxDispensingQuantity(med) }})
                                             </div>
                                             <div v-else-if="getMaxDispensingQuantity(med) > 0" class="mt-2 text-xs text-gray-500 text-center">
                                                 الحد الأقصى: {{ getMaxDispensingQuantity(med) }} {{ med.unit || 'حبة' }}

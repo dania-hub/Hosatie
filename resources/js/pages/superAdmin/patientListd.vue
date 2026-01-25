@@ -128,12 +128,19 @@ const fetchPatients = async () => {
     // إذا كانت هناك بيانات مستشفيات، ربط اسم المستشفى
     patients.value = patientsData.map(patient => {
       // API returns: fileNumber, fullName, nationalId, birthDate, phone, hospitalName
-      const hospitalName = patient.hospitalName || patient.hospital || '';
+      const hospitalName = patient.hospitalName || patient.hospital || patient.hospital_name || '';
       
-      // البحث عن ID المستشفى من قائمة المستشفيات بناءً على الاسم
-      let hospitalId = patient.hospitalId || null;
-      if (!hospitalId && hospitalName && hospitals.value.length > 0) {
-        const foundHospital = hospitals.value.find(h => 
+      // البحث عن ID المستشفى وكوده
+      let hospitalId = patient.hospitalId || patient.hospital_id || null;
+      let hospitalCode = '';
+      let foundHospital = null;
+
+      if (hospitalId && hospitals.value.length > 0) {
+          foundHospital = hospitals.value.find(h => h.id == hospitalId);
+      }
+
+      if (!foundHospital && hospitalName && hospitals.value.length > 0) {
+        foundHospital = hospitals.value.find(h => 
           h.name === hospitalName || 
           h.name.includes(hospitalName) || 
           hospitalName.includes(h.name)
@@ -142,17 +149,28 @@ const fetchPatients = async () => {
           hospitalId = foundHospital.id;
         }
       }
+
+      if (foundHospital) {
+          hospitalCode = foundHospital.code || '';
+      }
+
+      const birthRaw = patient.birthDate || patient.birth || '';
+      const nameDisplay = patient.fullName || patient.name || patient.patientName || '';
+      const nationalIdDisplay = patient.nationalId || patient.national_id || '';
       
       return {
-        id: patient.fileNumber, // or patient.id if available, but controller maps fileNumber => id
-        fileNumber: patient.fileNumber,
-        nameDisplay: patient.fullName || patient.name || '',
-        nationalIdDisplay: patient.nationalId || '',
-        birthDisplay: patient.birthDate ? formatDateForDisplay(patient.birthDate) : (patient.birth ? formatDateForDisplay(patient.birth) : ''),
-        phone: patient.phone,
+        id: patient.fileNumber || patient.id || patient.patientId || null, // or patient.id if available, but controller maps fileNumber => id
+        fileNumber: patient.fileNumber || patient.id || patient.patientId || '',
+        nameDisplay,
+        nationalIdDisplay,
+        birthDisplay: birthRaw ? formatDateForDisplay(birthRaw) : '',
+        birthRaw,
+        phone: patient.phone || '',
         hospitalDisplay: hospitalName || 'غير محدد',
         hospitalId: hospitalId, // إضافة hospitalId للتصفية
         hospitalName: hospitalName, // حفظ اسم المستشفى الأصلي
+        hospitalCode,
+        lastUpdated: patient.updated_at || patient.lastUpdated || patient.updatedAt || null,
         // Keep original fields just in case
         ...patient
       };
@@ -331,15 +349,23 @@ const filteredPatients = computed(() => {
     
     // تصفية حسب البحث
     if (searchTerm.value) {
-        const search = searchTerm.value.toLowerCase();
-        list = list.filter(patient =>
-            (patient.fileNumber && patient.fileNumber.toString().toLowerCase().includes(search)) ||
-            (patient.name && patient.name.toLowerCase().includes(search)) ||
-            (patient.nationalId && patient.nationalId.toLowerCase().includes(search)) ||
-            (patient.birth && patient.birth.toLowerCase().includes(search)) ||
-            (patient.phone && patient.phone.toLowerCase().includes(search)) ||
-            (patient.hospitalDisplay && patient.hospitalDisplay.toLowerCase().includes(search))
-        );
+      const search = searchTerm.value.toLowerCase();
+      list = list.filter(patient => {
+        const values = [
+          patient.fileNumber,
+          patient.nameDisplay,
+          patient.fullName,
+          patient.name,
+          patient.nationalIdDisplay,
+          patient.nationalId,
+          patient.birthDisplay,
+          patient.phone,
+          patient.hospitalDisplay,
+          patient.hospitalName
+        ];
+
+        return values.some(value => value && value.toString().toLowerCase().includes(search));
+      });
     }
     
     // تصفية حسب المستشفى
@@ -352,12 +378,16 @@ const filteredPatients = computed(() => {
             if (patient.hospitalId && patient.hospitalId.toString() === selectedHospitalId) {
                 return true;
             }
+          if (patient.hospital_id && patient.hospital_id.toString() === selectedHospitalId) {
+            return true;
+          }
             
             // إذا لم يكن هناك ID، المقارنة بناءً على اسم المستشفى
             if (selectedHospitalObj && patient.hospitalDisplay) {
                 return patient.hospitalDisplay === selectedHospitalObj.name ||
-                       patient.hospitalName === selectedHospitalObj.name ||
-                       patient.hospital === selectedHospitalObj.name;
+                 patient.hospitalName === selectedHospitalObj.name ||
+                 patient.hospital === selectedHospitalObj.name ||
+                 patient.hospital_name === selectedHospitalObj.name;
             }
             
             return false;
@@ -366,7 +396,7 @@ const filteredPatients = computed(() => {
 
     if (dateFrom.value || dateTo.value) {
         list = list.filter((patient) => {
-            const birthDate = patient.birth || patient.birthDate || patient.birthDisplay;
+            const birthDate = patient.birthRaw || patient.birthDate || patient.birth || patient.birthDisplay;
             if (!birthDate || birthDate === 'غير متوفر') return false;
 
             let birthDateObj;
@@ -420,17 +450,17 @@ const filteredPatients = computed(() => {
             let comparison = 0;
 
             if (sortKey.value === 'name') {
-                comparison = (a.name || '').localeCompare(b.name || '', 'ar');
+              comparison = (a.nameDisplay || a.fullName || a.name || '').localeCompare(b.nameDisplay || b.fullName || b.name || '', 'ar');
             } else if (sortKey.value === 'birth') {
-                const ageA = calculateAge(a.birth);
-                const ageB = calculateAge(b.birth);
+              const ageA = calculateAge(a.birthRaw || a.birth || a.birthDate);
+              const ageB = calculateAge(b.birthRaw || b.birth || b.birthDate);
                 comparison = ageA - ageB;
             } else if (sortKey.value === 'lastUpdated') {
-                const dateA = new Date(a.lastUpdated || 0);
-                const dateB = new Date(b.lastUpdated || 0);
+              const dateA = new Date(a.lastUpdated || a.updated_at || a.updatedAt || 0);
+              const dateB = new Date(b.lastUpdated || b.updated_at || b.updatedAt || 0);
                 comparison = dateA.getTime() - dateB.getTime();
             } else if (sortKey.value === 'hospital') {
-                comparison = (a.hospitalDisplay || '').localeCompare(b.hospitalDisplay || '', 'ar');
+              comparison = (a.hospitalDisplay || a.hospitalName || '').localeCompare(b.hospitalDisplay || b.hospitalName || '', 'ar');
             }
 
             return sortOrder.value === 'asc' ? comparison : -comparison;
@@ -450,8 +480,11 @@ const filterStats = computed(() => {
     
     // إحصاءات حسب المستشفى
     hospitals.value.forEach(hospital => {
-        const count = patients.value.filter(p => p.hospitalId === hospital.id).length;
-        stats.byHospital[hospital.id] = count;
+      const count = patients.value.filter(p => 
+        (p.hospitalId && p.hospitalId.toString() === hospital.id.toString()) ||
+        (p.hospital_id && p.hospital_id.toString() === hospital.id.toString())
+      ).length;
+      stats.byHospital[hospital.id] = count;
     });
     
     return stats;
@@ -1004,7 +1037,14 @@ onMounted(async () => {
                                             :key="index"
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
-                                            <td class="file-number-col">{{ patient.fileNumber || 'N/A' }}</td>
+                                            <td class="file-number-col">
+                                              <div class="flex items-center gap-1 justify-start">
+                                                  <span v-if="patient.hospitalCode" class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                                                      {{ patient.hospitalCode }}
+                                                  </span>
+                                                  <span class="font-medium text-gray-700">{{ patient.fileNumber || 'N/A' }}</span>
+                                              </div>
+                                            </td>
                                             <td class="name-col">{{ patient.nameDisplay || patient.fullName || patient.name || 'N/A' }}</td>
                                             <td class="national-id-col">{{ patient.nationalIdDisplay || patient.nationalId || 'N/A' }}</td>
                                             <td class="birth-date-col">{{ patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || 'N/A' }}</td>
@@ -1091,8 +1131,8 @@ onMounted(async () => {
   padding-right: 0.5rem;
 }
 .file-number-col {
-  width: 90px;
-  min-width: 90px;
+  width: 140px;
+  min-width: 140px;
 }
 .national-id-col {
   width: 130px;

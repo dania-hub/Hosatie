@@ -4,11 +4,14 @@ import TableSkeleton from "@/components/Shared/TableSkeleton.vue";
 import ErrorState from "@/components/Shared/ErrorState.vue";
 import EmptyState from "@/components/Shared/EmptyState.vue";
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import axios from "axios";
 import search from "@/components/search.vue";
 import btnprint from "@/components/btnprint.vue";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+dayjs.extend(customParseFormat);
 
 // استيراد المكونات المنفصلة
 import PatientViewModal from "@/components/forsuperadmin/PatientViewModal.vue";
@@ -65,18 +68,6 @@ const errorMessage = ref("");
 // ----------------------------------------------------
 // 3. دوال API
 // ----------------------------------------------------
-// التحقق من اتصال API
-const checkAPI = async () => {
-  try {
-    const response = await api.get('/health');
-    console.log('API متصل:', response.data);
-    return true;
-  } catch (err) {
-    console.error('API غير متصل:', err);
-    showInfoAlert('الخادم غير متصل. سيتم استخدام بيانات تجريبية.');
-    return false;
-  }
-};
 
 // جلب جميع المستشفيات
 const fetchHospitals = async () => {
@@ -95,22 +86,11 @@ const fetchHospitals = async () => {
     return true;
   } catch (err) {
     console.error('فشل جلب المستشفيات:', err);
-    
-    // استخدام بيانات تجريبية للمستشفيات
-    hospitals.value = getSampleHospitals();
+    hospitals.value = []; 
     return false;
   } finally {
     isLoadingHospitals.value = false;
   }
-};
-
-// بيانات تجريبية للمستشفيات
-const getSampleHospitals = () => {
-  return [
-      { id: 1, name: 'مستشفى طرابلس المركزي', code: 'H001' },
-      { id: 2, name: 'مستشفى الخضراء', code: 'H002' },
-      { id: 3, name: 'مركز طرابلس الطبي', code: 'H003' }
-  ];
 };
 
 // جلب جميع المرضى
@@ -217,18 +197,8 @@ const fetchPatients = async () => {
 // تنسيق التاريخ للعرض
 const formatDateForDisplay = (dateString) => {
   if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    
-    return date.toLocaleDateString('en-GB', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  } catch {
-    return dateString;
-  }
+  const date = dayjs(dateString);
+  return date.isValid() ? date.format('YYYY/MM/DD') : dateString;
 };
 
 // جلب بيانات مريض محدد
@@ -304,6 +274,16 @@ const fetchDispensationHistory = async (patientId) => {
 // 4. منطق البحث والفرز الموحد
 // ----------------------------------------------------
 const searchTerm = ref("");
+const debouncedSearchTerm = ref("");
+let debounceTimeout = null;
+
+watch(searchTerm, (newVal) => {
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+        debouncedSearchTerm.value = newVal;
+    }, 300);
+});
+
 const dateFrom = ref("");
 const dateTo = ref("");
 const showDateFilter = ref(false);
@@ -313,21 +293,9 @@ const selectedHospital = ref('all'); // 'all' لعرض جميع المستشفي
 
 const calculateAge = (birthDateString) => {
     if (!birthDateString) return 0;
-    try {
-      const date = new Date(birthDateString);
-      if (isNaN(date.getTime())) return 0;
-      
-      const today = new Date();
-      let age = today.getFullYear() - date.getFullYear();
-      const m = today.getMonth() - date.getMonth();
-
-      if (m < 0 || (m === 0 && today.getDate() < date.getDate())) {
-          age--;
-      }
-      return age;
-    } catch {
-      return 0;
-    }
+    const date = dayjs(birthDateString);
+    if (!date.isValid()) return 0;
+    return dayjs().diff(date, 'year');
 };
 
 const sortPatients = (key, order) => {
@@ -348,8 +316,8 @@ const filteredPatients = computed(() => {
     let list = patients.value;
     
     // تصفية حسب البحث
-    if (searchTerm.value) {
-      const search = searchTerm.value.toLowerCase();
+    if (debouncedSearchTerm.value) {
+      const search = debouncedSearchTerm.value.toLowerCase();
       list = list.filter(patient => {
         const values = [
           patient.fileNumber,
@@ -396,48 +364,21 @@ const filteredPatients = computed(() => {
 
     if (dateFrom.value || dateTo.value) {
         list = list.filter((patient) => {
-            const birthDate = patient.birthRaw || patient.birthDate || patient.birth || patient.birthDisplay;
-            if (!birthDate || birthDate === 'غير متوفر') return false;
-
-            let birthDateObj;
-            try {
-                if (birthDate.includes('-')) {
-                    birthDateObj = new Date(birthDate);
-                } else if (birthDate.includes('/')) {
-                    const parts = birthDate.split('/');
-                    if (parts.length === 3) {
-                        if (parts[0].length === 4) {
-                            birthDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-                        } else {
-                            birthDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-                        }
-                    } else {
-                        return false;
-                    }
-                } else {
-                    return false;
-                }
-
-                if (isNaN(birthDateObj.getTime())) return false;
-            } catch {
-                return false;
-            }
-
-            birthDateObj.setHours(0, 0, 0, 0);
+            const birthRaw = patient.birthRaw || patient.birthDate || patient.birth;
+            if (!birthRaw) return false;
+            
+            const birthDate = dayjs(birthRaw);
+            if (!birthDate.isValid()) return false;
 
             let matchesFrom = true;
             let matchesTo = true;
 
             if (dateFrom.value) {
-                const fromDate = new Date(dateFrom.value);
-                fromDate.setHours(0, 0, 0, 0);
-                matchesFrom = birthDateObj >= fromDate;
+                matchesFrom = birthDate.isAfter(dayjs(dateFrom.value).startOf('day')) || birthDate.isSame(dayjs(dateFrom.value).startOf('day'));
             }
 
             if (dateTo.value) {
-                const toDate = new Date(dateTo.value);
-                toDate.setHours(23, 59, 59, 999);
-                matchesTo = birthDateObj <= toDate;
+                matchesTo = birthDate.isBefore(dayjs(dateTo.value).endOf('day')) || birthDate.isSame(dayjs(dateTo.value).endOf('day'));
             }
 
             return matchesFrom && matchesTo;
@@ -452,13 +393,15 @@ const filteredPatients = computed(() => {
             if (sortKey.value === 'name') {
               comparison = (a.nameDisplay || a.fullName || a.name || '').localeCompare(b.nameDisplay || b.fullName || b.name || '', 'ar');
             } else if (sortKey.value === 'birth') {
-              const ageA = calculateAge(a.birthRaw || a.birth || a.birthDate);
-              const ageB = calculateAge(b.birthRaw || b.birth || b.birthDate);
-                comparison = ageA - ageB;
+              // الأقدم في التاريخ هو الأكبر سناً، ولكن calculateAge يعيد العمر بالسنوات
+              // لفرز دقيق، نستخدم التاريخ مباشرة
+              const dateA = dayjs(a.birthRaw || a.birth || a.birthDate);
+              const dateB = dayjs(b.birthRaw || b.birth || b.birthDate);
+              comparison = dateA.valueOf() - dateB.valueOf();
             } else if (sortKey.value === 'lastUpdated') {
-              const dateA = new Date(a.lastUpdated || a.updated_at || a.updatedAt || 0);
-              const dateB = new Date(b.lastUpdated || b.updated_at || b.updatedAt || 0);
-                comparison = dateA.getTime() - dateB.getTime();
+              const dateA = dayjs(a.lastUpdated || a.updated_at || a.updatedAt || 0);
+              const dateB = dayjs(b.lastUpdated || b.updated_at || b.updatedAt || 0);
+              comparison = dateA.valueOf() - dateB.valueOf();
             } else if (sortKey.value === 'hospital') {
               comparison = (a.hospitalDisplay || a.hospitalName || '').localeCompare(b.hospitalDisplay || b.hospitalName || '', 'ar');
             }
@@ -533,24 +476,6 @@ const dispensationHistory = ref([]);
 const openViewModal = async (patient) => {
   try {
     console.log('فتح نموذج المريض:', patient);
-    
-    // للتصحيح المؤقت: إذا كان API غير متصل، استخدم البيانات مباشرة
-    const isAPIConnected = await checkAPI();
-    
-    if (!isAPIConnected) {
-      console.log('استخدام بيانات المريض المحلية (API غير متصل)');
-      selectedPatient.value = {
-        ...patient,
-        nameDisplay: patient.name || '',
-        nationalIdDisplay: patient.nationalId || '',
-        birthDisplay: formatDateForDisplay(patient.birth) || '',
-        hospitalDisplay: patient.hospital || patient.hospitalDisplay || 'غير محدد',
-        medications: patient.medications || [],
-        fileNumber: patient.fileNumber || patient.id || ''
-      };
-      isViewModalOpen.value = true;
-      return;
-    }
     
     // استخدام المعرف الصحيح - حاول استخدام id أولاً
     const patientId = patient.id || patient.fileNumber;
@@ -637,17 +562,6 @@ const openDispensationModal = async () => {
       return;
     }
     
-    // للتصحيح المؤقت: إذا كان API غير متصل، استخدم البيانات المحلية
-    const isAPIConnected = await checkAPI();
-    
-    if (!isAPIConnected) {
-      console.log('استخدام بيانات سجل الصرف المحلية');
-      dispensationHistory.value = selectedPatient.value.dispensationHistory || [];
-      isDispensationModalOpen.value = true;
-      isViewModalOpen.value = false;
-      return;
-    }
-    
     // جلب سجل الصرف من API
     const patientId = selectedPatient.value.id || selectedPatient.value.fileNumber;
     const history = await fetchDispensationHistory(patientId);
@@ -684,92 +598,7 @@ const openDispensationModal = async () => {
 // 9. منطق الطباعة
 // ----------------------------------------------------
 const printTable = () => {
-    const resultsCount = filteredPatients.value.length;
-
-    const printWindow = window.open('', '_blank', 'height=600,width=800');
-
-    if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-        showInfoAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
-        return;
-    }
-
-    let tableHtml = `
-        <style>
-            body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-            h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
-            .results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
-            .empty-message { text-align: center; padding: 40px; color: #666; font-size: 16px; }
-        </style>
-
-        <h1>قائمة المرضى </h1>
-    `;
-
-    if (resultsCount > 0) {
-        tableHtml += `
-            <p class="results-info">عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}</p>
-
-            <table>
-                <thead>
-                    <tr>
-                        <th>رقم الملف</th>
-                        <th>الاسم الرباعي</th>
-                        <th>الرقم الوطني</th>
-                        <th>تاريخ الميلاد</th>
-                        <th>رقم الهاتف</th>
-                        <th>المستشفى</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-        filteredPatients.value.forEach(patient => {
-            // استخدام الحقول الصحيحة للعرض
-            const name = patient.nameDisplay || patient.fullName || patient.name || 'غير محدد';
-            const nationalId = patient.nationalIdDisplay || patient.nationalId || 'غير محدد';
-            const birthDate = patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || 'غير محدد';
-            
-            tableHtml += `
-                <tr>
-                    <td>${patient.fileNumber || 'غير محدد'}</td>
-                    <td>${name}</td>
-                    <td>${nationalId}</td>
-                    <td>${birthDate}</td>
-                    <td>${patient.phone || 'غير محدد'}</td>
-                    <td>${patient.hospitalDisplay || 'غير محدد'}</td>
-                </tr>
-            `;
-        });
-
-        tableHtml += `
-                </tbody>
-            </table>
-        `;
-    } else {
-        tableHtml += `
-            <div class="empty-message">
-                <p>لا توجد بيانات للعرض</p>
-            </div>
-        `;
-    }
-
-    printWindow.document.write('<html><head><title>طباعة قائمة المرضى</title>');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write(tableHtml);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-
-    printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        if (resultsCount > 0) {
-            showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
-        } else {
-            showInfoAlert("تم فتح نافذة الطباعة ولكن الجدول فارغ.");
-        }
-    };
+    window.print();
 };
 
 // ----------------------------------------------------
@@ -795,7 +624,7 @@ onMounted(async () => {
 
 <template>
   <DefaultLayout>
-    <main class="flex-1 p-4 sm:p-5 pt-3">
+    <main class="flex-1 p-4 sm:p-5 pt-3" :data-results-count="'عدد النتائج: ' + filteredPatients.length">
       <!-- المحتوى الرئيسي -->
       <div>
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
@@ -1176,6 +1005,84 @@ tbody tr td[colspan] {
   
   .justify-end {
     justify-content: flex-start !important;
+  }
+}
+
+@media print {
+  /* إخفاء العناصر غير المرغوب فيها */
+  header, footer, nav, aside, .btn-print, button, .dropdown, input, .Icon, .actions-col  {
+    display: none !important;
+  }
+  
+  /* إخفاء شريط العنوان في المتصفح */
+  
+  body {
+    background-color: white;
+    font-size: 12pt;
+    color: black;
+  }
+  
+  /* تنسيق الجدول */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1px solid #ccc;
+    font-size: 10pt;
+  }
+  
+  th, td {
+    border: 1px solid #ccc !important;
+    padding: 8px !important;
+    text-align: right !important;
+    color: black !important;
+  }
+  
+  th {
+    background-color: #f2f2f2 !important;
+    font-weight: bold;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  /* إضافة عنوان للطباعة */
+  main::before {
+    content: "قائمة المرضى";
+    display: block;
+    text-align: center;
+    font-size: 18pt;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #2E5077;
+  }
+  
+  /* عرض عدد النتائج */
+  main::after {
+    content: attr(data-results-count);
+    display: block;
+    text-align: right;
+    margin-top: 10px;
+    font-size: 10pt;
+  }
+
+  /* إخفاء العمود الأخير (الإجراءات) */
+  .actions-col, td:last-child, th:last-child {
+      display: none !important;
+  }
+
+  /* جعل الجدول يمتد للعرض الكامل */
+  .overflow-x-auto {
+      overflow: visible !important;
+  }
+  
+  /* إزالة أي ظلال أو حدود إضافية */
+  .shadow-lg, .shadow {
+      box-shadow: none !important;
+      border: none !important;
+  }
+  
+  /* التأكد من ظهور الخلفيات */
+  * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
   }
 }
 </style>

@@ -63,6 +63,45 @@ const editErrors = ref({
     phone: false,
 });
 
+// قائمة المدراء (يتم جلبها من API)
+const managersList = ref([]);
+const loadingManagers = ref(false);
+
+const fetchManagers = async () => {
+    loadingManagers.value = true;
+    try {
+        // جلب كل مدراء المستشفيات
+        const response = await api.get('/super-admin/users?type=hospital_admin');
+        if (response.data && response.data.data) {
+            const currentHospitalId = props.hospital?.id;
+            managersList.value = response.data.data
+                .filter(u => {
+                    // التحقق من الحالة
+                    if (u.status !== 'active' && u.status !== 'pending_activation') return false;
+
+                    // إذا كان المستخدم معيناً لمستشفى
+                    if (u.hospital) {
+                        // إظهاره فقط إذا كان معيناً لهذا المستشفى الحالي
+                        return u.hospital.id == currentHospitalId;
+                    }
+
+                    // إذا لم يكن معيناً لأي مستشفى (متاح)
+                    return true;
+                })
+                .map(u => ({
+                    id: u.id,
+                    name: u.fullName || u.full_name || u.name,
+                    email: u.email,
+                    status: u.status
+                }));
+        }
+    } catch (error) {
+        console.error("Error fetching managers:", error);
+    } finally {
+        loadingManagers.value = false;
+    }
+};
+
 // حالة نافذة التأكيد
 const isEditConfirmationModalOpen = ref(false);
 
@@ -157,9 +196,13 @@ const confirmEdit = () => {
     let managerEmail = "";
     let managerPhone = "";
     if (editForm.value.managerId) {
-        const selectedManager = props.availableManagers.find(
+        // البحث في القائمة المحلية أولاً
+        const selectedManager = managersList.value.find(
+            manager => manager.id === editForm.value.managerId
+        ) || props.availableManagers.find(
             manager => manager.id === editForm.value.managerId
         );
+        
         if (selectedManager) {
             managerName = selectedManager.name || "";
             managerEmail = selectedManager.email || "";
@@ -253,6 +296,9 @@ watch(() => editForm.value.phone, (newPhone) => {
 // تهيئة البيانات عند فتح النافذة
 watch(() => props.isOpen, (newVal) => {
     if (newVal && props.hospital) {
+        // جلب قائمة المدراء عند فتح النافذة
+        fetchManagers();
+
         const initialData = {
             id: props.hospital.id,
             name: props.hospital.name || "",
@@ -488,22 +534,23 @@ watch(() => props.isOpen, (newVal) => {
                                 class="h-10 text-right w-full rounded-xl bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:ring-2 transition-all px-4 appearance-none focus:outline-none"
                             >
                                 <option value="">بدون مدير</option>
-                                <option v-for="manager in props.availableManagers" 
+                                <option v-for="manager in managersList" 
                                         :key="manager.id" 
                                         :value="manager.id">
-                                    {{ manager.name }} - {{ manager.email }}
+                                    {{ manager.name }} {{ manager.status === 'pending_activation' ? '(في انتظار التفعيل)' : '' }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon v-if="!loadingManagers" icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon v-else icon="svg-spinners:ring-resize" class="w-5 h-5 text-[#4DA1A9] absolute left-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="editForm.managerId" class="text-xs text-gray-500 mt-1">
                             المدير المختار: 
                             <span class="font-semibold text-[#4DA1A9]">
-                                {{ props.availableManagers.find(m => m.id === editForm.managerId)?.name }}
+                                {{ managersList.find(m => m.id === editForm.managerId)?.name }}
                             </span>
                         </p>
                         <p v-if="!editForm.managerId" class="text-xs text-gray-400 mt-1">
-                            يمكنك تعيين مدير مستشفى من قائمة المدراء المتاحين
+                            يمكنك تعيين مدير مستشفى من قائمة المدراء.
                         </p>
                     </div>
 

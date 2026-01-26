@@ -499,6 +499,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <th>#</th>
  <th>رمز الدواء</th>
  <th>اسم الدواء</th>
+ <th>التركيز</th>
  <th>الاسم العلمي</th>
  <th>الفئة العلاجية</th>
  <th>الشركة المصنعة</th>
@@ -513,6 +514,7 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
  <td>${index + 1}</td>
  <td>${drug.drugCode || ''}</td>
  <td>${drug.drugName || ''}</td>
+ <td>${drug.strength || ''}</td>
  <td>${drug.scientificName || ''}</td>
  <td>${drug.therapeuticClass || ''}</td>
  <td>${drug.manufacturer || ''}</td>
@@ -841,6 +843,7 @@ onMounted(async () => {
                                     <tr>
                                         <th class="drug-code-col">رمز الدواء</th>
                                         <th class="drug-name-col">اسم الدواء</th>
+                                        <th class="strength-col">التركيز</th>
                                         <th class="scientific-name-col">الاسم العلمي</th>
                                         <th class="category-col">الفئة العلاجية</th>
                                         <th class="actions-col">الإجراءات</th>
@@ -894,6 +897,16 @@ onMounted(async () => {
                                                         </span>
                                                     </div>
                                                 </div>
+                                            </td>
+                                            <td
+                                                :class="
+                                                    getTextColorClass(
+                                                        drug.quantity,
+                                                        drug.neededQuantity
+                                                    )
+                                                "
+                                            >
+                                                {{ drug.strength }}
                                             </td>
                                             <td
                                                 :class="

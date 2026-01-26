@@ -532,6 +532,13 @@ class ShipmentSupplierController extends BaseApiController
                             $inventory->current_quantity -= $deducted;
                             $inventory->save();
 
+                            // إرسال إشعار في حالة انخفاض المخزون عن الحد الأدنى
+                            try {
+                                $this->notifications->checkAndNotifyLowStock($inventory);
+                            } catch (\Exception $e) {
+                                \Log::error('Supplier stock deduction alert notification failed', ['error' => $e->getMessage()]);
+                            }
+
                             $remainingToDeduct -= $deducted;
 
                             // تسجيل الدفعة المستخدمة
@@ -625,7 +632,7 @@ class ShipmentSupplierController extends BaseApiController
             }
 
             try {
-                // $this->notifications->notifyWarehouseSupplierAccepted($shipment);
+                $this->notifications->notifyWarehouseSupplierAccepted($shipment);
             } catch (\Exception $e) {
                 \Log::error('Failed to notify warehouse manager about supplier acceptance', ['error' => $e->getMessage()]);
             }

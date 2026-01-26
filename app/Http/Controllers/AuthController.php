@@ -119,9 +119,14 @@ class AuthController extends BaseApiController
             // Find by EMAIL
             $user = User::where('email', $credentials['email'])->first();
 
+            // Check if user exists
+            if (!$user) {
+                return $this->sendError('البريد الإلكتروني غير مسجل في النظام.', [], 401);
+            }
+
             // Check Credentials & Type
-            if (!$user || !Hash::check($credentials['password'], $user->password)) {
-                return $this->sendError('البريد الإلكتروني أو كلمة المرور غير صحيحة.', [], 401);
+            if (!Hash::check($credentials['password'], $user->password)) {
+                return $this->sendError('كلمة المرور غير صحيحة.', [], 401);
             }
 
             if ($user->type === 'patient') {

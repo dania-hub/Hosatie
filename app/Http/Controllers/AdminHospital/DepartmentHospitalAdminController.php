@@ -102,8 +102,17 @@ class DepartmentHospitalAdminController extends BaseApiController
             }
 
             $data = $request->validate([
-                'name'      => 'required|string|max:255',
+                'name'      => [
+                    'required',
+                    'string',
+                    'max:255',
+                    \Illuminate\Validation\Rule::unique('departments')->where(function ($query) use ($hospitalId) {
+                        return $query->where('hospital_id', $hospitalId);
+                    })
+                ],
                 'managerId' => 'nullable|exists:users,id',
+            ], [
+                'name.unique' => ' اسم القسم هذا موجود بالفعل في هذا المستشفى. يرجى اختيار اسم مختلف للقسم.',
             ]);
 
             // إذا تم تعيين مدير قسم، تغيير type من doctor إلى department_head
@@ -167,7 +176,11 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'lastUpdated' => $dep->updated_at?->toIso8601String(),
             ], 'تم إنشاء القسم بنجاح.');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+            // استخدام الرسالة المخصصة من validation errors بدلاً من الرسالة العامة
+            $errors = $e->errors();
+            $firstError = reset($errors); // الحصول على أول خطأ
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            return $this->sendError($errorMessage, $errors, 422);
         } catch (\Exception $e) {
             Log::error('Create Department Error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->sendError('فشل في إنشاء القسم.', [], 500);
@@ -193,9 +206,18 @@ class DepartmentHospitalAdminController extends BaseApiController
             }
 
             $data = $request->validate([
-                'name'      => 'required|string|max:255',
+                'name'      => [
+                    'required',
+                    'string',
+                    'max:255',
+                    \Illuminate\Validation\Rule::unique('departments')->where(function ($query) use ($hospitalId) {
+                        return $query->where('hospital_id', $hospitalId);
+                    })->ignore($id)
+                ],
                 'managerId' => 'nullable|exists:users,id',
                 'isActive'  => 'nullable|boolean',
+            ], [
+                'name.unique' => '⚠️ اسم القسم هذا موجود بالفعل في هذا المستشفى. يرجى اختيار اسم مختلف للقسم.',
             ]);
 
             $oldManagerId = $dep->head_user_id;
@@ -309,7 +331,11 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'lastUpdated' => $dep->updated_at?->toIso8601String(),
             ], 'تم تحديث بيانات القسم بنجاح.' . $action);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+            // استخدام الرسالة المخصصة من validation errors بدلاً من الرسالة العامة
+            $errors = $e->errors();
+            $firstError = reset($errors); // الحصول على أول خطأ
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            return $this->sendError($errorMessage, $errors, 422);
         } catch (\Exception $e) {
             Log::error('Update Department Error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->sendError('فشل في تحديث بيانات القسم.', [], 500);
@@ -406,7 +432,11 @@ class DepartmentHospitalAdminController extends BaseApiController
                 'lastUpdated' => $department->updated_at?->toIso8601String(),
             ], "تم {$action} القسم {$department->name} بنجاح.");
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return $this->sendError('التحقق من البيانات فشل.', $e->errors(), 422);
+            // استخدام الرسالة المخصصة من validation errors بدلاً من الرسالة العامة
+            $errors = $e->errors();
+            $firstError = reset($errors); // الحصول على أول خطأ
+            $errorMessage = is_array($firstError) ? $firstError[0] : $firstError;
+            return $this->sendError($errorMessage, $errors, 422);
         } catch (\Exception $e) {
             Log::error('Toggle Department Status Error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->sendError('فشل في تغيير حالة القسم.', [], 500);

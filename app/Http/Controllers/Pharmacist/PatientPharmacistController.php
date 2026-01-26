@@ -597,6 +597,9 @@ class PatientPharmacistController extends BaseApiController
             'inventory_changes.*.monthly_quantity_to_restore' => 'nullable|integer|min:1',
         ]);
 
+        // ✅ تعطيل إشعارات PrescriptionDrugObserver مؤقتاً لتجنب تسجيل عملية إضافية
+        PrescriptionDrugObserver::$skipNotification = true;
+
         DB::beginTransaction();
         try {
             $pharmacist = $request->user();
@@ -659,18 +662,22 @@ class PatientPharmacistController extends BaseApiController
                 // }
 
                 if ($disp['is_new']) {
-                    // إذا كان سجل جديد، احذفه
-                    $dispensing->delete();
+                    // إذا كان سجل جديد، نعيّن reverted = true بدلاً من الحذف
+                    $dispensing->reverted = true;
+                    $dispensing->reverted_at = now();
+                    $dispensing->reverted_by = $pharmacist->id;
+                    $dispensing->save();
                 } else {
                     // إذا كان سجل موجود، أرجع الكمية إلى القيمة الأصلية
                     $dispensing->quantity_dispensed = $disp['original_quantity'] ?? 0;
                     
-                    // إذا أصبحت الكمية 0 أو أقل، احذف السجل
+                    // إذا أصبحت الكمية 0 أو أقل، نعيّن reverted = true
                     if ($dispensing->quantity_dispensed <= 0) {
-                        $dispensing->delete();
-                    } else {
-                        $dispensing->save();
+                        $dispensing->reverted = true;
+                        $dispensing->reverted_at = now();
+                        $dispensing->reverted_by = $pharmacist->id;
                     }
+                    $dispensing->save();
                 }
             }
 
@@ -707,6 +714,9 @@ class PatientPharmacistController extends BaseApiController
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->sendError('فشل في التراجع: ' . $e->getMessage());
+        } finally {
+            // ✅ تأكد من إرجاع حالة الإشعارات دوماً
+            PrescriptionDrugObserver::$skipNotification = false;
         }
     }
 

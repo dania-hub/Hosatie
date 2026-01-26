@@ -24,6 +24,8 @@ class Dispensing extends Model
         'expiry_date',
         'dispense_month',
         'reverted',
+        'reverted_at',
+        'reverted_by',
     ];
 
     protected $casts = [

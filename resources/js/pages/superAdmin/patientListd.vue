@@ -598,7 +598,94 @@ const openDispensationModal = async () => {
 // 9. منطق الطباعة
 // ----------------------------------------------------
 const printTable = () => {
-    window.print();
+  const resultsCount = filteredPatients.value.length;
+
+  const printWindow = window.open("", "_blank", "height=600,width=800");
+
+  if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
+    showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
+    return;
+  }
+
+  let tableHtml = `
+<style>
+body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
+th { background-color: #f2f2f2; font-weight: bold; }
+h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
+.results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
+.no-data { text-align: center; padding: 40px; color: #666; font-style: italic; }
+.print-date { text-align: left; margin-bottom: 10px; font-size: 12px; color: #666; }
+</style>
+
+<h1>قائمة المرضى</h1>
+<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+`;
+
+  if (resultsCount > 0) {
+    tableHtml += `
+<p class="results-info">عدد النتائج: ${resultsCount}</p>
+
+<table>
+<thead>
+ <tr>
+ <th>#</th>
+ <th>رقم الملف</th>
+ <th>اسم المريض</th>
+ <th>الرقم الوطني</th>
+ <th>تاريخ الميلاد</th>
+ <th>رقم الهاتف</th>
+ <th>المستشفى</th>
+ </tr>
+</thead>
+<tbody>
+`;
+
+    filteredPatients.value.forEach((patient, index) => {
+      // Logic for File Number display (with code)
+      const hospitalCode = patient.hospitalCode || ''; 
+      const fileNum = patient.fileNumber || '';
+      const fullFileNum = hospitalCode ? `${hospitalCode} ${fileNum}` : fileNum;
+
+      tableHtml += `
+<tr>
+ <td>${index + 1}</td>
+ <td>${fullFileNum || ''}</td>
+ <td>${patient.nameDisplay || patient.fullName || patient.name || ''}</td>
+ <td>${patient.nationalIdDisplay || patient.nationalId || ''}</td>
+ <td>${patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || ''}</td>
+ <td>${patient.phone || ''}</td>
+ <td>${patient.hospitalDisplay || 'غير محدد'}</td>
+</tr>
+`;
+    });
+
+    tableHtml += `
+</tbody>
+</table>
+`;
+  } else {
+    tableHtml += `
+<div class="no-data">
+  <p>لا توجد بيانات مرضى</p>
+</div>
+`;
+  }
+
+  printWindow.document.write("<html><head><title>طباعة قائمة المرضى</title>");
+  printWindow.document.write("</head><body>");
+  printWindow.document.write(tableHtml);
+  printWindow.document.write("</body></html>");
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    printWindow.focus();
+    printWindow.print();
+    if (resultsCount > 0) {
+      showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+    }
+  };
 };
 
 // ----------------------------------------------------
@@ -1008,81 +1095,5 @@ tbody tr td[colspan] {
   }
 }
 
-@media print {
-  /* إخفاء العناصر غير المرغوب فيها */
-  header, footer, nav, aside, .btn-print, button, .dropdown, input, .Icon, .actions-col  {
-    display: none !important;
-  }
-  
-  /* إخفاء شريط العنوان في المتصفح */
-  
-  body {
-    background-color: white;
-    font-size: 12pt;
-    color: black;
-  }
-  
-  /* تنسيق الجدول */
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    border: 1px solid #ccc;
-    font-size: 10pt;
-  }
-  
-  th, td {
-    border: 1px solid #ccc !important;
-    padding: 8px !important;
-    text-align: right !important;
-    color: black !important;
-  }
-  
-  th {
-    background-color: #f2f2f2 !important;
-    font-weight: bold;
-    -webkit-print-color-adjust: exact;
-  }
-  
-  /* إضافة عنوان للطباعة */
-  main::before {
-    content: "قائمة المرضى";
-    display: block;
-    text-align: center;
-    font-size: 18pt;
-    font-weight: bold;
-    margin-bottom: 20px;
-    color: #2E5077;
-  }
-  
-  /* عرض عدد النتائج */
-  main::after {
-    content: attr(data-results-count);
-    display: block;
-    text-align: right;
-    margin-top: 10px;
-    font-size: 10pt;
-  }
 
-  /* إخفاء العمود الأخير (الإجراءات) */
-  .actions-col, td:last-child, th:last-child {
-      display: none !important;
-  }
-
-  /* جعل الجدول يمتد للعرض الكامل */
-  .overflow-x-auto {
-      overflow: visible !important;
-  }
-  
-  /* إزالة أي ظلال أو حدود إضافية */
-  .shadow-lg, .shadow {
-      box-shadow: none !important;
-      border: none !important;
-  }
-  
-  /* التأكد من ظهور الخلفيات */
-  * {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-  }
-}
 </style>

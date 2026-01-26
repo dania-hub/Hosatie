@@ -1035,20 +1035,18 @@ h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
     <th>رقم الشحنة</th>
     <th>تاريخ الطلب</th>
     <th>حالة الطلب</th>
-    <th class="center-icon">الإستلام</th> </tr>
+    </tr>
 </thead>
 <tbody>
 `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '' : '';
         tableHtml += `
 <tr>
     <td>${shipment.requestingDepartment || 'غير محدد'}</td>
     <td>${shipment.shipmentNumber || 'غير محدد'}</td>
     <td>${formatDate(shipment.requestDate)}</td>
     <td>${shipment.requestStatus || 'غير محدد'}</td>
-    <td class="center-icon">${receivedIcon}</td>
 </tr>
 `;
     });

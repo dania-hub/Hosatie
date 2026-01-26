@@ -878,7 +878,7 @@ watch(() => props.isOpen, (isOpen) => {
                 if (validDrugs.length > 0) {
                     dailyDosageList.value = validDrugs;
                     
-                    requestNotes.value = `توريد تلقائي للأدوية الناقصة - ${new Date().toLocaleDateString('ar-EG')}`;
+                    requestNotes.value = `توريد تلقائي للأدوية الناقصة - ${new Date().toLocaleDateString('en-GB')}`;
                     
                     const totalItems = validDrugs.length;
                     const totalQuantity = validDrugs.reduce((sum, drug) => sum + drug.quantity, 0);

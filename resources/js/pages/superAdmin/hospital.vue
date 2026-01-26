@@ -67,7 +67,7 @@ const fetchAllData = async () => {
         const [hospitalsResponse, suppliersResponse, usersResponse] = await Promise.all([
             api.get('/super-admin/hospitals'),
             api.get('/super-admin/suppliers'),
-            api.get('/super-admin/users')
+            api.get('/super-admin/users?type=hospital_admin')
         ]);
         
         // معالجة بيانات المستشفيات
@@ -105,17 +105,19 @@ const fetchAllData = async () => {
                 isActive: supplier.status === 'active' || supplier.status === true
             }));
         
-        // معالجة بيانات المدراء (جميع hospital_admin النشطين)
+        // معالجة بيانات المدراء (جميع hospital_admin)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'hospital_admin' && (user.status === 'active' || user.status === true))
+            .filter(user => user.type === 'hospital_admin') // Double check type though API filters it 
             .map(user => ({
                 ...user,
                 id: user.id,
                 name: user.fullName || user.full_name || user.name || '',
                 email: user.email || '',
                 phone: user.phone || '',
-                isActive: user.status === 'active' || user.status === true,
+                // Include pending_activation so they show up in dropdowns
+                isActive: user.status === 'active' || user.status === true || user.status === 'pending_activation',
+                status: user.status,
                 hospitalId: user.hospital?.id || user.hospital_id || null
             }));
         

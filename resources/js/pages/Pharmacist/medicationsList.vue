@@ -1118,19 +1118,19 @@ onMounted(async () => {
                                     class="table-fixed w-full text-right min-w-[1200px] border-collapse"
                                 >
                                     <thead
-                                        class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300"
+                                        class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300 text-sm"
                                     >
                                         <tr>
-                                            <th class="name-col px-4 py-3 text-sm">اسم الدواء</th>
-                                            <th class="generic-name-col px-4 py-3 text-sm">الاسم العلمي</th>
-                                            <th class="strength-col px-4 py-3 text-sm">التركيز</th>
-                                            <th class="quantity-col px-4 py-3 text-sm">الكمية المتوفرة</th>
-                                            <th class="needed-quantity-col px-4 py-3 text-sm">الكمية المحتاجة</th>
-                                            <th class="actions-col px-4 py-3 text-sm text-center">الإجراءات</th>
+                                            <th class="name-col px-4 py-3">اسم الدواء</th>
+                                            <th class="generic-name-col px-4 py-3">الاسم العلمي</th>
+                                            <th class="strength-col px-4 py-3">التركيز</th>
+                                            <th class="quantity-col px-4 py-3">الكمية المتوفرة</th>
+                                            <th class="needed-quantity-col px-4 py-3">الكمية المحتاجة</th>
+                                            <th class="actions-col px-4 py-3 text-center">الإجراءات</th>
                                         </tr>
                                     </thead>
 
-                                    <tbody class="text-gray-800">
+                                    <tbody class="text-gray-800 text-sm">
                                         <tr v-if="isLoading">
                                             <td colspan="6" class="p-4">
                                                 <TableSkeleton :rows="10" />

@@ -725,7 +725,7 @@ const printRequest = () => {
                 ` : ''}
 
                 <p style="text-align: left; color: #666; font-size: 12px; margin-top: 30px;">
-                    تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}
+                    تاريخ الطباعة: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString('en-US')}
                 </p>
             </body>
             </html>

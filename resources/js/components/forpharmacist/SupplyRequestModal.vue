@@ -629,7 +629,8 @@ const addNewDrug = () => {
         if (existingDrugIndex !== -1) {
             // إذا كان الدواء موجوداً، نحدّث الكمية بدلاً من إضافة نسخة جديدة
             const existingQuantity = dailyDosageList.value[existingDrugIndex].quantity || 0;
-            const newQuantity = dailyQuantity.value || 0;
+            const unitsPerBox = drugInfo.units_per_box || drugInfo.unitsPerBox || 1;
+            const newQuantity = Number(dailyQuantity.value) * unitsPerBox;
             dailyDosageList.value[existingDrugIndex].quantity = existingQuantity + newQuantity;
             
             emit('show-alert', ` تم تحديث كمية الدواء **${selectedDrugName.value}** في قائمة التوريد (الكمية الجديدة: ${existingQuantity + newQuantity})`);

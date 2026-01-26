@@ -315,6 +315,13 @@ class ShipmentSuperController extends BaseApiController
                     $shipment->addNote($request->input('notes'), $request->user());
                 }
 
+                // إشعار المورد بإرسال الشحنة
+                try {
+                    $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'تم الإرسال', $request->input('notes'));
+                } catch (\Exception $e) {
+                    \Log::error('Failed to notify supplier about shipment sent', ['error' => $e->getMessage()]);
+                }
+
                 DB::commit();
                 return $this->sendSuccess($shipment, 'تم تأكيد إرسال الشحنة بنجاح');
             }

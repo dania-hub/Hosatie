@@ -60,6 +60,49 @@ const editErrors = ref({
     phone: false,
 });
 
+// قائمة المدراء (يتم جلبها من API)
+const managersList = ref([]);
+const loadingManagers = ref(false);
+
+const fetchManagers = async () => {
+    loadingManagers.value = true;
+    try {
+        // جلب كل مدراء الموردين
+        const response = await api.get('/super-admin/users?type=supplier_admin');
+        if (response.data && response.data.data) {
+            const currentSupplierId = props.supplier?.id;
+            managersList.value = response.data.data
+                .filter(u => {
+                    // التحقق من الحالة
+                    if (u.status !== 'active' && u.status !== 'pending_activation') return false;
+
+                    // إذا كان المستخدم معيناً لمورد
+                    if (u.supplier) {
+                        // إظهاره فقط إذا كان معيناً لهذا المورد الحالي
+                        if (currentSupplierId) {
+                            return u.supplier.id == currentSupplierId;
+                        }
+                        // إذا لم يكن لدينا معرف مورد حالي (إنشاء جديد مثلاً)، نستبعد المعينين فعلاً
+                        return false;
+                    }
+
+                    // إذا لم يكن معيناً لأي مورد (متاح)
+                    return true;
+                })
+                .map(u => ({
+                    id: u.id,
+                    name: u.fullName || u.full_name || u.name,
+                    email: u.email,
+                    status: u.status
+                }));
+        }
+    } catch (error) {
+        console.error("Error fetching managers:", error);
+    } finally {
+        loadingManagers.value = false;
+    }
+};
+
 // حالة التحقق من رقم الهاتف
 const phoneExists = ref(false);
 const checkingPhone = ref(false);
@@ -171,6 +214,9 @@ const closeEditConfirmationModal = () => {
 // تهيئة البيانات عند فتح النافذة
 watch(() => props.isOpen, (newVal) => {
     if (newVal && props.supplier) {
+        // جلب قائمة المدراء عند فتح النافذة
+        fetchManagers();
+
         const initialData = {
             id: props.supplier.id,
             name: props.supplier.name || "",
@@ -428,19 +474,23 @@ watch(() => editForm.value.phone, (newPhone) => {
                                 class="h-10 text-right w-full rounded-xl bg-white border border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 focus:ring-2 transition-all px-4 appearance-none focus:outline-none"
                             >
                                 <option value="">بدون مسؤول</option>
-                                <option v-for="manager in props.availableManagers" 
+                                <option v-for="manager in managersList" 
                                         :key="manager.id" 
                                         :value="manager.id">
                                     {{ manager.name }}
                                 </option>
                             </select>
-                            <Icon icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon v-if="!loadingManagers" icon="solar:alt-arrow-down-bold" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+                            <Icon v-else icon="svg-spinners:ring-resize" class="w-5 h-5 text-[#4DA1A9] absolute left-3 top-2.5 pointer-events-none" />
                         </div>
                         <p v-if="editForm.managerId" class="text-xs text-gray-500 mt-1">
                             المسؤول المختار: 
                             <span class="font-semibold text-[#4DA1A9]">
-                                {{ props.availableManagers.find(m => m.id === editForm.managerId)?.name }}
+                                {{ managersList.find(m => m.id === editForm.managerId)?.name }}
                             </span>
+                        </p>
+                        <p v-if="!editForm.managerId" class="text-xs text-gray-400 mt-1">
+                            يمكنك تعيين مسؤول مورد من قائمة المسؤولين المتاحين.
                         </p>
                     </div>
 

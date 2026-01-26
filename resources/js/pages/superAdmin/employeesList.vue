@@ -336,7 +336,7 @@ const confirmStatusToggle = async () => {
         }
 
         showSuccessAlert(
-            `✅ تم ${statusAction.value} حساب المدير ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
+            ` تم ${statusAction.value} حساب المدير ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
         );
         closeStatusConfirmationModal();
         // إعادة جلب البيانات للتأكد من التحديث
@@ -353,8 +353,16 @@ const confirmStatusToggle = async () => {
 // 8. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const showDateFilter = ref(false);
 const sortKey = ref("lastUpdated");
 const sortOrder = ref("desc");
+
+const clearDateFilter = () => {
+    dateFrom.value = "";
+    dateTo.value = "";
+};
 
 const calculateAge = (birthDateString) => {
     if (!birthDateString) return 0;
@@ -389,6 +397,33 @@ const filteredEmployees = computed(() => {
     // فلتر حسب الدور الوظيفي
     if (roleFilter.value !== "all") {
         list = list.filter((employee) => employee.type === roleFilter.value);
+    }
+
+    // فلتر حسب التاريخ
+    if (dateFrom.value || dateTo.value) {
+        list = list.filter((employee) => {
+            const dateStr = employee.lastUpdated;
+            if (!dateStr) return false;
+            const empDate = new Date(dateStr);
+            empDate.setHours(0, 0, 0, 0);
+
+            let matchesFrom = true;
+            let matchesTo = true;
+
+            if (dateFrom.value) {
+                const fromDate = new Date(dateFrom.value);
+                fromDate.setHours(0, 0, 0, 0);
+                matchesFrom = empDate >= fromDate;
+            }
+
+            if (dateTo.value) {
+                const toDate = new Date(dateTo.value);
+                toDate.setHours(0, 0, 0, 0);
+                matchesTo = empDate <= toDate;
+            }
+
+            return matchesFrom && matchesTo;
+        });
     }
 
     // فلتر حسب البحث
@@ -855,6 +890,60 @@ const printTable = () => {
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <search v-model="searchTerm" />
+
+                        <button
+                            @click="showDateFilter = !showDateFilter"
+                            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+                        >
+                            <Icon icon="solar:calendar-bold" class="w-5 h-5" />
+                        </button>
+
+                        <Transition
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="opacity-0 scale-95"
+                            enter-to-class="opacity-100 scale-100"
+                            leave-active-class="transition duration-150 ease-in"
+                            leave-from-class="opacity-100 scale-100"
+                            leave-to-class="opacity-0 scale-95"
+                        >
+                            <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateFrom"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="من تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <span class="text-gray-600 font-medium">إلى</span>
+                                <div class="relative">
+                                    <input
+                                        type="date"
+                                        v-model="dateTo"
+                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+                                        placeholder="إلى تاريخ"
+                                    />
+                                    <Icon
+                                        icon="solar:calendar-linear"
+                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                                    />
+                                </div>
+                                <button
+                                    v-if="dateFrom || dateTo"
+                                    @click="clearDateFilter"
+                                    class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    title="مسح فلتر التاريخ"
+                                >
+                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                    مسح
+                                </button>
+                            </div>
+                        </Transition>
 
                         <!-- فلتر حالة الحساب -->
                         <div class="flex items-center gap-2">

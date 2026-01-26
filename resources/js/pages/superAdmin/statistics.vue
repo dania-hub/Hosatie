@@ -162,239 +162,158 @@ onMounted(() => {
         </div>
 
         <!-- الإحصائيات -->
-        <div v-else class="space-y-8">
-            <!-- قسم: المؤسسات الصحية -->
-            <div>
-                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:buildings-2-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    المؤسسات الصحية
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:buildings-2-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+        <div v-else class="space-y-8 animate-fade-in-up">
+            <!-- شبكة البطاقات المحسنة -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                
+                <!-- إحصائيات المؤسسات -->
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+                    <div class="h-2 bg-[#2E5077]"></div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-gray-500 text-sm font-medium mb-1">المؤسسات الصحية</h3>
+                                <p class="text-3xl font-bold text-[#2E5077]">{{ stats.hospitals.total }}</p>
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي المؤسسات</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.hospitals.total }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl group-hover:bg-[#2E5077]/20 transition-colors">
+                                <Icon icon="solar:buildings-2-bold-duotone" class="w-8 h-8 text-[#2E5077]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">المؤسسات النشطة</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.hospitals.active }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:close-circle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">المؤسسات غير النشطة</p>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="flex items-center gap-1 text-emerald-600 font-medium">
+                                <Icon icon="solar:check-circle-bold" class="w-4 h-4" />
+                                {{ stats.hospitals.active }} نشطة
+                            </span>
+                             <span class="flex items-center gap-1 text-red-500 font-medium">
+                                <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
+                                {{ stats.hospitals.inactive }} غير نشطة
+                            </span>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.hospitals.inactive }}</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- قسم: المستخدمين -->
-            <div>
-                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:users-group-rounded-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    المستخدمين
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:users-group-rounded-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                <!-- إحصائيات المستخدمين -->
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+                    <div class="h-2 bg-[#4DA1A9]"></div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-gray-500 text-sm font-medium mb-1">المستخدمين</h3>
+                                <p class="text-3xl font-bold text-[#2E5077]">{{ stats.users.total }}</p>
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي المستخدمين</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.users.total }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:user-check-rounded-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl group-hover:bg-[#4DA1A9]/20 transition-colors">
+                                <Icon icon="solar:users-group-rounded-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">المستخدمين النشطين</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.users.active }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:user-block-rounded-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">المستخدمين غير النشطين</p>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="flex items-center gap-1 text-emerald-600 font-medium">
+                                <Icon icon="solar:user-check-bold" class="w-4 h-4" />
+                                {{ stats.users.active }} نشط
+                            </span>
+                             <span class="flex items-center gap-1 text-red-500 font-medium">
+                                <Icon icon="solar:user-block-bold" class="w-4 h-4" />
+                                {{ stats.users.inactive }} محظور
+                            </span>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.users.inactive }}</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- قسم: المرضى -->
-            <div>
-                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:user-heart-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    المرضى
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:user-heart-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                 <!-- إحصائيات المرضى -->
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+                    <div class="h-2 bg-[#79D7BE]"></div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-gray-500 text-sm font-medium mb-1">المرضى</h3>
+                                <p class="text-3xl font-bold text-[#2E5077]">{{ stats.patients.total }}</p>
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي المرضى</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.patients.total }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:user-check-rounded-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl group-hover:bg-[#79D7BE]/20 transition-colors">
+                                <Icon icon="solar:user-heart-bold-duotone" class="w-8 h-8 text-[#79D7BE]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">المرضى النشطين</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.patients.active }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:calendar-mark-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">مرضى جدد هذا الشهر</p>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="flex items-center gap-1 text-[#2E5077] font-medium">
+                                <Icon icon="solar:calendar-add-bold" class="w-4 h-4" />
+                                +{{ stats.patients.newThisMonth }} جديد هذا الشهر
+                            </span>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.patients.newThisMonth }}</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- قسم: الأدوية -->
-            <div>
-                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:pill-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    الأدوية
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:pill-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                <!-- إحصائيات الأدوية -->
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+                    <div class="h-2 bg-[#F6C445]"></div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-gray-500 text-sm font-medium mb-1">الأدوية</h3>
+                                <p class="text-3xl font-bold text-[#2E5077]">{{ stats.drugs.total }}</p>
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الأدوية</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.drugs.total }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            <div class="p-3 bg-[#F6C445]/10 rounded-xl group-hover:bg-[#F6C445]/20 transition-colors">
+                                <Icon icon="solar:pill-bold-duotone" class="w-8 h-8 text-[#F6C445]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">الأدوية المتوفرة</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.drugs.available }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:danger-triangle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">أدوية منخفضة المخزون</p>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="flex items-center gap-1 text-emerald-600 font-medium">
+                                <Icon icon="solar:box-bold" class="w-4 h-4" />
+                                {{ stats.drugs.available }} متوفر
+                            </span>
+                             <span v-if="stats.drugs.lowStock > 0" class="flex items-center gap-1 text-red-500 font-medium">
+                                <Icon icon="solar:danger-triangle-bold" class="w-4 h-4" />
+                                {{ stats.drugs.lowStock }} منخفض
+                            </span>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.drugs.lowStock }}</p>
                     </div>
                 </div>
-            </div>
-
-            <!-- قسم: الوصفات -->
-            <div>
-                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:document-text-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    الوصفات
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:document-text-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                
+                 <!-- إحصائيات الوصفات -->
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+                    <div class="h-2 bg-[#6A9C89]"></div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-gray-500 text-sm font-medium mb-1">الوصفات الطبية</h3>
+                                <p class="text-3xl font-bold text-[#2E5077]">{{ stats.prescriptions.total }}</p>
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الوصفات</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.prescriptions.total }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            <div class="p-3 bg-[#6A9C89]/10 rounded-xl group-hover:bg-[#6A9C89]/20 transition-colors">
+                                <Icon icon="solar:document-text-bold-duotone" class="w-8 h-8 text-[#6A9C89]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">الوصفات النشطة</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.prescriptions.active }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:calendar-mark-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">وصفات هذا الشهر</p>
+                         <div class="flex items-center gap-4 text-sm">
+                            <span class="flex items-center gap-1 text-[#2E5077] font-medium">
+                                <Icon icon="solar:calendar-mark-bold" class="w-4 h-4" />
+                                {{ stats.prescriptions.thisMonth }} هذا الشهر
+                            </span>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.prescriptions.thisMonth }}</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- قسم: الشكاوى -->
-            <div>
-                <h2 class="text-2xl font-bold text-[#2E5077] mb-6 text-right flex items-center gap-3">
-                    <Icon icon="solar:chat-round-call-bold-duotone" class="w-8 h-8 text-[#4DA1A9]" />
-                    الشكاوى
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
-                                <Icon icon="solar:chat-round-call-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                 <!-- إحصائيات الشكاوى -->
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+                    <div class="h-2 bg-[#E76F51]"></div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-gray-500 text-sm font-medium mb-1">الشكاوى</h3>
+                                <p class="text-3xl font-bold text-[#2E5077]">{{ stats.complaints.total }}</p>
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">إجمالي الشكاوى</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.complaints.total }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:clock-circle-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
+                            <div class="p-3 bg-[#E76F51]/10 rounded-xl group-hover:bg-[#E76F51]/20 transition-colors">
+                                <Icon icon="solar:chat-round-call-bold-duotone" class="w-8 h-8 text-[#E76F51]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">شكاوى قيد المراجعة</p>
                         </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.complaints.pending }}</p>
-                    </div>
-
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
-                                <Icon icon="solar:calendar-mark-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">شكاوى هذا الشهر</p>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span v-if="stats.complaints.pending > 0" class="flex items-center gap-1 text-[#E76F51] font-medium">
+                                <Icon icon="solar:clock-circle-bold" class="w-4 h-4" />
+                                {{ stats.complaints.pending }} قيد المراجعة
+                            </span>
+                            <span v-else class="flex items-center gap-1 text-emerald-600 font-medium">
+                                <Icon icon="solar:check-circle-bold" class="w-4 h-4" />
+                                الكل مكتمل
+                            </span>
                         </div>
-                        <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.complaints.thisMonth }}</p>
                     </div>
                 </div>
+
             </div>
         </div>
     </main>
@@ -402,50 +321,24 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* تحسينات إضافية للبطاقات */
-.card {
-    backdrop-filter: blur(10px);
-    direction: rtl;
-    text-align: right;
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.card:hover {
-    transform: translateY(-4px);
+.animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out forwards;
 }
 
-/* تحسين الخطوط */
-.number {
+/* تحسين الخطوط للأرقام */
+.text-3xl {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     letter-spacing: -0.02em;
-    text-align: right !important;
-    direction: rtl;
-    display: block;
-    width: 100%;
-}
-
-/* تحسين المسافات */
-.content {
-    min-height: 60px;
-    direction: rtl;
-    text-align: right;
-}
-
-.content p {
-    text-align: right !important;
-}
-
-/* تحسين الظلال */
-.shadow-lg {
-    box-shadow: 0 10px 25px -5px rgba(46, 80, 119, 0.1), 0 10px 10px -5px rgba(46, 80, 119, 0.04);
-}
-
-.hover\:shadow-xl:hover {
-    box-shadow: 0 20px 25px -5px rgba(46, 80, 119, 0.15), 0 10px 10px -5px rgba(46, 80, 119, 0.08);
-}
-
-/* ضمان محاذاة جميع النصوص لليمين */
-.card * {
-    text-align: right !important;
-    direction: rtl;
 }
 </style>

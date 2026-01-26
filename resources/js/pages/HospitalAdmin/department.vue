@@ -605,9 +605,7 @@ const printTable = () => {
                     <th>رقم القسم</th>
                     <th>اسم القسم</th>
                     <th>مدير القسم</th>
-                    <th>الوصف</th>
                     <th>حالة القسم</th>
-                    <th>تاريخ التحديث</th>
                 </tr>
             </thead>
             <tbody>
@@ -619,11 +617,9 @@ const printTable = () => {
                 <td>${department.id || ''}</td>
                 <td>${department.name || ''}</td>
                 <td>${department.managerName || 'لا يوجد'}</td>
-                <td>${department.description || '-'}</td>
                 <td class="${department.isActive ? "status-active" : "status-inactive"}">
                     ${department.isActive ? "مفعل" : "معطل"}
                 </td>
-                <td>${new Date(department.lastUpdated).toLocaleDateString('ar-SA')}</td>
             </tr>
         `;
     });

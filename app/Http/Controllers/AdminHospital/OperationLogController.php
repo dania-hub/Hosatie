@@ -466,36 +466,43 @@ class OperationLogController extends BaseApiController
         $quantity = null;
 
         try {
-            // محاولة جلب معلومات الدواء من السجل
-            $prescriptionDrug = PrescriptionDrug::with('drug')->find($log->record_id);
+            // جلب البيانات من JSON أولاً لضمان دقة التاريخ (Snapshot)
+            $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
             
-            if ($prescriptionDrug && $prescriptionDrug->drug) {
-                $drugName = $prescriptionDrug->drug->name;
-                $quantity = $prescriptionDrug->monthly_quantity;
-            } else {
-                // في حالة الحذف أو عدم وجود السجل، محاولة جلب المعلومات من JSON
-                $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
-                $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
-                
-                // محاولة من new_values أولاً
-                if ($newValues && isset($newValues['drug_id'])) {
-                    $drug = Drug::find($newValues['drug_id']);
-                    if ($drug) {
-                        $drugName = $drug->name;
-                    }
+            // 1. تحديد الكمية: إذا كانت "صرف دواء"، نستخدم dispensed_quantity إذا توفرت
+            if ($translatedAction === 'صرف دواء' && $newValues && isset($newValues['dispensed_quantity'])) {
+                $quantity = $newValues['dispensed_quantity'];
+            }
+            
+            // 2. محاولة جلب اسم الدواء والكمية من JSON
+            if ($newValues && isset($newValues['drug_id'])) {
+                $drug = Drug::find($newValues['drug_id']);
+                if ($drug) {
+                    $drugName = $drug->name;
+                }
+                if ($quantity === null) {
                     $quantity = $newValues['monthly_quantity'] ?? null;
-                } 
-                // محاولة من old_values إذا لم نجد في new_values
-                elseif ($oldValues && isset($oldValues['drug_id'])) {
-                    $drug = Drug::find($oldValues['drug_id']);
-                    if ($drug) {
-                        $drugName = $drug->name;
-                    }
+                }
+            } elseif ($oldValues && isset($oldValues['drug_id'])) {
+                $drug = Drug::find($oldValues['drug_id']);
+                if ($drug) {
+                    $drugName = $drug->name;
+                }
+                if ($quantity === null) {
                     $quantity = $oldValues['monthly_quantity'] ?? null;
                 }
             }
+            
+            // 3. إذا لم نجد في JSON، نحاول جلب المعلومات الحالية من قاعدة البيانات (كخيار أخير)
+            if (!$drugName || $quantity === null) {
+                $prescriptionDrug = PrescriptionDrug::with('drug')->find($log->record_id);
+                if ($prescriptionDrug && $prescriptionDrug->drug) {
+                    if (!$drugName) $drugName = $prescriptionDrug->drug->name;
+                    if ($quantity === null) $quantity = $prescriptionDrug->monthly_quantity;
+                }
+            }
         } catch (\Exception $e) {
-            // في حالة الخطأ، نستمر بدون تفاصيل الدواء
             \Log::warning('Failed to get drug details for audit log', [
                 'log_id' => $log->id,
                 'error' => $e->getMessage()

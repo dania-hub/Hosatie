@@ -49,9 +49,8 @@ class InventoryObserver
         }
 
         // Only toggle between Available/Unavailable if drug is not in a protected state
-        // متوفر إذا كان موجود في أي صيدلية وكميتها > 0
+        // متوفر إذا كان موجود في أي مكان (مستودع، صيدلية، أو مورد) وكميتها > 0
         $isAvailable = Inventory::where('drug_id', $drug->id)
-            ->whereNotNull('pharmacy_id')
             ->where('current_quantity', '>', 0)
             ->exists();
 

@@ -522,72 +522,235 @@ const handleSupplyConfirm = async (requestData) => {
 const printTable = () => {
   const resultsCount = filteredDrugss.value.length;
 
-  const printWindow = window.open("", "_blank", "height=600,width=800");
+  const printWindow = window.open("", "_blank", "height=800,width=1000");
 
   if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
     showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
     return;
   }
 
-  let tableHtml = `
-<style>
-body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
-th { background-color: #f2f2f2; font-weight: bold; }
-h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
-.results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
-.no-data { text-align: center; padding: 40px; color: #666; font-style: italic; }
-</style>
+  const currentDate = new Date().toLocaleDateString('ar-EG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    numberingSystem: 'latn'
+  });
 
-<h1>قائمة الأدوية </h1>
-`;
+  let tableHtml = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @media print {
+            @page { margin: 1cm; }
+            body { -webkit-print-color-adjust: exact; }
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            direction: rtl; 
+            padding: 20px; 
+            background-color: #fff;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #2E5077;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .header h1 { 
+            margin: 0; 
+            color: #2E5077; 
+            font-size: 24px;
+            letter-spacing: -0.5px;
+        }
+        
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 5px;
+        }
+        
+        th { 
+            background-color: #2E5077; 
+            color: white;
+            font-weight: 600;
+            padding: 12px 10px;
+            text-align: right;
+            font-size: 13px;
+            border: 1px solid #2E5077;
+        }
+        
+        td { 
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            vertical-align: top;
+            font-size: 12px;
+        }
+        
+        .drug-title {
+            font-weight: bold;
+            color: #1a202c;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .drug-subtitle {
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+        
+        .batch-table {
+            width: 100%;
+            font-size: 11px;
+            border: none !important;
+            background-color: #f1f5f9;
+            border-radius: 4px;
+        }
+        
+        .batch-table td {
+            border: none;
+            padding: 4px 8px;
+            color: #475569;
+        }
+        
+        .batch-table tr:not(:last-child) {
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .status-reg { background-color: #dcfce7; color: #166534; }
+        .status-unreg { background-color: #dbeafe; color: #1e40af; }
+        
+        .footer {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-around;
+        }
+        
+        .sig-box {
+            text-align: center;
+            width: 200px;
+        }
+        
+        .sig-line {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>تقرير مخزون المستودع الرئيسي</h1>
+        <div class="meta-info">
+            <span>التاريخ: ${currentDate}</span>
+            <span>عدد الأصناف: ${resultsCount}</span>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 35%;">معلومات الدواء والشحنات</th>
+                <th style="width: 20%;">التفاصيل العلمية</th>
+                <th style="width: 15%;">الكمية الحالية</th>
+                <th style="width: 15%;">الكمية المحتاجة</th>
+                <th style="width: 15%;">الحالة</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
 
   if (resultsCount > 0) {
-    tableHtml += `
-<p class="results-info">عدد النتائج : ${resultsCount}</p>
-
-<table>
-<thead>
- <tr>
- <th>اسم الدواء</th>
- <th>الاسم العلمي</th>
- <th>التركيز</th>
- <th>الكمية المتوفرة</th>
- <th>الكمية المحتاجة</th>
- </tr>
-</thead>
-<tbody>
-`;
-
     filteredDrugss.value.forEach((drug) => {
-      tableHtml += `
-<tr>
- <td>${drug.drugName || drug.name || ''}</td>
- <td>${drug.genericName || 'غير محدد'}</td>
- <td>${drug.strength || 'غير محدد'}</td>
- <td>${getQuantityDisplay(drug)}</td>
- <td>${getNeededQuantityDisplay(drug)}</td>
-</tr>
-`;
-    });
+      const isUnreg = !!drug.isUnregistered;
+      
+      let batchRows = '';
+      if (!isUnreg && drug.batches && drug.batches.length > 0) {
+        batchRows = `
+            <table class="batch-table">
+                ${drug.batches.map(batch => `
+                    <tr>
+                        <td style="width: 35%">شحنة: <b>${batch.batchNumber || '---'}</b></td>
+                        <td style="width: 35%">انتهاء: <b>${batch.expiryDate || '---'}</b></td>
+                        <td style="width: 30%; text-align: left;">الكمية: <b>${getBatchQuantityDisplay(batch, drug).replace(/<br>/g, ' ')}</b></td>
+                    </tr>
+                `).join('')}
+            </table>
+        `;
+      }
 
-    tableHtml += `
-</tbody>
-</table>
-`;
+      tableHtml += `
+        <tr>
+            <td>
+                <div class="drug-title">${drug.drugName || drug.name || '---'}</div>
+                <div class="drug-subtitle">الفئة: ${drug.category || '---'}</div>
+                ${batchRows}
+            </td>
+            <td>
+                <div><b>الاسم العلمي:</b> ${drug.genericName || '---'}</div>
+                <div style="margin-top: 5px;"><b>التركيز:</b> ${drug.strength || '---'}</div>
+            </td>
+            <td style="text-align: center; font-weight: bold; font-size: 14px;">
+                ${getQuantityDisplay(drug).replace(/<br>/g, ' ')}
+            </td>
+            <td style="text-align: center; color: #64748b;">
+                ${getNeededQuantityDisplay(drug).replace(/<br>/g, ' ')}
+            </td>
+            <td style="text-align: center;">
+                <span class="status-tag ${isUnreg ? 'status-unreg' : 'status-reg'}">
+                    ${isUnreg ? 'غير مسجل' : 'مسجل'}
+                </span>
+            </td>
+        </tr>
+      `;
+    });
   } else {
-    tableHtml += `
-<div class="no-data">
-  <p>لا توجد أدوية في المخزون حالياً</p>
-</div>
-`;
+    tableHtml += '<tr><td colspan="5" style="text-align: center; padding: 30px;">لا توجد بيانات متاحة</td></tr>';
   }
 
-  printWindow.document.write("<html><head><title>طباعة قائمة الأدوية</title>");
-  printWindow.document.write("</head><body>");
+  tableHtml += `
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <div class="sig-box">
+            <div class="sig-line">توقيع أمين المخزن المسئول</div>
+        </div>
+        <div class="sig-box">
+            <div class="sig-line">اعتماد مدير المستشفى</div>
+        </div>
+    </div>
+</body>
+</html>
+`;
+
   printWindow.document.write(tableHtml);
-  printWindow.document.write("</body></html>");
   printWindow.document.close();
 
   printWindow.onload = () => {

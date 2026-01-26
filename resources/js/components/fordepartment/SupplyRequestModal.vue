@@ -594,21 +594,37 @@ const addNewDrug = () => {
             return;
         }
         
-        const unitsPerBox = drugInfo.units_per_box || drugInfo.unitsPerBox || 1;
-        const totalQuantity = Number(dailyQuantity.value) * unitsPerBox;
+        // التحقق من وجود الدواء في القائمة مسبقاً
+        const existingDrugIndex = dailyDosageList.value.findIndex(item => 
+            item.drugId === drugInfo.id || item.id === drugInfo.id
+        );
+        
+        if (existingDrugIndex !== -1) {
+            // إذا كان الدواء موجوداً، نحدّث الكمية بدلاً من إضافة نسخة جديدة
+            const existingQuantity = dailyDosageList.value[existingDrugIndex].quantity || 0;
+            const unitsPerBox = drugInfo.units_per_box || drugInfo.unitsPerBox || 1;
+            const newQuantity = Number(dailyQuantity.value) * unitsPerBox;
+            dailyDosageList.value[existingDrugIndex].quantity = existingQuantity + newQuantity;
+            
+            emit('show-alert', `✅ تم تحديث كمية الدواء **${selectedDrugName.value}** في قائمة التوريد (الكمية الجديدة: ${existingQuantity + newQuantity} ${drugInfo.unit || 'قرص'})`);
+        } else {
+            const unitsPerBox = drugInfo.units_per_box || drugInfo.unitsPerBox || 1;
+            const totalQuantity = Number(dailyQuantity.value) * unitsPerBox;
 
-        dailyDosageList.value.push({
-            drugId: drugInfo.id,
-            id: drugInfo.id,
-            name: selectedDrugName.value,
-            quantity: totalQuantity,
-            unit: drugInfo.unit || quantityUnit.value,
-            type: selectedDrugType.value,
-            strength: drugInfo.strength || drugInfo.dosage || null,
-            units_per_box: unitsPerBox
-        });
+            // إذا لم يكن موجوداً، نضيفه كعنصر جديد
+            dailyDosageList.value.push({
+                drugId: drugInfo.id,
+                id: drugInfo.id,
+                name: selectedDrugName.value,
+                quantity: totalQuantity,
+                unit: drugInfo.unit || quantityUnit.value,
+                type: selectedDrugType.value,
+                strength: drugInfo.strength || drugInfo.dosage || null,
+                units_per_box: unitsPerBox
+            });
 
-        emit('show-alert', `✅ تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
+            emit('show-alert', `✅ تم إضافة الدواء **${selectedDrugName.value}** إلى قائمة التوريد`);
+        }
 
         searchTermDrug.value = "";
         selectedCategory.value = "";

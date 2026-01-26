@@ -150,15 +150,25 @@ class PatientPharmacistController extends BaseApiController
                     $daysSinceLastUpdate = Carbon::now()->diffInDays($pivot->updated_at);
                     
                     if ($daysSinceLastUpdate >= 30) {
-                        // إذا مر شهر، نضيف الكمية الشهرية المستحقة
-                        $currentMonthlyQty += $expectedMonthlyQty;
-                        $pivot->monthly_quantity = $currentMonthlyQty;
-                        // حفظ التحديث سيؤدي تلقائياً لتحديث updated_at لتاريخ اليوم
-                        $pivot->save();
-                        \Log::info("30-day cycle refill triggered for drug {$drug->id}.", [
-                            'patient_id' => $patient->id,
-                            'days_passed' => $daysSinceLastUpdate
-                        ]);
+                        try {
+                            // تعطيل التسجيل التلقائي لأن هذا تحديث آلي من النظام
+                            PrescriptionDrugObserver::$skipLogging = true;
+                            
+                            // بدلاً من الإضافة المتكررة التي قد تسبب تضاعفاً غير مقصود
+                            // نقوم بتصفير الرصيد وإعادته للقيمة الكاملة (التجديد الشهري)
+                            // أو إذا أردت استمرار الجمع، نجمع فقط ما ينقصه عن الحصة الأساسية
+                            $pivot->monthly_quantity = $expectedMonthlyQty;
+                            $pivot->save();
+                            
+                            $currentMonthlyQty = $expectedMonthlyQty;
+                            
+                            \Log::info("30-day cycle refill triggered for drug {$drug->id}.", [
+                                'patient_id' => $patient->id,
+                                'days_passed' => $daysSinceLastUpdate
+                            ]);
+                        } finally {
+                            PrescriptionDrugObserver::$skipLogging = false;
+                        }
                     }
                 }
 
@@ -389,6 +399,7 @@ class PatientPharmacistController extends BaseApiController
 
         // ✅ تعطيل إشعارات PrescriptionDrugObserver مؤقتاً
         PrescriptionDrugObserver::$skipNotification = true;
+        PrescriptionDrugObserver::$skipLogging = true;
 
         DB::beginTransaction();
         try {
@@ -517,6 +528,27 @@ class PatientPharmacistController extends BaseApiController
                 // و. الخصم من monthly_quantity في جدول prescription_drugs 
                 $prescriptionDrug->monthly_quantity = max(0, $prescriptionDrug->monthly_quantity - $item['quantity']);
                 $prescriptionDrug->save();
+
+                // تسجيل عملية الصرف يدوياً لأننا عطلنا الـ Observer لتجنب التكرار في حالة التراجع
+                try {
+                    AuditLog::create([
+                        'user_id' => $pharmacist->id,
+                        'hospital_id' => $hospitalId,
+                        'action' => 'صرف دواء',
+                        'table_name' => 'prescription_drugs',
+                        'record_id' => $prescriptionDrug->id,
+                        'new_values' => json_encode(array_merge($prescriptionDrug->toArray(), [
+                            'patient_info' => [
+                                'id' => $patient->id,
+                                'full_name' => $patient->full_name,
+                            ],
+                            'dispensed_quantity' => $item['quantity']
+                        ])),
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to log drug dispensing', ['error' => $e->getMessage()]);
+                }
                 
                 // إضافة معلومات الوصفة لآخر تغيير مخزون (كافي للتراجع عن خصم الوصفة)
                 if (count($inventoryChanges) > 0) {
@@ -552,18 +584,20 @@ class PatientPharmacistController extends BaseApiController
                     'is_new' => true,
                 ];
 
-                // ز. إرسال إشعار للمريض
-                try {
-                    $this->patientNotifications->notifyDrugDispensed($patient, $drug, (int)$item['quantity']);
-                } catch (\Exception $e) {
-                    \Log::error('Patient notification failed for drug ' . ($drug->name ?? 'unknown'), ['error' => $e->getMessage()]);
-                }
-
                 // ح. التحقق من أرشفة الدواء (خاص بسياسة الإيقاف التدريجي)
                 try {
                     $drug->checkAndArchiveIfNoStock($hospitalId);
                 } catch (\Exception $e) {
                     \Log::error('Auto-archiving check failed in PatientPharmacistController', ['error' => $e->getMessage()]);
+                }
+            }
+
+            // إرسال إشعار ملخص للمريض بجميع الأدوية المصروفة
+            if ($patient && count($dispensationsCreated) > 0) {
+                try {
+                    $this->patientNotifications->notifyTransactionDispensed($patient, $dispensationsCreated);
+                } catch (\Exception $e) {
+                    \Log::error('Patient summary notification failed', ['error' => $e->getMessage()]);
                 }
             }
 
@@ -579,6 +613,7 @@ class PatientPharmacistController extends BaseApiController
         } finally {
             // ✅ تأكد من إرجاع حالة الإشعارات دوماً
             PrescriptionDrugObserver::$skipNotification = false;
+            PrescriptionDrugObserver::$skipLogging = false;
         }
     }
 
@@ -606,6 +641,7 @@ class PatientPharmacistController extends BaseApiController
 
         // ✅ تعطيل إشعارات PrescriptionDrugObserver مؤقتاً لتجنب تسجيل عملية إضافية
         PrescriptionDrugObserver::$skipNotification = true;
+        PrescriptionDrugObserver::$skipLogging = true;
 
         DB::beginTransaction();
         try {
@@ -688,6 +724,18 @@ class PatientPharmacistController extends BaseApiController
                 }
             }
 
+            // إرسال إشعار ملخص للمريض بالتراجع عن عملية الصرف
+            if ($patientId && count($drugsInfo) > 0) {
+                $patient = User::find($patientId);
+                if ($patient) {
+                    try {
+                        $this->patientNotifications->notifyTransactionReverted($patient, $drugsInfo);
+                    } catch (\Exception $e) {
+                        Log::error('Failed to notify patient about dispense revert summary: ' . $e->getMessage());
+                    }
+                }
+            }
+
             // 3. تسجيل عملية التراجع في AuditLog
             if ($patientId && count($drugsInfo) > 0) {
                 $patient = User::find($patientId);
@@ -724,6 +772,7 @@ class PatientPharmacistController extends BaseApiController
         } finally {
             // ✅ تأكد من إرجاع حالة الإشعارات دوماً
             PrescriptionDrugObserver::$skipNotification = false;
+            PrescriptionDrugObserver::$skipLogging = false;
         }
     }
 

@@ -15,6 +15,7 @@ class PrescriptionDrugObserver
      * يقوم Controller بتعيينه مؤقتاً أثناء إرسال الإشعار
      */
     public static $skipNotification = false;
+    public static $skipLogging = false;
 
     /**
      * Handle the PrescriptionDrug "creating" event.
@@ -34,7 +35,9 @@ class PrescriptionDrugObserver
     public function created(PrescriptionDrug $prescriptionDrug)
     {
         Log::info('Observer Created Triggered', ['id' => $prescriptionDrug->id]);
-        $this->logAction('إضافة دواء', $prescriptionDrug);
+        if (!self::$skipLogging) {
+            $this->logAction('إضافة دواء', $prescriptionDrug);
+        }
 
         // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر
         if (self::$skipNotification) {
@@ -54,7 +57,9 @@ class PrescriptionDrugObserver
     public function updated(PrescriptionDrug $prescriptionDrug)
     {
         Log::info('Observer Updated Triggered', ['id' => $prescriptionDrug->id]);
-        $this->logAction('تعديل دواء', $prescriptionDrug, $prescriptionDrug->getOriginal());
+        if (!self::$skipLogging) {
+            $this->logAction('تعديل دواء', $prescriptionDrug, $prescriptionDrug->getOriginal());
+        }
 
         // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر
         if (self::$skipNotification) {
@@ -90,7 +95,9 @@ class PrescriptionDrugObserver
             }
         }
         
-        $this->logAction('حذف دواء', $prescriptionDrug, null, $patientInfo);
+        if (!self::$skipLogging) {
+            $this->logAction('حذف دواء', $prescriptionDrug, null, $patientInfo);
+        }
 
         // ✅ التحقق من حالة skipNotification لتجنب الإشعار المكرر
         if (self::$skipNotification) {
@@ -123,6 +130,7 @@ class PrescriptionDrugObserver
         if ($user && $user->type === 'pharmacist' && $action === 'تعديل دواء') {
             $action = 'صرف دواء';
         }
+        
         // 3. If User ID found, Create Log
         if ($userId) {
             // إضافة معلومات المريض إلى new_values لتسهيل العرض لاحقاً
@@ -147,6 +155,21 @@ class PrescriptionDrugObserver
             try {
                 $recordArray = $record->toArray();
                 $newValuesArray = array_merge($recordArray, $newValuesArray);
+                
+                // حساب الكمية المصروفة بدقة
+                if ($action === 'صرف دواء' && $oldValues && isset($oldValues['monthly_quantity'])) {
+                    $oldQty = (int)$oldValues['monthly_quantity'];
+                    $newQty = (int)($recordArray['monthly_quantity'] ?? 0);
+                    
+                    // الصرف يعني بالضرورة نقص الكمية
+                    if ($newQty < $oldQty) {
+                        $newValuesArray['dispensed_quantity'] = $oldQty - $newQty;
+                    } else {
+                        // إذا زادت الكمية أو لم تتغير، فهي عملية تعديل وليست صرف
+                        $action = 'تعديل دواء';
+                        $newValuesArray['dispensed_quantity'] = 0;
+                    }
+                }
             } catch (\Exception $e) {
                 // في حالة الحذف، قد لا تكون البيانات متاحة
                 Log::info('Could not get record array, using patient info only', ['error' => $e->getMessage()]);
@@ -154,6 +177,7 @@ class PrescriptionDrugObserver
             
             AuditLog::create([
                 'user_id'    => $userId,
+                'hospital_id' => $user->hospital_id ?? null,
                 'action'     => $action,
                 'table_name' => 'prescription_drugs',
                 'record_id'  => $record->id,

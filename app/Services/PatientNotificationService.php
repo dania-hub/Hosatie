@@ -141,6 +141,53 @@ class PatientNotificationService
     }
 
     /**
+     * إرسال إشعار ملخص لمجموعة من الأدوية المصروفة.
+     */
+    public function notifyTransactionDispensed(User $patient, array $drugsInfo): Notification
+    {
+        $title = "صرف أدوية";
+        
+        if (count($drugsInfo) === 1) {
+            $item = $drugsInfo[0];
+            $message = "تم صرف كمية ({$item['quantity']}) من دواء ({$item['drug_name']}) لك من صيدلية المستشفى.";
+        } else {
+            $drugNames = collect($drugsInfo)->pluck('drug_name')->implode('، ');
+            $message = "تم صرف مجموعة من الأدوية ({$drugNames}) لك من صيدلية المستشفى.";
+        }
+        
+        return $this->createNotification($patient, 'عادي', $title, $message);
+    }
+
+    /**
+     * إرسال إشعار للمريض عند التراجع عن صرف دواء.
+     */
+    public function notifyDispenseReverted(User $patient, Drug $drug, int $quantity): Notification
+    {
+        $title = "تنبيه: التراجع عن صرف دواء";
+        $message = "تم التراجع عن صرف دواء ({$drug->name}) بكمية ({$quantity})، حيث تم صرفه عن طريق الخطأ.";
+        
+        return $this->createNotification($patient, 'عادي', $title, $message);
+    }
+
+    /**
+     * إرسال إشعار ملخص لمجموعة من الأدوية التي تم التراجع عن صرفها.
+     */
+    public function notifyTransactionReverted(User $patient, array $drugsInfo): Notification
+    {
+        $title = "تنبيه: تراجع عن صرف أدوية";
+        
+        if (count($drugsInfo) === 1) {
+            $item = $drugsInfo[0];
+            $message = "تم التراجع عن صرف دواء ({$item['drug_name']}) بكمية ({$item['quantity']})، حيث تم صرفه عن طريق الخطأ.";
+        } else {
+            $drugNames = collect($drugsInfo)->pluck('drug_name')->implode('، ');
+            $message = "تم التراجع عن صرف مجموعة من الأدوية ({$drugNames})، حيث تم صرفهم عن طريق الخطأ.";
+        }
+        
+        return $this->createNotification($patient, 'عادي', $title, $message);
+    }
+
+    /**
      * إرسال إشعار للمرضى عند توفر دواء كان غير متوفر في الصيدلية.
      */
     public function notifyDrugAvailability(Drug $drug, int $hospitalId): void
@@ -254,10 +301,16 @@ class PatientNotificationService
 
     private function createNotification(User $patient, string $type, string $title, string $message): Notification
     {
+        $backtrace = collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10))
+            ->map(fn($t) => ($t['class'] ?? '') . '@' . ($t['function'] ?? ''))
+            ->implode(' -> ');
+
         Log::info('🚨 === createNotification START ===', [
             'user_id' => $patient->id,
             'title' => $title,
+            'message' => substr($message, 0, 50),
             'type' => $type,
+            'caller' => $backtrace,
             'timestamp' => now()->format('Y-m-d H:i:s.u')
         ]);
         

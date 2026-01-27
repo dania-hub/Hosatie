@@ -566,7 +566,10 @@ class DashboardSuperController extends BaseApiController
 
             $query = DB::table('audit_logs')
                 ->join('users', 'audit_logs.user_id', '=', 'users.id')
-                ->leftJoin('hospitals', 'audit_logs.hospital_id', '=', 'hospitals.id')
+                ->leftJoin('hospitals', 'users.hospital_id', '=', 'hospitals.id')
+                ->leftJoin('suppliers', 'users.supplier_id', '=', 'suppliers.id')
+                ->leftJoin('departments', 'departments.head_user_id', '=', 'users.id')
+                ->leftJoin('pharmacies', 'users.pharmacy_id', '=', 'pharmacies.id')
                 ->select(
                     'audit_logs.id',
                     'audit_logs.action',
@@ -578,7 +581,10 @@ class DashboardSuperController extends BaseApiController
                     'audit_logs.hospital_id',
                     'users.full_name as user_name',
                     'users.type as user_type',
-                    'hospitals.name as hospital_name'
+                    'hospitals.name as hospital_name',
+                    'suppliers.name as supplier_name',
+                    'departments.name as department_name',
+                    'pharmacies.name as pharmacy_name'
                 );
 
             // Filter by date range
@@ -604,6 +610,31 @@ class DashboardSuperController extends BaseApiController
                 ->limit(100)
                 ->get()
                 ->map(function ($activity) {
+                    // تحديد التبعية (Affiliation)
+                    $affiliation = '';
+                    $hospital = $activity->hospital_name ?? '';
+
+                    switch ($activity->user_type) {
+                        case 'supplier_admin':
+                            $affiliation = $activity->supplier_name ?? $hospital; 
+                            break;
+                        case 'department_head':
+                        case 'department_admin':
+                            $dept = $activity->department_name ?? '';
+                            $affiliation = $hospital . ($dept ? ' - ' . $dept : '');
+                            break;
+                        case 'pharmacist':
+                            $pharm = $activity->pharmacy_name ?? '';
+                            $affiliation = $hospital . ($pharm ? ' - ' . $pharm : '');
+                            break;
+                        case 'super_admin':
+                            $affiliation = 'الإدارة العامة'; 
+                            break;
+                        default:
+                            // hospital_admin, warehouse_manager, doctor, patient, etc.
+                            $affiliation = $hospital;
+                    }
+
                     return [
                         'id' => $activity->id,
                         'action' => $activity->action,
@@ -614,6 +645,7 @@ class DashboardSuperController extends BaseApiController
                         'userType' => $activity->user_type,
                         'userTypeArabic' => $this->translateUserType($activity->user_type),
                         'hospitalName' => $activity->hospital_name ?? 'غير محدد',
+                        'affiliation' => $affiliation ? $affiliation : 'غير محدد',
                         'createdAt' => Carbon::parse($activity->created_at)->format('Y-m-d H:i:s'),
                         'details' => [
                             'old' => json_decode($activity->old_values, true),
@@ -789,6 +821,8 @@ class DashboardSuperController extends BaseApiController
             'super_admin_reject_external_supply_request' => 'رفض إدارة لطلب توريد خارجي',
 
             // Supplier Specific Actions
+            'supplier_create_internal_supply_request' => 'إنشاء طلب توريد داخلي (مورد)',
+            'supplier_confirm_receipt_internal' => 'تأكيد استلام داخلي (مورد)',
             'supplier_create_external_supply_request' => 'إنشاء طلب توريد (مورد)',
             'supplier_update_external_supply_request' => 'تعديل طلب توريد (مورد)',
             'supplier_cancel_external_supply_request' => 'إلغاء طلب توريد (مورد)',

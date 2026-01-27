@@ -639,6 +639,8 @@ class OperationLogSuperController extends BaseApiController
         }
 
         $newValues = json_decode($log->new_values, true);
+        $oldValues = json_decode($log->old_values, true); // Decode old values
+        
         if (!$newValues || !is_array($newValues)) {
             return '';
         }
@@ -660,22 +662,47 @@ class OperationLogSuperController extends BaseApiController
             'manufacturer' => 'الشركة المصنعة',
             'price' => 'السعر',
             'quantity' => 'الكمية',
-            'current_quantity' => 'الكمية الحالية',
             'is_active' => 'التفعيل',
             'generic_name' => 'الاسم العلمي',
             'strength' => 'التركيز',
+            'supplier_id' => 'رقم المورد',
+            'hospital_id' => 'رقم المستشفى',
+            'category_id' => 'الفئة',
+            'user_id'     => 'المستخدم',
+            'code'        => 'الكود',
+            'expiry_date' => 'تاريخ الانتهاء',
+            'batch_number'=> 'رقم التشغيلة',
+            'current_quantity' => 'الكمية الحالية',
             'form' => 'الشكل الصيدلاني',
             'category' => 'الفئة',
-            'expiry_date' => 'تاريخ الانتهاء',
-            'code' => 'الكود',
             'department_id' => 'القسم',
-            'hospital_id' => 'المستشفى',
+            
+            // Added Drug fields
+            'unit' => 'الوحدة',
+            'max_monthly_dose' => 'الجرعة الشهرية القصوى',
+            'country' => 'بلد المنشأ',
+            'utilization_type' => 'نوع الاستخدام',
+            'warnings' => 'التحذيرات',
+            'indications' => 'دواعي الاستعمال',
+            'contraindications' => 'موانع الاستعمال',
+            'units_per_box' => 'عدد الوحدات في العلبة',
+
+            // Added User fields
+            'national_id' => 'رقم الهوية الوطنية',
+            'warehouse_id' => 'معرف المستودع',
+            'pharmacy_id' => 'معرف الصيدلية',
+            'fcm_token' => 'رمز FCM',
+            'created_by' => 'تم الإنشاء بواسطة',
         ];
 
         $changedFields = [];
         foreach ($newValues as $key => $val) {
             if (in_array($key, ['updated_at', 'created_at', 'id', 'remember_token', 'password_reset_token'])) continue;
             
+            // تخطي الحقول التي لم تتغير قيمتها
+            $oldVal = $oldValues[$key] ?? null;
+            if ($val == $oldVal) continue;
+
             // Password special case
             if ($key === 'password') {
                 $changedFields[] = 'كلمة المرور';

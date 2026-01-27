@@ -53,11 +53,11 @@ class DashboardSuperController extends BaseApiController
 
             // 2. إحصائيات المستخدمين
             $usersStats = [
-                'total' => User::whereNotIn('type', ['patient'])->count(),
-                'active' => User::whereNotIn('type', ['patient'])->where('status', 'active')->count(),
-                'inactive' => User::whereNotIn('type', ['patient'])->where('status', 'inactive')->count(),
-                'pendingActivation' => User::whereNotIn('type', ['patient'])->where('status', 'pending_activation')->count(),
-                'byType' => User::whereNotIn('type', ['patient'])
+                'total' => User::whereNotIn('type', ['patient', 'super_admin'])->count(),
+                'active' => User::whereNotIn('type', ['patient', 'super_admin'])->where('status', 'active')->count(),
+                'inactive' => User::whereNotIn('type', ['patient', 'super_admin'])->whereIn('status', ['inactive', 'pending_activation', 'blocked'])->count(),
+                'pendingActivation' => User::whereNotIn('type', ['patient', 'super_admin'])->where('status', 'pending_activation')->count(),
+                'byType' => User::whereNotIn('type', ['patient', 'super_admin'])
                     ->select('type', DB::raw('count(*) as count'))
                     ->groupBy('type')
                     ->get()
@@ -607,13 +607,13 @@ class DashboardSuperController extends BaseApiController
                     return [
                         'id' => $activity->id,
                         'action' => $activity->action,
-                        'actionArabic' => $this->translateAction($activity->action, $activity->table_name),
+                        'actionArabic' => $this->toArabicNumerals($this->translateAction($activity->action, $activity->table_name)),
                         'tableName' => $activity->table_name,
                         'recordId' => $activity->record_id,
                         'userName' => $activity->user_name,
                         'userType' => $activity->user_type,
-                        'userTypeArabic' => $this->translateUserType($activity->user_type),
-                        'hospitalName' => $activity->hospital_name ?? 'غير محدد',
+                        'userTypeArabic' => $this->toArabicNumerals($this->translateUserType($activity->user_type)),
+                        'hospitalName' => $this->toArabicNumerals($activity->hospital_name ?? 'غير محدد'),
                         'createdAt' => Carbon::parse($activity->created_at)->format('Y-m-d H:i:s'),
                         'details' => [
                             'old' => json_decode($activity->old_values, true),
@@ -928,5 +928,16 @@ class DashboardSuperController extends BaseApiController
         } catch (\Exception $e) {
             return $this->sendError('Error retrieving pharmacies: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * تحويل الأرقام الإنجليزية إلى أرقام عربية (هندية)
+     */
+    private function toArabicNumerals($string)
+    {
+        if ($string === null || $string === '') return $string;
+        $westernNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return str_replace($westernNumbers, $arabicNumbers, (string)$string);
     }
 }

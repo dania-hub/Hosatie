@@ -33,7 +33,7 @@
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                         <div class="flex items-start gap-4">
                             <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                                <Icon icon="solar:bottle-bold-duotone" class="w-7 h-7 text-[#2E5077]" />
+                                <Icon :icon="getDrugIconDynamic(drug.unit)" class="w-7 h-7 text-[#2E5077]" />
                             </div>
                             <div class="flex-1">
                                 <h3 class="text-xl font-bold text-[#2E5077] mb-1">{{ drug.name || drug.drugName || "غير محدد" }}</h3>
@@ -59,7 +59,7 @@
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الجرعة الشهرية القصوى</p>
-                                <p class="font-semibold text-[#2E5077]">{{ drug.max_monthly_dose || "غير محدد" }}</p>
+                                <p class="font-semibold text-[#2E5077]">{{ (drug.max_monthly_dose !== undefined && drug.max_monthly_dose !== null) ? drug.max_monthly_dose : "غير محدد" }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-400 mb-1">الحالة</p>
@@ -92,20 +92,36 @@
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
                         <div class="space-y-2">
                             <h4 class="font-bold text-[#2E5077] flex items-center gap-2">
-                                <Icon icon="solar:medical-kit-bold-duotone" class="w-5 h-5 text-[#4DA1A9]" />
+                                <div class="p-1.5 bg-emerald-50 rounded-lg text-emerald-600">
+                                    <Icon icon="solar:medical-kit-bold-duotone" class="w-5 h-5" />
+                                </div>
                                 دواعي الاستعمال
                             </h4>
-                            <p class="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <p class="text-gray-600 text-sm leading-relaxed bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
                                 {{ drug.indications || "غير محدد" }}
                             </p>
                         </div>
 
                         <div class="space-y-2">
                             <h4 class="font-bold text-[#2E5077] flex items-center gap-2">
-                                <Icon icon="solar:danger-triangle-bold-duotone" class="w-5 h-5 text-red-500" />
+                                <div class="p-1.5 bg-amber-50 rounded-lg text-amber-600">
+                                    <Icon icon="solar:forbidden-circle-bold-duotone" class="w-5 h-5" />
+                                </div>
+                                موانع الاستعمال
+                            </h4>
+                            <p class="text-gray-600 text-sm leading-relaxed bg-amber-50/30 p-3 rounded-xl border border-amber-100">
+                                {{ drug.contraindications || drug.contra_indications || "غير محدد" }}
+                            </p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h4 class="font-bold text-[#2E5077] flex items-center gap-2">
+                                <div class="p-1.5 bg-red-50 rounded-lg text-red-500">
+                                    <Icon icon="solar:danger-triangle-bold-duotone" class="w-5 h-5" />
+                                </div>
                                 تحذيرات هامة
                             </h4>
-                            <p class="text-gray-600 text-sm leading-relaxed bg-red-50 p-3 rounded-xl border border-red-100">
+                            <p class="text-gray-600 text-sm leading-relaxed bg-red-50/50 p-3 rounded-xl border border-red-100 font-medium">
                                 {{ drug.warnings || "غير محدد" }}
                             </p>
                         </div>
@@ -144,5 +160,14 @@ const emit = defineEmits(['close']);
 
 const closeModal = () => {
     emit('close');
+};
+
+// وظيفة لتحديد أيقونة الدواء بناءً على الوحدة
+const getDrugIconDynamic = (unit) => {
+    if (!unit) return 'solar:pill-bold-duotone';
+    const u = unit.toLowerCase();
+    if (u === 'حقنة' || u === 'إبرة') return 'solar:syringe-bold-duotone';
+    if (u === 'جرام' || u === 'قنينة' || u === 'مل') return 'solar:bottle-bold-duotone';
+    return 'solar:pill-bold-duotone';
 };
 </script>

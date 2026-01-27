@@ -110,12 +110,18 @@ class HomeController extends BaseApiController
                     continue;
                 }
 
-                // 1. حساب إجمالي الكمية المصروفة لهذا الدواء
-                $totalDispensed = (int) Dispensing::where('patient_id', $user->id)
+                // 1. حساب إجمالي الكمية المصروفة لهذا الدواء وتحديد تاريخ آخر صلاحية
+                $dispensingQuery = Dispensing::where('patient_id', $user->id)
                     ->where('prescription_id', $prescription->id)
                     ->where('drug_id', $drug->id)
-                    ->sum('quantity_dispensed');
-                Log::info('Total dispensed: ' . $totalDispensed . ' pills');
+                    ->where('reverted', false);
+
+                $totalDispensed = (int) $dispensingQuery->sum('quantity_dispensed');
+                
+                $lastDispensing = $dispensingQuery->latest()->first();
+                $expiryDate = $lastDispensing ? $lastDispensing->expiry_date : null;
+
+                Log::info('Total dispensed: ' . $totalDispensed . ' pills, Last Expiry: ' . ($expiryDate ?? 'N/A'));
 
                 // 2. استخدام القيمة الفعلية من قاعدة البيانات (لا يتم حساب الرصيد)
                 $currentBalance = $monthlyQuantityInDB; // القيمة الفعلية المسجلة
@@ -154,6 +160,7 @@ class HomeController extends BaseApiController
                     'status'       => $statusText,
                     'status_color' => $statusColor,
                     'text_color'   => $textColor,
+                    'expiry_date'  => $expiryDate ? Carbon::parse($expiryDate)->format('Y-m-d') : null,
                 ];
                 
                 Log::info('--- FINAL RESULT ---');

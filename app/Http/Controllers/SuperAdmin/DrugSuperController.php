@@ -46,6 +46,9 @@ class DrugSuperController extends BaseApiController
             }
 
             $drugs = $query->orderBy('name')->get()->map(function ($drug) {
+                // حساب إجمالي المخزون في جميع الصيدليات والمستودعات
+                $totalStock = \App\Models\Inventory::where('drug_id', $drug->id)->sum('current_quantity');
+
                 return [
                     'id' => $drug->id,
                     'name' => $drug->name,
@@ -61,7 +64,9 @@ class DrugSuperController extends BaseApiController
                     'utilization_type' => $drug->utilization_type,
                     'warnings' => $drug->warnings,
                     'indications' => $drug->indications,
+                    'contraindications' => $drug->contraindications,
                     'units_per_box' => $drug->units_per_box,
+                    'quantity' => $totalStock, // تم إضافة إجمالي الكمية
                     'createdAt' => optional($drug->created_at)->format('Y-m-d'),
                 ];
             });
@@ -208,6 +213,7 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $drug->utilization_type,
                 'warnings' => $drug->warnings,
                 'indications' => $drug->indications,
+                'contraindications' => $drug->contraindications,
                 'units_per_box' => $drug->units_per_box,
                 'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم إضافة الدواء بنجاح', 201);
@@ -256,7 +262,7 @@ class DrugSuperController extends BaseApiController
             $drug->update($request->only([
                 'name', 'generic_name', 'strength', 'form', 'category', 
                 'unit', 'max_monthly_dose', 'status', 'manufacturer', 'country',
-                'utilization_type', 'warnings', 'indications', 'units_per_box'
+                'utilization_type', 'warnings', 'indications', 'contraindications', 'units_per_box'
             ]));
 
             return $this->sendSuccess([
@@ -274,6 +280,7 @@ class DrugSuperController extends BaseApiController
                 'utilization_type' => $drug->utilization_type,
                 'warnings' => $drug->warnings,
                 'indications' => $drug->indications,
+                'contraindications' => $drug->contraindications,
                 'units_per_box' => $drug->units_per_box,
                 'createdAt' => optional($drug->created_at)->format('Y-m-d'),
             ], 'تم تعديل بيانات الدواء بنجاح');

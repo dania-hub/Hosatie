@@ -92,6 +92,17 @@ class PatientOperationLogController extends BaseApiController
             })->values();
         }
 
+        // Apply Arabic Numerals to final result
+        $data = $data->map(function($item) {
+            $item['file_number'] = $item['file_number'];
+            $item['operation_label'] = $this->toArabicNumerals($item['operation_label']);
+            $item['operation_body'] = $this->toArabicNumerals($item['operation_body']);
+            $item['operation_type'] = $this->toArabicNumerals($item['operation_type']);
+            $item['date'] = $item['date'];
+            $item['time'] = $item['time'];
+            return $item;
+        });
+
         return response()->json($data);
     }
 
@@ -233,7 +244,15 @@ class PatientOperationLogController extends BaseApiController
                      $body = 'إضافة مستخدم جديد';
                 } else {
                      $changes = $this->getChangesDescription($log);
-                     $body = $changes ?: 'تحديث بيانات مستخدم';
+                     
+                     // Improve status change visibility
+                     if ($changes === 'تعطيل الحساب') {
+                         $body = 'تعطيل الحساب';
+                     } elseif ($changes === 'تفعيل الحساب') {
+                         $body = 'تفعيل الحساب';
+                     } else {
+                         $body = $changes ?: 'تحديث بيانات مستخدم';
+                     }
                 }
             }
         }
@@ -276,10 +295,20 @@ class PatientOperationLogController extends BaseApiController
 
     private function getChangesDescription($log)
     {
-        if ($log->action !== 'update') return '';
+        if ($log->action !== 'update' && !str_contains($log->action, 'update')) return '';
 
         $newValues = json_decode($log->new_values, true);
         if (!$newValues || !is_array($newValues)) return '';
+
+        // Handle specific status changes for better clarity
+        if (count($newValues) === 1 || (count($newValues) === 2 && isset($newValues['updated_at']))) {
+            if (isset($newValues['status']) || isset($newValues['is_active'])) {
+                $key = isset($newValues['status']) ? 'status' : 'is_active';
+                $newStatus = $newValues[$key];
+                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) return 'تفعيل الحساب';
+                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) return 'تعطيل الحساب';
+            }
+        }
 
         $fieldMap = [
             'name' => 'الاسم',
@@ -296,7 +325,16 @@ class PatientOperationLogController extends BaseApiController
             'manufacturer' => 'الشركة المصنعة',
             'price' => 'السعر',
             'quantity' => 'الكمية',
+            'current_quantity' => 'الكمية الحالية',
             'is_active' => 'التفعيل',
+            'generic_name' => 'الاسم العلمي',
+            'strength' => 'القوة/التركيز',
+            'form' => 'الشكل الصيدلاني',
+            'category' => 'الفئة العلاجية',
+            'category_id' => 'الفئة العلاجية',
+            'indications' => 'دواعي الاستعمال',
+            'warnings' => 'التحذيرات',
+            'contraindications' => 'موانع الاستعمال',
         ];
 
         $changedFields = [];
@@ -317,5 +355,16 @@ class PatientOperationLogController extends BaseApiController
         
         // Return first 3 changes
         return 'تم تحديث: ' . implode('، ', array_slice($changedFields, 0, 3));
+    }
+
+    /**
+     * تحويل الأرقام الإنجليزية إلى أرقام عربية (هندية)
+     */
+    private function toArabicNumerals($string)
+    {
+        if ($string === null || $string === '') return $string;
+        $westernNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return str_replace($westernNumbers, $arabicNumbers, (string)$string);
     }
 }

@@ -10,7 +10,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use App\Mail\StaffActivationMail;
+use App\Mail\AdminPasswordResetMail;
 
 class UserSuperController extends BaseApiController
 {
@@ -28,7 +31,8 @@ class UserSuperController extends BaseApiController
             }
 
             $query = User::with(['hospital', 'supplier', 'department', 'managedDepartment'])
-                ->where('type', '!=', 'patient');
+                ->where('type', '!=', 'patient')
+                ->where('id', '!=', $user->id);
 
             // البحث
             if ($request->has('search')) {
@@ -253,10 +257,28 @@ class UserSuperController extends BaseApiController
                 'created_by' => $user->id,
             ]);
 
-            // TODO: إرسال بريد إلكتروني يحتوي على:
-            // - اسم المستخدم
-            // - كلمة المرور المؤقتة
-            // - رابط تفعيل الحساب
+            // 1. Generate Secure Token
+            $token = Str::random(60);
+
+            // 2. Store Token in Cache
+            $key = 'activation_token_' . $newUser->email;
+            \Illuminate\Support\Facades\Cache::put($key, $token, 86400); // 24 hours
+
+            // 3. Send Email (مع معالجة الأخطاء)
+            try {
+                $recipientEmail = trim($newUser->email);
+                Mail::to($recipientEmail)->send(new StaffActivationMail($token, $recipientEmail, $newUser->full_name));
+                
+                \Log::info('Activation email sent (attempted) via Mailable to: ' . $recipientEmail);
+
+            } catch (\Throwable $mailException) {
+                // تسجيل خطأ البريد ولكن لا نوقف العملية
+                \Log::error('Failed to send activation email: ' . $mailException->getMessage(), [
+                    'user_id' => $newUser->id,
+                    'email' => $newUser->email,
+                    'trace' => $mailException->getTraceAsString()
+                ]);
+            }
 
             return $this->sendSuccess([
                 'id' => $newUser->id,
@@ -343,20 +365,10 @@ class UserSuperController extends BaseApiController
             DB::beginTransaction();
 
             try {
-                // تعطيل الحساب
+                // تعطيل الحساب فقط دون إزالة الارتباط بالمستشفى أو المورد
                 $targetUser->update(['status' => 'inactive']);
 
-                // إذا كان مدير مستشفى، إزالة hospital_id منه
-                if ($targetUser->type === 'hospital_admin' && $targetUser->hospital_id) {
-                    $targetUser->update(['hospital_id' => null]);
-                }
-
-                // إذا كان مدير مورد، إزالة supplier_id منه
-                if ($targetUser->type === 'supplier_admin' && $targetUser->supplier_id) {
-                    $targetUser->update(['supplier_id' => null]);
-                }
-
-                // حذف جميع tokens للمستخدم
+                // حذف جميع tokens للمستخدم لمنع استمرار الدخول
                 $targetUser->tokens()->delete();
 
                 DB::commit();
@@ -365,7 +377,7 @@ class UserSuperController extends BaseApiController
                     'id' => $targetUser->id,
                     'fullName' => $targetUser->full_name,
                     'status' => 'inactive',
-                ], '✅ تم تعطيل الحساب بنجاح');
+                ], '✅ تم تعطيل الحساب بنجاح (مع الاحتفاظ بالتبعية)');
 
             } catch (\Exception $e) {
                 DB::rollBack();
@@ -407,6 +419,17 @@ class UserSuperController extends BaseApiController
                     );
                 }
 
+                // منع التنشيط إذا كان هناك مدير نشط حالياً لنفس المستشفى
+                $activeManager = User::where('type', 'hospital_admin')
+                    ->where('hospital_id', $targetUser->hospital_id)
+                    ->where('status', 'active')
+                    ->where('id', '!=', $targetUser->id)
+                    ->first();
+                
+                if ($activeManager) {
+                    return $this->sendError('فشل تفعيل لوجود مدير مستشفى حالياً', null, 422);
+                }
+
                 // التحقق من أن المستشفى موجود ونشط
                 $hospital = Hospital::find($targetUser->hospital_id);
                 if (!$hospital) {
@@ -426,6 +449,17 @@ class UserSuperController extends BaseApiController
                         ['supplier_id' => ['المدير غير مربوط بأي مورد']],
                         422
                     );
+                }
+
+                // منع التنشيط إذا كان هناك مدير نشط حالياً لنفس المورد
+                $activeSupplierManager = User::where('type', 'supplier_admin')
+                    ->where('supplier_id', $targetUser->supplier_id)
+                    ->where('status', 'active')
+                    ->where('id', '!=', $targetUser->id)
+                    ->first();
+                
+                if ($activeSupplierManager) {
+                    return $this->sendError('فشل التفعيل لموجود مدير مستودع توريد حالياً', null, 422);
                 }
             }
 
@@ -469,7 +503,19 @@ class UserSuperController extends BaseApiController
             // حذف جميع tokens القديمة
             $targetUser->tokens()->delete();
 
-            // TODO: إرسال كلمة المرور الجديدة عبر البريد الإلكتروني
+            // إرسال كلمة المرور الجديدة عبر البريد الإلكتروني
+            try {
+                $recipientEmail = trim($targetUser->email);
+                Mail::to($recipientEmail)->send(new AdminPasswordResetMail($targetUser->full_name, $newPassword));
+                
+                \Log::info('Password reset email sent (attempted) via Mailable to: ' . $recipientEmail);
+            } catch (\Throwable $e) {
+                \Log::error('فشل إرسال بريد إعادة تعيين كلمة المرور: ' . $e->getMessage(), [
+                    'user_id' => $targetUser->id,
+                    'email' => $targetUser->email,
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
 
             return $this->sendSuccess([
                 'id' => $targetUser->id,
@@ -513,6 +559,68 @@ class UserSuperController extends BaseApiController
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin User Check Phone Error');
+        }
+    }
+
+    /**
+     * التحقق من وجود الرقم الوطني في النظام
+     * GET /api/super-admin/users/check-national-id/{nationalId}
+     */
+    public function checkNationalId(Request $request, $nationalId)
+    {
+        try {
+            $user = $request->user();
+            
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
+            }
+
+            // التحقق من التنسيق
+            if (!preg_match('/^[12]\d{11}$/', $nationalId)) {
+                return $this->sendError('عذراً، تنسيق الرقم الوطني غير صحيح. يجب أن يبدأ بـ 1 أو 2 ويتكون من 12 رقم', null, 422);
+            }
+
+            // التحقق من وجود الرقم في users
+            $exists = User::where('national_id', $nationalId)->exists();
+
+            return $this->sendSuccess([
+                'exists' => $exists,
+                'nationalId' => $nationalId
+            ], $exists ? 'عذراً، الرقم الوطني هذا مسجل مسبقاً' : 'الرقم الوطني متاح للاستخدام');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin User Check National ID Error');
+        }
+    }
+
+    /**
+     * التحقق من وجود البريد الإلكتروني في النظام
+     * GET /api/super-admin/users/check-email/{email}
+     */
+    public function checkEmail(Request $request, $email)
+    {
+        try {
+            $user = $request->user();
+            
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('عذراً، ليس لديك صلاحية الوصول لهذه الموارد.', null, 403);
+            }
+
+            // التحقق من التنسيق
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $this->sendError('عذراً، تنسيق البريد الإلكتروني غير صحيح', null, 422);
+            }
+
+            // التحقق من وجود البريد في users
+            $exists = User::where('email', $email)->exists();
+
+            return $this->sendSuccess([
+                'exists' => $exists,
+                'email' => $email
+            ], $exists ? 'عذراً، هذا البريد الإلكتروني مسجل مسبقاً' : 'البريد الإلكتروني متاح للاستخدام');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin User Check Email Error');
         }
     }
 

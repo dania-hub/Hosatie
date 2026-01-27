@@ -58,6 +58,12 @@ onMounted(() => {
     fetchOperations();
 });
 
+const toArabicNumerals = (str) => {
+    if (str === null || str === undefined) return '';
+    const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    return String(str).replace(/[0-9]/g, (w) => arabicNumbers[parseInt(w)]);
+};
+
 // قائمة بأنواع العمليات المتاحة للتصفية
 const operationTypes = computed(() => {
     const types = new Set(operations.value.map(op => op.operation_type));
@@ -188,6 +194,10 @@ const showSuccessAlert = (message) => {
         title: isError ? 'خطأ' : 'نجاح',
         message: message.replace(/^❌ |^✅ /, '')
     };
+    // إخفاء التنبيه تلقائياً بعد 3 ثواني
+    setTimeout(() => {
+        toast.value.show = false;
+    }, 3000);
 };
 
 
@@ -196,8 +206,16 @@ const showSuccessAlert = (message) => {
 // ----------------------------------------------------
 const printTable = () => {
     const resultsCount = filteredOperations.value.length;
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'numeric', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
 
-    const printWindow = window.open('', '_blank', 'height=600,width=800');
+    const printWindow = window.open('', '_blank', 'height=800,width=1000');
     
     if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
         showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
@@ -205,89 +223,181 @@ const printTable = () => {
     }
 
     let tableHtml = `
-        <style>
-            body {
-                font-family: 'Arial', sans-serif;
-                direction: rtl;
-                padding: 20px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 10px;
-                text-align: right;
-            }
-            th {
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }
-            h1 {
-                text-align: center;
-                color: #2E5077;
-                margin-bottom: 10px;
-            }
-            .results-info {
-                text-align: right;
-                margin-bottom: 15px;
-                font-size: 16px;
-                font-weight: bold;
-                color: #4DA1A9;
-            }
-        </style>
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>طباعة سجل العمليات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            @page { margin: 15mm; size: A4; }
+            .no-print { display: none; }
+        }
+        
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { padding: 0; margin: 0; color: #1e293b; background: white; line-height: 1.5; }
+        
+        .print-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        
+        .page-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding-bottom: 20px; 
+            border-bottom: 2px solid #2E5077;
+        }
+        
+        .gov-title { text-align: right; }
+        .gov-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #2E5077; }
+        .gov-title p { margin: 5px 0 0; font-size: 14px; color: #64748b; }
+        
+        .report-title { text-align: center; margin: 20px 0; }
+        .report-title h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: #1e293b; 
+            background: #f1f5f9;
+            display: inline-block;
+            padding: 10px 40px;
+            border-radius: 50px;
+        }
+        
+        .summary-box {
+            display: grid;
+            grid-template-cols: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 14px; color: #2E5077; font-weight: 700; }
+        
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { 
+            background-color: #2E5077; 
+            color: white; 
+            font-weight: 700; 
+            padding: 12px 10px; 
+            text-align: right; 
+            font-size: 12px;
+        }
+        td { 
+            padding: 10px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 11px; 
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .signature-box { text-align: right; }
+        .signature-line { margin-top: 30px; width: 150px; border-top: 1px solid #cbd5e1; }
+    </style>
+</head>
+<body>
+    <div class="print-container">
+        <div class="page-header">
+            <div class="gov-title">
+                <h2>وزارة الصحة</h2>
+                <p>سجل العمليات العام</p>
+            </div>
+            <div style="text-align: left">
+                <p style="margin: 0; font-size: 11px; color: #64748b;">تاريخ التقرير</p>
+                <p style="margin: 3px 0 0; font-weight: 700; color: #1e293b;">${currentDate}</p>
+            </div>
+        </div>
 
-        <h1>سجل العمليات (تقرير طباعة)</h1>
-        
-        <p class="results-info">
-            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
-        </p>
-        
+        <div class="report-title">
+            <h1>تقرير سجل العمليات</h1>
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-item">
+                <span class="stat-label">نوع العملية</span>
+                <span class="stat-value">${operationTypeFilter.value}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">الفترة</span>
+                <span class="stat-value">${dateFrom.value || 'من البداية'} - ${dateTo.value || 'اليوم'}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">إجمالي العمليات</span>
+                <span class="stat-value">${resultsCount} عملية</span>
+            </div>
+             <div class="stat-item">
+                <span class="stat-label">حالة البحث</span>
+                <span class="stat-value">${searchTerm.value || 'عرض الكل'}</span>
+            </div>
+        </div>
+
         <table>
             <thead>
                 <tr>
+                    <th style="width: 40px; text-align: center;">#</th>
                     <th>رقم الملف</th>
-                    <th>المستشفى</th>
-                    <th>الإسم الرباعي</th>
-                    <th>نوع العملية</th>
+                    <th>الاسم الرباعي</th>
+                    <th>تفاصيل العملية</th>
                     <th>تاريخ العملية</th>
                 </tr>
             </thead>
             <tbody>
-    `;
-
-    filteredOperations.value.forEach(op => {
-        tableHtml += `
-            <tr>
-                <td>${op.file_number || '-'}</td>
-                <td>${op.hospital_name || '-'}</td>
-                <td>${op.full_name || '-'}</td>
-                <td>
-                    <strong>${op.operation_label || '-'}</strong><br>
-                    <small>${op.operation_body || ''}</small>
-                </td>
-                <td>${op.date || '-'}</td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `
+                ${filteredOperations.value.map((op, index) => `
+                <tr>
+                    <td style="text-align: center; font-weight: 700; color: #64748b;">${index + 1}</td>
+                    <td style="font-weight: 700; color: #2E5077;">${op.file_number || '-'}</td>
+                    <td style="font-weight: 600;">${op.full_name || '-'}</td>
+                    <td>
+                        <div style="font-weight: 700; color: #4DA1A9;">${toArabicNumerals(op.operation_label || '-')}</div>
+                        <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${toArabicNumerals(op.operation_body || '')}</div>
+                    </td>
+                    <td style="white-space: nowrap;">${op.date || '-'}</td>
+                </tr>
+                `).join('')}
             </tbody>
         </table>
-    `;
 
-    printWindow.document.write('<html><head><title>طباعة سجل العمليات</title>');
-    printWindow.document.write('</head><body>');
+        <div class="footer">
+            <div class="signature-box">
+                <p>اعتماد مدير الإدارة</p>
+                <div class="signature-line"></div>
+            </div>
+            <div style="text-align: left;">
+                <p>نظام حُصتي لإدارة المرافق الصحية</p>
+                <p style="font-size: 9px; margin-top: 5px;">تم استخراج هذا التقرير آلياً</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+`;
+
     printWindow.document.write(tableHtml);
-    printWindow.document.write('</body></html>');
     printWindow.document.close();
 
     printWindow.onload = () => {
         printWindow.focus();
-        printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        setTimeout(() => {
+            printWindow.print();
+            showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        }, 250);
     };
 };
 
@@ -301,9 +411,9 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
             <main class="flex-1 p-4 sm:p-5 pt-3">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0">
                     
-                    <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي" />
+                    <div class="flex items-center gap-3 w-full sm:max-w-3xl">
+                        <div class="relative w-full sm:max-w-lg">
+                            <search v-model="searchTerm" placeholder="ابحث برقم الملف  أو معرف الدواء أو معرف المؤسسة" />
                         </div>
 
                         <button
@@ -323,6 +433,9 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                             leave-to-class="opacity-0 scale-95"
                         >
                             <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-[#2E5077] whitespace-nowrap bg-white px-3 py-1 rounded-full border border-[#4DA1A9]/20 shadow-sm">
+                                    فلترة بأيام محددة:
+                                </span>
                                 <div class="relative">
                                     <input
                                         type="date"
@@ -361,8 +474,8 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                         </Transition>
                         
                         <div class="dropdown dropdown-start">
-                            <div tabindex="0" role="button" class=" inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-11
-                                rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden
+                            <div tabindex="0" role="button" class=" inline-flex items-center px-6 py-[9px] border-2 border-[#ffffff8d] h-11
+                                rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden whitespace-nowrap
                                 text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]">
                                 <Icon icon="lucide:filter" class="w-5 h-5 ml-2" />
                                 تصفية: {{ operationTypeFilter }}
@@ -476,8 +589,8 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             <td class="name-col">{{ op.full_name }}</td>
                                             <td class="operation-type-col">
                                                 <div class="flex flex-col">
-                                                    <span class="text-[#4DA1A9] font-bold text-base mb-1">{{ op.operation_label }}</span>
-                                                    <span class="text-gray-600 text-sm">{{ op.operation_body }}</span>
+                                                    <span class="text-[#4DA1A9] font-bold text-base mb-1">{{ toArabicNumerals(op.operation_label) }}</span>
+                                                    <span class="text-gray-600 text-sm">{{ toArabicNumerals(op.operation_body) }}</span>
                                                 </div>
                                             </td>
                                             <td class="operation-date-col">{{ op.date }}</td>

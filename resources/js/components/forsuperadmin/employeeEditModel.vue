@@ -130,13 +130,13 @@ const getRoleName = (role) => {
 // التحقق مما إذا كان الدور هو "مدير المورد"
 const isSupplierAdminRole = (role) => {
     const roleName = getRoleName(role);
-    return roleName === "مدير المورد" || roleName === "supplier_admin";
+    return roleName === "مدير مستودع التوريد" || roleName === "supplier_admin";
 };
 
 // التحقق مما إذا كان الدور هو "مدير نظام المستشفى"
 const isHospitalAdminRole = (role) => {
     const roleName = getRoleName(role);
-    return roleName === "مدير نظام المستشفى" || roleName === "hospital_admin";
+    return roleName === "مدير المستشفى" || roleName === "hospital_admin";
 };
 
 // التحقق من صحة النموذج

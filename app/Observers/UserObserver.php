@@ -89,41 +89,8 @@ class UserObserver
      */
     public function updating(User $user)
     {
-        // تعطيل/تفعيل الحساب تلقائياً عند تغيير hospital_id أو supplier_id
-        $original = $user->getOriginal();
-        $changes = $user->getDirty();
-        
-        // إذا كان مدير مستشفى
-        if ($user->type === 'hospital_admin') {
-            if (isset($changes['hospital_id'])) {
-                // إذا تم إزالة hospital_id (أصبح null)
-                if ($original['hospital_id'] !== null && $user->hospital_id === null) {
-                    // تعطيل الحساب تلقائياً
-                    $user->status = 'inactive';
-                }
-                // إذا تم ربطه بمستشفى (أصبح له hospital_id)
-                elseif ($original['hospital_id'] === null && $user->hospital_id !== null) {
-                    // تفعيل الحساب تلقائياً
-                    $user->status = 'active';
-                }
-            }
-        }
-        
-        // إذا كان مدير مورد
-        if ($user->type === 'supplier_admin') {
-            if (isset($changes['supplier_id'])) {
-                // إذا تم إزالة supplier_id (أصبح null)
-                if ($original['supplier_id'] !== null && $user->supplier_id === null) {
-                    // تعطيل الحساب تلقائياً
-                    $user->status = 'inactive';
-                }
-                // إذا تم ربطه بمورد (أصبح له supplier_id)
-                elseif ($original['supplier_id'] === null && $user->supplier_id !== null) {
-                    // تفعيل الحساب تلقائياً
-                    $user->status = 'active';
-                }
-            }
-        }
+        // تم إزالة التفعيل/التعطيل التلقائي بناءً على المعرفات لتمكين الإدارة اليدوية
+        // مع التحقق من وجود مدراء نشطين في Controller
     }
     
     /**

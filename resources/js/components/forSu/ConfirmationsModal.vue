@@ -197,53 +197,57 @@
                                                         <template v-if="item.units_per_box > 1">
                                                             <button 
                                                                 @click="decrementExpiryBoxes(index, expiryIndex)"
-                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-red-500 transition-colors border-l border-slate-200"
                                                                 :disabled="expiryEntry.quantity <= 0 || props.isLoading || isConfirming"
+                                                                type="button"
                                                             >
-                                                                <Icon icon="solar:minus-circle-bold" class="w-4 h-4" />
+                                                                <Icon icon="solar:minus-bold" class="w-4 h-4" />
                                                             </button>
                                                             <input
                                                                 type="number"
                                                                 v-model.number="expiryEntry.boxes"
                                                                 @blur="validateExpiryBoxesInput(index, expiryIndex)"
-                                                                class="w-16 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm [appearance:textfield]"
+                                                                class="w-14 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm bg-transparent [appearance:textfield]"
                                                                 :max="getMaxBoxesForExpiry(index, expiryIndex)"
                                                                 min="0"
                                                                 :disabled="props.isLoading || isConfirming"
                                                             />
-                                                            <span class="text-xs font-bold text-slate-400 px-1">عبوة</span>
+                                                            <span class="text-[10px] font-bold text-slate-400 px-1 bg-white/50 h-8 flex items-center">عبوة</span>
                                                             <button 
                                                                 @click="incrementExpiryBoxes(index, expiryIndex)"
-                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-[#4DA1A9] transition-colors border-r border-slate-200"
                                                                 :disabled="getTotalReceivedForItem(item) >= item.sentQuantity || props.isLoading || isConfirming"
+                                                                type="button"
                                                             >
-                                                                <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                                <Icon icon="solar:add-bold" class="w-4 h-4" />
                                                             </button>
                                                         </template>
                                                         <template v-else>
                                                             <button 
                                                                 @click="decrementExpiryQuantity(index, expiryIndex)"
-                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-red-500 transition-colors border-l border-slate-200"
                                                                 :disabled="expiryEntry.quantity <= 0 || props.isLoading || isConfirming"
+                                                                type="button"
                                                             >
-                                                                <Icon icon="solar:minus-circle-bold" class="w-4 h-4" />
+                                                                <Icon icon="solar:minus-bold" class="w-4 h-4" />
                                                             </button>
                                                             <input
                                                                 type="number"
                                                                 v-model.number="expiryEntry.quantity"
                                                                 @blur="validateExpiryQuantityInput(index, expiryIndex)"
-                                                                class="w-16 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm [appearance:textfield]"
+                                                                class="w-14 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm bg-transparent [appearance:textfield]"
                                                                 :max="getMaxQuantityForExpiry(index, expiryIndex)"
                                                                 min="0"
                                                                 :disabled="props.isLoading || isConfirming"
                                                             />
-                                                            <span class="text-xs font-bold text-slate-400 px-1">{{ item.unit }}</span>
+                                                            <span class="text-[10px] font-bold text-slate-400 px-1 bg-white/50 h-8 flex items-center">{{ item.unit }}</span>
                                                             <button 
                                                                 @click="incrementExpiryQuantity(index, expiryIndex)"
-                                                                class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-[#4DA1A9] transition-colors"
+                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-[#4DA1A9] transition-colors border-r border-slate-200"
                                                                 :disabled="getTotalReceivedForItem(item) >= item.sentQuantity || props.isLoading || isConfirming"
+                                                                type="button"
                                                             >
-                                                                <Icon icon="solar:add-circle-bold" class="w-4 h-4" />
+                                                                <Icon icon="solar:add-bold" class="w-4 h-4" />
                                                             </button>
                                                         </template>
                                                     </div>
@@ -945,3 +949,30 @@ const printConfirmation = () => {
     }
 };
 </script>
+
+<style scoped>
+/* إخفاء أسهم الزيادة والنقصان الافتراضية في المتصفح */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+</style>

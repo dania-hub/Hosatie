@@ -32,6 +32,9 @@ const showSuccessAlert = (message) => {
     title: 'نجاح',
     message: message
   };
+  setTimeout(() => {
+    toast.value.show = false;
+  }, 3000);
 };
 
 const showErrorAlert = (message) => {
@@ -41,6 +44,9 @@ const showErrorAlert = (message) => {
     title: 'خطأ',
     message: message
   };
+  setTimeout(() => {
+    toast.value.show = false;
+  }, 3000);
 };
 
 // ----------------------------------------------------
@@ -169,9 +175,11 @@ const filteredDrugss = computed(() => {
       if (sortKey.value === "drugName") {
         comparison = (a.drugName || a.name || "").localeCompare(b.drugName || b.name || "", "ar");
       } else if (sortKey.value === "quantity") {
-        comparison = (a.quantity || 0) - (b.quantity || 0);
+        comparison = (Number(a.quantity) || 0) - (Number(b.quantity) || 0);
       } else if (sortKey.value === "manufacturer") {
         comparison = (a.manufacturer || "").localeCompare(b.manufacturer || "", "ar");
+      } else if (sortKey.value === "unitsPerBox") {
+        comparison = (Number(a.units_per_box) || Number(a.unitsPerBox) || 0) - (Number(b.units_per_box) || Number(b.unitsPerBox) || 0);
       }
 
       return sortOrder.value === "asc" ? comparison : -comparison;
@@ -188,6 +196,7 @@ const filteredDrugss = computed(() => {
 // دالة مساعدة لتحويل بيانات الدواء من API إلى التنسيق المستخدم في الجدول
 const transformDrugData = (drug) => {
   return {
+    ...drug, // Move spread here
     id: drug.id,
     drugCode: drug.id?.toString() || '', // استخدام ID كرمز الدواء
     drugName: drug.name || '',
@@ -199,14 +208,27 @@ const transformDrugData = (drug) => {
     strength: drug.strength || '',
     unit: drug.unit || '',
     status: drug.status || '',
-    quantity: 0, // غير متوفر في API
-    neededQuantity: 0, // غير متوفر في API
+    max_monthly_dose: drug.max_monthly_dose || drug.maxMonthlyDose || 0,
+    quantity: drug.quantity || 0, 
+    neededQuantity: drug.neededQuantity || 0, 
+    units_per_box: drug.units_per_box || drug.unitsPerBox || 1,
+    indications: drug.indications || '',
+    contraindications: drug.contraindications || drug.contra_indications || '',
+    createdAt: drug.created_at || drug.createdAt || '',
+    utilization_type: drug.utilization_type || drug.utilizationType || '',
     is_discontinued: ['غير متوفر', 'قيد الإيقاف التدريجي', 'مؤرشف'].includes(drug.status) || drug.is_discontinued === true,
     is_phasing_out: drug.status === 'قيد الإيقاف التدريجي',
     is_archived: drug.status === 'مؤرشف',
-    // حفظ البيانات الأصلية للاستخدام في النماذج
-    ...drug
   };
+};
+
+// وظيفة لتحديد أيقونة الدواء بناءً على الوحدة
+const getDrugIconDynamic = (unit) => {
+    if (!unit) return 'solar:pill-bold-duotone';
+    const u = unit.toLowerCase();
+    if (u === 'حقنة' || u === 'إبرة') return 'solar:syringe-bold-duotone';
+    if (u === 'جرام' || u === 'قنينة' || u === 'مل') return 'solar:bottle-bold-duotone';
+    return 'solar:pill-bold-duotone';
 };
 
 // جلب جميع الأدوية
@@ -223,7 +245,7 @@ const fetchDrugs = async () => {
     
     hasData.value = drugsData.value.length > 0;
     if (drugsData.value.length > 0) {
-      showSuccessAlert("✅ تم تحميل قائمة الأدوية بنجاح");
+      showSuccessAlert(" تم تحميل قائمة الأدوية بنجاح");
       // إخفاء الإشعار تلقائياً بعد 3 ثوانٍ
       setTimeout(() => {
         toast.value.show = false;
@@ -324,7 +346,7 @@ const addNewDrug = async (drugData) => {
     
     // تحديث القائمة المحلية
     drugsData.value.unshift(newDrug);
-    showSuccessAlert("✅ تم إضافة الدواء بنجاح");
+    showSuccessAlert(" تم إضافة الدواء بنجاح");
     
     // تحديث البيانات المحلية للبحث
     allDrugsData.value.unshift(newDrug);
@@ -361,7 +383,7 @@ const updateDrug = async (updatedDrug) => {
       allDrugsData.value[allIndex] = updated;
     }
     
-    showSuccessAlert("✅ تم تحديث بيانات الدواء بنجاح");
+    showSuccessAlert(" تم تحديث بيانات الدواء بنجاح");
     
     // إغلاق النافذة
     isEditDrugModalOpen.value = false;
@@ -407,7 +429,7 @@ const discontinueDrug = async () => {
       allDrugsData.value[allIndex] = updated;
     }
     
-    showSuccessAlert(response.data.message || "✅ تم إيقاف الدواء بنجاح");
+    showSuccessAlert(response.data.message || " تم إيقاف الدواء بنجاح");
     
     // إغلاق نافذة المعاينة إذا كانت مفتوحة
     if (isDrugPreviewModalOpen.value && selectedDrug.value.id === drugId) {
@@ -444,7 +466,7 @@ const reactivateDrug = async (drugId) => {
       allDrugsData.value[allIndex] = updated;
     }
     
-    showSuccessAlert("✅ تم إعادة تفعيل الدواء بنجاح");
+    showSuccessAlert(" تم إعادة تفعيل الدواء بنجاح");
   } catch (error) {
     console.error("Error reactivating drug:", error);
     const errorMsg = error.response?.data?.message || "❌ فشل في إعادة تفعيل الدواء";
@@ -466,84 +488,208 @@ const closeDeleteConfirmationModal = () => {
 const printTable = () => {
   const resultsCount = filteredDrugss.value.length;
 
-  const printWindow = window.open("", "_blank", "height=600,width=800");
+  const printWindow = window.open("", "_blank", "height=800,width=1000");
 
   if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
     showErrorAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
     return;
   }
 
+  const printDate = new Date().toLocaleString('ar-LY', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric',
+    numberingSystem: 'latn'
+  });
+
   let tableHtml = `
-<style>
-body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
-th { background-color: #f2f2f2; font-weight: bold; }
-h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
-.results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
-.no-data { text-align: center; padding: 40px; color: #666; font-style: italic; }
-.print-date { text-align: left; margin-bottom: 10px; font-size: 12px; color: #666; }
-</style>
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            @page { margin: 15mm; size: A4; }
+            .no-print { display: none; }
+        }
+        
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { padding: 0; margin: 0; color: #1e293b; background: white; line-height: 1.5; }
+        
+        .print-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        
+        /* Header Styling */
+        .page-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding-bottom: 20px; 
+            border-bottom: 2px solid #2E5077;
+        }
+        
+        .gov-title { text-align: center; }
+        .gov-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #2E5077; }
+        .gov-title p { margin: 5px 0 0; font-size: 14px; color: #64748b; }
+        
+        .report-title { text-align: center; margin: 20px 0; }
+        .report-title h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: #1e293b; 
+            background: #f1f5f9;
+            display: inline-block;
+            padding: 10px 40px;
+            border-radius: 50px;
+        }
+        
+        /* Stats Summary */
+        .summary-box {
+            display: grid;
+            grid-template-cols: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 12px; color: #64748b; font-weight: 600; }
+        .stat-value { font-size: 16px; color: #2E5077; font-weight: 700; }
+        
+        /* Table Styling */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { 
+            background-color: #2E5077; 
+            color: white; 
+            font-weight: 700; 
+            padding: 12px 15px; 
+            text-align: right; 
+            border: none;
+            font-size: 13px;
+        }
+        td { 
+            padding: 12px 15px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 13px; 
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .badge {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .signature-box { text-align: left; }
+        .signature-line { margin-top: 30px; width: 150px; border-top: 1px solid #cbd5e1; }
+        
+        .no-data { text-align: center; padding: 50px; color: #94a3b8; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="print-container">
+        <div class="page-header">
+            <div class="gov-title">
+                <h2>وزارة الصحة</h2>
+                <p>إدارة الأدوية والمعدات الطبية</p>
+            </div>
+            <div style="text-align: left">
+                <p style="margin: 0; font-size: 12px; color: #64748b;">تاريخ التقرير</p>
+                <p style="margin: 3px 0 0; font-weight: 700; color: #1e293b;">${printDate}</p>
+            </div>
+        </div>
 
-<h1>قائمة الأدوية </h1>
-<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+        <div class="report-title">
+            <h1>قائمة الأدوية المعتمدة</h1>
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-item">
+                <span class="stat-label">إجمالي الأدوية بالتقرير</span>
+                <span class="stat-value">${resultsCount} صنف</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">جهة الاستخراج</span>
+                <span class="stat-value">الإدارة العامة - نظام حُصـــتي</span>
+            </div>
+        </div>
+
+        ${resultsCount > 0 ? `
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;">#</th>
+                    <th style="width: 100px;">رمز الدواء</th>
+                    <th>اسم الدواء</th>
+                    <th>الاسم العلمي</th>
+                    <th>الفئة العلاجية</th>
+                    <th>التركيز</th>
+                    <th>الشكل الدوائي</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filteredDrugss.value.map((drug, index) => `
+                <tr>
+                    <td style="text-align: center; font-weight: 700; color: #64748b;">${index + 1}</td>
+                    <td style="font-weight: 700; color: #2E5077;">${drug.drugCode || '-'}</td>
+                    <td style="font-weight: 600;">${drug.drugName || '-'}</td>
+                    <td style="font-size: 12px; color: #64748b;">${drug.scientificName || '-'}</td>
+                    <td>${drug.therapeuticClass || '-'}</td>
+                    <td style="font-weight: 600; color: #475569;">${drug.strength || '-'}</td>
+                    <td>${drug.form || '-'}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        ` : `
+        <div class="no-data"> لا توجد بيانات أدوية متاحة للطباعة حالياً </div>
+        `}
+
+        <div class="footer">
+            <div class="signature-box">
+                <p>اعتماد الجهة المصدرة</p>
+                <div class="signature-line"></div>
+                <p style="font-size: 10px; margin-top: 5px;">ختم وزارة الصحة</p>
+            </div>
+            <div style="text-align: right;">
+                <p>نظام حُصتي لإدارة توزيع الأدوية</p>
+                <p style="font-size: 10px; margin-top: 5px;">تم استخراج هذا التقرير آلياً</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
 `;
 
-  if (resultsCount > 0) {
-    tableHtml += `
-<p class="results-info">عدد النتائج: ${resultsCount}</p>
-
-<table>
-<thead>
- <tr>
- <th>#</th>
- <th>رمز الدواء</th>
- <th>اسم الدواء</th>
- <th>الاسم العلمي</th>
- <th>الفئة العلاجية</th>
- <th>الشركة المصنعة</th>
- </tr>
-</thead>
-<tbody>
-`;
-
-    filteredDrugss.value.forEach((drug, index) => {
-      tableHtml += `
-<tr>
- <td>${index + 1}</td>
- <td>${drug.drugCode || ''}</td>
- <td>${drug.drugName || ''}</td>
- <td>${drug.scientificName || ''}</td>
- <td>${drug.therapeuticClass || ''}</td>
- <td>${drug.manufacturer || ''}</td>
-</tr>
-`;
-    });
-
-    tableHtml += `
-</tbody>
-</table>
-`;
-  } else {
-    tableHtml += `
-<div class="no-data">
-  <p>لا توجد أدوية</p>
-</div>
-`;
-  }
-
-  printWindow.document.write("<html><head><title>طباعة قائمة الأدوية</title>");
-  printWindow.document.write("</head><body>");
   printWindow.document.write(tableHtml);
-  printWindow.document.write("</body></html>");
   printWindow.document.close();
 
   printWindow.onload = () => {
     printWindow.focus();
-    printWindow.print();
-    if (resultsCount > 0) {
-      showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
-    }
+    setTimeout(() => {
+        printWindow.print();
+        if (resultsCount > 0) {
+          showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
+        }
+    }, 200);
   };
 };
 
@@ -600,62 +746,10 @@ onMounted(async () => {
                     >
                         <div class="flex items-center gap-3 w-full sm:max-w-xl">
                      
-                                <search v-model="searchTerm" />
+                                <search v-model="searchTerm" placeholder="ابحث باسم الدواء أو رمز الدواء أو الفئة العلاجية هنا" />
                           
 
-                        <button
-                            @click="showDateFilter = !showDateFilter"
-                            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
-                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
-                        >
-                            <Icon icon="solar:calendar-bold" class="w-5 h-5" />
-                        </button>
 
-                        <Transition
-                            enter-active-class="transition duration-200 ease-out"
-                            enter-from-class="opacity-0 scale-95"
-                            enter-to-class="opacity-100 scale-100"
-                            leave-active-class="transition duration-150 ease-in"
-                            leave-from-class="opacity-100 scale-100"
-                            leave-to-class="opacity-0 scale-95"
-                        >
-                            <div v-if="showDateFilter" class="flex items-center gap-2">
-                                <div class="relative">
-                                    <input
-                                        type="date"
-                                        v-model="dateFrom"
-                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
-                                        placeholder="من تاريخ"
-                                    />
-                                    <Icon
-                                        icon="solar:calendar-linear"
-                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                                    />
-                                </div>
-                                <span class="text-gray-600 font-medium">إلى</span>
-                                <div class="relative">
-                                    <input
-                                        type="date"
-                                        v-model="dateTo"
-                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
-                                        placeholder="إلى تاريخ"
-                                    />
-                                    <Icon
-                                        icon="solar:calendar-linear"
-                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                                    />
-                                </div>
-                                <button
-                                    v-if="dateFrom || dateTo"
-                                    @click="clearDateFilter"
-                                    class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
-                                    title="مسح فلتر التاريخ"
-                                >
-                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
-                                    مسح
-                                </button>
-                            </div>
-                        </Transition>
 
                         <div class="dropdown dropdown-start">
                                 <div
@@ -872,19 +966,19 @@ onMounted(async () => {
                                             ]"
                                         >
                                             <td
-                                                :class="
+                                                :class="[
+                                                    'drug-code-col',
                                                     getTextColorClass(
                                                         drug.quantity,
                                                         drug.neededQuantity
                                                     )
-                                                "
+                                                ]"
                                             >
                                                 {{ drug.drugCode }}
                                             </td>
-                                            <td
-                                            >
+                                            <td class="drug-name-col">
                                                 <div class="flex flex-col">
-                                                    <span>{{ drug.drugName }}</span>
+                                                    <span class="font-bold text-[#2E5077]">{{ drug.drugName }}</span>
                                                     <div class="flex gap-1 mt-1">
                                                         <span v-if="drug.status === 'قيد الإيقاف التدريجي'" class="text-[10px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded-md font-bold w-fit">
                                                             قيد الإيقاف التدريجي
@@ -896,22 +990,24 @@ onMounted(async () => {
                                                 </div>
                                             </td>
                                             <td
-                                                :class="
+                                                :class="[
+                                                    'scientific-name-col',
                                                     getTextColorClass(
                                                         drug.quantity,
                                                         drug.neededQuantity
                                                     )
-                                                "
+                                                ]"
                                             >
                                                 {{ drug.scientificName }}
                                             </td>
                                             <td
-                                                :class="
+                                                :class="[
+                                                    'category-col',
                                                     getTextColorClass(
                                                         drug.quantity,
                                                         drug.neededQuantity
                                                     )
-                                                "
+                                                ]"
                                             >
                                                 {{ drug.therapeuticClass }}
                                             </td>
@@ -1091,43 +1187,44 @@ onMounted(async () => {
     background-color: #3a8c94;
 }
 
-/* تنسيق أعمدة الجدول */
+/* تنسيقات أعمدة الجدول */
 .actions-col {
-    width: 150px;
-    min-width: 150px;
-    max-width: 150px;
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
     text-align: center;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
 }
 .drug-code-col {
-    width: 120px;
-    min-width: 120px;
-}
-.quantity-col {
-    width: 100px; 
+    width: 100px;
     min-width: 100px;
 }
-.expiry-date-col {
-    width: 130px;
-    min-width: 130px;
-}
 .drug-name-col {
-    width: auto;
-    min-width: 150px;
+    width: 180px;
+    min-width: 180px;
+}
+.scientific-name-col {
+    width: 180px;
+    min-width: 180px;
+}
+.category-col {
+    width: 160px;
+    min-width: 160px;
 }
 .min-w-\[700px\] {
-    min-width: 700px;
+    min-width: 850px;
 }
 
 /* تحسينات عامة */
 .table th {
     font-weight: 700;
     font-size: 14px;
+    padding: 18px 15px !important;
+    background-color: #9aced2 !important;
 }
 .table td {
     font-size: 14px;
     vertical-align: middle;
+    padding: 12px 15px !important;
 }
 
 /* تأثيرات الانتقال */

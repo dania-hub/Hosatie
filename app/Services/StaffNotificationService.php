@@ -325,6 +325,43 @@ class StaffNotificationService
         }
     }
 
+    // Notify Super Admin about New Internal Request (e.g. from Supplier)
+    public function notifySuperAdminNewInternalRequest(InternalSupplyRequest $request)
+    {
+        $superAdmins = User::where('type', 'super_admin')->get();
+
+        if (!$request->relationLoaded('requester')) $request->load('requester');
+        if (!$request->relationLoaded('items.drug')) $request->load('items.drug');
+
+        $requesterName = $request->requester->full_name ?? 'مستخدم غير معروف';
+        $role = $request->requester->type === 'supplier_admin' ? 'مورد' : 'مستخدم';
+
+        $message = "قام [{$requesterName} - {$role}] بإرسال طلب توريد جديد (رقم #{$request->id}) إلى الإدارة (المستودع الرئيسي).";
+        
+        // Include Items Summary
+        if ($request->items && $request->items->count() > 0) {
+            $message .= "\n\nالمواد المطلوبة:";
+            foreach($request->items->take(5) as $item) {
+                $drugName = $item->drug->name ?? 'دواء غير معروف';
+                $qty = $item->requested_qty ?? 0;
+                $message .= "\n- {$drugName} (الكمية: {$qty})";
+            }
+            if ($request->items->count() > 5) {
+                $remaining = $request->items->count() - 5;
+                $message .= "\n...و {$remaining} مواد أخرى.";
+            }
+        }
+        
+        foreach ($superAdmins as $admin) {
+            $this->createNotification(
+                $admin,
+                'طلب توريد داخلي جديد من مورد',
+                $message,
+                'عادي'
+            );
+        }
+    }
+
     // Notify about Patient Transfer (To the source hospital admin)
     public function notifyAdminTransferRequest(PatientTransferRequest $request)
     {
@@ -494,12 +531,20 @@ class StaffNotificationService
     }
 
     // Notify Supplier about Super Admin Response
-    public function notifySupplierAboutSuperAdminResponse(ExternalSupplyRequest $request, string $status, ?string $notes = null)
+    public function notifySupplierAboutSuperAdminResponse($request, string $status, ?string $notes = null)
     {
-        if (!$request->supplier_id) return;
+        $supplierId = null;
+          if ($request instanceof ExternalSupplyRequest) {
+            $supplierId = $request->supplier_id;
+        } elseif ($request instanceof InternalSupplyRequest) {
+             if (!$request->relationLoaded('requester')) $request->load('requester');
+            $supplierId = $request->requester->supplier_id ?? null;
+        }
+
+        if (!$supplierId) return;
 
         $supplierAdmins = User::where('type', 'supplier_admin')
-            ->where('supplier_id', $request->supplier_id)
+            ->where('supplier_id', $supplierId)
             ->get();
 
         

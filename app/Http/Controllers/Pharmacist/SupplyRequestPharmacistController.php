@@ -57,6 +57,8 @@ class SupplyRequestPharmacistController extends BaseApiController
             // Use correct column names
             $supplyRequest->requested_by = $user->id;
             $supplyRequest->pharmacy_id = $pharmacyId; // <--- استخدام الصيدلية المستنتجة
+            $supplyRequest->supplier_id = null;
+            $supplyRequest->department_id = null;
             
             $supplyRequest->status = 'pending';
             $supplyRequest->save();

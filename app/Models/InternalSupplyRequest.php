@@ -13,6 +13,8 @@ class InternalSupplyRequest extends Model
 
     protected $fillable = [
         'pharmacy_id',
+        'supplier_id',
+        'department_id',
         'requested_by',
         'handeled_by', // Use existing column
         'status',
@@ -25,6 +27,16 @@ class InternalSupplyRequest extends Model
     public function pharmacy()
     {
         return $this->belongsTo(Pharmacy::class);
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 
     public function requester()

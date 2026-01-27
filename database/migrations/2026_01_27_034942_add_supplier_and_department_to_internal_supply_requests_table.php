@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('internal_supply_requests', function (Blueprint $table) {
-            $table->unsignedBigInteger('pharmacy_id')->nullable()->change();
+            $table->foreignId('supplier_id')->nullable()->after('pharmacy_id')->constrained('suppliers')->nullOnDelete();
+            $table->foreignId('department_id')->nullable()->after('supplier_id')->constrained('departments')->nullOnDelete();
         });
     }
 
@@ -22,7 +23,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('internal_supply_requests', function (Blueprint $table) {
-            $table->unsignedBigInteger('pharmacy_id')->nullable(false)->change();
+            $table->dropForeign(['supplier_id']);
+            $table->dropColumn('supplier_id');
+            $table->dropForeign(['department_id']);
+            $table->dropColumn('department_id');
         });
     }
 };

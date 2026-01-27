@@ -582,6 +582,7 @@ class PatientPharmacistController extends BaseApiController
                     'quantity' => $item['quantity'],
                     'original_quantity' => 0,
                     'is_new' => true,
+                    'expiry_date' => $primaryBatch['expiry_date'] ?? null,
                 ];
 
                 // ح. التحقق من أرشفة الدواء (خاص بسياسة الإيقاف التدريجي)
@@ -826,7 +827,8 @@ class PatientPharmacistController extends BaseApiController
                     [
                         'drugName' => $d->drug ? $d->drug->name : 'غير معروف', 
                         'quantity' => $d->quantity_dispensed ?? 0,
-                        'unit' => $d->drug ? ($d->drug->unit ?? 'حبة') : 'حبة'
+                        'unit' => $d->drug ? ($d->drug->unit ?? 'حبة') : 'حبة',
+                        'expiryDate' => $d->expiry_date ? \Carbon\Carbon::parse($d->expiry_date)->format('Y/m/d') : null,
                     ]
                 ]
             ];

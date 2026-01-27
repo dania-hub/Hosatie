@@ -86,6 +86,7 @@ class PrescriptionController extends BaseApiController
                     'pharmacist_name' => $item->pharmacist->full_name ?? 'Unknown',
                     'pharmacy_name'   => $item->pharmacy->name ?? 'Unknown',
                     'quantity'        => $item->quantity_dispensed,
+                    'expiry_date'     => $item->expiry_date ? \Carbon\Carbon::parse($item->expiry_date)->format('Y-m-d') : null,
                 ];
             });
 

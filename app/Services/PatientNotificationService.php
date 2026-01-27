@@ -149,7 +149,10 @@ class PatientNotificationService
         
         if (count($drugsInfo) === 1) {
             $item = $drugsInfo[0];
-            $message = "تم صرف كمية ({$item['quantity']}) من دواء ({$item['drug_name']}) لك من صيدلية المستشفى.";
+            $expiryText = (isset($item['expiry_date']) && $item['expiry_date']) 
+                ? " (تاريخ الانتهاء: " . \Carbon\Carbon::parse($item['expiry_date'])->format('Y-m-d') . ")" 
+                : "";
+            $message = "تم صرف كمية ({$item['quantity']}) من دواء ({$item['drug_name']}) لك من صيدلية المستشفى{$expiryText}.";
         } else {
             $drugNames = collect($drugsInfo)->pluck('drug_name')->implode('، ');
             $message = "تم صرف مجموعة من الأدوية ({$drugNames}) لك من صيدلية المستشفى.";

@@ -351,7 +351,7 @@ const buildActivitiesPrintHtml = (logs, meta) => {
                 <tr class="data-row">
                     <td class="col-user">${escapeHtml(log.userName || 'غير معروف')}</td>
                     <td class="col-type">${escapeHtml(log.userTypeArabic || log.userType || '-')}</td>
-                    <td class="col-hosp">${escapeHtml((log.userType === 'supplier_admin' || log.userType === 'super_admin') ? '-' : (log.hospitalName || '-'))}</td>
+                    <td class="col-hosp">${escapeHtml(log.affiliation || '-')}</td>
                     <td class="col-act">${escapeHtml(log.actionArabic || log.action || '-')}</td>
                     <td class="col-date" dir="ltr">${escapeHtml(createdAt)}</td>
                 </tr>
@@ -509,7 +509,7 @@ const buildActivitiesPrintHtml = (logs, meta) => {
                     <tr class="column-headers">
                         <th class="col-user">المستخدم</th>
                         <th class="col-type">نوع المستخدم</th>
-                        <th class="col-hosp">المؤسسة الصحية</th>
+                        <th class="col-hosp">يتبع</th>
                         <th class="col-act">العملية</th>
                         <th class="col-date">التاريخ</th>
                     </tr>
@@ -2046,7 +2046,7 @@ const uniquePatientsCount = computed(() => {
                                 </th>
                                 <th class="p-4 rounded-r-xl">المستخدم</th>
                                 <th class="p-4">نوع المستخدم</th>
-                                <th class="p-4">المؤسسة الصحية</th>
+                                <th class="p-4">يتبع</th>
                                 <th class="p-4">النشاط</th>
                                 <th class="p-4">تفاصيل النشاط</th>
                                 <th class="p-4 rounded-l-xl">التوقيت</th>
@@ -2062,7 +2062,7 @@ const uniquePatientsCount = computed(() => {
                                 <td class="p-4 text-gray-600 text-sm">{{ log.userTypeArabic || log.userType }}</td>
                                 <td class="p-4">
                                      <span class="px-2 py-1  text-[#2C5282]">
-                                         {{ (log.userType === 'supplier_admin' || log.userType === 'super_admin') ? '-' : (log.hospitalName || '-') }}
+                                         {{ log.affiliation || '-' }}
                                      </span>
                                 </td>
                                 <td class="p-4">

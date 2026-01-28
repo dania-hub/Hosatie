@@ -475,11 +475,19 @@ const printTable = () => {
                 width: 100%;
                 border-collapse: collapse;
                 margin-top: 15px;
+                table-layout: fixed; /* تثبيت عرض الجدول */
             }
             th, td {
                 border: 1px solid #ccc;
-                padding: 10px;
+                padding: 8px;
                 text-align: right;
+                font-size: 12px;
+                word-wrap: break-word; /* السماح بالتفاف النص */
+                overflow-wrap: break-word;
+            }
+            /* تحديد عرض الأعمدة لضمان عدم خروج التاريخ */
+            th:nth-last-child(1), td:nth-last-child(1) {
+                width: 100px;
             }
             th {
                 background-color: #f2f2f2;

@@ -14,7 +14,7 @@ class CreateSupplyRequestRequest extends FormRequest
     public function rules()
     {
         return [
-            'hospital_id' => 'required|exists:hospitals,id',
+            'hospital_id' => 'nullable|exists:hospitals,id',
             'items' => 'required|array|min:1',
             'items.*.drug_id' => 'required|exists:drugs,id',
             'items.*.quantity' => 'required|integer|min:1',

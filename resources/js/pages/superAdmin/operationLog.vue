@@ -173,6 +173,19 @@ const filteredOperations = computed(() => {
         });
     }
 
+    // 3. إزالة التكرار (Deduplication)
+    // نقوم بتصفية الصفوف التي تحتوي على نفس البيانات الظاهرة تمامًا
+    // (رقم الملف، الاسم، العنوان، التفاصيل، التاريخ)
+    const seen = new Set();
+    list = list.filter(op => {
+        const key = `${op.file_number}|${op.full_name}|${op.operation_label}|${op.operation_body}|${op.date}`;
+        if (seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    });
+
     return list;
 });
 

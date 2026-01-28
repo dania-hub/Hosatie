@@ -110,6 +110,7 @@ const isDrugPreviewModalOpen = ref(false);
 const isAddDrugModalOpen = ref(false);
 const isEditDrugModalOpen = ref(false);
 const isSupplyRequestModalOpen = ref(false);
+const isPolicyModalOpen = ref(false); // نافذة اختيار سياسة الإيقاف
 const selectedDrug = ref({});
 const selectedDrugForEdit = ref({});
 
@@ -397,9 +398,10 @@ const updateDrug = async (updatedDrug) => {
   }
 };
 
-// تأكيد الحذف
+// تأكيد الحذف - فتح نافذة التأكيد مع اختيار السياسة
 const confirmDeleteDrug = (drugId) => {
   drugToDelete.value = drugId;
+  selectedPolicy.value = 'dispense_until_zero'; // القيمة الافتراضية: الصرف حتى نفاذ الكمية
   isDeleteConfirmationModalOpen.value = true;
 };
 
@@ -1126,8 +1128,16 @@ onMounted(async () => {
                         </p>
                         
                         <div class="mt-4 space-y-3 text-right" dir="rtl">
-                            
+                            <!-- خيار الإيقاف الفوري -->
+                            <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'immediate' ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
+                                <input type="radio" value="immediate" v-model="selectedPolicy" class="w-5 h-5 text-red-600 focus:ring-red-500">
+                                <div class="flex-1">
+                                    <div class="font-bold text-gray-800">إيقاف فوري</div>
+                                    <div class="text-xs text-gray-500">إيقاف الدواء فوراً دون إشعارات</div>
+                                </div>
+                            </label>
 
+                            <!-- خيار الصرف حتى نفاذ الكمية -->
                             <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'dispense_until_zero' ? 'border-orange-500 bg-orange-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
                                 <input type="radio" value="dispense_until_zero" v-model="selectedPolicy" class="w-5 h-5 text-orange-600 focus:ring-orange-500">
                                 <div class="flex-1">
@@ -1137,8 +1147,13 @@ onMounted(async () => {
                             </label>
                         </div>
 
-                        <p class="text-xs text-gray-400 mt-2 italic">
-                            سيتم إشعار جميع الجهات المعنية بالقرار فور تأكيده
+                        <p class="text-xs text-gray-400 mt-2">
+                            <span v-if="selectedPolicy === 'dispense_until_zero'">
+                                 سيتم إشعار جميع الجهات المعنية والمرضى بالقرار فور تأكيده
+                            </span>
+                            <span v-else>
+                                 لن يتم إرسال إشعارات عند الإيقاف الفوري
+                            </span>
                         </p>
                     </div>
                     <div class="flex justify-center bg-gray-50 px-6 py-4 gap-3 border-t border-gray-100">

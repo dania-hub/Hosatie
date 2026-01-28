@@ -1191,10 +1191,16 @@ const getStatusClass = (status) => {
     // توحيد الحالات
     const s = status ? status.toLowerCase() : '';
     switch (s) {
-        case 'active': case 'متوفر': case 'نشط': case 'approved': case 'completed': case 'fulfilled': return 'bg-green-100 text-green-700';
-        case 'inactive': case 'معطل': case 'غير نشط': case 'غير متوفر': case 'rejected': case 'cancelled': return 'bg-red-100 text-red-700';
-        case 'pending': case 'pending_activation': return 'bg-yellow-100 text-yellow-700';
-        default: return 'bg-gray-100 text-gray-700';
+        case 'active': case 'متوفر': case 'نشط': case 'approved': case 'completed': case 'fulfilled': case 'delivered': case 'success': 
+            return 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-sm shadow-emerald-500/10';
+        case 'inactive': case 'معطل': case 'غير نشط': case 'غير متوفر': case 'rejected': case 'cancelled': 
+            return 'bg-rose-50 text-rose-700 border-rose-100 shadow-sm shadow-rose-500/10';
+        case 'pending': case 'pending_activation': case 'قيد الانتظار':
+            return 'bg-amber-50 text-amber-700 border-amber-100 shadow-sm shadow-amber-500/10';
+        case 'preapproved': case 'موافقة مبدئية':
+            return 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm shadow-indigo-500/10';
+        default: 
+            return 'bg-slate-50 text-slate-700 border-slate-100 shadow-sm';
     }
 };
 
@@ -1209,8 +1215,11 @@ const getStatusText = (status) => {
         'approved': 'تمت الموافقة',
         'rejected': 'مرفوض',
         'fulfilled': 'تم التسليم',
+        'delivered': 'تم التسليم',
         'completed': 'مكتمل',
-        'cancelled': 'ملغى'
+        'cancelled': 'ملغى',
+        'preapproved': 'موافقة مبدئية',
+        'success': 'ناجح'
     };
     return map[s] || status;
 };
@@ -1887,152 +1896,245 @@ const uniquePatientsCount = computed(() => {
                      <!-- List View -->
                      <div v-if="viewMode === 'list'">
                         <EmptyState v-if="reportData.length === 0" title="لا توجد بيانات" message="لا توجد بيانات للطلبات الشهرية" />
-                        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             <div 
                                 v-for="(item, index) in filteredReportData" 
                                 :key="index" 
                                 @click="showMonthDetails(item)"
-                                class="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-1"
+                                class="group relative bg-white border border-gray-100 rounded-[2rem] p-8 hover:shadow-2xl hover:shadow-[#4DA1A9]/10 transition-all duration-500 cursor-pointer overflow-hidden border-b-4 border-b-[#4DA1A9]/20 hover:border-b-[#4DA1A9]"
                             >
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-lg font-bold text-[#4DA1A9]">{{ item.monthName }}</h3>
-                                    <div class="w-10 h-10 bg-[#4DA1A9]/10 rounded-full flex items-center justify-center">
-                                        <Icon icon="solar:calendar-bold" class="w-6 h-6 text-[#4DA1A9]" />
+                                <!-- Decorative background -->
+                                <div class="absolute -right-10 -top-10 w-32 h-32 bg-[#4DA1A9]/5 rounded-full blur-3xl group-hover:bg-[#4DA1A9]/10 transition-colors duration-500"></div>
+                                
+                                <div class="relative flex items-center justify-between mb-8">
+                                    <div>
+                                        <h3 class="text-2xl font-black text-[#4DA1A9] tracking-tight">{{ item.monthName }}</h3>
+                                        <div class="text-xs text-gray-400 font-mono mt-1 opacity-60">{{ item.month }}</div>
+                                    </div>
+                                    <div class="w-14 h-14 bg-gradient-to-br from-[#4DA1A9] to-[#3d8b92] rounded-2xl flex items-center justify-center shadow-lg shadow-[#4DA1A9]/30 transform group-hover:rotate-12 transition-transform duration-500">
+                                        <Icon icon="solar:calendar-minimalistic-bold-duotone" class="w-8 h-8 text-white" />
                                     </div>
                                 </div>
-                                <div class="border-b border-gray-100 pb-2 mb-2 text-xs text-gray-400 font-mono">{{ item.month }}</div>
-                                <div class="space-y-3">
-                                    <div class="flex justify-between items-center text-sm">
-                                        <span class="text-gray-600">الطلبات الداخلية</span>
-                                        <span class="font-bold text-[#4DA1A9]">{{ item.internalRequests }}</span>
+
+                                <div class="space-y-4 relative">
+                                    <div class="flex justify-between items-center p-3 bg-blue-50/50 rounded-2xl border border-blue-100/30 group-hover:bg-blue-50 transition-colors">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-2 h-2 rounded-full bg-blue-400"></div>
+                                            <span class="text-gray-600 font-bold text-sm">الطلبات الخارجية</span>
+                                        </div>
+                                        <span class="font-black text-blue-600 text-lg">{{ item.externalRequests }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center text-sm">
-                                        <span class="text-gray-600">الطلبات الخارجية</span>
-                                        <span class="font-bold text-blue-600">{{ item.externalRequests }}</span>
+                                    
+                                    <div class="flex justify-between items-center p-3 bg-green-50/50 rounded-2xl border border-green-100/30 group-hover:bg-green-50 transition-colors">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-2 h-2 rounded-full bg-green-400"></div>
+                                            <span class="text-gray-600 font-bold text-sm">الطلبات الداخلية</span>
+                                        </div>
+                                        <span class="font-black text-green-600 text-lg">{{ item.internalRequests }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center text-sm">
-                                        <span class="text-gray-600">طلبات التحويل</span>
-                                        <span class="font-bold text-orange-600">{{ item.transferRequests }}</span>
+
+                                    <div class="flex justify-between items-center p-3 bg-orange-50/50 rounded-2xl border border-orange-100/30 group-hover:bg-orange-50 transition-colors">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-2 h-2 rounded-full bg-orange-400"></div>
+                                            <span class="text-gray-600 font-bold text-sm">طلبات التحويل</span>
+                                        </div>
+                                        <span class="font-black text-orange-600 text-lg">{{ item.transferRequests }}</span>
                                     </div>
-                                    <div class="pt-3 mt-3 border-t border-gray-100 flex justify-between items-center">
-                                        <span class="font-bold text-[#4DA1A9]">الإجمالي</span>
-                                        <div class="bg-[#4DA1A9] text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">
-                                            {{ item.total }}
+
+                                    <div class="pt-6 mt-6 border-t border-gray-100 flex justify-between items-center">
+                                        <div class="flex flex-col">
+                                            <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">إجمالي الحركات</span>
+                                            <span class="font-black text-gray-700 text-2xl tracking-tight">{{ item.total }}</span>
+                                        </div>
+                                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-[#4DA1A9] group-hover:bg-[#4DA1A9] group-hover:text-white transition-all duration-300">
+                                            <Icon icon="solar:alt-arrow-left-linear" class="w-6 h-6 transform rotate-180" />
                                         </div>
                                     </div>
                                 </div>
-                                <div class="mt-4 text-center text-sm text-[#4DA1A9] flex items-center justify-center gap-2 font-bold bg-cyan-50/50 border border-cyan-100 py-2.5 rounded-xl group-hover:bg-[#4DA1A9] group-hover:text-white transition-colors">
-                                    <Icon icon="solar:eye-broken" class="w-4 h-4" />
-                                    عرض التفاصيل
+                            </div>
+                        </div>
+                     </div>
+
+                      <!-- Details View -->
+                      <div v-else>
+                         <!-- طباعة الطلبات الشهرية - تظهر فقط أثناء الطباعة -->
+                         <div v-if="isPrinting && filteredMonthDetails.length > 0" class="print-only-requests">
+                             <div class="print-header">
+                                 <h1 class="print-title">تقرير الطلبات الشهرية التفصيلي</h1>
+                                 <div class="print-meta">
+                                     <span>الشهر: {{ selectedMonthData?.monthName }}</span>
+                                     <span>تاريخ التقرير: {{ new Date().toLocaleDateString('ar-SA') }}</span>
+                                     <span>إجمالي الطلبات: {{ filteredMonthDetails.length }}</span>
+                                 </div>
+                             </div>
+
+                             <div class="print-summary">
+                                 <h2>ملخص الحركات ({{ selectedMonthData?.monthName }})</h2>
+                                 <div class="summary-grid">
+                                     <div class="summary-item">
+                                         <div class="summary-value">{{ selectedMonthData?.externalRequests }}</div>
+                                         <div class="summary-label">طلبات خارجية</div>
+                                     </div>
+                                     <div class="summary-item">
+                                         <div class="summary-value">{{ selectedMonthData?.internalRequests }}</div>
+                                         <div class="summary-label">طلبات داخلية</div>
+                                     </div>
+                                     <div class="summary-item">
+                                         <div class="summary-value">{{ selectedMonthData?.transferRequests }}</div>
+                                         <div class="summary-label">طلبات تحويل</div>
+                                     </div>
+                                     <div class="summary-item" style="border-right: 2px solid #4DA1A9;">
+                                         <div class="summary-value">{{ selectedMonthData?.total }}</div>
+                                         <div class="summary-label">إجمالي الحركات</div>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <div class="requests-details-print">
+                                 <div v-for="(req, index) in filteredMonthDetails" :key="req.id" 
+                                      v-show="!isSelectionMode || isRowSelected(req.id)"
+                                      class="request-card-print">
+                                     <div class="req-header-print" :class="req.type">
+                                         <span class="req-id">{{ req.displayId }}</span>
+                                         <span class="req-type-badge">{{ req.typeArabic }}</span>
+                                         <span class="req-date">{{ req.date }}</span>
+                                     </div>
+                                     <div class="req-info-grid">
+                                         <div class="info-cell"><strong>المرسل:</strong> {{ req.sender }}</div>
+                                         <div class="info-cell"><strong>المستلم:</strong> {{ req.receiver }}</div>
+                                         <div class="info-cell"><strong>الحالة:</strong> {{ getStatusText(req.status) }}</div>
+                                     </div>
+                                     
+                                     <div v-if="req.fullItems && req.fullItems.length > 0" class="items-table-print">
+                                         <table>
+                                             <thead>
+                                                 <tr>
+                                                     <th>الصنف / الدواء</th>
+                                                     <th>الكمية المطلوبة</th>
+                                                     <th>الكمية المعتمدة</th>
+                                                     <th>ملاحظات</th>
+                                                 </tr>
+                                             </thead>
+                                             <tbody>
+                                                 <tr v-for="item in req.fullItems" :key="item.id">
+                                                     <td>{{ item.name }}</td>
+                                                     <td class="center font-bold">{{ item.qty }}</td>
+                                                     <td class="center font-bold text-success">{{ item.approved_qty || '-' }}</td>
+                                                     <td>{{ item.details || '-' }}</td>
+                                                 </tr>
+                                             </tbody>
+                                         </table>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <div class="print-footer">
+                                 <div class="footer-line"></div>
+                                 <p>رئاسة مجلس الوزراء - وزارة الصحة - نظام حُصتي للإمداد الدوائي</p>
+                             </div>
+                         </div>
+
+                         <!-- واجهة العرض العادية -->
+                         <div v-if="!isPrinting">
+                            <div class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div class="flex items-center gap-4">
+                                    <button @click="backToMonths" class="w-12 h-12 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 hover:border-[#4DA1A9]/30 text-[#4DA1A9] transition-all shadow-sm flex items-center justify-center group active:scale-95">
+                                        <Icon icon="solar:arrow-right-outline" class="w-6 h-6 transition-transform group-hover:translate-x-1" />
+                                    </button>
+                                    <div>
+                                        <h2 class="text-2xl font-black text-[#4DA1A9] flex items-center gap-3">
+                                            تفاصيل الطلبات لشهـــر
+                                            <span class="bg-[#4DA1A9]/10 text-[#4DA1A9] px-4 py-1.5 rounded-2xl text-lg font-black border border-[#4DA1A9]/20 shadow-sm">
+                                                {{ selectedMonthData?.monthName }}
+                                            </span>
+                                        </h2>
+                                        <p class="text-sm text-gray-500 font-bold mt-1">استعراض وتحليل الطلبات (داخلية، خارجية، تحويل)</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                     </div>
 
-                     <!-- Details View -->
-                     <div v-else>
-                        <div class="mb-6 flex items-center gap-4">
-                            <button @click="backToMonths" class="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-[#4DA1A9]/50 text-[#4DA1A9] transition-all shadow-sm flex items-center justify-center group">
-                                <Icon icon="solar:arrow-right-bold" class="w-6 h-6 group-hover:scale-110 transition-transform" />
-                            </button>
-                            <div>
-                                <h2 class="text-xl font-bold text-[#4DA1A9] flex items-center gap-2">
-                                    تفاصيل الطلبات
-                                    <span v-if="selectedMonthData" class="text-[#4DA1A9] text-base font-normal">
-                                        ({{ selectedMonthData.monthName }})
-                                    </span>
-                                </h2>
+                            <div v-if="isDetailLoading" class="min-h-[400px] flex items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
+                                <LoadingState message="جاري استخراج تفاصيل الشهر..." />
                             </div>
-                        </div>
-
-                        <div v-if="isDetailLoading" class="min-h-[300px] flex items-center justify-center">
-                            <LoadingState message="جاري تحميل التفاصيل..." />
-                        </div>
-                        <div v-else-if="filteredMonthDetails.length === 0" class="min-h-[300px] flex flex-col items-center justify-center">
-                            <EmptyState title="لا توجد طلبات" message="لم يتم تسجيل أي طلبات في هذا الشهر" />
-                        </div>
-                        <div v-else class="overflow-x-auto">
-                            <table class="w-full text-right border-collapse">
-                                <thead>
-                                    <tr class="bg-gray-50 text-[#4DA1A9]">
-                                        <th v-if="isSelectionMode" class="p-4 w-10 text-center no-print">
-                                            <input type="checkbox" :checked="selectedIds.size > 0 && selectedIds.size === filteredMonthDetails.length" @change="toggleSelectAll" class="rounded border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9]">
-                                        </th>
-                                        <th class="p-4 rounded-r-xl">رقم الطلب</th>
-                                        <th class="p-4">نوع الطلب</th>
-                                        <th class="p-4">مرسل الطلب</th>
-                                        <th class="p-4">مستقبل الطلب</th>
-                                        <th class="p-4">التاريخ</th>
-                                        <th class="p-4">عدد المواد</th>
-                                        <th class="p-4 rounded-l-xl">الحالة</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-100">
-                                    <template v-for="req in filteredMonthDetails" :key="req.id">
-                                    <tr class="hover:bg-[#F8FAFC] transition-colors" :class="{ 'no-print': isSelectionMode && !isRowSelected(req.id) }">
-                                        <td v-if="isSelectionMode" class="p-4 text-center no-print">
-                                            <input type="checkbox" :checked="isRowSelected(req.id)" @change="toggleRowSelection(req.id)" class="rounded border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9]">
-                                        </td>
-                                        <td class="p-4 font-mono text-sm font-bold text-[#4DA1A9]">{{ req.displayId }}</td>
-                                        <td class="p-4">
-                                            <span class="px-2 py-1 bg-gray-100 rounded text-gray-700 text-xs font-bold"
-                                                :class="{
-                                                    'bg-blue-50 text-blue-700': req.type === 'external',
-                                                    'bg-green-50 text-green-700': req.type === 'internal',
-                                                    'bg-orange-50 text-orange-700': req.type === 'transfer'
-                                                }"
-                                            >
-                                                {{ req.typeArabic }}
-                                            </span>
-                                        </td>
-                                        <td class="p-4 text-gray-600 font-medium">{{ req.sender }}</td>
-                                        <td class="p-4 text-gray-600 font-medium">{{ req.receiver }}</td>
-                                        <td class="p-4 text-gray-500 font-mono text-sm" dir="ltr">{{ req.date }}</td>
-                                        <td class="p-4 font-bold text-center">
-                                            <button 
-                                                @click.stop="openItemsModal(req)"
-                                                class="px-4 py-1.5 bg-white border border-gray-200 hover:bg-[#4DA1A9] hover:text-white hover:border-[#4DA1A9] rounded-xl transition-all text-[#4DA1A9] font-bold text-sm inline-flex items-center gap-2 shadow-sm"
-                                            >
-                                                {{ req.itemsCount }}
-                                                <Icon icon="solar:eye-broken" class="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                        <td class="p-4">
-                                            <span :class="['px-3 py-1 rounded-lg text-xs font-bold', getStatusClass(req.status)]">
-                                                {{ getStatusText(req.status) }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                            <!-- بيانات الطباعة الإضافية: عناصر الطلب -->
-                             <tr v-if="isPrinting && req.fullItems && req.fullItems.length > 0" class="print-row bg-gray-50/50">
-                                <td colspan="7" class="p-4 border-t border-gray-200">
-                                     <div class="text-sm font-bold text-gray-700 mb-2">تفاصيل المواد للطلب {{ req.displayId }}:</div>
-                                     <table class="w-full text-right text-xs border border-gray-200 bg-white">
-                                         <thead class="bg-gray-100">
-                                             <tr>
-                                                 <th class="p-2 border border-gray-200">الاسم / الدواء</th>
-                                                 <th class="p-2 border border-gray-200">الكمية المطلوبة</th>
-                                                 <th class="p-2 border border-gray-200">الكمية الموافقة</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody>
-                                             <tr v-for="(item, idx) in req.fullItems" :key="idx">
-                                                 <td class="p-2 border border-gray-200">
-                                                     {{ item.name }}
-                                                     <div v-if="item.details" class="text-[10px] text-gray-500">{{ item.details }}</div>
-                                                 </td>
-                                                 <td class="p-2 border border-gray-200 font-mono">{{ item.qty }}</td>
-                                                 <td class="p-2 border border-gray-200 font-mono">{{ item.approved_qty || '-' }}</td>
-                                             </tr>
-                                         </tbody>
-                                     </table>
-                                </td>
-                             </tr>
-                            </template>
-                                </tbody>
-                            </table>
-                        </div>
-                     </div>
+                            <div v-else-if="filteredMonthDetails.length === 0" class="min-h-[400px] flex flex-col items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm">
+                                <EmptyState title="الشهر فارغ" message="لم يتم تسجيل أي حركات طلبات في هذا التاريخ" />
+                            </div>
+                            <div v-else class="bg-white rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-gray-200/40 overflow-hidden">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-right border-collapse">
+                                        <thead>
+                                            <tr class="bg-gradient-to-l from-gray-50/80 to-white text-[#4DA1A9] border-b border-gray-100/50">
+                                                <th v-if="isSelectionMode" class="p-6 w-12 text-center">
+                                                    <input type="checkbox" :checked="selectedIds.size > 0 && selectedIds.size === filteredMonthDetails.length" @change="toggleSelectAll" class="rounded-lg border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9] w-5 h-5">
+                                                </th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80">رقم التتبع</th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80 text-center">التصنيف</th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80">جهة الصدور</th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80">جهة الاستقبال</th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80">تاريخ الطلب</th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80 text-center">التفاصيل</th>
+                                                <th class="p-6 text-xs font-black uppercase tracking-[0.1em] opacity-80">الحالة النهائية</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-50/50">
+                                            <template v-for="req in filteredMonthDetails" :key="req.id">
+                                            <tr class="hover:bg-[#4DA1A9]/[0.02] transition-all duration-300 group" :class="{ 'bg-gray-50/30 opacity-60': isSelectionMode && !isRowSelected(req.id) }">
+                                                <td v-if="isSelectionMode" class="p-6 text-center">
+                                                    <input type="checkbox" :checked="isRowSelected(req.id)" @change="toggleRowSelection(req.id)" class="rounded-lg border-gray-300 text-[#4DA1A9] focus:ring-[#4DA1A9] w-5 h-5">
+                                                </td>
+                                                <td class="p-6">
+                                                    <span class="font-mono text-sm font-black text-[#4DA1A9]">
+                                                        {{ req.displayId }}
+                                                    </span>
+                                                </td>
+                                                <td class="p-6 text-center">
+                                                    <span class="inline-flex items-center gap-2 px-5 py-2 rounded-[1.25rem] text-[12px] font-black shadow-sm border"
+                                                        :class="{
+                                                            'bg-blue-50 text-blue-700 border-blue-100': req.type === 'external',
+                                                            'bg-emerald-50 text-emerald-700 border-emerald-100': req.type === 'internal',
+                                                            'bg-amber-50 text-amber-700 border-amber-100': req.type === 'transfer'
+                                                        }"
+                                                    >
+                                                        <div class="w-2 h-2 rounded-full" :class="req.type === 'external' ? 'bg-blue-500' : req.type === 'internal' ? 'bg-emerald-500' : 'bg-amber-500'"></div>
+                                                        {{ req.typeArabic }}
+                                                    </span>
+                                                </td>
+                                                <td class="p-6">
+                                                    <span class="font-bold text-gray-700 text-sm max-w-[120px] leading-relaxed">{{ req.sender }}</span>
+                                                </td>
+                                                <td class="p-6">
+                                                    <span class="font-bold text-gray-700 text-sm max-w-[120px] leading-relaxed">{{ req.receiver }}</span>
+                                                </td>
+                                                <td class="p-6 min-w-[140px]">
+                                                    <div class="flex flex-col">
+                                                        <span class="text-gray-400 font-mono text-sm tracking-tight" dir="ltr">{{ req.date }}</span>
+                                                        <span class="text-[10px] text-gray-300 font-bold mt-1">تاريخ الإنشاء</span>
+                                                    </div>
+                                                </td>
+                                                <td class="p-6 text-center">
+                                                    <button 
+                                                        @click.stop="openItemsModal(req)"
+                                                        class="group/btn relative w-12 h-12 bg-white border border-gray-100 hover:bg-[#4DA1A9] hover:text-white hover:border-[#4DA1A9] rounded-[1.25rem] transition-all duration-300 text-[#4DA1A9] font-black text-lg flex items-center justify-center shadow-sm active:scale-90 mx-auto"
+                                                        :title="`عرض ${req.itemsCount} تفاصيل`"
+                                                    >
+                                                        <span class="relative z-10">{{ req.itemsCount }}</span>
+                                                        <div class="absolute inset-0 bg-[#4DA1A9] rounded-[1.25rem] scale-0 group-hover/btn:scale-100 transition-transform duration-300 -z-0"></div>
+                                                    </button>
+                                                </td>
+                                                <td class="p-6">
+                                                    <div :class="['inline-flex items-center gap-2 px-5 py-2 rounded-[1.25rem] text-[13px] font-black border transition-all duration-300', getStatusClass(req.status)]">
+                                                        <div v-if="req.status === 'fulfilled' || req.status === 'delivered' || req.status === 'approved'" class="w-2 h-2 rounded-full bg-current opacity-40"></div>
+                                                        {{ getStatusText(req.status) }}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                         </div>
+                      </div>
                 </div>
 
                 <!-- 5. Activities Report -->
@@ -2125,59 +2227,78 @@ const uniquePatientsCount = computed(() => {
 
         <!-- Items Modal -->
         <div v-if="isItemsModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div @click="closeItemsModal" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
-            <div class="relative bg-[#F2F2F2] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto transform transition-all scale-100" dir="rtl">
-                <div class="bg-[#2C5282] px-8 py-5 flex justify-between items-center relative overflow-hidden sticky top-0 z-20">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                    <div class="absolute bottom-0 left-0 w-24 h-24 bg-[#2C5282]/20 rounded-full -ml-12 -mb-12 blur-xl"></div>
+            <div @click="closeItemsModal" class="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity"></div>
+            <div class="relative bg-[#F8FAFC] rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden transform transition-all scale-100 flex flex-col border border-white/20" dir="rtl">
+                <!-- Premium Header -->
+                <div class="bg-gradient-to-br from-[#4DA1A9] to-[#2C5282] px-10 py-8 flex justify-between items-center relative overflow-hidden shrink-0">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl animate-pulse"></div>
+                    <div class="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full -ml-16 -mb-16 blur-2xl"></div>
                     
-                    <h2 class="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
-                        <div class="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                            <Icon icon="solar:box-minimalistic-bold-duotone" class="w-7 h-7 text-[#2C5282]" />
+                    <div class="relative z-10 flex items-center gap-5">
+                        <div class="w-16 h-16 bg-white/10 rounded-[1.5rem] backdrop-blur-xl border border-white/20 flex items-center justify-center shadow-2xl shadow-black/20">
+                            <Icon icon="solar:box-minimalistic-bold-duotone" class="w-10 h-10 text-white" />
                         </div>
                         <div>
-                            تفاصيل المواد
-                            <div class="text-sm font-normal text-white/70 mt-1 font-mono" v-if="selectedRequestForItems">
-                                {{ selectedRequestForItems.displayId }}
+                            <h2 class="text-2xl font-black text-white tracking-tight">تفاصيل بنود الطلب</h2>
+                            <div class="flex items-center gap-2 mt-1.5 opacity-80">
+                                <span class="text-xs font-mono bg-white/20 text-white px-2.5 py-1 rounded-lg border border-white/10">{{ selectedRequestForItems?.displayId }}</span>
+                                <span class="w-1 h-1 rounded-full bg-white/40"></span>
+                                <span class="text-xs text-white/90 font-bold">{{ itemsData.length }} صنف مدرج</span>
                             </div>
                         </div>
-                    </h2>
-                    <button @click="closeItemsModal" class="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all duration-300 relative z-10">
-                        <Icon icon="mingcute:close-fill" class="w-6 h-6" />
+                    </div>
+                    
+                    <button @click="closeItemsModal" class="w-12 h-12 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 relative z-10 hover:rotate-90">
+                        <Icon icon="mingcute:close-fill" class="w-8 h-8" />
                     </button>
                 </div>
 
-                <div class="p-8">
-                    <div v-if="isItemsLoading" class="flex flex-col items-center justify-center py-12">
-                         <Icon icon="svg-spinners:3-dots-fade" class="w-10 h-10 text-[#2C5282] mb-4" />
-                         <span class="text-gray-500">جاري تحميل المواد...</span>
+                <!-- Modal Body -->
+                <div class="p-8 overflow-y-auto custom-scrollbar flex-1 bg-gradient-to-b from-gray-50/50 to-white">
+                    <div v-if="isItemsLoading" class="flex flex-col items-center justify-center py-20">
+                         <div class="relative w-20 h-20 mb-6">
+                            <div class="absolute inset-0 border-4 border-[#4DA1A9]/20 rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-[#4DA1A9] border-t-transparent rounded-full animate-spin"></div>
+                         </div>
+                         <span class="text-[#4DA1A9] font-black animate-pulse">جاري استرجاع البيانات...</span>
                     </div>
 
-                    <EmptyState v-else-if="itemsData.length === 0" title="لا توجد مواد" message="القائمة فارغة لهذا الطلب" />
+                    <EmptyState v-else-if="itemsData.length === 0" title="قائمة فارغة" message="لا توجد أصناف مسجلة لهذا الطلب" />
 
-                    <div v-else class="space-y-4">
-                         <div v-for="(item, idx) in itemsData" :key="idx" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                             <div class="flex items-center gap-4">
-                                 <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-inner" 
+                    <div v-else class="grid grid-cols-1 gap-4">
+                         <div v-for="(item, idx) in itemsData" :key="idx" class="group bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-xl hover:shadow-[#4DA1A9]/5 hover:border-[#4DA1A9]/20 transition-all duration-300">
+                             <div class="flex items-center gap-5">
+                                 <div class="w-16 h-16 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300 shadow-gray-200/50" 
                                       :class="item.type === 'patient' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'">
-                                     <Icon :icon="item.type === 'patient' ? 'solar:user-bold' : 'solar:pill-bold'" class="w-6 h-6" />
+                                     <Icon :icon="item.type === 'patient' ? 'solar:user-bold-duotone' : 'solar:pill-bold-duotone'" class="w-9 h-9" />
                                  </div>
                                  <div>
-                                     <div class="font-bold text-[#2C5282] text-lg">{{ item.name }}</div>
-                                     <div v-if="item.details" class="text-sm text-gray-500 mt-1">{{ item.details }}</div>
-                                     <div v-else-if="item.type === 'drug'" class="text-sm text-gray-500 mt-1 flex gap-2">
-                                          <span>الموافقة: <b class="text-[#2C5282]">{{ item.approved_qty }}</b></span>
+                                     <div class="font-black text-[#2C5282] text-xl tracking-tight">{{ item.name }}</div>
+                                     <div v-if="item.details" class="text-sm text-gray-400 font-bold mt-1.5 py-1 px-3 bg-gray-50 rounded-lg inline-block">{{ item.details }}</div>
+                                     <div v-else-if="item.type === 'drug'" class="text-sm text-gray-500 mt-2 flex items-center gap-3">
+                                          <div class="flex items-center gap-1">
+                                              <span class="text-xs uppercase font-black opacity-50">تم اعتماد:</span>
+                                              <b class="text-[#4DA1A9] font-black bg-[#4DA1A9]/5 px-2 rounded-md">{{ item.approved_qty || 0 }}</b>
+                                          </div>
                                      </div>
                                  </div>
                              </div>
-                             <div class="text-center bg-gray-50 px-4 py-2 rounded-xl border border-gray-200/50">
-                                 <div class="text-xs text-gray-500 mb-1 font-semibold">الكمية المطلوبة</div>
-                                 <div class="font-bold text-xl text-[#2C5282]">
+                             
+                             <div class="relative flex flex-col items-center justify-center min-w-[100px] h-20 bg-gray-50 rounded-[1.5rem] border border-gray-100 group-hover:bg-[#4DA1A9]/5 transition-colors">
+                                 <span class="text-[10px] text-gray-400 font-black uppercase tracking-wider mb-1">الكمية</span>
+                                 <div class="font-black text-2xl text-[#2C5282] group-hover:text-[#4DA1A9] transition-colors">
                                      {{ item.qty }}
                                  </div>
                              </div>
                          </div>
                     </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="p-6 bg-white border-t border-gray-100 shrink-0 flex justify-end">
+                    <button @click="closeItemsModal" class="px-8 py-3 bg-gray-100 text-gray-600 rounded-2xl font-black hover:bg-gray-200 transition-all active:scale-95 shadow-sm text-sm">
+                        إغلاق النافذة
+                    </button>
                 </div>
             </div>
         </div>
@@ -2846,5 +2967,74 @@ const uniquePatientsCount = computed(() => {
         background-color: #4DA1A9 !important;
         margin-bottom: 10px !important;
     }
+
+    /* Enhanced Requests Print Layout */
+    .print-only-requests {
+        display: block !important;
+        background-color: white !important;
+        color: black !important;
+        direction: rtl !important;
+    }
+
+    .print-only-requests h2 {
+        border-bottom: 2px solid #4DA1A9 !important;
+        padding-bottom: 8px !important;
+        margin: 25px 0 15px 0 !important;
+        color: #4DA1A9 !important;
+        font-size: 16pt !important;
+    }
+
+    .request-card-print {
+        border: 1px solid #eee !important;
+        border-radius: 8px !important;
+        margin-bottom: 25px !important;
+        page-break-inside: avoid !important;
+        overflow: hidden !important;
+    }
+
+    .req-header-print {
+        padding: 10px 15px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        font-weight: bold !important;
+        border-bottom: 2px solid #eee !important;
+    }
+
+    .req-header-print.external { background-color: #f0f7ff !important; color: #004fb0 !important; }
+    .req-header-print.internal { background-color: #f0fff4 !important; color: #166534 !important; }
+    .req-header-print.transfer { background-color: #fffaf0 !important; color: #9c4221 !important; }
+
+    .req-info-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr !important;
+        padding: 12px 15px !important;
+        font-size: 10pt !important;
+        background-color: #fafafa !important;
+    }
+
+    .req-type-badge {
+        padding: 2px 8px !important;
+        border: 1px solid currentColor !important;
+        border-radius: 4px !important;
+        font-size: 8pt !important;
+    }
+
+    .items-table-print {
+        padding: 10px !important;
+    }
+
+    .items-table-print table {
+        margin-bottom: 0 !important;
+    }
+
+    .items-table-print th {
+        background-color: #4DA1A9 !important;
+        color: white !important;
+        border-color: #4DA1A9 !important;
+    }
+
+    .items-table-print td.center { text-align: center !important; }
+    .text-success { color: #166534 !important; }
 }
 </style>

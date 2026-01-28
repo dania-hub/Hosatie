@@ -15,8 +15,10 @@ class StaffNotificationService
 {
     public function __construct(
         private FcmLegacyService $fcm,
-        private FcmV1Service $fcmV1
+        private FcmV1Service $fcmV1,
+        private PatientNotificationService $patientNotificationService
     ) {}
+    
 
     /**
      * 1. Pharmacist Notifications
@@ -597,13 +599,13 @@ class StaffNotificationService
         // 3. مسؤولي المستودعات (Warehouse Managers)
         $warehouseManagers = User::where('type', 'warehouse_manager')->get();
         foreach ($warehouseManagers as $user) {
-            $this->createNotification($user, $title, "تنبيه تشغيلي: " . $message, 'عادي');
+            $this->createNotification($user, $title, "تنبيه تشغيلي: " . $message, 'مستعجل');
         }
 
         // 4. الأطباء والصيادلة (Doctors & Pharmacists)
         $clinicalStaff = User::whereIn('type', ['doctor', 'pharmacist'])->get();
         foreach ($clinicalStaff as $user) {
-            $this->createNotification($user, $title, "تنبيه تشغيلي: " . $message, 'عادي');
+            $this->createNotification($user, $title, "تنبيه تشغيلي: " . $message, 'مستعجل');
         }
     }
 
@@ -663,45 +665,76 @@ class StaffNotificationService
      */
     public function notifyDrugReactivated(Drug $drug)
     {
+        Log::info('🚨 === notifyDrugReactivated START ===', ['drug_id' => $drug->id]);
+
         $title = 'إعادة تفعيل دواء';
         $message = "تم إعادة تفعيل الدواء '{$drug->name}' مرة أخرى. الدواء أصبح متاحاً للاستخدام.";
 
-        // 1. إشعار جميع مدراء المستشفيات
+        // 1. إشعار جميع الموردين
+        $supplierAdmins = User::where('type', 'supplier_admin')->get();
+        Log::info('Notify Suppliers count: ' . $supplierAdmins->count());
+        foreach ($supplierAdmins as $admin) {
+            $this->createNotification($admin, $title, $message, 'عادي');
+        }
+
+        // 2. إشعار جميع مدراء المستشفيات
         $hospitalAdmins = User::where('type', 'hospital_admin')->get();
+        Log::info('Notify Hospital Admins count: ' . $hospitalAdmins->count());
         foreach ($hospitalAdmins as $admin) {
             $this->createNotification($admin, $title, $message, 'عادي');
         }
 
-        // 2. إشعار جميع رؤساء الأقسام
+        // 3. إشعار جميع رؤساء الأقسام
         $departmentHeads = User::where('type', 'department_admin')->get();
+        Log::info('Notify Dept Heads count: ' . $departmentHeads->count());
         foreach ($departmentHeads as $head) {
             $this->createNotification($head, $title, $message, 'عادي');
         }
 
-        // 3. إشعار مدراء المخازن
+        // 4. إشعار مدراء المخازن
         $warehouseManagers = User::where('type', 'warehouse_manager')->get();
+        Log::info('Notify Warehouse Managers count: ' . $warehouseManagers->count());
         foreach ($warehouseManagers as $manager) {
             $this->createNotification($manager, $title, $message, 'عادي');
         }
 
+        // 5. إشعار الطاقم الطبي (أطباء وصيادلة)
+        $clinicalStaff = User::whereIn('type', ['doctor', 'pharmacist'])->get();
+        Log::info('Notify Clinical Staff count: ' . $clinicalStaff->count());
+        foreach ($clinicalStaff as $user) {
+            $this->createNotification($user, $title, $message, 'عادي');
+        }
+
         // 4. إشعار المرضى الذين لديهم وصفات نشطة لهذا الدواء
         try {
+            Log::info('Searching for patients with active prescriptions for drug: ' . $drug->id);
+            
             $patients = User::where('type', 'patient')
                 ->whereHas('prescriptionsAsPatient', function ($query) use ($drug) {
-                    $query->where('status', 'active')
+                    $query->whereIn('status', ['active', 'pending_refill']) // توسيع نطاق البحث ليشمل الوصفات النشطة والتي تنتظر إعادة التعبئة
                         ->whereHas('drugs', function ($q) use ($drug) {
                             $q->where('drug_id', $drug->id);
                         });
                 })
                 ->get();
 
+            Log::info('Found patients count: ' . $patients->count());
+
             if ($patients->isNotEmpty()) {
-                $patientNotificationService = app(\App\Services\PatientNotificationService::class);
-                $patientNotificationService->notifyDrugReactivated($drug, $patients);
+                // استخدام الخدمة المحقونة بدلاً من app()
+                $this->patientNotificationService->notifyDrugReactivated($drug, $patients);
+                Log::info('Notifications sent via PatientNotificationService');
+            } else {
+                Log::warning('No patients found with active prescriptions for this drug.');
             }
         } catch (\Exception $e) {
-            \Log::error('Patient notification failed during drug reactivation', ['error' => $e->getMessage()]);
+            Log::error('Patient notification failed during drug reactivation', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
+        
+        Log::info('🚨 === notifyDrugReactivated END ===');
     }
 
     /**

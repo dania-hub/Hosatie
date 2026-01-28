@@ -231,7 +231,7 @@ const getColor = (type) => {
                             v-for="notification in notifications" 
                             :key="notification.id"
                             @click="viewNotification(notification)"
-                            :class="['p-4 hover:bg-gray-50 cursor-pointer transition-all duration-200 border-l-4', notification.is_read ? 'border-transparent' : 'border-[#3a8c94] bg-blue-50/20']"
+                            :class="['p-4 hover:bg-gray-50 cursor-pointer transition-all duration-200 border-l-4', notification.is_read ? 'border-transparent' : (notification.type === 'مستعجل' ? 'border-red-500 bg-red-50/30' : 'border-[#3a8c94] bg-blue-50/20')]"
                         >
                             <div class="flex space-x-3 space-x-reverse items-start">
                                 <div :class="['flex-shrink-0 p-2 rounded-xl transition-colors duration-200', getColor(notification.type)]">
@@ -242,7 +242,7 @@ const getColor = (type) => {
                                         {{ notification.title }}
                                     </p>
                                     <p class="text-sm text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                                        {{ notification.body }}
+                                        {{ notification.body || notification.message }}
                                     </p>
                                     <div class="flex items-center mt-2 text-[10px] text-gray-400 font-medium uppercase tracking-wider">
                                         <Icon icon="solar:clock-circle-linear" class="w-3 h-3 ml-1" />
@@ -289,7 +289,7 @@ const getColor = (type) => {
                                     </h3>
                                     <div class="bg-gray-50/80 p-6 rounded-2xl border border-gray-100 text-right">
                                         <p class="text-lg text-gray-700 leading-relaxed whitespace-pre-wrap font-bold">
-                                            {{ selectedNotification?.body }}
+                                            {{ selectedNotification?.body || selectedNotification?.message }}
                                         </p>
                                     </div>
                                     <div class="mt-6 flex items-center justify-center sm:justify-start text-sm text-gray-500 font-medium pb-2">

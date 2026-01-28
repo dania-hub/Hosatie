@@ -868,7 +868,7 @@ const fieldTranslations = {
     'form': 'الشكل الدوائي',
     'formulation': 'التركيبة',
     'unit': 'الوحدة',
-    'category': 'الفئة',
+    'category': 'الفئة العلاجية',
     'manufacturer': 'الشركة المصنعة',
     'origin_country': 'بلد المنشأ',
     'indications': 'دواعي الاستعمال',
@@ -877,6 +877,8 @@ const fieldTranslations = {
     'side_effects': 'الأعراض الجانبية',
     'max_monthly_dose': 'أقصى جرعة شهرية',
     'maxMonthlyDose': 'أقصى جرعة شهرية',
+    'units_per_box': 'عدد الوحدات في العلبة',
+    'unitsPerBox': 'عدد الوحدات في العلبة',
     'utilization_type': 'نوع الاستخدام',
     'utilizationType': 'نوع الاستخدام',
     'is_controlled': 'خاضع للرقابة؟',
@@ -1036,6 +1038,12 @@ const valueTranslations = {
     'storekeeper': 'أمين مخزن',
 };
 
+const toArabicNumerals = (str) => {
+    if (str === null || str === undefined) return '';
+    const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    return String(str).replace(/[0-9]/g, (w) => arabicNumbers[parseInt(w)]);
+};
+
 const formatKey = (key) => {
     if (fieldTranslations[key]) return fieldTranslations[key];
     
@@ -1121,7 +1129,7 @@ const formatValue = (key, value) => {
     if ((key.toLowerCase().includes('_at') || key.toLowerCase().includes('date') || key === 'dob') && value) {
         try {
             const date = new Date(value);
-            if (!isNaN(date)) return date.toLocaleDateString('ar-LY');
+            if (!isNaN(date)) return date.toLocaleDateString('en-CA').replace(/-/g, '/');
         } catch (e) { }
     }
     
@@ -1176,7 +1184,7 @@ onMounted(() => {
 // ----------------------------------------------------
 const formatDate = (date) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('ar-LY');
+    return new Date(date).toLocaleDateString('en-CA').replace(/-/g, '/');
 };
 
 const getStatusClass = (status) => {
@@ -1481,6 +1489,9 @@ const uniquePatientsCount = computed(() => {
                             leave-to-class="opacity-100 scale-100"
                         >
                             <div v-if="showDateFilter" class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-[#4DA1A9] whitespace-nowrap bg-[#4DA1A9]/5 px-3 py-1.5 rounded-lg border border-[#4DA1A9]/20">
+                                    فلترة بأيام محددة:
+                                </span>
                                 <div class="relative">
                                     <input
                                         type="date"

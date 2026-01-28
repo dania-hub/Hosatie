@@ -332,6 +332,10 @@ const showSuccessAlert = (message) => {
         title: isError ? 'خطأ' : 'نجاح',
         message: message.replace(/^❌ |^✅ /, '')
     };
+    // إخفاء التنبيه تلقائياً بعد 3 ثواني
+    setTimeout(() => {
+        toast.value.show = false;
+    }, 3000);
 };
 
 // ----------------------------------------------------
@@ -875,8 +879,8 @@ const printTable = () => {
                                                     :class="[
                                                         'px-2 py-1 rounded-full text-xs font-semibold',
                                                         hospital.isActive
-                                                            ? 'bg-green-100 text-green-800 border border-green-200'
-                                                            : 'bg-red-100 text-red-800 border border-red-200',
+                                                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                                            : 'bg-red-50 text-red-700 border border-red-100',
                                                     ]"
                                                 >
                                                     {{

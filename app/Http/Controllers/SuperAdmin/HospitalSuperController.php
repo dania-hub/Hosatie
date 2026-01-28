@@ -227,13 +227,12 @@ class HospitalSuperController extends BaseApiController
                 if ($request->has('manager_id')) {
                     $managerId = $request->input('manager_id');
                     
-                    // إذا تم إرسال null، إزالة المدير الحالي
+                    // إذا تم إرسال null، تعطيل المدير الحالي فقط دون حذف hospital_id
                     if ($managerId === null || $managerId === '') {
-                        // إزالة hospital_id من المدير الحالي وإن وجد وتعطيله
+                        // تعطيل المدير الحالي إن وجد مع الاحتفاظ بـ hospital_id
                         if ($hospital->admin) {
                             $hospital->admin->update([
-                                'hospital_id' => null,
-                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة hospital_id
+                                'status' => 'inactive'
                             ]);
                             // حذف جميع tokens للمستخدم
                             $hospital->admin->tokens()->delete();
@@ -249,18 +248,17 @@ class HospitalSuperController extends BaseApiController
                             return $this->sendError('المستخدم المحدد ليس مدير مستشفى', ['manager_id' => ['المستخدم المحدد ليس مدير مستشفى']], 422);
                         }
 
-                        // إزالة hospital_id من المدير الحالي إن وجد وتعطيله
+                        // تعطيل المدير الحالي إن وجد مع الاحتفاظ بـ hospital_id
                         if ($hospital->admin && $hospital->admin->id != $managerId) {
                             $oldAdmin = $hospital->admin;
                             $oldAdmin->update([
-                                'hospital_id' => null,
-                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة hospital_id
+                                'status' => 'inactive'
                             ]);
                             // حذف جميع tokens للمستخدم
                             $oldAdmin->tokens()->delete();
                         }
 
-                        // إزالة hospital_id من أي مستخدم آخر مرتبط بنفس المستشفى وتعطيلهم
+                        // تعطيل أي مديرين آخرين مرتبطين بنفس المستشفى مع الاحتفاظ بـ hospital_id
                         $otherAdmins = User::where('hospital_id', $hospital->id)
                             ->where('type', 'hospital_admin')
                             ->where('id', '!=', $managerId)
@@ -268,8 +266,7 @@ class HospitalSuperController extends BaseApiController
                         
                         foreach ($otherAdmins as $otherAdmin) {
                             $otherAdmin->update([
-                                'hospital_id' => null,
-                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة hospital_id
+                                'status' => 'inactive'
                             ]);
                             // حذف جميع tokens للمستخدم
                             $otherAdmin->tokens()->delete();

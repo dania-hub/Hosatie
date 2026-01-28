@@ -39,7 +39,7 @@
                         <!-- اسم الدواء -->
                         <div class="space-y-2">
                             <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                                <Icon icon="solar:pill-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
+                                <Icon :icon="getDrugIconDynamic(formData.unit || formData.form)" class="w-4 h-4 text-[#4DA1A9]" />
                                 اسم الدواء <span class="text-red-500">*</span>
                             </label>
                             <Input
@@ -146,17 +146,39 @@
                                 <Icon icon="solar:medical-kit-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 الفئة العلاجية <span class="text-red-500">*</span>
                             </label>
-                            <Input
-                                v-model="formData.category"
-                                type="text"
-                                required
-                                placeholder="أدخل الفئة العلاجية"
-                                :class="[
-                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
-                                    errors.category ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
-                                ]"
-                                @input="validateField('category')"
-                            />
+                            <div class="relative">
+                                <select
+                                    v-model="formData.category"
+                                    required
+                                    :class="[
+                                        'w-full h-9 px-4 pr-10 border rounded-xl bg-white text-right font-medium transition-all duration-200 appearance-none cursor-pointer',
+                                        'focus:outline-none focus:ring-1',
+                                        errors.category 
+                                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                            : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                                    ]"
+                                    @change="validateField('category')"
+                                >
+                                    <option value="">اختر الفئة العلاجية</option>
+                                    <option value="أدوية أمراض القلب والأوعية الدموية">أدوية أمراض القلب والأوعية الدموية</option>
+                                    <option value="أدوية السكري">أدوية السكري</option>
+                                    <option value="أدوية الأمراض الصدرية والجهاز التنفسي">أدوية الأمراض الصدرية والجهاز التنفسي</option>
+                                    <option value="أدوية أمراض الجهاز الهضمي">أدوية أمراض الجهاز الهضمي</option>
+                                    <option value="أدوية الأمراض العصبية">أدوية الأمراض العصبية</option>
+                                    <option value="أدوية الصحة النفسية">أدوية الصحة النفسية</option>
+                                    <option value="المضادات الحيوية ومضادات الميكروبات">المضادات الحيوية ومضادات الميكروبات</option>
+                                    <option value="مسكنات الألم ومضادات الالتهاب">مسكنات الألم ومضادات الالتهاب</option>
+                                    <option value="أدوية أمراض الكلى والمسالك البولية">أدوية أمراض الكلى والمسالك البولية</option>
+                                    <option value="أدوية أمراض الدم">أدوية أمراض الدم</option>
+                                    <option value="أدوية الغدد الصماء والهرمونات">أدوية الغدد الصماء والهرمونات</option>
+                                    <option value="أدوية الأمراض الجلدية">أدوية الأمراض الجلدية</option>
+                                    <option value="أدوية علاج الأورام (العلاج الكيميائي)">أدوية علاج الأورام (العلاج الكيميائي)</option>
+                                    <option value="الفيتامينات والمكملات الغذائية">الفيتامينات والمكملات الغذائية</option>
+                                    <option value="أدوية الحساسية">أدوية الحساسية</option>
+                                    <option value="أدوية العيون">أدوية العيون</option>
+                                </select>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4 text-[#4DA1A9] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
                             <p v-if="errors.category" class="text-xs text-red-500 mt-1 flex items-center gap-1">
                                 <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                                 {{ errors.category }}
@@ -304,17 +326,25 @@
                                 <Icon icon="solar:heart-pulse-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
                                 نوع الاستخدام <span class="text-red-500">*</span>
                             </label>
-                            <Input
-                                v-model="formData.utilization_type"
-                                type="text"
-                                required
-                                placeholder="مثال: مزمن، حاد"
-                                :class="[
-                                    'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
-                                    errors.utilization_type ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
-                                ]"
-                                @input="validateField('utilization_type')"
-                            />
+                            <div class="relative">
+                                <select
+                                    v-model="formData.utilization_type"
+                                    required
+                                    :class="[
+                                        'w-full h-9 px-4 pr-10 border rounded-xl bg-white text-right font-medium transition-all duration-200 appearance-none cursor-pointer',
+                                        'focus:outline-none focus:ring-1',
+                                        errors.utilization_type 
+                                            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                                            : 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20'
+                                    ]"
+                                    @change="validateField('utilization_type')"
+                                >
+                                    <option value="">اختر نوع الاستخدام</option>
+                                    <option value="مزمن">مزمن</option>
+                                    <option value="حاد">حاد</option>
+                                </select>
+                                <Icon icon="solar:alt-arrow-down-bold" class="w-4 h-4 text-[#4DA1A9] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
                             <p v-if="errors.utilization_type" class="text-xs text-red-500 mt-1 flex items-center gap-1">
                                 <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                                 {{ errors.utilization_type }}
@@ -583,5 +613,13 @@ const submitForm = async () => {
     } finally {
         isSubmitting.value = false;
     }
+};
+
+const getDrugIconDynamic = (unit) => {
+    if (!unit) return 'solar:pill-bold-duotone';
+    const u = unit.toLowerCase();
+    if (u === 'حقنة' || u === 'إبرة') return 'solar:syringe-bold-duotone';
+    if (u === 'جرام' || u === 'قنينة' || u === 'مل') return 'solar:bottle-bold-duotone';
+    return 'solar:pill-bold-duotone';
 };
 </script>

@@ -54,14 +54,14 @@ class OperationLogSuperController extends BaseApiController
                 'id'            => $log->id,
                 'file_number'   => $fileNumber,
                 'employee_name' => $user->full_name ?? ($user->name ?? 'غير معروف'),
-                'employee_role' => $this->translateUserType($user->type ?? ''),
-                'patient_name'  => $patientName,
-                'action_label'  => $formattedText['label'],
-                'description'   => $formattedText['body'],
-                'operation_type'=> $formattedText['label'] . ' ' . $formattedText['body'], // Fallback
+                'employee_role' => $this->toArabicNumerals($this->translateUserType($user->type ?? '')),
+                'patient_name'  => $this->toArabicNumerals($patientName),
+                'action_label'  => $this->toArabicNumerals($formattedText['label']),
+                'description'   => $this->toArabicNumerals($formattedText['body']),
+                'operation_type'=> $this->toArabicNumerals($formattedText['label'] . ' ' . $formattedText['body']), 
                 'date'          => $log->created_at?->format('Y/m/d'),
                 'time'          => $log->created_at?->format('H:i'),
-                'hospital_name' => $log->hospital ? $log->hospital->name : 'N/A',
+                'hospital_name' => $this->toArabicNumerals($log->hospital ? $log->hospital->name : 'N/A'),
                 'hospital_id'   => $log->hospital_id,
             ];
 
@@ -161,6 +161,87 @@ class OperationLogSuperController extends BaseApiController
             ];
         }
 
+        // 4.5 Drug Management (General)
+        if ($log->table_name === 'drugs') {
+            $actionVerb = match($log->action) {
+                'create', 'created' => 'إضافة دواء',
+                'update', 'updated' => 'تعديل بيانات دواء',
+                'delete', 'deleted' => 'حذف دواء',
+                 default => $translatedAction
+            };
+
+            $drugName = $newValues['name'] ?? ($oldValues['name'] ?? '');
+            if (!$drugName) {
+                try {
+                    $drug = Drug::find($log->record_id);
+                    $drugName = $drug->name ?? '';
+                } catch (\Exception $e) {}
+            }
+
+            $changes = "";
+            if (str_contains($log->action, 'update')) {
+                $changes = $this->getChangesDescription($log);
+            }
+
+            return [
+                'label' => 'إدارة الأدوية',
+                'body' => "$actionVerb: " . ($drugName ?: "دواء #{$log->record_id}") . ($changes ? " ($changes)" : "")
+            ];
+        }
+
+        // 4.6 User Management (General & Staff)
+        if ($log->table_name === 'users') {
+            $user = null;
+            try {
+                $user = User::find($log->record_id);
+            } catch (\Exception $e) {}
+
+            $actionVerb = match($log->action) {
+                'create', 'created', 'create_patient' => 'إضافة',
+                'update', 'updated', 'update_patient' => 'تعديل بيانات',
+                'delete', 'deleted', 'delete_patient' => 'حذف',
+                'activate' => 'تفعيل',
+                'deactivate' => 'تعطيل',
+                 default => $translatedAction
+            };
+
+            $userName = $newValues['full_name'] ?? ($newValues['name'] ?? ($oldValues['full_name'] ?? ($oldValues['name'] ?? '')));
+            if (!$userName && $user) {
+                $userName = $user->full_name ?? $user->name ?? '';
+            }
+
+            $type = $newValues['type'] ?? ($oldValues['type'] ?? ($user->type ?? ''));
+            $userType = $this->translateUserType($type);
+            $typeLabel = $userType ? " ($userType)" : "";
+
+            $changes = "";
+            if (str_contains($log->action, 'update')) {
+                $changes = $this->getChangesDescription($log);
+                
+                // If it's a specific status change, upgrade the verb
+                if ($changes === 'تعطيل الحساب') {
+                    $actionVerb = 'تعطيل';
+                    $changes = ''; // Already in verb
+                } elseif ($changes === 'تفعيل الحساب') {
+                    $actionVerb = 'تفعيل';
+                    $changes = ''; // Already in verb
+                }
+            }
+
+            $label = 'إدارة المستخدمين';
+            if (($newValues['type'] ?? '') === 'patient' || ($oldValues['type'] ?? '') === 'patient') {
+                $label = 'إدارة المرضى';
+            }
+
+            $body = "$actionVerb: " . ($userName ?: "مستخدم #{$log->record_id}") . $typeLabel;
+            if ($changes) $body .= " ($changes)";
+
+            return [
+                'label' => $label,
+                'body' => $body
+            ];
+        }
+
         // 5. Generic Update Logic (Hospitals, Drugs, Users, etc.)
         if (str_contains($log->action, 'update')) {
              $changes = $this->getChangesDescription($log);
@@ -212,18 +293,15 @@ class OperationLogSuperController extends BaseApiController
             return '-';
         }
 
-        // الحالة 1: العملية مرتبطة مباشرة بمريض (table_name = 'users')
+        // الحالة 1: العملية مرتبطة مباشرة بمستخدم (table_name = 'users')
         if ($log->table_name === 'users') {
-            $patient = User::find($log->record_id);
+            $u = User::find($log->record_id);
+            if ($u) return $u->full_name ?? $u->name ?? '-';
             
-            if ($patient && $patient->type === 'patient') {
-                return $patient->full_name ?? '-';
-            }
-            
-            // محاولة استخراج اسم المريض من JSON إذا كان محذوفاً
+            // محاولة من JSON إذا كان محذوفاً
             $values = json_decode($log->new_values ?? $log->old_values, true);
-            if (is_array($values) && isset($values['full_name']) && isset($values['type']) && $values['type'] === 'patient') {
-                return $values['full_name'];
+            if (is_array($values)) {
+                return $values['full_name'] ?? ($values['name'] ?? '-');
             }
             
             return '-';
@@ -639,10 +717,19 @@ class OperationLogSuperController extends BaseApiController
         }
 
         $newValues = json_decode($log->new_values, true);
-        $oldValues = json_decode($log->old_values, true); // Decode old values
-        
+        $oldValues = json_decode($log->old_values, true) ?: [];
         if (!$newValues || !is_array($newValues)) {
             return '';
+        }
+
+        // Handle specific status changes for better clarity
+        if (count($newValues) === 1 || (count($newValues) === 2 && isset($newValues['updated_at']))) {
+            if (isset($newValues['status']) || isset($newValues['is_active'])) {
+                $key = isset($newValues['status']) ? 'status' : 'is_active';
+                $newStatus = $newValues[$key];
+                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) return 'تفعيل الحساب';
+                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) return 'تعطيل الحساب';
+            }
         }
 
         // Field translations
@@ -662,51 +749,52 @@ class OperationLogSuperController extends BaseApiController
             'manufacturer' => 'الشركة المصنعة',
             'price' => 'السعر',
             'quantity' => 'الكمية',
+            'current_quantity' => 'الكمية الحالية',
             'is_active' => 'التفعيل',
             'generic_name' => 'الاسم العلمي',
-            'strength' => 'التركيز',
-            'supplier_id' => 'رقم المورد',
-            'hospital_id' => 'رقم المستشفى',
-            'category_id' => 'الفئة',
-            'user_id'     => 'المستخدم',
-            'code'        => 'الكود',
-            'expiry_date' => 'تاريخ الانتهاء',
-            'batch_number'=> 'رقم التشغيلة',
-            'current_quantity' => 'الكمية الحالية',
+            'strength' => 'القوة/التركيز',
             'form' => 'الشكل الصيدلاني',
-            'category' => 'الفئة',
+            'category_id' => 'الفئة العلاجية',
+            'category' => 'الفئة العلاجية',
+            'therapeutic_category' => 'الفئة العلاجية',
+            'expiry_date' => 'تاريخ الانتهاء',
+            'status' => 'الحالة',
+            'type' => 'النوع',
+            'is_controlled' => 'خاضع للرقابة؟',
+            'is_cold_chain' => 'سلسلة تبريد؟',
+            'code' => 'الكود',
             'department_id' => 'القسم',
-            
-            // Added Drug fields
-            'unit' => 'الوحدة',
-            'max_monthly_dose' => 'الجرعة الشهرية القصوى',
-            'country' => 'بلد المنشأ',
-            'utilization_type' => 'نوع الاستخدام',
-            'warnings' => 'التحذيرات',
+            'hospital_id' => 'المستشفى',
             'indications' => 'دواعي الاستعمال',
+            'warnings' => 'التحذيرات',
             'contraindications' => 'موانع الاستعمال',
+            'utilization_type' => 'نوع الاستخدام',
+            'unit' => 'الوحدة',
             'units_per_box' => 'عدد الوحدات في العلبة',
-
-            // Added User fields
-            'national_id' => 'رقم الهوية الوطنية',
-            'warehouse_id' => 'معرف المستودع',
-            'pharmacy_id' => 'معرف الصيدلية',
-            'fcm_token' => 'رمز FCM',
-            'created_by' => 'تم الإنشاء بواسطة',
+            'country' => 'بلد المنشأ',
+            'origin_country' => 'بلد المنشأ',
+            'max_monthly_dose' => 'أقصى جرعة شهرية',
         ];
 
         $changedFields = [];
         foreach ($newValues as $key => $val) {
             if (in_array($key, ['updated_at', 'created_at', 'id', 'remember_token', 'password_reset_token'])) continue;
             
-            // تخطي الحقول التي لم تتغير قيمتها
-            $oldVal = $oldValues[$key] ?? null;
-            if ($val == $oldVal) continue;
-
             // Password special case
             if ($key === 'password') {
                 $changedFields[] = 'كلمة المرور';
                 continue;
+            }
+
+            // Special handling for status in multi-field updates
+            if ($key === 'status' || $key === 'is_active') {
+                if ($val == 1 || $val === 'active' || $val === true) {
+                    $changedFields[] = 'تفعيل';
+                    continue;
+                } elseif ($val == 0 || $val === 'inactive' || $val === false) {
+                    $changedFields[] = 'تعطيل';
+                    continue;
+                }
             }
 
             $fieldName = $fieldMap[$key] ?? $key;
@@ -719,5 +807,16 @@ class OperationLogSuperController extends BaseApiController
         
         // Return first few changes
         return 'تم تحديث: ' . implode('، ', array_slice($changedFields, 0, 4));
+    }
+
+    /**
+     * تحويل الأرقام الإنجليزية إلى أرقام عربية (هندية)
+     */
+    private function toArabicNumerals($string)
+    {
+        if ($string === null || $string === '') return $string;
+        $westernNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return str_replace($westernNumbers, $arabicNumbers, (string)$string);
     }
 }

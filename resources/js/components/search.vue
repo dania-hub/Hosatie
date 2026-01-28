@@ -7,7 +7,7 @@
     /* 1. التجاوب في العرض: تعيين العرض ليناسب الجهاز الأب */
     position: relative; 
     width: 100%; 
-    max-width: 300px; 
+    max-width: 500px; 
 }
 
 .input {
@@ -29,8 +29,8 @@
     transition: all 0.3s ease; 
 }
 .input::placeholder {
-    font-size: 0.8rem;
-    color: #999;
+    font-size: 0.85rem;
+    color: #888;
 }
 
 /* 2. تحسين المظهر على الشاشات الأكبر (Tablet & Desktop) */

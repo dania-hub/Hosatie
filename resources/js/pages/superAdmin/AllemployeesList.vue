@@ -370,7 +370,7 @@ const printTable = () => {
         return;
     }
 
-    const printWindow = window.open("", "_blank", "height=600,width=900");
+    const printWindow = window.open("", "_blank", "height=800,width=1000");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
         showSuccessAlert(
@@ -379,129 +379,207 @@ const printTable = () => {
         return;
     }
 
-    let tableHtml = `
-        <style>
-            body {
-                font-family: 'Arial', sans-serif;
-                direction: rtl;
-                padding: 20px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 10px;
-                text-align: right;
-            }
-            th {
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }
-            h1 {
-                text-align: center;
-                color: #2E5077;
-                margin-bottom: 10px;
-            }
-            .results-info {
-                text-align: right;
-                margin-bottom: 15px;
-                font-size: 16px;
-                font-weight: bold;
-                color: #4DA1A9;
-            }
-            .status-active {
-                color: green;
-                font-weight: bold;
-            }
-            .status-inactive {
-                color: red;
-                font-weight: bold;
-            }
-            .filters-info {
-                text-align: right;
-                margin-bottom: 10px;
-                font-size: 14px;
-                color: #666;
-            }
-        </style>
+    const currentDate = new Date().toLocaleDateString('ar-LY', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        numberingSystem: 'latn'
+    });
 
-        <h1>قائمة الموظفين</h1>
+    const hospitalName = hospitalFilter.value === 'all' ? 'جميع المستشفيات' : (availableHospitals.value.find(h => h.id == hospitalFilter.value)?.name || hospitalFilter.value);
+    const roleNameFilter = roleFilter.value === 'all' ? 'جميع الأدوار' : (employeeRoles.value.find(r => r.id == roleFilter.value)?.name || roleFilter.value);
+    const statusNameFilter = statusFilter.value === 'all' ? 'الكل' : (statusFilter.value === 'active' ? 'مفعل فقط' : 'معطل فقط');
+
+    let tableHtml = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>قائمة الموظفين - ${currentDate}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            @page { margin: 15mm; size: A4; }
+            .no-print { display: none; }
+        }
         
-        <div class="filters-info">
-            <strong>المستشفى:</strong> ${hospitalFilter.value === 'all' ? 'الكل' : (availableHospitals.value.find(h => h.id == hospitalFilter.value)?.name || hospitalFilter.value)}<br>
-            <strong>الدور الوظيفي:</strong> ${roleFilter.value === 'all' ? 'الكل' : (employeeRoles.value.find(r => r.id == roleFilter.value)?.name || roleFilter.value)}<br>
-            <strong>حالة الحساب:</strong> ${statusFilter.value === 'all' ? 'الكل' : (statusFilter.value === 'active' ? 'مفعل فقط' : 'معطل فقط')}
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { padding: 0; margin: 0; color: #1e293b; background: white; line-height: 1.5; }
+        
+        .print-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        
+        .page-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding-bottom: 20px; 
+            border-bottom: 2px solid #2E5077;
+        }
+        
+        .gov-title { text-align: right; }
+        .gov-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #2E5077; }
+        .gov-title p { margin: 5px 0 0; font-size: 14px; color: #64748b; }
+        
+        .report-title { text-align: center; margin: 20px 0; }
+        .report-title h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: #1e293b; 
+            background: #f1f5f9;
+            display: inline-block;
+            padding: 10px 40px;
+            border-radius: 50px;
+        }
+        
+        .summary-box {
+            display: grid;
+            grid-template-cols: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 14px; color: #2E5077; font-weight: 700; }
+        
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { 
+            background-color: #2E5077; 
+            color: white; 
+            font-weight: 700; 
+            padding: 12px 10px; 
+            text-align: right; 
+            font-size: 12px;
+        }
+        td { 
+            padding: 10px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 11px; 
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .status-badge {
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .status-active { color: #475569; }
+        .status-inactive { color: #000000; font-weight: 800; }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .signature-box { text-align: right; }
+        .signature-line { margin-top: 30px; width: 150px; border-top: 1px solid #cbd5e1; }
+    </style>
+</head>
+<body>
+    <div class="print-container">
+        <div class="page-header">
+            <div class="gov-title">
+                <h2>وزارة الصحة</h2>
+                <p>إدارة الموارد البشرية</p>
+            </div>
+            <div style="text-align: left">
+                <p style="margin: 0; font-size: 11px; color: #64748b;">تاريخ التقرير</p>
+                <p style="margin: 3px 0 0; font-weight: 700; color: #1e293b;">${currentDate}</p>
+            </div>
         </div>
-        
-        <p class="results-info">
-            عدد النتائج: ${resultsCount}
-        </p>
-        
+
+        <div class="report-title">
+            <h1>قائمة موظفون </h1>
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-item">
+                <span class="stat-label">المستشفى</span>
+                <span class="stat-value">${hospitalName}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">أداة الفلترة - الدور</span>
+                <span class="stat-value">${roleNameFilter}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">الحالة</span>
+                <span class="stat-value">${statusNameFilter}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">إجمالي الموظفين</span>
+                <span class="stat-value">${resultsCount} موظف</span>
+            </div>
+        </div>
+
         <table>
             <thead>
                 <tr>
+                    <th style="width: 40px; text-align: center;">#</th>
                     <th>رقم الملف</th>
                     <th>الاسم الرباعي</th>
                     <th>الدور الوظيفي</th>
-                    <th>القسم</th>
-                    <th>المستشفى</th>
-                
+                    <th>المستشفى / المورد</th>
                     <th>الرقم الوطني</th>
-                    <th>تاريخ الميلاد</th>
                     <th>رقم الهاتف</th>
-                   
+                    <th>الحالة</th>
                 </tr>
             </thead>
             <tbody>
-    `;
-
-    filteredEmployees.value.forEach((employee) => {
-        // استخدام الحقول المعالجة مع fallback للحقول الخام
-        const fileNumber = employee.fileNumber || employee.id || '';
-        const name = employee.nameDisplay || employee.name || employee.fullName || employee.full_name || '';
-        const roleName = employee.roleName || employee.typeArabic || employee.role?.name || employee.role || 'غير محدد';
-        const departmentName = employee.departmentName || employee.department?.name || 'غير محدد';
-        const hospitalName = employee.hospitalName || employee.hospital?.name || 'غير محدد';
-        const nationalId = employee.nationalIdDisplay || employee.nationalId || 'غير محدد';
-        const birthDate = employee.birthDisplay || (employee.birth ? formatDateForDisplay(employee.birth) : '') || (employee.birthDate ? formatDateForDisplay(employee.birthDate) : '') || 'غير محدد';
-        const phone = employee.phone || 'غير محدد';
-        const email = employee.email || 'غير محدد';
-        const status = employee.isActive ? "مفعل" : "معطل";
-        
-        tableHtml += `
-            <tr>
-                <td>${fileNumber}</td>
-                <td>${name}</td>
-                <td>${roleName}</td>
-                <td>${departmentName}</td>
-                <td>${hospitalName}</td>
-              
-                <td>${nationalId}</td>
-                <td>${birthDate}</td>
-                <td>${phone}</td>
-           
-            </tr>
-        `;
-    });
-
-    tableHtml += `
+                ${filteredEmployees.value.map((employee, index) => `
+                <tr>
+                    <td style="text-align: center; font-weight: 700; color: #64748b;">${index + 1}</td>
+                    <td style="font-weight: 700; color: #2E5077;">${employee.fileNumber || employee.id || '-'}</td>
+                    <td style="font-weight: 600;">${employee.nameDisplay || employee.name || '-'}</td>
+                    <td>${employee.roleName || employee.typeArabic || '-'}</td>
+                    <td>${employee.hospitalName !== '-' ? employee.hospitalName : employee.supplierName || '-'}</td>
+                    <td style="color: #475569;">${employee.nationalIdDisplay || employee.nationalId || '-'}</td>
+                    <td>${employee.phone || '-'}</td>
+                    <td>
+                        <span class="status-badge ${employee.isActive ? 'status-active' : 'status-inactive'}">
+                            ${employee.isActive ? 'نشط' : 'معطل'}
+                        </span>
+                    </td>
+                </tr>
+                `).join('')}
             </tbody>
         </table>
-    `;
 
-    printWindow.document.write("<html><head><title>طباعة قائمة الموظفين</title>");
-    printWindow.document.write("</head><body>");
+        <div class="footer">
+            <div class="signature-box">
+                <p>اعتماد مدير الإدارة</p>
+                <div class="signature-line"></div>
+            </div>
+            <div style="text-align: left;">
+                <p>نظام حُصتي لإدارة المرافق الصحية</p>
+                <p style="font-size: 9px; margin-top: 5px;">تم استخراج هذا التقرير آلياً</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+`;
+
     printWindow.document.write(tableHtml);
-    printWindow.document.write("</body></html>");
     printWindow.document.close();
 
     printWindow.onload = () => {
         printWindow.focus();
-        printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        setTimeout(() => {
+            printWindow.print();
+            showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        }, 250);
     };
 };
 
@@ -523,6 +601,10 @@ const showSuccessAlert = (message) => {
         title: isError ? 'خطأ' : 'نجاح',
         message: message.replace(/^❌ |^✅ /, '')
     };
+    // إخفاء التنبيه تلقائياً بعد 3 ثواني
+    setTimeout(() => {
+        toast.value.show = false;
+    }, 3000);
 };
 
 // ----------------------------------------------------
@@ -589,208 +671,183 @@ onMounted(async () => {
         <main class="flex-1 p-4 sm:p-5 pt-3">
             <!-- المحتوى الرئيسي -->
             <div>
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 sm:gap-0 ">
-                    <div class="flex items-center gap-2 w-full sm:max-w-4xl flex-wrap">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
+                    <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                         <!-- شريط البحث -->
-                      <div class="w-full sm:w-auto">
-    <search v-model="searchTerm" placeholder="بحث في جميع البيانات..." />
-</div>
+                        <div class="w-full sm:w-72">
+                            <search v-model="searchTerm" placeholder="ابحث بجميع المعلومات ......" />
+                        </div>
 
-<!-- مجموعة الفلاتر -->
-<div class="flex items-center gap-3 flex-wrap">
-    <!-- فلتر المستشفى (dropdown جديد) -->
-    <div class="dropdown dropdown-start">
-        <div
-            tabindex="0"
-            role="button"
-            class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d]  rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[150px]"
-        >
-            <span>
-                {{ hospitalFilter === 'all' ? 'جميع المستشفيات' : getHospitalName(hospitalFilter) }}
-            </span>
-            <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
-        </div>
-        <ul
-            tabindex="0"
-            class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right max-h-60 overflow-y-auto"
-        >
-            <li>
-                <a
-                    @click="hospitalFilter = 'all'"
-                    :class="{'font-bold text-[#4DA1A9]': hospitalFilter === 'all'}"
-                >
-                    جميع المستشفيات
-                </a>
-            </li>
-            <li v-for="hospital in availableHospitals" :key="hospital.id">
-                <a
-                    @click="hospitalFilter = hospital.id"
-                    :class="{'font-bold text-[#4DA1A9]': hospitalFilter === hospital.id}"
-                >
-                    {{ hospital.name }}
-                </a>
-            </li>
-        </ul>
-    </div>
+                        <!-- الفلاتر والفرز -->
+                        <!-- فلتر المستشفى (dropdown جديد) -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[150px]"
+                            >
+                                <span>
+                                    {{ hospitalFilter === 'all' ? 'جميع المستشفيات' : getHospitalName(hospitalFilter) }}
+                                </span>
+                                <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right max-h-60 overflow-y-auto"
+                            >
+                                <li>
+                                    <a
+                                        @click="hospitalFilter = 'all'"
+                                        :class="{'font-bold text-[#4DA1A9]': hospitalFilter === 'all'}"
+                                    >
+                                        جميع المستشفيات
+                                    </a>
+                                </li>
+                                <li v-for="hospital in availableHospitals" :key="hospital.id">
+                                    <a
+                                        @click="hospitalFilter = hospital.id"
+                                        :class="{'font-bold text-[#4DA1A9]': hospitalFilter === hospital.id}"
+                                    >
+                                        {{ hospital.name }}
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
 
-    <!-- فلتر الدور الوظيفي (dropdown جديد) -->
-    <div class="dropdown dropdown-start">
-        <div
-            tabindex="0"
-            role="button"
-            class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d] h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[110px]"
-        >
-            <span>
-                {{ roleFilter === 'all' ? 'جميع الأدوار' : getRoleName(roleFilter) }}
-            </span>
-            <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
-        </div>
-        <ul
-            tabindex="0"
-            class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right  overflow-y-auto"
-        >
-            <li>
-                <a
-                    @click="roleFilter = 'all'"
-                    :class="{'font-bold text-[#4DA1A9]': roleFilter === 'all'}"
-                >
-                    جميع الأدوار
-                </a>
-            </li>
-            <li v-for="role in employeeRoles" :key="role.id">
-                <a
-                    @click="roleFilter = role.id"
-                    :class="{'font-bold text-[#4DA1A9]': roleFilter === role.id}"
-                >
-                    {{ role.name }}
-                </a>
-            </li>
-        </ul>
-    </div>
+                        <!-- فلتر الدور الوظيفي (dropdown جديد) -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center justify-between h-12 px-4 py-2 border-2 border-[#ffffff8d] h-11 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] min-w-[110px]"
+                            >
+                                <span>
+                                    {{ roleFilter === 'all' ? 'جميع الأدوار' : getRoleName(roleFilter) }}
+                                </span>
+                                <Icon icon="lucide:chevron-down" class="w-4 h-4 mr-2" />
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right  overflow-y-auto"
+                            >
+                                <li>
+                                    <a
+                                        @click="roleFilter = 'all'"
+                                        :class="{'font-bold text-[#4DA1A9]': roleFilter === 'all'}"
+                                    >
+                                        جميع الأدوار
+                                    </a>
+                                </li>
+                                <li v-for="role in employeeRoles" :key="role.id">
+                                    <a
+                                        @click="roleFilter = role.id"
+                                        :class="{'font-bold text-[#4DA1A9]': roleFilter === role.id}"
+                                    >
+                                        {{ role.name }}
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
 
-    <!-- زر إعادة تعيين الفلاتر (إن وجد) -->
-</div>
+                        <!-- فرز -->
+                        <div class="dropdown dropdown-start">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-12 w-20 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
+                            >
+                                <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
+                                فرز
+                            </div>
+                            <ul
+                                tabindex="0"
+                                class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
+                            >
+                                <li class="menu-title text-gray-700 font-bold text-sm">حسب الاسم:</li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('name', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}"
+                                    >
+                                        الاسم (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('name', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}"
+                                    >
+                                        الاسم (ي - أ)
+                                    </a>
+                                </li>
 
-<!-- فرز -->
-<div class="dropdown dropdown-start">
-    <div
-        tabindex="0"
-        role="button"
-        class="inline-flex items-center px-[11px] py-[9px] border-2 border-[#ffffff8d] h-12 w-20 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#5e8c90f9]"
-    >
-        <Icon icon="lucide:arrow-down-up" class="w-5 h-5 ml-2" />
-        فرز
-    </div>
-    <ul
-        tabindex="0"
-        class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] rounded-[35px] w-52 text-right"
-    >
-        <li class="menu-title text-gray-700 font-bold text-sm">حسب الاسم:</li>
-        <li>
-            <a
-                @click="sortEmployees('name', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'asc'}"
-            >
-                الاسم (أ - ي)
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('name', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'name' && sortOrder === 'desc'}"
-            >
-                الاسم (ي - أ)
-            </a>
-        </li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الدور الوظيفي:</li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('role', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'role' && sortOrder === 'asc'}"
+                                    >
+                                        الدور الوظيفي (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('role', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'role' && sortOrder === 'desc'}"
+                                    >
+                                        الدور الوظيفي (ي - أ)
+                                    </a>
+                                </li>
 
-        <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب الدور الوظيفي:</li>
-        <li>
-            <a
-                @click="sortEmployees('role', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'role' && sortOrder === 'asc'}"
-            >
-                الدور الوظيفي (أ - ي)
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('role', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'role' && sortOrder === 'desc'}"
-            >
-                الدور الوظيفي (ي - أ)
-            </a>
-        </li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب المستشفى:</li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('hospital', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'asc'}"
+                                    >
+                                        المستشفى (أ - ي)
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('hospital', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'desc'}"
+                                    >
+                                        المستشفى (ي - أ)
+                                    </a>
+                                </li>
 
-        <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب المستشفى:</li>
-        <li>
-            <a
-                @click="sortEmployees('hospital', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'asc'}"
-            >
-                المستشفى (أ - ي)
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('hospital', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'hospital' && sortOrder === 'desc'}"
-            >
-                المستشفى (ي - أ)
-            </a>
-        </li>
+                                <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب حالة الحساب:</li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('status', 'asc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'status' && sortOrder === 'asc'}"
+                                    >
+                                        المعطلون أولاً
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        @click="sortEmployees('status', 'desc')"
+                                        :class="{'font-bold text-[#4DA1A9]': sortKey === 'status' && sortOrder === 'desc'}"
+                                    >
+                                        المفعلون أولاً
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
 
-        <li class="menu-title text-gray-700 font-bold text-sm mt-2">حسب حالة الحساب:</li>
-        <li>
-            <a
-                @click="sortEmployees('status', 'asc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'status' && sortOrder === 'asc'}"
-            >
-                المعطلون أولاً
-            </a>
-        </li>
-        <li>
-            <a
-                @click="sortEmployees('status', 'desc')"
-                :class="{'font-bold text-[#4DA1A9]': sortKey === 'status' && sortOrder === 'desc'}"
-            >
-                المفعلون أولاً
-            </a>
-        </li>
-    </ul>
-</div>
+                        <p class="text-xs font-semibold text-gray-500 sm:self-center whitespace-nowrap">
+                            عدد النتائج :
+                            <span class="text-[#4DA1A9] text-base font-bold">
+                                {{ filteredEmployees.length }}
+                            </span>
+                        </p>
+                    </div>
 
-<!-- عرض ةعدد النتائج -->
-<div class="flex items-center gap-1">
-    <p class="text-sm font-semibold text-gray-600">عدد النتائج:</p>
-    <span class="text-[#4DA1A9] text-lg font-bold bg-gray-100 px-3 py-1 rounded-full">
-        {{ filteredEmployees.length }}
-    </span>
-</div>
-                   
- <div class="flex items-center justify-end w-full sm:w-auto">
-    <btnprint @click="printTable" />
-  </div>
-               
-                       
-                               <!-- معلومات الفلاتر المطبقة -->
-                <!-- <div v-if="hospitalFilter !== 'all' || roleFilter !== 'all' || statusFilter !== 'all'" 
-                     class="bg-blue-50 border w-130 border-blue-100 rounded-xl p-3 mb-4">
-                    <p class="text-sm text-blue-700 flex items-center gap-2">
-                        <Icon icon="tabler:filter" class="w-4 h-4" />
-                        <span class="font-medium">الفلاتر المطبقة:</span>
-                        
-                        <span v-if="hospitalFilter !== 'all'" class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                            مستشفى: {{ availableHospitals.find(h => h.id == hospitalFilter)?.name }}
-                        </span>
-                        
-                        <span v-if="roleFilter !== 'all'" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                            دور: {{ employeeRoles.find(r => r.id == roleFilter)?.name }}
-                        </span>
-                                              
-                    </p>
-                </div> -->
-                     </div>
-               
+                    <div class="flex items-end gap-3 w-full sm:w-auto justify-end">
+                        <btnprint @click="printTable" />
+                    </div>
                 </div>
              
 
@@ -867,8 +924,8 @@ onMounted(async () => {
                                                     :class="[
                                                         'px-2 py-1 rounded-full text-xs font-semibold',
                                                         employee.isActive
-                                                            ? 'bg-green-100 text-green-800 border border-green-200'
-                                                            : 'bg-red-100 text-red-800 border border-red-200',
+                                                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                                            : 'bg-red-50 text-red-700 border border-red-100',
                                                     ]"
                                                 >
                                                     {{

@@ -1163,7 +1163,7 @@ const showAlert = (message, type = "success") => {
 
     alertTimeout = setTimeout(() => {
         isAlertVisible.value = false;
-    }, 4000);
+    }, 3000);
 };
 
 const showSuccessAlert = (message) => showAlert(message, "success");

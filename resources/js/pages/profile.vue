@@ -411,8 +411,8 @@ const fetchUserData = async () => {
 // دالة تعريب الدور الرئيسي
 const translateRole = (role) => {
     const roleTranslations = {
-        'hospital_admin': 'مدير نظام المستشفى',
-        'supplier_admin': ' مورد',
+        'hospital_admin': 'مدير المستشفى',
+        'supplier_admin': 'مدير مستودع التوريد',
         'super_admin': 'المدير الأعلى',
         'warehouse_manager': 'مسؤول المخزن',
         'pharmacist': 'صيدلي',

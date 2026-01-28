@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تفعيل حسابك في حُصتي</title>
+    <title>إعادة تعيين كلمة المرور - حُصتي</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
@@ -25,34 +25,30 @@
                             <h2 style="color: #333333; margin: 0 0 20px 0; font-size: 22px;">مرحباً {{ $name }}</h2>
                             
                             <p style="color: #666666; line-height: 1.8; margin: 0 0 20px 0; font-size: 16px;">
-                                تم إنشاء حسابك بنجاح في نظام حصتي.
+                                تم إعادة تعيين كلمة المرور الخاصة بحسابك في نظام حصتي من قبل إدارة النظام.
                             </p>
 
                             <p style="color: #666666; line-height: 1.8; margin: 0 0 30px 0; font-size: 16px;">
-                                لتفعيل حسابك وتعيين كلمة المرور، يرجى الضغط على الزر أدناه:
+                                يمكنك استخدام كلمة المرور المؤقتة التالية لتسجيل الدخول:
                             </p>
 
-                            <!-- Activation Button -->
-                            <div style="text-align: center; margin: 30px 0;">
-                                <a href="{{ $url }}" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #2E5077 0%, #4DA1A9 100%); color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">تفعيل الحساب</a>
+                            <!-- Password Box -->
+                            <div style="background: linear-gradient(135deg, #2E5077 0%, #4DA1A9 100%); border-radius: 10px; padding: 25px; text-align: center; margin: 30px 0;">
+                                <p style="color: #ffffff; margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;">كلمة المرور الجديدة</p>
+                                <div style="background-color: #ffffff; border-radius: 8px; padding: 15px; display: inline-block;">
+                                    <span style="color: #2E5077; font-size: 32px; font-weight: bold; letter-spacing: 2px; font-family: monospace;">{{ $password }}</span>
+                                </div>
                             </div>
-
-                            <p style="color: #666666; text-align: center; margin: 20px 0;">
-                                أو يمكنك نسخ الرابط التالي ولصقه في المتصفح:
-                            </p>
-                            <p style="text-align: center; word-break: break-all;">
-                                <a href="{{ $url }}" style="color: #4DA1A9; text-decoration: none;">{{ $url }}</a>
-                            </p>
 
                             <!-- Warning Box -->
                             <div style="background-color: #fff3cd; border-right: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px;">
                                 <p style="color: #856404; margin: 0; font-size: 14px;">
-                                    ⏰ هذا الرابط صالح لمدة <strong>24 ساعة فقط</strong>
+                                    <strong>⚠️ هام جداً:</strong> هذه كلمة مرور مؤقتة. يرجى تسجيل الدخول وتغييرها فوراً من إعدادات حسابك.
                                 </p>
                             </div>
 
                             <p style="color: #999999; line-height: 1.6; margin: 20px 0 0 0; font-size: 14px;">
-                                إذا لم تطلب إنشاء هذا الحساب، يرجى تجاهل هذه الرسالة.
+                                إذا لم تطلب إعادة تعيين كلمة المرور، يرجى التواصل مع إدارة النظام فوراً.
                             </p>
                         </td>
                     </tr>

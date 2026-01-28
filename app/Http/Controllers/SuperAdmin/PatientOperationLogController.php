@@ -9,46 +9,56 @@ use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use App\Models\Drug;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class PatientOperationLogController extends BaseApiController
 {
     public function index(Request $request)
     {
-        // 1. Base Query - Fetch logs performed by THIS user
-        $query = AuditLog::where('user_id', Auth::id())
+        // 1. Define tables
+        $tables = [
+            'users', 
+            'prescriptions', 
+            'prescription_drug', 
+            'prescription_drugs', 
+            'dispensings',
+            'hospitals',
+            'suppliers',
+            'drugs',
+            'inventories' // Maybe?
+        ];
+
+        // 2. Base Query - Fetch logs for these tables, performed by THIS user
+        $query = AuditLog::whereIn('table_name', $tables)
+            ->where('user_id', \Illuminate\Support\Facades\Auth::id())
             ->with(['user', 'hospital']) 
             ->latest();
 
-        // 2. Fetch Data (Limit to 500)
-        $logs = $query->take(500)->get();
+        // 3. Fetch Data (Limit to 300 to ensure performance)
+        $logs = $query->take(300)->get();
 
-        // 3. Process and Map to View Format
+        // 4. Process and Map to View Format
         $data = $logs->map(function ($log) {
             $context = $this->resolveGenericContext($log);
             
-            $entity = $context['entity'];
+            // "Patient" here is a metaphor for the target entity
+            $entity = $context['patient'];
             $formatted = $this->formatOperationText($log, $context);
             
+            if (!$entity && !$formatted['label']) {
+                 // Skip if we cant identify meaningful info
+                 return null;
+            }
+
             // Map fields to what frontend expects:
+            // file_number -> ID
+            // full_name -> Name of Entity (Hospital Name, Drug Name...)
+            
             $fileNumber = $log->record_id;
             $fullName = 'غير معروف';
 
             if ($entity) {
-                // Try to find a display name and ID
-                $fileNumber = $entity->file_number ?? ($entity->code ?? $entity->id);
-                $fullName = $entity->full_name ?? ($entity->name ?? ($entity->name_ar ?? ($entity->title ?? '-')));
-            } elseif ($log->table_name === 'users' && $log->action === 'login') {
-                 $user = $log->user;
-                 if ($user) {
-                     $fileNumber = $user->id;
-                     $fullName = $user->full_name;
-                 }
-            }
-
-            // Fallback for full name if strictly null or placeholder
-            if (($fullName === 'غير معروف' || $fullName === '-') && isset($context['inferred_name'])) {
-                $fullName = $context['inferred_name'];
+                $fileNumber = $entity->file_number ?? $entity->id;
+                $fullName = $entity->full_name ?? ($entity->name ?? $entity->name_ar ?? 'غير معروف');
             }
 
             return [
@@ -60,7 +70,7 @@ class PatientOperationLogController extends BaseApiController
                 'operation_type'  => $formatted['label'],
                 'date'            => $log->created_at->format('Y/m/d'),
                 'time'            => $log->created_at->format('H:i'),
-                'hospital_name'   => $log->hospital ? $log->hospital->name : '-',
+                'hospital_name'   => $log->hospital ? $log->hospital->name : 'N/A',
                 
                 // Fields for search
                 'searchable_text' => strtolower(
@@ -71,9 +81,10 @@ class PatientOperationLogController extends BaseApiController
                 ),
             ];
         })
+        ->filter() // Remove nulls
         ->values();
 
-        // 4. In-Memory Search
+        // 5. In-Memory Search (Since data volume is capped by take(300))
         if ($request->has('search') && $request->input('search') != '') {
             $search = strtolower($request->input('search'));
             $data = $data->filter(function ($item) use ($search) {
@@ -81,71 +92,71 @@ class PatientOperationLogController extends BaseApiController
             })->values();
         }
 
+        // Apply Arabic Numerals to final result
+        $data = $data->map(function($item) {
+            $item['file_number'] = $item['file_number'];
+            $item['operation_label'] = $this->toArabicNumerals($item['operation_label']);
+            $item['operation_body'] = $this->toArabicNumerals($item['operation_body']);
+            $item['operation_type'] = $this->toArabicNumerals($item['operation_type']);
+            $item['date'] = $item['date'];
+            $item['time'] = $item['time'];
+            return $item;
+        });
+
         return response()->json($data);
     }
 
+    /**
+     * Resolves the patient and related object based on log table and record_id
+     */
     private function resolveGenericContext($log)
     {
-        $entity = null;
+        $entity = null; // Renamed from $patient for clarity, but logic remains similar
         $relatedObject = null;
         $newValues = json_decode($log->new_values, true) ?? [];
         $oldValues = json_decode($log->old_values, true) ?? [];
         
         $mergedValues = array_merge($oldValues ?? [], $newValues ?? []);
-        $inferredName = null;
-
-        // Helper to infer name from JSON if Entity not found
-        if (isset($mergedValues['name'])) $inferredName = $mergedValues['name'];
-        if (isset($mergedValues['full_name'])) $inferredName = $mergedValues['full_name'];
-        if (isset($mergedValues['title'])) $inferredName = $mergedValues['title'];
 
         // 1. Specific Entity Loading
         switch ($log->table_name) {
             case 'hospitals':
                 $entity = \App\Models\Hospital::find($log->record_id);
-                if (!$entity) $entity = new \App\Models\Hospital($mergedValues);
+                if (!$entity && isset($mergedValues['name'])) {
+                     $entity = new \App\Models\Hospital($mergedValues); // Virtual
+                     $entity->id = $log->record_id;
+                }
                 break;
                 
             case 'suppliers':
                 $entity = \App\Models\Supplier::find($log->record_id);
-                if (!$entity) $entity = new \App\Models\Supplier($mergedValues);
+                if (!$entity && isset($mergedValues['name'])) {
+                     $entity = new \App\Models\Supplier($mergedValues);
+                     $entity->id = $log->record_id;
+                }
                 break;
                 
             case 'drugs':
                 $entity = \App\Models\Drug::find($log->record_id);
-                if (!$entity) $entity = new \App\Models\Drug($mergedValues);
-                break;
-
-            case 'internal_supply_requests':
-                $entity = \App\Models\InternalSupplyRequest::find($log->record_id);
-                // If soft deleted or not found, try to hydrate from old values
-                if (!$entity) {
-                     $entity = new \App\Models\InternalSupplyRequest($mergedValues);
+                if (!$entity && isset($mergedValues['name'])) {
+                     $entity = new \App\Models\Drug($mergedValues);
                      $entity->id = $log->record_id;
                 }
-                // Supply requests might have a code or ID as main identifier
-                $inferredName = 'طلب #' . ($entity->id ?? $log->record_id);
-                break;
-
-            case 'external_supply_requests':
-            case 'external_supply_request': // Handle singular table name legacy
-                $entity = \App\Models\ExternalSupplyRequest::find($log->record_id);
-                if (!$entity) {
-                     $entity = new \App\Models\ExternalSupplyRequest($mergedValues);
-                     $entity->id = $log->record_id;
-                }
-                $inferredName = 'طلب #' . ($entity->id ?? $log->record_id);
                 break;
 
             case 'users':
                  $user = User::find($log->record_id);
-                 if (!$user && isset($mergedValues['full_name'])) {
-                      $user = new User($mergedValues);
-                      $user->id = $log->record_id;
+                 if (!$user) {
+                      // Check JSON
+                      if (isset($mergedValues['full_name'])) {
+                          $user = new User($mergedValues);
+                          $user->id = $log->record_id;
+                      }
                  }
                  $entity = $user;
                  break;
 
+            // ... Existing cases for patient stuff ...
              case 'prescriptions':
                 $prescription = Prescription::with('patient')->find($log->record_id);
                 if ($prescription) {
@@ -153,7 +164,6 @@ class PatientOperationLogController extends BaseApiController
                     $relatedObject = $prescription;
                 }
                 break;
-                
             case 'prescription_drugs':
             case 'prescription_drug': 
                 $pDrug = PrescriptionDrug::with('prescription.patient')->find($log->record_id);
@@ -162,7 +172,6 @@ class PatientOperationLogController extends BaseApiController
                     $relatedObject = $pDrug;
                 }
                 break;
-                
             case 'dispensings':
                 $dispensing = \App\Models\Dispensing::with('patient')->find($log->record_id);
                 if ($dispensing) {
@@ -172,7 +181,9 @@ class PatientOperationLogController extends BaseApiController
                 break;
         }
         
-        return ['entity' => $entity, 'object' => $relatedObject, 'inferred_name' => $inferredName];
+        // Return structured as 'patient' because index method expects it, 
+        // effectively 'patient' now means 'Target Entity'
+        return ['patient' => $entity, 'object' => $relatedObject];
     }
 
     private function formatOperationText($log, $context)
@@ -188,8 +199,6 @@ class PatientOperationLogController extends BaseApiController
             'create' => 'إضافة',
             'update' => 'تعديل',
             'delete' => 'حذف',
-            'login'  => 'تسجيل دخول',
-            'logout' => 'تسجيل خروج',
             'drug_expired_zeroed' => 'تصفير كمية دواء منتهية',
         ];
         
@@ -197,65 +206,79 @@ class PatientOperationLogController extends BaseApiController
             $label = $map[$log->action];
         }
 
-        // Login/Logout special handling
-        if (in_array($log->action, ['login', 'logout'])) {
-             $newValues = json_decode($log->new_values, true) ?? [];
-             $method = match($newValues['method'] ?? '') {
-                 'mobile_app' => 'تطبيق الهاتف',
-                 'dashboard' => 'لوحة التحكم',
-                 default => ''
-             };
-             $body = $method ? "عبر $method" : '';
-             return ['label' => $label, 'body' => $body];
-        }
-
         // Context-aware Formats
         if ($log->table_name === 'hospitals') {
             $label = 'إدارة المستشفيات';
-            $body = $log->action == 'create' ? 'إضافة مستشفى جديد' : ($this->getChangesDescription($log) ?: 'تحديث بيانات مستشفى');
+            if ($log->action == 'create') {
+                $body = 'إضافة مستشفى جديد';
+            } else {
+                $changes = $this->getChangesDescription($log);
+                $body = $changes ?: 'تحديث بيانات مستشفى';
+            } 
         }
-        elseif ($log->table_name === 'suppliers') {
+        if ($log->table_name === 'suppliers') {
             $label = 'إدارة الموردين';
-            $body = $log->action == 'create' ? 'إضافة مورد جديد' : ($this->getChangesDescription($log) ?: 'تحديث بيانات مورد');
+            if ($log->action == 'create') {
+                $body = 'إضافة مورد جديد';
+            } else {
+                $changes = $this->getChangesDescription($log);
+                $body = $changes ?: 'تحديث بيانات مورد';
+            }
         }
-        elseif ($log->table_name === 'drugs') {
+        if ($log->table_name === 'drugs') {
             $label = 'إدارة الأدوية';
-            $body = $log->action == 'create' ? 'إضافة دواء جديد' : ($this->getChangesDescription($log) ?: 'تحديث بيانات دواء');
+            if ($log->action == 'create') {
+                $body = 'إضافة دواء جديد';
+            } else {
+                $changes = $this->getChangesDescription($log);
+                $body = $changes ?: 'تحديث بيانات دواء';
+            }
         }
-        // ... (Keep existing logic for users, prescriptions, etc.)
-        elseif ($log->table_name === 'users') {
-            if ($log->action === 'create_patient') {
-                $body = 'تم فتح ملف جديد';
-                $label = 'إدارة المرضى'; 
-            }
-            elseif ($log->action === 'update_patient') {
-                $body = 'تم تعديل البيانات الشخصية';
-                $label = 'إدارة المرضى';
-            }
+
+        if ($log->table_name === 'users') {
+            if ($log->action === 'create_patient') $body = 'تم فتح ملف جديد';
+            elseif ($log->action === 'update_patient') $body = 'تم تعديل البيانات الشخصية';
             else {
                 $label = 'إدارة المستخدمين';
-                $body = $log->action == 'create' ? 'إضافة مستخدم جديد' : ($this->getChangesDescription($log) ?: 'تحديث بيانات مستخدم');
+                if ($log->action == 'create') {
+                     $body = 'إضافة مستخدم جديد';
+                } else {
+                     $changes = $this->getChangesDescription($log);
+                     
+                     // Improve status change visibility
+                     if ($changes === 'تعطيل الحساب') {
+                         $body = 'تعطيل الحساب';
+                     } elseif ($changes === 'تفعيل الحساب') {
+                         $body = 'تفعيل الحساب';
+                     } else {
+                         $body = $changes ?: 'تحديث بيانات مستخدم';
+                     }
+                }
             }
         }
         
-        // ... (Prescriptions logic)
-        elseif ($log->table_name === 'prescriptions') {
+        if ($log->table_name === 'prescriptions') {
              $label = 'وصفة طبية';
              $body = $log->action === 'create' ? 'تم إنشاء وصفة طبية' : 'تحديث حالة الوصفة';
         }
-        // ... (Drugs in Prescription logic)
-        elseif (in_array($log->table_name, ['prescription_drugs', 'prescription_drug'])) {
+        
+        if (in_array($log->table_name, ['prescription_drugs', 'prescription_drug'])) {
              $label = 'عملية على الأدوية';
+             // Try to get drug name from new values or the object
              $pDrug = $context['object'];
              $drugName = '';
              
              if ($pDrug instanceof PrescriptionDrug) {
-                 if($pDrug->drug) $drugName = $pDrug->drug->name;
-                 else {
+                 // Check if relation loaded
+                 if($pDrug->drug) {
+                    $drugName = $pDrug->drug->name;
+                 } else {
                     $d = Drug::find($pDrug->drug_id);
                     if ($d) $drugName = $d->name;
                  }
              }
+
+             // If object is missing or drug not found, check json
              if (!$drugName && $log->new_values) {
                  $vals = json_decode($log->new_values, true);
                  if (isset($vals['drug_id'])) {
@@ -263,58 +286,8 @@ class PatientOperationLogController extends BaseApiController
                       if ($d) $drugName = $d->name;
                  }
              }
-             $body = $drugName ? "دواء: {$drugName}" : 'تعديل في الأدوية';
-        }
-        // Handle Supply Requests (Internal & External)
-        elseif (in_array($log->table_name, ['internal_supply_requests', 'external_supply_requests', 'external_supply_request'])) {
-            $isExternal = in_array($log->table_name, ['external_supply_requests', 'external_supply_request']);
-            $label = $isExternal ? 'طلب توريد خارجي' : 'طلب توريد داخلي';
-            
-            $statusMap = [
-                'pending' => 'معلق',
-                'approved' => 'مقبول',
-                'rejected' => 'مرفوض',
-                'fulfilled' => 'تم الإستلام',
-                'completed' => 'مكتمل',
-                'cancelled' => 'ملغي',
-            ];
 
-            // Specific Super Admin Actions
-            if ($log->action === 'super_admin_confirm_external_supply_request') {
-                $body = 'تم الإستلام وتحديث المخزون';
-            }
-            elseif ($log->action === 'super_admin_approve_external_supply_request') {
-                $body = 'تم قبول الطلب (قيد الشحن)';
-            }
-            elseif ($log->action === 'super_admin_reject_external_supply_request') {
-                $body = 'تم رفض الطلب';
-            }
-            // Supplier Actions
-            elseif ($log->action === 'supplier_confirm_receipt') {
-                $body = 'تم تأكيد الاستلام من قبل المورد';
-            }
-            elseif ($log->action === 'supplier_create_external_supply_request') {
-                $body = 'تم إنشاء طلب جديد من المورد';
-            }
-            // If it's a creation
-            elseif ($log->action === 'create') {
-                $body = 'تم إنشاء طلب جديد';
-            } 
-            // If it's an update
-            elseif ($log->action === 'update') {
-                $newVals = json_decode($log->new_values, true) ?? [];
-                $oldVals = json_decode($log->old_values, true) ?? [];
-                
-                // Check if status changed
-                if (isset($newVals['status']) && isset($oldVals['status']) && $newVals['status'] !== $oldVals['status']) {
-                    $newStatus = $statusMap[$newVals['status']] ?? $newVals['status'];
-                    $body = "تم تحديث الحالة إلى: $newStatus";
-                } else {
-                    $body = 'تحديث تفاصيل الطلب';
-                }
-            } else {
-                $body = $log->action;
-            }
+             $body = $drugName ? "دواء: {$drugName}" : 'تعديل في الأدوية';
         }
         
         return ['label' => $label, 'body' => $body];
@@ -322,12 +295,20 @@ class PatientOperationLogController extends BaseApiController
 
     private function getChangesDescription($log)
     {
-        if ($log->action !== 'update') return '';
+        if ($log->action !== 'update' && !str_contains($log->action, 'update')) return '';
 
         $newValues = json_decode($log->new_values, true);
-        $oldValues = json_decode($log->old_values, true); // Decode old values
-        
         if (!$newValues || !is_array($newValues)) return '';
+
+        // Handle specific status changes for better clarity
+        if (count($newValues) === 1 || (count($newValues) === 2 && isset($newValues['updated_at']))) {
+            if (isset($newValues['status']) || isset($newValues['is_active'])) {
+                $key = isset($newValues['status']) ? 'status' : 'is_active';
+                $newStatus = $newValues[$key];
+                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) return 'تفعيل الحساب';
+                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) return 'تعطيل الحساب';
+            }
+        }
 
         $fieldMap = [
             'name' => 'الاسم',
@@ -344,45 +325,21 @@ class PatientOperationLogController extends BaseApiController
             'manufacturer' => 'الشركة المصنعة',
             'price' => 'السعر',
             'quantity' => 'الكمية',
+            'current_quantity' => 'الكمية الحالية',
             'is_active' => 'التفعيل',
             'generic_name' => 'الاسم العلمي',
-            'strength' => 'التركيز',
-            'supplier_id' => 'رقم المورد',
-            'hospital_id' => 'رقم المستشفى',
-            'category_id' => 'الفئة',
-            'user_id'     => 'المستخدم',
-            'code'        => 'الكود',
-            'expiry_date' => 'تاريخ الانتهاء',
-            'batch_number'=> 'رقم التشغيلة',
-
-            // Added Drug fields
-            'unit' => 'الوحدة',
-            'max_monthly_dose' => 'الجرعة الشهرية القصوى',
-            'country' => 'بلد المنشأ',
-            'utilization_type' => 'نوع الاستخدام',
-            'warnings' => 'التحذيرات',
-            'indications' => 'دواعي الاستعمال',
-            'contraindications' => 'موانع الاستعمال',
-            'units_per_box' => 'عدد الوحدات في العلبة',
+            'strength' => 'القوة/التركيز',
             'form' => 'الشكل الصيدلاني',
-            'category' => 'الفئة',
-            'department_id' => 'القسم',
-
-            // Added User fields
-            'national_id' => 'رقم الهوية الوطنية',
-            'warehouse_id' => 'معرف المستودع',
-            'pharmacy_id' => 'معرف الصيدلية',
-            'fcm_token' => 'رمز FCM',
-            'created_by' => 'تم الإنشاء بواسطة',
+            'category' => 'الفئة العلاجية',
+            'category_id' => 'الفئة العلاجية',
+            'indications' => 'دواعي الاستعمال',
+            'warnings' => 'التحذيرات',
+            'contraindications' => 'موانع الاستعمال',
         ];
 
         $changedFields = [];
         foreach ($newValues as $key => $val) {
             if (in_array($key, ['updated_at', 'created_at', 'id', 'remember_token'])) continue;
-            
-            // تحقق من وجود اختلاف بين القيمة الجديدة والقديمة
-            $oldVal = $oldValues[$key] ?? null;
-            if ($val == $oldVal) continue;
             
             // Password special case
             if ($key === 'password') {
@@ -396,6 +353,18 @@ class PatientOperationLogController extends BaseApiController
 
         if (empty($changedFields)) return '';
         
+        // Return first 3 changes
         return 'تم تحديث: ' . implode('، ', array_slice($changedFields, 0, 3));
+    }
+
+    /**
+     * تحويل الأرقام الإنجليزية إلى أرقام عربية (هندية)
+     */
+    private function toArabicNumerals($string)
+    {
+        if ($string === null || $string === '') return $string;
+        $westernNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return str_replace($westernNumbers, $arabicNumbers, (string)$string);
     }
 }

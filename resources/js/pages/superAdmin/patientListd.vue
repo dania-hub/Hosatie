@@ -157,6 +157,9 @@ const fetchPatients = async () => {
     });
     
     console.log('تم جلب المرضى:', patients.value.length);
+    if (patients.value.length > 0) {
+      showSuccessAlert(" تم تحميل قائمة المرضى بنجاح");
+    }
   } catch (err) {
     if (err.response) {
       switch (err.response.status) {
@@ -451,6 +454,10 @@ const showSuccessAlert = (message) => {
         title: isError ? 'خطأ' : 'نجاح',
         message: message.replace(/^❌ |^✅ /, '')
     };
+    // إخفاء التنبيه تلقائياً بعد 3 ثواني
+    setTimeout(() => {
+        toast.value.show = false;
+    }, 3000);
 };
 
 const showInfoAlert = (message) => {
@@ -460,6 +467,10 @@ const showInfoAlert = (message) => {
         title: 'تنبيه',
         message: message
     };
+    // إخفاء التنبيه تلقائياً بعد 3 ثواني
+    setTimeout(() => {
+        toast.value.show = false;
+    }, 3000);
 };
 
 // ----------------------------------------------------
@@ -599,92 +610,202 @@ const openDispensationModal = async () => {
 // ----------------------------------------------------
 const printTable = () => {
   const resultsCount = filteredPatients.value.length;
-
-  const printWindow = window.open("", "_blank", "height=600,width=800");
+  const printWindow = window.open("", "_blank", "height=800,width=1000");
 
   if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
     showSuccessAlert("❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
     return;
   }
 
-  let tableHtml = `
-<style>
-body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
-th { background-color: #f2f2f2; font-weight: bold; }
-h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
-.results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
-.no-data { text-align: center; padding: 40px; color: #666; font-style: italic; }
-.print-date { text-align: left; margin-bottom: 10px; font-size: 12px; color: #666; }
-</style>
+  const currentDate = new Date().toLocaleDateString('ar-EG', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    numberingSystem: 'latn' // يضمن ظهور الأرقام بالشكل 0-9
+  });
 
-<h1>قائمة المرضى</h1>
-<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+  let tableHtml = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>قائمة المرضى - ${currentDate}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+        
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Cairo', 'Arial', sans-serif; 
+            margin: 0; 
+            padding: 40px; 
+            background: #fff;
+            color: #2E5077;
+        }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 3px solid #4DA1A9; 
+            padding-bottom: 20px; 
+            margin-bottom: 30px;
+        }
+        .header-title h1 { 
+            margin: 0; 
+            font-size: 28px; 
+            color: #2E5077;
+        }
+        .header-info { text-align: left; }
+        .header-info p { margin: 5px 0; font-size: 14px; color: #666; }
+        
+        .stats { 
+            background: #f8fafc; 
+            padding: 15px 20px; 
+            border-radius: 12px; 
+            margin-bottom: 25px;
+            display: flex;
+            gap: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-item { font-weight: bold; font-size: 16px; }
+        .stat-label { color: #64748b; margin-left: 5px; }
+        .stat-value { color: #4DA1A9; }
+
+        table { 
+            width: 100%; 
+            border-collapse: separate; 
+            border-spacing: 0;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        th { 
+            background-color: #4DA1A9; 
+            color: white; 
+            font-weight: bold; 
+            padding: 15px 12px; 
+            text-align: right;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        td { 
+            padding: 12px; 
+            border-bottom: 1px solid #e2e8f0; 
+            text-align: right; 
+            font-size: 13px;
+            color: #475569;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .footer { 
+            margin-top: 40px; 
+            font-size: 12px; 
+            text-align: center; 
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 20px;
+        }
+        
+        .no-data { 
+            text-align: center; 
+            padding: 60px; 
+            color: #94a3b8; 
+            font-size: 18px;
+            border: 2px dashed #e2e8f0;
+            border-radius: 12px;
+        }
+
+        @media print {
+            body { padding: 20px; }
+            .header { border-bottom-color: #4DA1A9 !important; }
+            th { background-color: #4DA1A9 !important; -webkit-print-color-adjust: exact; }
+            tr:nth-child(even) { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-title">
+            <h1>قائمة المرضى</h1>
+        </div>
+        <div class="header-info">
+            <p>تاريخ الاستخراج: ${currentDate}</p>
+            <p>الجهة المصدرة: وزارة الصحة</p>
+        </div>
+    </div>
 `;
 
   if (resultsCount > 0) {
     tableHtml += `
-<p class="results-info">عدد النتائج: ${resultsCount}</p>
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-label">إجمالي المرضى:</span>
+            <span class="stat-value">${resultsCount} مريض</span>
+        </div>
+        ${selectedHospital.value !== 'all' ? `
+        <div class="stat-item">
+            <span class="stat-label">المستشفى:</span>
+            <span class="stat-value">${hospitals.value.find(h => h.id.toString() === selectedHospital.value)?.name || selectedHospital.value}</span>
+        </div>` : ''}
+    </div>
 
-<table>
-<thead>
- <tr>
- <th>#</th>
- <th>رقم الملف</th>
- <th>اسم المريض</th>
- <th>الرقم الوطني</th>
- <th>تاريخ الميلاد</th>
- <th>رقم الهاتف</th>
- <th>المستشفى</th>
- </tr>
-</thead>
-<tbody>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th>رقم الملف</th>
+                <th>اسم المريض</th>
+                <th>الرقم الوطني</th>
+                <th>تاريخ الميلاد</th>
+                <th>رقم الهاتف</th>
+                <th>المستشفى</th>
+            </tr>
+        </thead>
+        <tbody>
 `;
 
     filteredPatients.value.forEach((patient, index) => {
-      // Logic for File Number display (with code)
-      const hospitalCode = patient.hospitalCode || ''; 
-      const fileNum = patient.fileNumber || '';
-      const fullFileNum = hospitalCode ? `${hospitalCode} ${fileNum}` : fileNum;
-
       tableHtml += `
-<tr>
- <td>${index + 1}</td>
- <td>${fullFileNum || ''}</td>
- <td>${patient.nameDisplay || patient.fullName || patient.name || ''}</td>
- <td>${patient.nationalIdDisplay || patient.nationalId || ''}</td>
- <td>${patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || ''}</td>
- <td>${patient.phone || ''}</td>
- <td>${patient.hospitalDisplay || 'غير محدد'}</td>
-</tr>
+            <tr>
+                <td style="text-align: center; font-weight: bold; color: #94a3b8;">${index + 1}</td>
+                <td style="font-weight: bold; color: #2E5077;">${patient.fileNumber || '---'}</td>
+                <td style="font-weight: 500;">${patient.nameDisplay || patient.fullName || patient.name || '---'}</td>
+                <td>${patient.nationalIdDisplay || patient.nationalId || '---'}</td>
+                <td>${patient.birthDisplay || formatDateForDisplay(patient.birthDate) || formatDateForDisplay(patient.birth) || '---'}</td>
+                <td>${patient.phone || '---'}</td>
+                <td>${patient.hospitalDisplay || 'غير محدد'}</td>
+            </tr>
 `;
     });
 
     tableHtml += `
-</tbody>
-</table>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <p>صدر هذا التقرير آلياً - وزارة الصحة - جميع الحقوق محفوظة &copy; ${new Date().getFullYear()}</p>
+    </div>
 `;
   } else {
     tableHtml += `
-<div class="no-data">
-  <p>لا توجد بيانات مرضى</p>
-</div>
+    <div class="no-data">
+        <p>لا توجد نتائج مطابقة لخيارات التصفية الحالية</p>
+    </div>
 `;
   }
 
-  printWindow.document.write("<html><head><title>طباعة قائمة المرضى</title>");
-  printWindow.document.write("</head><body>");
+  tableHtml += `</body></html>`;
+
   printWindow.document.write(tableHtml);
-  printWindow.document.write("</body></html>");
   printWindow.document.close();
 
   printWindow.onload = () => {
-    printWindow.focus();
-    printWindow.print();
-    if (resultsCount > 0) {
-      showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
-    }
+    setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+    }, 500);
   };
 };
 
@@ -720,15 +841,18 @@ onMounted(async () => {
   <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
 
     <!-- البحث -->
-    <search v-model="searchTerm" class="flex-1 min-w-[150px] sm:min-w-[200px]" />
+    <search v-model="searchTerm" placeholder="ابحث برقم الملف أو الإسم أو الرقم الوطني" class="flex-1 min-w-[150px] sm:min-w-[150px]" />
 
-    <button
-      @click="showDateFilter = !showDateFilter"
-      class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
-      :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
-    >
-      <Icon icon="solar:calendar-bold" class="w-5 h-5" />
-    </button>
+    <div class="flex items-center gap-2">
+      <button
+        @click="showDateFilter = !showDateFilter"
+        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+        :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
+      >
+        <Icon icon="solar:calendar-bold" class="w-5 h-5" />
+      </button>
+      <span v-if="showDateFilter" class="text-xs font-bold text-[#2E5077] animate-pulse">تصفية حسب تاريخ الميلاد:</span>
+    </div>
 
     <Transition
       enter-active-class="transition duration-200 ease-out"
@@ -739,29 +863,31 @@ onMounted(async () => {
       leave-to-class="opacity-0 scale-95"
     >
       <div v-if="showDateFilter" class="flex items-center gap-2">
-        <div class="relative">
+        <div class="relative group">
           <input
             type="date"
             v-model="dateFrom"
-            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+            @click="$event.target.showPicker()"
+            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer hover:border-[#4DA1A9]/50 transition-colors"
             placeholder="من تاريخ"
           />
           <Icon
             icon="solar:calendar-linear"
-            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none group-hover:scale-110 transition-transform"
           />
         </div>
-        <span class="text-gray-600 font-medium">إلى</span>
-        <div class="relative">
+        <span class="text-gray-600 font-bold px-1">إلى</span>
+        <div class="relative group">
           <input
             type="date"
             v-model="dateTo"
-            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
+            @click="$event.target.showPicker()"
+            class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer hover:border-[#4DA1A9]/50 transition-colors"
             placeholder="إلى تاريخ"
           />
           <Icon
             icon="solar:calendar-linear"
-            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none group-hover:scale-110 transition-transform"
           />
         </div>
         <button
@@ -954,12 +1080,7 @@ onMounted(async () => {
                                             class="hover:bg-gray-100 border border-gray-300"
                                         >
                                             <td class="file-number-col">
-                                              <div class="flex items-center gap-1 justify-start">
-                                                  <span v-if="patient.hospitalCode" class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
-                                                      {{ patient.hospitalCode }}
-                                                  </span>
-                                                  <span class="font-medium text-gray-700">{{ patient.fileNumber || 'N/A' }}</span>
-                                              </div>
+                                                <span class="font-bold text-[#2E5077]">{{ patient.fileNumber || 'N/A' }}</span>
                                             </td>
                                             <td class="name-col">{{ patient.nameDisplay || patient.fullName || patient.name || 'N/A' }}</td>
                                             <td class="national-id-col">{{ patient.nationalIdDisplay || patient.nationalId || 'N/A' }}</td>

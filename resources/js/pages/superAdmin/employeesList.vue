@@ -60,8 +60,8 @@ const HOSPITALS_API_URL = "super-admin/hospitals";
 
 // قائمة الأدوار المتاحة (ثابتة لأن API يعيد type)
 const employeeRoles = ref([
-    { name: "مدير نظام المستشفى", value: "hospital_admin" },
-    { name: "مدير المورد", value: "supplier_admin" }
+    { name: "مدير المستشفى", value: "hospital_admin" },
+    { name: "مدير مستودع التوريد", value: "supplier_admin" }
 ]);
 
 // قائمة المستشفيات المتاحة 
@@ -135,6 +135,15 @@ const fetchEmployees = async () => {
                 actualIsActive = false;
             }
             
+            let role = emp.typeArabic || emp.type || "";
+            let typeArabic = emp.typeArabic || "";
+            
+            // تحويل المسميات حسب طلب المستخدم
+            if (role === "مدير نظام المستشفى") role = "مدير المستشفى";
+            if (role === "مدير المورد") role = "مدير مستودع التوريد";
+            if (typeArabic === "مدير نظام المستشفى") typeArabic = "مدير المستشفى";
+            if (typeArabic === "مدير المورد") typeArabic = "مدير مستودع التوريد";
+
             return {
                 id: emp.id,
                 fileNumber: emp.id, // استخدام id كـ fileNumber للتوافق
@@ -144,9 +153,9 @@ const fetchEmployees = async () => {
                 phone: emp.phone || "",
                 nationalId: emp.nationalId || "",
                 birthDate: emp.birthDate || "",
-                role: emp.typeArabic || emp.type || "",
+                role: role,
                 type: emp.type || "",
-                typeArabic: emp.typeArabic || "",
+                typeArabic: typeArabic,
                 hospital: emp.hospital ? emp.hospital.name : "",
                 hospitalId: hospitalId,
                 supplier: emp.supplier ? emp.supplier.name : "",
@@ -161,6 +170,9 @@ const fetchEmployees = async () => {
             };
         });
         
+        if (employees.value.length > 0) {
+            showSuccessAlert(" تم تحميل قائمة الموظفين بنجاح");
+        }
     } catch (err) {
         console.error("Error fetching employees:", err);
         console.error("Error response:", err.response);
@@ -247,9 +259,9 @@ const supplierNames = computed(() => {
 
 // قوائم المستشفيات والموردين المحجوزة (لمودال الإضافة)
 const filteredHospitalNamesForAdd = computed(() => {
-    // المستشفيات التي لديها مدير حالياً
+    // المستشفيات التي لديها مدير حالياً ونشط
     const occupiedHospitals = employees.value
-        .filter(emp => emp.hospital)
+        .filter(emp => emp.hospital && emp.isActive)
         .map(emp => emp.hospital);
         
     // استبعاد المستشفيات المحجوزة
@@ -257,9 +269,9 @@ const filteredHospitalNamesForAdd = computed(() => {
 });
 
 const filteredSupplierNamesForAdd = computed(() => {
-    // الموردين الذين لديهم مدير حالياً
+    // الموردين الذين لديهم مدير حالياً ونشط
     const occupiedSuppliers = employees.value
-        .filter(emp => emp.supplier)
+        .filter(emp => emp.supplier && emp.isActive)
         .map(emp => emp.supplier);
         
     // استبعاد الموردين المحجوزين
@@ -272,16 +284,16 @@ const filteredSupplierNamesForEdit = ref([]);
 
 // تحديث قوائم التعديل بناءً على الموظف المحدد
 const updateEditLists = (employee) => {
-    // المستشفيات المحجوزة (باستثناء مستشفى الموظف الحالي)
+    // المستشفيات المحجوزة (باستثناء مستشفى الموظف الحالي) وتكون نشطة
     const occupiedHospitals = employees.value
-        .filter(emp => emp.hospital && emp.hospital !== employee.hospital)
+        .filter(emp => emp.hospital && emp.hospital !== employee.hospital && emp.isActive)
         .map(emp => emp.hospital);
         
     filteredHospitalNamesForEdit.value = hospitalNames.value.filter(name => !occupiedHospitals.includes(name));
 
-    // الموردين المحجوزين (باستثناء مورد الموظف الحالي)
+    // الموردين المحجوزين (باستثناء مورد الموظف الحالي) وتكون نشطة
     const occupiedSuppliers = employees.value
-        .filter(emp => emp.supplier && emp.supplier !== employee.supplier)
+        .filter(emp => emp.supplier && emp.supplier !== employee.supplier && emp.isActive)
         .map(emp => emp.supplier);
 
     filteredSupplierNamesForEdit.value = supplierNames.value.filter(name => !occupiedSuppliers.includes(name));
@@ -300,7 +312,9 @@ const departmentsWithManager = computed(() => {
 // 7. متغيرات نافذة تأكيد التفعيل/التعطيل
 // ----------------------------------------------------
 const isStatusConfirmationModalOpen = ref(false);
+const isPasswordResetModalOpen = ref(false);
 const employeeToToggle = ref(null);
+const employeeToReset = ref(null);
 const statusAction = ref("");
 
 const openStatusConfirmationModal = (employee) => {
@@ -336,7 +350,7 @@ const confirmStatusToggle = async () => {
         }
 
         showSuccessAlert(
-            ` تم ${statusAction.value} حساب المدير ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
+            `✅ تم ${statusAction.value} حساب المدير ${employeeToToggle.value.name || employeeToToggle.value.fullName} بنجاح!`
         );
         closeStatusConfirmationModal();
         // إعادة جلب البيانات للتأكد من التحديث
@@ -353,16 +367,8 @@ const confirmStatusToggle = async () => {
 // 8. منطق البحث والفرز
 // ----------------------------------------------------
 const searchTerm = ref("");
-const dateFrom = ref("");
-const dateTo = ref("");
-const showDateFilter = ref(false);
 const sortKey = ref("lastUpdated");
 const sortOrder = ref("desc");
-
-const clearDateFilter = () => {
-    dateFrom.value = "";
-    dateTo.value = "";
-};
 
 const calculateAge = (birthDateString) => {
     if (!birthDateString) return 0;
@@ -399,33 +405,6 @@ const filteredEmployees = computed(() => {
         list = list.filter((employee) => employee.type === roleFilter.value);
     }
 
-    // فلتر حسب التاريخ
-    if (dateFrom.value || dateTo.value) {
-        list = list.filter((employee) => {
-            const dateStr = employee.lastUpdated;
-            if (!dateStr) return false;
-            const empDate = new Date(dateStr);
-            empDate.setHours(0, 0, 0, 0);
-
-            let matchesFrom = true;
-            let matchesTo = true;
-
-            if (dateFrom.value) {
-                const fromDate = new Date(dateFrom.value);
-                fromDate.setHours(0, 0, 0, 0);
-                matchesFrom = empDate >= fromDate;
-            }
-
-            if (dateTo.value) {
-                const toDate = new Date(dateTo.value);
-                toDate.setHours(0, 0, 0, 0);
-                matchesTo = empDate <= toDate;
-            }
-
-            return matchesFrom && matchesTo;
-        });
-    }
-
     // فلتر حسب البحث
     if (searchTerm.value) {
         const search = searchTerm.value.toLowerCase();
@@ -433,12 +412,6 @@ const filteredEmployees = computed(() => {
             (employee) =>
                 (employee.id || employee.fileNumber)?.toString().includes(search) ||
                 (employee.name || employee.fullName)?.toLowerCase().includes(search) ||
-                employee.email?.toLowerCase().includes(search) ||
-                employee.nationalId?.includes(search) ||
-                (employee.birthDate && employee.birthDate.includes(search)) ||
-                employee.phone?.includes(search) ||
-                (employee.role && employee.role.toLowerCase().includes(search)) ||
-                (employee.typeArabic && employee.typeArabic.toLowerCase().includes(search)) ||
                 (employee.hospital && employee.hospital.toLowerCase().includes(search)) ||
                 (employee.supplier && employee.supplier.toLowerCase().includes(search)) 
         );
@@ -517,6 +490,10 @@ const showSuccessAlert = (message) => {
         title: isError ? 'خطأ' : 'نجاح',
         message: message.replace(/^❌ |^✅ /, '')
     };
+    // إخفاء التنبيه تلقائياً بعد 3 ثواني
+    setTimeout(() => {
+        toast.value.show = false;
+    }, 3000);
 };
 
 // ----------------------------------------------------
@@ -600,9 +577,9 @@ const addEmployee = async (newEmployee) => {
     try {
         // تحديد نوع المستخدم من الدور
         let userType = null;
-        if (newEmployee.role === "مدير نظام المستشفى" || newEmployee.role === "hospital_admin") {
+        if (newEmployee.role === "مدير المستشفى" || newEmployee.role === "hospital_admin") {
             userType = "hospital_admin";
-        } else if (newEmployee.role === "مدير المورد" || newEmployee.role === "supplier_admin") {
+        } else if (newEmployee.role === "مدير مستودع التوريد" || newEmployee.role === "supplier_admin") {
             userType = "supplier_admin";
         } else {
             // محاولة العثور على النوع من القائمة
@@ -613,7 +590,7 @@ const addEmployee = async (newEmployee) => {
         }
 
         if (!userType || !['hospital_admin', 'supplier_admin'].includes(userType)) {
-            showSuccessAlert("⚠️ يرجى اختيار نوع المستخدم (مدير نظام المستشفى أو مدير المورد)");
+            showSuccessAlert("⚠️ يرجى اختيار نوع المستخدم (مدير المستشفى أو مدير مستودع التوريد)");
             return;
         }
 
@@ -692,9 +669,9 @@ const updateEmployee = async (updatedEmployee) => {
         
         let userRole = updatedEmployee.role || selectedEmployee.value.role;
          let userType = null;
-        if (userRole === "مدير نظام المستشفى" || userRole === "hospital_admin") {
+        if (userRole === "مدير المستشفى" || userRole === "hospital_admin") {
             userType = "hospital_admin";
-        } else if (userRole === "مدير المورد" || userRole === "supplier_admin") {
+        } else if (userRole === "مدير مستودع التوريد" || userRole === "supplier_admin") {
             userType = "supplier_admin";
         }
         
@@ -740,20 +717,30 @@ const getStatusTooltip = (isActive) => {
 };
 
 // إعادة تعيين كلمة المرور
-const resetPassword = async (employee) => {
-    if (!confirm(`هل أنت متأكد من رغبتك في إعادة تعيين كلمة المرور للمدير ${employee.name || employee.fullName}؟`)) {
-        return;
-    }
+const openResetPasswordModal = (employee) => {
+    employeeToReset.value = employee;
+    isPasswordResetModalOpen.value = true;
+};
+
+const closeResetPasswordModal = () => {
+    isPasswordResetModalOpen.value = false;
+    employeeToReset.value = null;
+};
+
+const confirmResetPassword = async () => {
+    if (!employeeToReset.value) return;
 
     try {
-        const userId = employee.id || employee.fileNumber;
+        const userId = employeeToReset.value.id || employeeToReset.value.fileNumber;
         const response = await api.post(`${API_URL}/${userId}/reset-password`);
         
-        showSuccessAlert("✅ تم إعادة تعيين كلمة المرور بنجاح! سيتم إرسال كلمة المرور الجديدة إلى البريد الإلكتروني.");
+        showSuccessAlert(" تم إعادة تعيين كلمة المرور بنجاح! سيتم إرسالها للبريد الإلكتروني.");
+        closeResetPasswordModal();
     } catch (error) {
         console.error("Error resetting password:", error);
-        const errorMessage = error.response?.data?.message || error.response?.data?.error || "فشل إعادة تعيين كلمة المرور.";
+        const errorMessage = error.response?.data?.message || "فشل إعادة تعيين كلمة المرور.";
         showSuccessAlert(`❌ ${errorMessage}`);
+        closeResetPasswordModal();
     }
 };
 
@@ -764,120 +751,209 @@ const printTable = () => {
     const resultsCount = filteredEmployees.value.length;
 
     if (resultsCount === 0) {
-        showSuccessAlert("❌ لا توجد بيانات للطباعة.");
+        showSuccessAlert(" لا توجد بيانات للطباعة.");
         return;
     }
 
-    const printWindow = window.open("", "_blank", "height=600,width=800");
+    const printWindow = window.open("", "_blank", "height=800,width=1000");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
-        showSuccessAlert(
-            "❌ فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع."
-        );
+        showSuccessAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة.");
         return;
     }
 
-    let tableHtml = `
-        <style>
-            body {
-                font-family: 'Arial', sans-serif;
-                direction: rtl;
-                padding: 20px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 10px;
-                text-align: right;
-            }
-            th {
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }
-            h1 {
-                text-align: center;
-                color: #2E5077;
-                margin-bottom: 10px;
-            }
-            .results-info {
-                text-align: right;
-                margin-bottom: 15px;
-                font-size: 16px;
-                font-weight: bold;
-                color: #4DA1A9;
-            }
-            .status-active {
-                color: green;
-                font-weight: bold;
-            }
-            .status-inactive {
-                color: red;
-                font-weight: bold;
-            }
-        </style>
+    const statusNameFilter = statusFilter.value === "all" ? "الكل" : (statusFilter.value === "active" ? "نشط فقط" : "معطل فقط");
+    const roleNameFilter = roleFilter.value === "all" ? "جميع الأدوار" : (employeeRoles.value.find(r => r.value === roleFilter.value)?.name || roleFilter.value);
 
-        <h1>قائمة الموظفين </h1>
-    
-        <p class="results-info">
-            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
-        </p>
+    const currentDate = new Date().toLocaleDateString('ar-LY', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        numberingSystem: 'latn'
+    });
+
+    let tableHtml = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>قائمة الموظفين - ${currentDate}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            @page { margin: 15mm; size: A4; }
+            .no-print { display: none; }
+        }
         
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { padding: 0; margin: 0; color: #1e293b; background: white; line-height: 1.5; }
+        
+        .print-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .page-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding-bottom: 20px; 
+            border-bottom: 2px solid #2E5077;
+        }
+        
+        .gov-title { text-align: right; }
+        .gov-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #2E5077; }
+        .gov-title p { margin: 5px 0; font-size: 14px; color: #64748b; }
+        
+        .report-title { text-align: center; margin: 20px 0; }
+        .report-title h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: #1e293b; 
+            background: #f1f5f9;
+            display: inline-block;
+            padding: 10px 40px;
+            border-radius: 50px;
+        }
+        
+        .summary-box {
+            display: grid;
+            grid-template-cols: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 14px; color: #2E5077; font-weight: 700; }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { 
+            background-color: #2E5077; 
+            color: white; 
+            font-weight: 700; 
+            padding: 12px 10px; 
+            text-align: right; 
+            font-size: 12px;
+        }
+        td { 
+            padding: 10px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 11px; 
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .status-badge {
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .status-active { color: #475569; }
+        .status-inactive { color: #000000; font-weight: 800; }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .signature-box { text-align: right; }
+        .signature-line { margin-top: 30px; width: 150px; border-top: 1px solid #cbd5e1; }
+    </style>
+</head>
+<body>
+    <div class="print-container">
+        <div class="page-header">
+            <div class="gov-title">
+                <h2>وزارة الصحة</h2>
+                <p>إدارة الموارد البشرية</p>
+            </div>
+            <div style="text-align: left">
+                <p style="margin: 0; font-size: 11px; color: #64748b;">تاريخ التقرير</p>
+                <p style="margin: 3px 0 0; font-weight: 700; color: #1e293b;">${currentDate}</p>
+            </div>
+        </div>
+
+        <div class="report-title">
+            <h1>قائمة مديرون</h1>
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-item">
+                <span class="stat-label">أداة الفلترة - الدور</span>
+                <span class="stat-value">${roleNameFilter}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">الحالة</span>
+                <span class="stat-value">${statusNameFilter}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">إجمالي المديرين</span>
+                <span class="stat-value">${resultsCount} موظف</span>
+            </div>
+        </div>
+
         <table>
             <thead>
                 <tr>
+                    <th style="width: 40px; text-align: center;">#</th>
                     <th>رقم الملف</th>
                     <th>الاسم الرباعي</th>
                     <th>الدور الوظيفي</th>
-                    <th>المستشفى</th>
-                    <th>المورد</th>
-                    <th>حالة الحساب</th>
-                   
-           
+                    <th>المستشفى / المورد</th>
                     <th>رقم الهاتف</th>
+                    <th>الحالة</th>
                 </tr>
             </thead>
             <tbody>
-    `;
-
-    filteredEmployees.value.forEach((employee) => {
-        const roleName = employee.typeArabic || employee.role || '';
-        
-        tableHtml += `
+                ${filteredEmployees.value.map((employee, index) => `
             <tr>
-                <td>${employee.id || employee.fileNumber || ''}</td>
-                <td>${employee.name || employee.fullName || ''}</td>
-                <td>${roleName}</td>
-                <td>${employee.hospital || '-'}</td>
-                <td>${employee.supplier || '-'}</td>
-                <td class="${employee.isActive ? "status-active" : "status-inactive"}">
-                    ${employee.isActive ? "مفعل" : (employee.status === 'pending_activation' ? "بانتظار التفعيل" : "معطل")}
-                </td>  
-            
-             
-                <td>${employee.phone || ''}</td>
+                <td style="text-align: center; font-weight: 700; color: #64748b;">${index + 1}</td>
+                <td style="font-weight: 700; color: #2E5077;">${employee.id || employee.fileNumber || '-'}</td>
+                <td style="font-weight: 600;">${employee.name || employee.fullName || '-'}</td>
+                <td>${employee.typeArabic || employee.role || '-'}</td>
+                <td>${employee.hospital || employee.supplier || '-'}</td>
+                <td>${employee.phone || '-'}</td>
+                <td>
+                    <span class="status-badge ${employee.isActive ? 'status-active' : 'status-inactive'}">
+                        ${employee.isActive ? 'نشط' : 'معطل'}
+                    </span>
+                </td>
             </tr>
-        `;
-    });
+            `).join('')}
+        </tbody>
+    </table>
 
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
+    <div class="footer">
+        <div class="signature-box">
+            <p>اعتماد مدير الإدارة</p>
+            <div class="signature-line"></div>
+        </div>
+        <div style="text-align: left;">
+            <p>نظام حُصتي لإدارة المرافق الصحية</p>
+            <p style="font-size: 9px; margin-top: 5px;">تم استخراج هذا التقرير آلياً</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>`;
 
-    printWindow.document.write("<html><head><title>طباعة قائمة الموظفين</title>");
-    printWindow.document.write("</head><body>");
     printWindow.document.write(tableHtml);
-    printWindow.document.write("</body></html>");
     printWindow.document.close();
 
     printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
+        setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+            showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
+        }, 500);
     };
 };
 </script>
@@ -889,73 +965,8 @@ const printTable = () => {
             <div>
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <search v-model="searchTerm" />
+                        <search v-model="searchTerm" placeholder="ابحث برقم الملف أو الاسم أو اسم المؤسسة..." />
 
-                        <button
-                            @click="showDateFilter = !showDateFilter"
-                            class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
-                            :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
-                        >
-                            <Icon icon="solar:calendar-bold" class="w-5 h-5" />
-                        </button>
-
-                        <Transition
-                            enter-active-class="transition duration-200 ease-out"
-                            enter-from-class="opacity-0 scale-95"
-                            enter-to-class="opacity-100 scale-100"
-                            leave-active-class="transition duration-150 ease-in"
-                            leave-from-class="opacity-100 scale-100"
-                            leave-to-class="opacity-0 scale-95"
-                        >
-                            <div v-if="showDateFilter" class="flex items-center gap-2">
-                                <div class="relative">
-                                    <input
-                                        type="date"
-                                        v-model="dateFrom"
-                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
-                                        placeholder="من تاريخ"
-                                    />
-                                    <Icon
-                                        icon="solar:calendar-linear"
-                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                                    />
-                                </div>
-                                <span class="text-gray-600 font-medium">إلى</span>
-                                <div class="relative">
-                                    <input
-                                        type="date"
-                                        v-model="dateTo"
-                                        class="h-11 px-3 pr-10 border-2 border-[#ffffff8d] rounded-[30px] bg-white text-gray-700 focus:outline-none focus:border-[#4DA1A9] text-sm cursor-pointer"
-                                        placeholder="إلى تاريخ"
-                                    />
-                                    <Icon
-                                        icon="solar:calendar-linear"
-                                        class="w-5 h-5 text-[#4DA1A9] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                                    />
-                                </div>
-                                <button
-                                    v-if="dateFrom || dateTo"
-                                    @click="clearDateFilter"
-                                    class="h-11 px-3 border-2 border-red-300 rounded-[30px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
-                                    title="مسح فلتر التاريخ"
-                                >
-                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4" />
-                                    مسح
-                                </button>
-                            </div>
-                        </Transition>
-
-                        <!-- فلتر حالة الحساب -->
-                        <div class="flex items-center gap-2">
-                            <select 
-                                v-model="statusFilter"
-                                class="h-11 px-3 border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:border-[#a8a8a8] hover:bg-[#5e8c90f9] focus:outline-none cursor-pointer"
-                            >
-                                <option value="all">جميع الحالات</option>
-                                <option value="active">المفعلون فقط</option>
-                                <option value="inactive">المعطلون فقط</option>
-                            </select>
-                        </div>
 
                         <!-- فرز -->
                         <div class="dropdown dropdown-start">
@@ -1024,7 +1035,7 @@ const printTable = () => {
                                                 roleFilter === 'hospital_admin',
                                         }"
                                     >
-                                        مدير نظام المستشفى فقط
+                                        مدير المستشفى فقط
                                     </a>
                                 </li>
                                 <li>
@@ -1035,7 +1046,7 @@ const printTable = () => {
                                                 roleFilter === 'supplier_admin',
                                         }"
                                     >
-                                        مدير المورد فقط
+                                        مدير مستودع التوريد فقط
                                     </a>
                                 </li>
 
@@ -1179,9 +1190,9 @@ const printTable = () => {
                                 </li>
                             </ul>
                         </div>
-                        <p class="text-sm font-semibold text-gray-600 self-end sm:self-center">
+                        <p class="text-sm font-semibold text-gray-600 sm:self-center">
                             عدد النتائج :
-                            <span class="text-[#4DA1A9] text-lg font-bold">{{
+                            <span class="text-[#4DA1A9] text-xl font-extrabold">{{
                                 filteredEmployees.length
                             }}</span>
                         </p>
@@ -1260,8 +1271,8 @@ const printTable = () => {
                                                     :class="[
                                                         'px-2 py-1 rounded-full text-xs font-semibold',
                                                         employee.isActive
-                                                            ? 'bg-green-100 text-green-800 border border-green-200'
-                                                            : 'bg-red-100 text-red-800 border border-red-200',
+                                                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                                            : 'bg-red-50 text-red-700 border border-red-100',
                                                     ]"
                                                 >
                                                     {{
@@ -1328,7 +1339,7 @@ const printTable = () => {
 
                                                     <!-- زر إعادة تعيين كلمة المرور -->
                                                     <button
-                                                        @click="resetPassword(employee)"
+                                                        @click="openResetPasswordModal(employee)"
                                                         class="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="إعادة تعيين كلمة المرور"
                                                     >
@@ -1431,6 +1442,49 @@ const printTable = () => {
         </div>
     </div>
 
+    <!-- نافذة تأكيد إعادة تعيين كلمة المرور -->
+    <div 
+        v-if="isPasswordResetModalOpen" 
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" 
+        @click.self="closeResetPasswordModal"
+    >
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+            <div class="p-6 text-center space-y-4">
+                <div class="w-16 h-16 bg-[#E0F2F1] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon 
+                        icon="solar:lock-password-bold-duotone" 
+                        class="w-10 h-10 text-[#4DA1A9]" 
+                    />
+                </div>
+                <h3 class="text-xl font-bold text-[#2E5077]">
+                    إعادة تعيين كلمة المرور
+                </h3>
+                <p class="text-gray-500 leading-relaxed">
+                    هل أنت متأكد من رغبتك في إعادة تعيين كلمة المرور للموظف
+                    <strong class="text-[#2E5077]">{{ employeeToReset?.name }}</strong>؟
+                    <br>
+                    <span class="text-sm text-[#4DA1A9] font-medium">
+                        سيتم إرسال كلمة المرور الجديدة تلقائياً إلى بريده الإلكتروني.
+                    </span>
+                </p>
+            </div>
+            <div class="flex justify-center bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+                <button 
+                    @click="closeResetPasswordModal" 
+                    class="px-12 py-2.5 rounded-xl text-gray-600 font-medium hover:bg-gray-200 bg-gray-100 transition-colors duration-200"
+                >
+                    إلغاء
+                </button>
+                <button 
+                    @click="confirmResetPassword" 
+                    class="px-12 py-2.5 rounded-xl text-white font-medium shadow-lg shadow-[#4DA1A9]/20 flex items-center gap-2 transition-all duration-200 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] hover:shadow-xl hover:-translate-y-1"
+                >
+                    تأكيد الإعادة
+                </button>
+            </div>
+        </div>
+    </div>
+
     <Toast 
         :show="toast.show" 
         :type="toast.type" 
@@ -1497,7 +1551,17 @@ const printTable = () => {
     min-width: 130px;
 }
 .name-col {
-    width: 120px;
-    min-width: 120px;
+    width: 200px;
+    min-width: 180px;
+}
+
+/* تحسينات الجدول عامة */
+.table th {
+    padding: 18px 15px !important;
+    font-weight: 700;
+}
+.table td {
+    padding: 15px 15px !important;
+    vertical-align: middle;
 }
 </style>

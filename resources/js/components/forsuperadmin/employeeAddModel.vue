@@ -55,20 +55,59 @@ const form = ref({
 
 // أخطاء التحقق
 const errors = ref({
-    nationalId: false,
-    name: false,
+    nationalId: "",
+    name: "",
     birth: false,
-    phone: false,
-    email: false,
+    phone: "",
+    email: "",
     role: false,
     department: false,
     hospital: false,
-    supplier: false, // إضافة خطأ للمورد
+    supplier: false,
 });
+
+// أخطاء التكرار
+const duplicateErrors = ref({
+    nationalId: "",
+    email: "",
+});
+
+let debounceTimeout = null;
 
 // حالة التحقق من رقم الهاتف
 const phoneExists = ref(false);
 const checkingPhone = ref(false);
+
+// دالة التحقق من تكرار الحقول
+const checkFieldUniqueness = async (field) => {
+    const value = form.value[field];
+    
+    duplicateErrors.value[field] = "";
+
+    if (field === 'nationalId' && (!value || value.length < 12)) return;
+    if (field === 'email' && (!value || !value.includes('@') || value.length < 5)) return;
+
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    
+    debounceTimeout = setTimeout(async () => {
+        try {
+            let response;
+            
+            if (field === 'nationalId') {
+                response = await api.get(`/super-admin/users/check-national-id/${value}`);
+            } else if (field === 'email') {
+                response = await api.get(`/super-admin/users/check-email/${encodeURIComponent(value)}`);
+            }
+            
+            if (response && response.data.data && response.data.data.exists) {
+                duplicateErrors.value[field] = response.data.message;
+            }
+        } catch (error) {
+            console.error("Check unique error", error);
+            // في حالة الخطأ، لا نعرض رسالة خطأ للمستخدم
+        }
+    }, 500);
+};
 
 // حالة نافذة التأكيد
 const isConfirmationModalOpen = ref(false);
@@ -87,15 +126,19 @@ const resetForm = () => {
         supplier: "" // إعادة تعيين المورد
     };
     errors.value = { 
-        nationalId: false, 
-        name: false, 
+        nationalId: "", 
+        name: "", 
         birth: false, 
-        phone: false, 
-        email: false, 
+        phone: "", 
+        email: "", 
         role: false, 
         department: false,
         hospital: false,
-        supplier: false // إعادة تعيين خطأ المورد
+        supplier: false
+    };
+    duplicateErrors.value = {
+        nationalId: "",
+        email: "",
     };
     phoneExists.value = false;
 };
@@ -146,13 +189,97 @@ const isDepartmentManagerRole = (role) => {
 // التحقق مما إذا كان الدور هو "مدير المورد"
 const isSupplierAdminRole = (role) => {
     const roleName = getRoleName(role);
-    return roleName === "مدير المورد" || roleName === "supplier_admin";
+    return roleName === "مدير مستودع التوريد" || roleName === "supplier_admin";
 };
 
 // التحقق مما إذا كان الدور هو "مدير نظام المستشفى"
 const isHospitalAdminRole = (role) => {
     const roleName = getRoleName(role);
-    return roleName === "مدير نظام المستشفى" || roleName === "hospital_admin";
+    return roleName === "مدير المستشفى" || roleName === "hospital_admin";
+};
+
+// التحقق من الرقم الوطني أثناء الكتابة
+const validateNationalIdInput = () => {
+    form.value.nationalId = form.value.nationalId.replace(/\D/g, '');
+    
+    if (form.value.nationalId.length > 12) {
+        form.value.nationalId = form.value.nationalId.substring(0, 12);
+    }
+
+    if (form.value.nationalId.length > 0) {
+        if (!/^[12]/.test(form.value.nationalId)) {
+            errors.value.nationalId = 'يجب أن يبدأ الرقم الوطني بـ 1 أو 2';
+        } else if (form.value.nationalId.length < 12) {
+            errors.value.nationalId = 'الرقم الوطني يجب أن يتكون من 12 رقم';
+        } else {
+            errors.value.nationalId = "";
+        }
+    } else {
+        errors.value.nationalId = "";
+    }
+
+    checkFieldUniqueness('nationalId');
+};
+
+// التحقق من رقم الهاتف أثناء الكتابة
+const validatePhoneInput = () => {
+    form.value.phone = form.value.phone.replace(/\D/g, '');
+    
+    if (form.value.phone.length > 10) {
+        form.value.phone = form.value.phone.substring(0, 10);
+    }
+    
+    if (form.value.phone.length > 0) {
+        const validPrefixes = ['091', '092', '093', '094'];
+        const hasValidPrefix = validPrefixes.some(prefix => form.value.phone.startsWith(prefix));
+
+        if (!hasValidPrefix && form.value.phone.length >= 3) {
+            errors.value.phone = 'يجب أن يبدأ الرقم بـ 091, 092, 093, 094';
+        } else if (form.value.phone.length < 10) {
+            errors.value.phone = 'رقم الهاتف يجب أن يتكون من 10 أرقام';
+        } else {
+            errors.value.phone = "";
+        }
+    } else {
+        errors.value.phone = "";
+    }
+
+    checkPhoneExists(form.value.phone);
+};
+
+// التحقق من الاسم أثناء الكتابة
+const validateNameInput = () => {
+    const nameValue = form.value.name.trim();
+    const spaceCount = (nameValue.match(/\s+/g) || []).length;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    
+    if (nameValue.length > 0) {
+        if (!nameRegex.test(nameValue) || spaceCount < 3) {
+            errors.value.name = 'الاسم يجب أن يكون رباعياً على الأقل ويحوي حروفاً فقط';
+        } else {
+            errors.value.name = "";
+        }
+    } else {
+        errors.value.name = "";
+    }
+};
+
+// التحقق من البريد الإلكتروني أثناء الكتابة
+const validateEmailInput = () => {
+    const emailValue = form.value.email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (emailValue.length > 0) {
+        if (!emailRegex.test(emailValue)) {
+            errors.value.email = 'البريد الإلكتروني غير صحيح';
+        } else {
+            errors.value.email = "";
+        }
+    } else {
+        errors.value.email = "";
+    }
+    
+    checkFieldUniqueness('email');
 };
 
 // التحقق من حقل محدد
@@ -161,13 +288,11 @@ const validateField = (fieldName) => {
     
     switch (fieldName) {
         case 'nationalId':
-            const nationalIdRegex = /^\d{12}$/;
-            errors.value.nationalId = !nationalIdRegex.test(data.nationalId);
+            validateNationalIdInput();
             break;
             
         case 'name':
-            const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-            errors.value.name = !nameRegex.test(data.name.trim());
+            validateNameInput();
             break;
             
         case 'birth':
@@ -175,22 +300,24 @@ const validateField = (fieldName) => {
             break;
             
         case 'phone':
-            const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
-            const isValidFormat = phoneRegex.test(data.phone.trim());
-            errors.value.phone = !isValidFormat || phoneExists.value;
+            validatePhoneInput();
             break;
             
         case 'email':
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            errors.value.email = !emailRegex.test(data.email.trim());
+            validateEmailInput();
             break;
             
         case 'role':
             const roleList = getRoleList.value;
             errors.value.role = !data.role || !roleList.includes(data.role);
-            // إعادة تعيين الأخطاء للحقول المشروطة عند تغيير الدور
             if (!isDepartmentManagerRole(data.role)) {
                 errors.value.department = false;
+            }
+            if (!isHospitalAdminRole(data.role)) {
+                errors.value.hospital = false;
+            }
+            if (!isSupplierAdminRole(data.role)) {
+                errors.value.supplier = false;
             }
             break;
             
@@ -203,13 +330,19 @@ const validateField = (fieldName) => {
             break;
             
         case 'hospital':
-            // اختياري
-            errors.value.hospital = false;
+            if (isHospitalAdminRole(data.role)) {
+                errors.value.hospital = !data.hospital;
+            } else {
+                errors.value.hospital = false;
+            }
             break;
             
         case 'supplier':
-            // اختياري
-            errors.value.supplier = false;
+            if (isSupplierAdminRole(data.role)) {
+                errors.value.supplier = !data.supplier;
+            } else {
+                errors.value.supplier = false;
+            }
             break;
     }
 };
@@ -218,7 +351,6 @@ const validateField = (fieldName) => {
 const validateForm = () => {
     const data = form.value;
     
-    // التحقق من جميع الحقول الأساسية
     validateField('nationalId');
     validateField('name');
     validateField('birth');
@@ -226,17 +358,25 @@ const validateForm = () => {
     validateField('email');
     validateField('role');
     
-    // التحقق من الحقول المشروطة
     if (isDepartmentManagerRole(data.role)) {
         validateField('department');
     }
     
-    // التحقق من وجود مدير مخزن إذا كان الدور هو "مدير المخزن"
+    if (isHospitalAdminRole(data.role)) {
+        validateField('hospital');
+    }
+    
+    if (isSupplierAdminRole(data.role)) {
+        validateField('supplier');
+    }
+    
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
         return false;
     }
     
-    // التحقق من أن جميع الحقول المطلوبة صحيحة
+    // منع الإرسال إذا كان هناك تكرار
+    if (duplicateErrors.value.nationalId || duplicateErrors.value.email) return false;
+    
     return isFormValid.value;
 };
 
@@ -245,59 +385,54 @@ const isFormValid = computed(() => {
     const data = form.value;
     const roleList = getRoleList.value;
     
-    const nationalIdRegex = /^\d{12}$/;
+    const nationalIdRegex = /^[12]\d{11}$/;
     if (!nationalIdRegex.test(data.nationalId)) return false;
 
-    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]{3,}$/;
-    if (!nameRegex.test(data.name.trim())) return false;
+    const nameValue = data.name ? data.name.trim() : "";
+    const spaceCount = (nameValue.match(/\s+/g) || []).length;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    if (!data.name || !nameRegex.test(nameValue) || spaceCount < 3) return false;
 
     if (!data.birth) return false;
 
-    const phoneRegex = /^(021|092|091|093|094)\d{7}$/;
+    const phoneRegex = /^(09[1-4])\d{7}$/;
     if (!phoneRegex.test(data.phone.trim()) || phoneExists.value) return false;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.email.trim())) return false;
 
-    // التحقق من حقل الدور الوظيفي
     if (!data.role || !roleList.includes(data.role)) return false;
 
-    // التحقق من حقل القسم إذا كان الدور هو "مدير القسم"
     if (isDepartmentManagerRole(data.role)) {
         if (!data.department) return false;
-        
         if (props.departmentsWithManager.includes(data.department)) {
             return false;
         }
     }
 
-    // التحقق من وجود مدير مخزن
     if (isWarehouseManagerRole(data.role) && props.hasWarehouseManager) {
         return false;
     }
 
-    // التحقق من حقل المستشفى (اختياري الآن)
-    // if (isHospitalAdminRole(data.role)) {
-    //     if (!data.hospital || !props.availableHospitals?.includes(data.hospital)) {
-    //         return false;
-    //     }
-    // }
+    // التحقق من حقل المستشفى إذا كان الدور يتطلب مستشفى
+    if (isHospitalAdminRole(data.role)) {
+        if (!data.hospital) return false;
+    }
 
-    // التحقق من حقل المورد (اختياري الآن)
-    // if (isSupplierAdminRole(data.role)) {
-    //     if (!data.supplier || !props.availableSuppliers?.includes(data.supplier)) {
-    //         return false;
-    //     }
-    // }
+    // التحقق من حقل المورد إذا كان الدور يتطلب مورد
+    if (isSupplierAdminRole(data.role)) {
+        if (!data.supplier) return false;
+    }
+
+    // منع الإرسال إذا كان هناك تكرار
+    if (duplicateErrors.value.nationalId || duplicateErrors.value.email) return false;
 
     return true;
 });
 
 // إرسال النموذج
 const submitForm = () => {
-    // التحقق من جميع الحقول أولاً
     if (!isFormValid.value) {
-        // التحقق من كل حقل لإظهار رسائل الخطأ
         validateField('nationalId');
         validateField('name');
         validateField('birth');
@@ -309,25 +444,17 @@ const submitForm = () => {
             validateField('department');
         }
         
-        // إظهار رسالة للمستخدم
-        const missingFields = [];
-        if (errors.value.nationalId) missingFields.push('الرقم الوطني');
-        if (errors.value.name) missingFields.push('الاسم الرباعي');
-        if (errors.value.birth) missingFields.push('تاريخ الميلاد');
-        if (errors.value.phone || phoneExists.value) missingFields.push('رقم الهاتف');
-        if (errors.value.email) missingFields.push('البريد الإلكتروني');
-        if (errors.value.role) missingFields.push('الدور الوظيفي');
-        if (errors.value.department) missingFields.push('القسم');
+        if (isHospitalAdminRole(form.value.role)) {
+            validateField('hospital');
+        }
         
-        if (missingFields.length > 0) {
-            // يمكن إضافة toast notification هنا إذا كان متاحاً
-            console.warn('الحقول المطلوبة:', missingFields.join(', '));
+        if (isSupplierAdminRole(form.value.role)) {
+            validateField('supplier');
         }
         
         return;
     }
     
-    // إذا كان النموذج صحيحاً، التحقق مرة أخرى قبل فتح نافذة التأكيد
     if (validateForm()) {
         showConfirmationModal();
     }
@@ -442,7 +569,12 @@ const openDatePicker = () => {
     }
 };
 
-// ...
+// حساب الحد الأقصى للتاريخ (اليوم)
+const maxDate = computed(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+});
+
 </script>
 
 <template>
@@ -478,16 +610,22 @@ const openDatePicker = () => {
                         <Input
                             id="national-id"
                             v-model="form.nationalId"
-                            placeholder="XXXXXXXXXXXXXXXX"
+                            placeholder="2/1xxxxxxxxxx"
                             maxlength="12"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.nationalId }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium"
-                            @input="validateField('nationalId')"
-                            @blur="validateField('nationalId')"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right font-medium',
+                                (errors.nationalId || duplicateErrors.nationalId) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
+                            @input="validateNationalIdInput"
+                            @blur="checkFieldUniqueness('nationalId')"
                         />
-                        <p v-if="errors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
+                        <div v-if="duplicateErrors.nationalId" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال الرقم الوطني بشكل صحيح (12 رقم)
+                            {{ duplicateErrors.nationalId }}
+                        </div>
+                        <p v-else-if="errors.nationalId" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.nationalId }}
                         </p>
                     </div>
 
@@ -501,12 +639,15 @@ const openDatePicker = () => {
                             id="name"
                             v-model="form.name"
                             placeholder="أدخل الإسم الرباعي"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.name }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
+                                errors.name ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
+                            @input="validateNameInput"
                         />
                         <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال الاسم الرباعي بشكل صحيح
+                            {{ errors.name }}
                         </p>
                     </div>
 
@@ -682,22 +823,22 @@ const openDatePicker = () => {
                         <Input
                             id="phone"
                             v-model="form.phone"
-                            placeholder="021XXXXXXX"
+                            placeholder="09XXXXXXXX"
                             maxlength="10"
                             :class="[
                                 'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20 text-right',
                                 (errors.phone || phoneExists) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
                             ]"
-                            @input="validateField('phone')"
-                            @blur="validateField('phone')"
+                            @input="validatePhoneInput"
+                            @blur="checkPhoneExists(form.phone)"
                         />
-                        <p v-if="errors.phone && form.phone && !phoneExists" class="text-xs text-red-500 flex items-center gap-1">
-                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            رقم الهاتف غير صحيح
-                        </p>
-                        <p v-if="phoneExists && form.phone && !errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                        <p v-if="phoneExists && form.phone" class="text-xs text-red-500 flex items-center gap-1 font-bold animate-pulse">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             رقم الهاتف موجود بالفعل
+                        </p>
+                        <p v-else-if="errors.phone" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.phone }}
                         </p>
                     </div>
 
@@ -712,14 +853,20 @@ const openDatePicker = () => {
                             type="email"
                             v-model="form.email"
                             placeholder="example@domain.com"
-                            :class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500/20': errors.email }"
-                            class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
-                            @input="validateField('email')"
-                            @blur="validateField('email')"
+                            :class="[
+                                'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
+                                (errors.email || duplicateErrors.email) ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
+                            ]"
+                            @input="validateEmailInput"
+                            @blur="checkFieldUniqueness('email')"
                         />
-                        <p v-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
+                        <div v-if="duplicateErrors.email" class="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            البريد الإلكتروني غير صحيح
+                            {{ duplicateErrors.email }}
+                        </div>
+                        <p v-else-if="errors.email" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ errors.email }}
                         </p>
                     </div>
 

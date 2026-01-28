@@ -119,7 +119,6 @@ class DrugSupplierController extends BaseApiController
 
             // جلب طلبات التوريد الخارجية المعتمدة والمُرسلة للمورد
             // الطلبات المعتمدة (approved) هي التي تمت الموافقة عليها من مدير المستشفى وتم إرسالها للمورد
-            // هذه الطلبات تظهر بحالة "جديد" في واجهة المورد
             $reqQuery = ExternalSupplyRequest::where('status', 'approved') // فقط الطلبات المعتمدة والمُرسلة للمورد
                 ->where('supplier_id', $supplier_id); // التأكد من أن الطلب مُرسل لهذا المورد
             
@@ -127,31 +126,27 @@ class DrugSupplierController extends BaseApiController
                 $reqQuery->where('hospital_id', $hospital_id);
             }
 
-            // جلب معرفات الطلبات أولاً
-            $requestIds = $reqQuery->pluck('id')->toArray();
+            $externalRequests = $reqQuery->with(['items.drug'])->get();
 
-            // جلب العناصر مباشرة من جدول external_supply_request_item
-            // للطلبات بحالة "جديد" (approved)، نستخدم requested_qty مباشرة
-            // لأن approved_qty قد يكون null أو 0 في هذه المرحلة (قبل أن يحدد المورد الكمية المعتمدة)
+            // جمع جميع الأدوية من الطلبات مع الكميات المطلوبة
             $requestItems = collect();
-            if (!empty($requestIds)) {
-                $requestItems = ExternalSupplyRequestItem::whereIn('request_id', $requestIds)
-                    ->whereNotNull('drug_id')
-                    ->select('drug_id', 'requested_qty')
-                    ->get()
-                    ->map(function ($item) {
-                        return [
-                            'drug_id' => $item->drug_id,
-                            'requested_qty' => (int)($item->requested_qty ?? 0),
-                        ];
-                    })
-                    ->filter(function ($item) {
-                        return $item['requested_qty'] > 0;
-                    });
+            foreach ($externalRequests as $request) {
+                foreach ($request->items as $item) {
+                    if ($item->drug) {
+                        // استخدام approved_qty إذا كان موجوداً، وإلا requested_qty
+                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
+                        if ($qty > 0) {
+                            $requestItems->push([
+                                'drug_id' => $item->drug_id,
+                                'requested_qty' => $qty,
+                            ]);
+                        }
+                    }
+                }
             }
 
             // تجميع الأدوية حسب drug_id وحساب المجموع المطلوب من جميع الطلبات
-            $drugsRequestedQuantities = collect($requestItems)
+            $drugsRequestedQuantities = $requestItems
                 ->groupBy('drug_id')
                 ->map(function ($items, $drugId) {
                     return [
@@ -327,8 +322,7 @@ class DrugSupplierController extends BaseApiController
                 $totalRequestedQty = 0;
                 foreach ($externalRequests as $request) {
                     foreach ($request->items as $item) {
-                        // للطلبات بحالة "جديد" (approved)، نستخدم requested_qty مباشرة
-                        $qty = (int)($item->requested_qty ?? 0);
+                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
                         $totalRequestedQty += $qty;
                     }
                 }
@@ -391,8 +385,7 @@ class DrugSupplierController extends BaseApiController
                 $totalRequestedQty = 0;
                 foreach ($externalRequests as $request) {
                     foreach ($request->items as $item) {
-                        // للطلبات بحالة "جديد" (approved)، نستخدم requested_qty مباشرة
-                        $qty = (int)($item->requested_qty ?? 0);
+                        $qty = (int)($item->approved_qty ?? $item->requested_qty ?? 0);
                         $totalRequestedQty += $qty;
                     }
                 }
@@ -657,11 +650,15 @@ class DrugSupplierController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->get();
 
-            // 1. تجميع معرفات الأدوية التي تفتقد للتركيز (strength)
+        // 1. تجميع معرفات الأدوية من السجلات (للحصول على البيانات الإضافية مثل التركيز ووحدات العلبة)
         $drugIdsToFetch = [];
+        $allDrugIds = [];
         foreach ($expiredDrugsLogs as $log) {
             $newValues = json_decode($log->new_values, true);
             if ($newValues && isset($newValues['drugName'])) {
+                if (!empty($newValues['drugId'])) {
+                    $allDrugIds[] = $newValues['drugId'];
+                }
                 // إذا كان التركيز غير موجود أو فارغ ولكن لدينا drugId
                 if (empty($newValues['strength']) && !empty($newValues['drugId'])) {
                     $drugIdsToFetch[] = $newValues['drugId'];
@@ -669,12 +666,19 @@ class DrugSupplierController extends BaseApiController
             }
         }
 
-        // 2. جلب التركيزات الناقصة من قاعدة البيانات دفعة واحدة
+        // 2. جلب بيانات الأدوية من قاعدة البيانات دفعة واحدة
+        $drugMeta = [];
         $drugStrengths = [];
-        if (!empty($drugIdsToFetch)) {
-            $drugStrengths = Drug::whereIn('id', array_unique($drugIdsToFetch))
-                 ->pluck('strength', 'id')
-                 ->toArray();
+        if (!empty($allDrugIds)) {
+            $drugMeta = Drug::whereIn('id', array_unique($allDrugIds))
+                ->get(['id', 'strength', 'units_per_box', 'unit'])
+                ->keyBy('id')
+                ->toArray();
+
+            // استخراج التركيزات الناقصة من نفس البيانات
+            $drugStrengths = collect($drugMeta)->mapWithKeys(function ($meta, $id) {
+                return [$id => $meta['strength'] ?? null];
+            })->toArray();
         }
 
         $expiredDrugs = collect();
@@ -701,17 +705,35 @@ class DrugSupplierController extends BaseApiController
                     });
                     
                     if (!$exists) {
-                         $strength = $newValues['strength'] ?? null;
+                        $strength = $newValues['strength'] ?? null;
+                        $drugId = $newValues['drugId'] ?? null;
                         
                         // محاولة استكمال التركيز الناقص
-                        if (empty($strength) && !empty($newValues['drugId']) && isset($drugStrengths[$newValues['drugId']])) {
-                            $strength = $drugStrengths[$newValues['drugId']];
+                        if (empty($strength) && !empty($drugId) && isset($drugStrengths[$drugId])) {
+                            $strength = $drugStrengths[$drugId];
                         }
+
+                        // حساب الكمية بالعلب بناءً على units_per_box
+                        $quantity = $newValues['quantity'] ?? 0;
+                        $unitsPerBox = 1;
+                        $unit = null;
+
+                        if (!empty($drugId) && isset($drugMeta[$drugId])) {
+                            $unitsPerBox = (int)($drugMeta[$drugId]['units_per_box'] ?? 1) ?: 1;
+                            $unit = $drugMeta[$drugId]['unit'] ?? null;
+                        }
+
+                        $quantityBoxes = $unitsPerBox > 0 ? intdiv((int)$quantity, $unitsPerBox) : (int)$quantity;
+                        $quantityRemainder = $unitsPerBox > 0 ? ((int)$quantity % $unitsPerBox) : 0;
 
                         $expiredDrugs->push([
                             'drugName' => $newValues['drugName'] ?? null,
-                             'strength' => $strength,
-                            'quantity' => $newValues['quantity'] ?? 0,
+                            'strength' => $strength,
+                            'quantity' => $quantity,
+                            'quantity_boxes' => $quantityBoxes,
+                            'quantity_remainder' => $quantityRemainder,
+                            'units_per_box' => $unitsPerBox,
+                            'unit' => $unit,
                             'expiryDate' => $newValues['expiryDate'] ?? null,
                             'zeroedDate' => $log->created_at ? date('Y/m/d H:i', strtotime($log->created_at)) : null,
                         ]);

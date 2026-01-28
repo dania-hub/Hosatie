@@ -109,7 +109,7 @@
                                                                         class="w-24 h-9 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
                                                                         :disabled="props.isLoading || isConfirming || item.sentQuantity === 0"
                                                                     />
-                                                                    <span class="text-[10px] text-gray-400 font-bold">عبوة</span>
+                                                                    <span class="text-[10px] text-gray-400 font-bold">علبة</span>
                                                                 </div>
                                                             </div>
                                                         </template>
@@ -166,7 +166,7 @@
                                                                         class="w-24 h-10 text-center bg-white border border-gray-200 rounded-lg focus:border-[#4DA1A9] focus:ring-2 focus:ring-[#4DA1A9]/20 outline-none transition-all font-bold text-[#2E5077]"
                                                                         :disabled="props.isLoading || isConfirming"
                                                                     />
-                                                                    <span class="text-[10px] text-gray-400 font-bold">عبوة</span>
+                                                                    <span class="text-[10px] text-gray-400 font-bold">علبة</span>
                                                                 </div>
                                                             </div>
                                                         </template>
@@ -239,19 +239,19 @@
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         <span v-if="isProcessing">ملاحظات الاستلام</span>
                         <span v-else>ملاحظات الإرسال</span>
-                        <span v-if="(isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem)" class="text-sm font-normal text-red-600">* (إجباري لوجود نقص)</span>
+                        <span v-if="(isProcessing && hasShortage) || (!isProcessing && hasSentLessThanRequested)" class="text-sm font-normal text-red-600">* (إجباري لوجود نقص)</span>
                         <span v-else class="text-sm font-normal text-gray-400">(اختياري)</span>
                     </h3>
                     <textarea
                         v-model="additionalNotes"
-                        :placeholder="(isProcessing && hasShortage) ? 'يجب إضافة ملاحظات عند وجود نقص في الكميات المستلمة...' : (!isProcessing && hasZeroQuantityItem) ? 'يجب إضافة ملاحظات عند وجود عنصر بكمية مرسلة = 0...' : 'أضف أي ملاحظات حول الشحنة...'"
+                        :placeholder="(isProcessing && hasShortage) ? 'يجب إضافة ملاحظات عند وجود نقص في الكميات المستلمة...' : (!isProcessing && hasSentLessThanRequested) ? 'يجب إضافة ملاحظات عند وجود كمية مرسلة أقل من المطلوبة...' : 'أضف أي ملاحظات حول الشحنة...'"
                         rows="2"
                         class="w-full p-4 bg-white border rounded-xl text-gray-700 focus:ring-2 transition-all resize-none"
                         :class="{
                             'bg-gray-100': isProcessing && !hasShortage,
-                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem)) && notesError,
-                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem)) && !notesError,
-                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !((isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem))
+                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasSentLessThanRequested)) && notesError,
+                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasSentLessThanRequested)) && !notesError,
+                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !((isProcessing && hasShortage) || (!isProcessing && hasSentLessThanRequested))
                         }"
                         @input="notesError = false"
                     ></textarea>
@@ -259,9 +259,9 @@
                         <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
                         يجب إضافة ملاحظات الاستلام عند وجود نقص في الكميات المستلمة
                     </div>
-                    <div v-if="(!isProcessing && hasZeroQuantityItem && notesError)" class="text-red-600 text-sm flex items-center gap-1 font-medium">
+                    <div v-if="(!isProcessing && hasSentLessThanRequested && notesError)" class="text-red-600 text-sm flex items-center gap-1 font-medium">
                         <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
-                        يجب إضافة ملاحظات الإرسال عند وجود عنصر بكمية مرسلة = 0
+                        يجب إضافة ملاحظات الإرسال عند وجود كمية مرسلة أقل من المطلوبة
                     </div>
                 </div>
             </div>
@@ -335,14 +335,11 @@
                             </button>
 
                             <div class="relative w-full sm:w-auto">
-                                <span v-if="isAllItemsZero" class="absolute -top-10 left-1/2 transform -translate-x-1/2 w-max px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100 shadow-md animate-in fade-in slide-in-from-bottom-2">
-                                    يرجى إدخال الكمية المرسلة أولاً
-                                    <div class="absolute -bottom-1 left-1/2 -ml-1 w-2 h-2 bg-red-50 border-b border-l border-red-100 transform -rotate-45"></div>
-                                </span>
+                              
                                 
                                 <button
                                     @click="sendShipment"
-                                    class="w-full px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2"
+                                    class="w-full px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium transition-all duration-200 shadow-lg shadow-[#4DA1A9]/20 flex items-center justify-center gap-2"
                                     :class="{
                                         'opacity-50 cursor-not-allowed grayscale': isAllItemsZero,
                                         'hover:bg-[#3a8c94] hover:shadow-xl hover:-translate-y-0.5': !isAllItemsZero
@@ -369,7 +366,7 @@ import { Icon } from "@iconify/vue";
 const getFormattedQuantity = (quantity, unit = 'قرص', unitsPerBox = 1) => {
     const qty = Number(quantity || 0);
     const upb = Number(unitsPerBox || 1);
-    const boxUnit = 'عبوة'; // التوحيد إلى نظام "عبوة" كما طلب المستخدم
+    const boxUnit = 'علبة'; // التوحيد إلى نظام "علبة" كما طلب المستخدم
 
     if (upb > 1) {
         const boxes = Math.floor(qty / upb);
@@ -440,30 +437,30 @@ const isProcessing = computed(() => {
     return status === "قيد الاستلام" || status === "approved";
 });
 
-// التحقق من أن جميع الأدوية لديها كمية متوفرة أو مرسلة = صفر
+// التحقق من أن جميع الأدوية لديها كمية مرسلة = صفر
 const isAllItemsZero = computed(() => {
     if (!receivedItems.value || receivedItems.value.length === 0) {
         return true;
     }
     
-    // التحقق من أن جميع الأدوية لديها availableQuantity = 0 أو sentQuantity = 0
+    // التحقق من أن جميع الأدوية لديها sentQuantity = 0
     return receivedItems.value.every(item => {
-        const availableQty = item.availableQuantity || 0;
         const sentQty = item.sentQuantity || 0;
-        return availableQty === 0 && sentQty === 0;
+        return sentQty === 0;
     });
 });
 
-// التحقق من وجود عنصر واحد على الأقل بكمية مرسلة = 0
-const hasZeroQuantityItem = computed(() => {
+// التحقق من وجود عنصر واحد على الأقل بكمية مرسلة أقل من المطلوبة
+const hasSentLessThanRequested = computed(() => {
     if (!receivedItems.value || receivedItems.value.length === 0) {
         return false;
     }
     
-    // التحقق من وجود عنصر واحد على الأقل بكمية مرسلة = 0
+    // التحقق من وجود عنصر واحد على الأقل بكمية مرسلة أقل من المطلوبة
     return receivedItems.value.some(item => {
         const sentQty = item.sentQuantity || 0;
-        return sentQty === 0;
+        const requestedQty = item.originalQuantity || 0;
+        return sentQty < requestedQty;
     });
 });
 
@@ -787,8 +784,8 @@ const sendShipment = async () => {
         return;
     }
     
-    // التحقق من ملاحظات الإرسال إذا كان هناك عنصر بكمية مرسلة = 0
-    if (hasZeroQuantityItem.value && !additionalNotes.value.trim()) {
+    // التحقق من ملاحظات الإرسال إذا كانت هناك كمية مرسلة أقل من المطلوبة
+    if (hasSentLessThanRequested.value && !additionalNotes.value.trim()) {
         notesError.value = true;
       
         return;

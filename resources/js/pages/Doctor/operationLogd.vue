@@ -306,7 +306,7 @@ const printTable = () => {
             <thead>
                 <tr>
                     <th>رقم الملف</th>
-                    <th>الإسم الرباعي</th>
+                    <th>الإسم </th>
                     <th>نوع العملية</th>
                     <th>تاريخ العملية</th>
                 </tr>
@@ -360,7 +360,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                     
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
                         <div class="relative w-full sm:max-w-xs">
-                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي أو الإسم الرباعي" />
+                            <search v-model="searchTerm" placeholder="ابحث برقم الملف الطبي أو الإسم " />
                         </div>
                         
                         <!-- زر إظهار/إخفاء فلتر التاريخ -->
@@ -510,7 +510,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                 <thead class="bg-[#9aced2] text-black sticky top-0 z-10 border-b border-gray-300">
                                     <tr>
                                         <th class="file-number-col">رقم الملف</th>
-                                        <th class="name-col">الإسم الرباعي</th>
+                                        <th class="name-col">الإسم </th>
                                         <th class="operation-type-col">نوع العملية</th>
                                         <th class="operation-date-col">تاريخ العملية</th>
                                         </tr>

@@ -70,22 +70,18 @@ const loadingManagers = ref(false);
 const fetchManagers = async () => {
     loadingManagers.value = true;
     try {
-        // جلب كل مدراء المستشفيات
+        // جلب كل مدراء المستشفيات (نشطين ومعطلين) لتمكين تعيين المعطلين
         const response = await api.get('/super-admin/users?type=hospital_admin');
         if (response.data && response.data.data) {
             const currentHospitalId = props.hospital?.id;
             managersList.value = response.data.data
                 .filter(u => {
-                    // التحقق من الحالة
-                    if (u.status !== 'active' && u.status !== 'pending_activation') return false;
-
                     // إذا كان المستخدم معيناً لمستشفى
                     if (u.hospital) {
                         // إظهاره فقط إذا كان معيناً لهذا المستشفى الحالي
                         return u.hospital.id == currentHospitalId;
                     }
-
-                    // إذا لم يكن معيناً لأي مستشفى (متاح)
+                    // إذا لم يكن معيناً لأي مستشفى (متاح، بما في ذلك المعطلون)
                     return true;
                 })
                 .map(u => ({
@@ -554,42 +550,7 @@ watch(() => props.isOpen, (newVal) => {
                         </p>
                     </div>
 
-                    <!-- حالة المستشفى -->
-                    <div class="space-y-2">
-                        <Label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:shield-check-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            حالة المستشفى
-                        </Label>
-                        <div class="flex gap-4 p-2">
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <div class="relative flex items-center justify-center">
-                                    <input 
-                                        type="radio" 
-                                        v-model="editForm.isActive" 
-                                        :value="true"
-                                        class="peer sr-only"
-                                    />
-                                    <div class="w-6 h-6 border-2 border-gray-300 rounded-full peer-checked:border-[#4DA1A9] peer-checked:bg-[#4DA1A9] transition-all"></div>
-                                    <Icon icon="solar:check-circle-bold" class="w-4 h-4 text-white absolute opacity-0 peer-checked:opacity-100 transition-all" />
-                                </div>
-                                <span class="text-gray-700 font-medium group-hover:text-[#4DA1A9] transition-colors">مفعل</span>
-                            </label>
-
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <div class="relative flex items-center justify-center">
-                                    <input 
-                                        type="radio" 
-                                        v-model="editForm.isActive" 
-                                        :value="false"
-                                        class="peer sr-only"
-                                    />
-                                    <div class="w-6 h-6 border-2 border-gray-300 rounded-full peer-checked:border-red-500 peer-checked:bg-red-500 transition-all"></div>
-                                    <Icon icon="solar:close-circle-bold" class="w-4 h-4 text-white absolute opacity-0 peer-checked:opacity-100 transition-all" />
-                                </div>
-                                <span class="text-gray-700 font-medium group-hover:text-red-500 transition-colors">معطل</span>
-                            </label>
-                        </div>
-                    </div>
+                   
 
                 </div>
 

@@ -153,7 +153,7 @@ const availableSuppliersForHospitals = computed(() => {
     return availableSuppliers.value.filter(supplier => supplier.isActive);
 });
 
-// الحصول على قائمة المدراء المتاحين (غير المعينين في مستشفى)
+// الحصول على قائمة المدراء المتاحين (غير المعينين في مستشفى آخر، بما في ذلك المعطلون)
 const availableManagersForHospitals = computed(() => {
     // الحصول على قائمة IDs المدراء المعينين في المستشفيات الحالية
     // استثناء المستشفى الحالي عند التعديل
@@ -169,15 +169,15 @@ const availableManagersForHospitals = computed(() => {
         assignedManagerIds.delete(selectedHospital.value.managerId);
     }
     
-    // إرجاع جميع المدراء النشطين غير المعينين في مستشفى آخر
-    // أو المدير الحالي للمستشفى (للسماح بالاحتفاظ به)
+    // إرجاع المدراء غير المعينين في مستشفى آخر أو المدير الحالي
+    // يشمل المعطلين (غير المعينين) حتى يمكن تعيينهم لمستشفى
     return availableManagers.value.filter(manager => {
-        // السماح بالمدير الحالي للمستشفى
+        // السماح بالمدير الحالي للمستشفى (نشط أو معطل)
         if (selectedHospital.value?.managerId === manager.id) {
             return true;
         }
-        // السماح فقط بالمدراء النشطين وغير المعينين في مستشفى آخر
-        return manager.isActive && !assignedManagerIds.has(manager.id);
+        // السماح بجميع غير المعينين في مستشفى آخر (نشطين أو معطلين)
+        return !assignedManagerIds.has(manager.id);
     });
 });
 

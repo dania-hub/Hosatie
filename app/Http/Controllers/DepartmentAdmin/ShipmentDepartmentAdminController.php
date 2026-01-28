@@ -111,80 +111,18 @@ class ShipmentDepartmentAdminController extends BaseApiController
                 ->where('requested_by', $user->id)
                 ->orderBy('created_at', 'desc');
         } else {
-            // البحث عن جميع الطلبات المرتبطة بنفس القسم
-            // نستخدم نهجاً يعتمد على جلب جميع المستخدمين الذين كانوا مديرين لهذا القسم
+            // في حالة وجود قسم للمستخدم، نعرض فقط الطلبات المرتبطة بهذا القسم
+            // أي InternalSupplyRequest التي يكون فيها department_id = قسم المستخدم الحالي
             $departmentId = $currentDepartment->id;
-            
-            // البحث عن جميع المستخدمين الذين كانوا مديرين لهذا القسم
-            $departmentManagerIds = [];
-            
-            // 1. إضافة المدير الحالي
-            $departmentManagerIds[] = $user->id;
-            
-            // 2. جلب جميع المستخدمين الذين كانوا مديرين لهذا القسم من audit_log
-            $departmentLogs = AuditLog::where('table_name', 'departments')
-                ->where('record_id', $departmentId)
-                ->where(function($q) {
-                    $q->where('action', 'إضافة قسم')
-                      ->orWhere('action', 'تعديل قسم')
-                      ->orWhere('action', 'تعديل بيانات القسم')
-                      ->orWhere('action', 'store')
-                      ->orWhere('action', 'update');
-                })
-                ->get();
-            
-            foreach ($departmentLogs as $log) {
-                $newValues = json_decode($log->new_values, true);
-                if ($newValues && isset($newValues['head_user_id']) && $newValues['head_user_id']) {
-                    $departmentManagerIds[] = $newValues['head_user_id'];
-                }
-                if ($newValues && isset($newValues['managerId']) && $newValues['managerId']) {
-                    $departmentManagerIds[] = $newValues['managerId'];
-                }
-                $oldValues = json_decode($log->old_values, true);
-                if ($oldValues && isset($oldValues['head_user_id']) && $oldValues['head_user_id']) {
-                    $departmentManagerIds[] = $oldValues['head_user_id'];
-                }
-                if ($oldValues && isset($oldValues['managerId']) && $oldValues['managerId']) {
-                    $departmentManagerIds[] = $oldValues['managerId'];
-                }
-            }
-            
-            // 3. جلب جميع المستخدمين الذين كانوا مديرين لهذا القسم من جدول departments (للحصول على المدير الحالي أيضاً)
-            $currentManager = Department::where('id', $departmentId)
-                ->where('hospital_id', $user->hospital_id)
-                ->value('head_user_id');
-            if ($currentManager) {
-                $departmentManagerIds[] = $currentManager;
-            }
-            
-            // إزالة التكرارات والقيم الفارغة
-            $departmentManagerIds = array_filter(array_unique($departmentManagerIds));
-            
-            \Log::info('Department managers found', [
+
+            \Log::info('Building department-based query for shipments', [
                 'department_id' => $departmentId,
-                'manager_ids' => $departmentManagerIds,
-                'count' => count($departmentManagerIds),
+                'user_id' => $user->id,
             ]);
-            
-            // جلب جميع الطلبات التي أنشأها أي من هؤلاء المديرين
-            if (!empty($departmentManagerIds)) {
-                $query = InternalSupplyRequest::with(['items.drug', 'requester'])
-                    ->whereIn('requested_by', $departmentManagerIds)
-                    ->orderBy('created_at', 'desc');
-                
-                \Log::info('Query built for department requests', [
-                    'department_id' => $departmentId,
-                    'manager_ids' => $departmentManagerIds,
-                    'query_ready' => true,
-                ]);
-            } else {
-                // إذا لم نجد أي مديرين، نرجع قائمة فارغة
-                \Log::warning('No managers found for department', ['department_id' => $departmentId]);
-                $query = InternalSupplyRequest::with(['items.drug', 'requester'])
-                    ->where('id', 0) // استعلام فارغ
-                    ->orderBy('created_at', 'desc');
-            }
+
+            $query = InternalSupplyRequest::with(['items.drug', 'requester'])
+                ->where('department_id', $departmentId)
+                ->orderBy('created_at', 'desc');
         }
 
         $shipments = $query->get()->map(function ($shipment) {
@@ -238,7 +176,7 @@ class ShipmentDepartmentAdminController extends BaseApiController
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $shipment = InternalSupplyRequest::with(['items.drug', 'requester', 'pharmacy'])
+        $shipment = InternalSupplyRequest::with(['items.drug', 'requester', 'pharmacy', 'department'])
             ->find($id);
 
         if (!$shipment) {
@@ -267,6 +205,7 @@ class ShipmentDepartmentAdminController extends BaseApiController
                     $requestDepartmentId = $newValues['department_id'];
                 }
             }
+            $requestDepartmentId = $requestDepartmentId ?? $shipment->department_id;
 
             // إذا كان الطلب لا ينتمي لنفس القسم، نرفض الوصول
             if ($requestDepartmentId && $requestDepartmentId != $currentDepartment->id) {
@@ -374,6 +313,7 @@ class ShipmentDepartmentAdminController extends BaseApiController
                     $requestDepartmentId = $newValues['department_id'];
                 }
             }
+            $requestDepartmentId = $requestDepartmentId ?? $shipment->department_id;
 
             // إذا كان الطلب لا ينتمي لنفس القسم، نرفض الوصول
             if ($requestDepartmentId && $requestDepartmentId != $currentDepartment->id) {

@@ -78,13 +78,16 @@ const filteredDrugs = computed(() => {
       const strength = (drug.strength || '').toString().toLowerCase();
       const expiryDate = (drug.expiryDate || '').toString();
       const zeroedDate = (drug.zeroedDate || '').toString();
-      const quantity = (drug.quantity || 0).toString();
+      const unitsPerBox = drug.units_per_box || 1;
+      const quantityBoxes = (drug.quantity_boxes ?? Math.floor((drug.quantity || 0) / unitsPerBox)) || 0;
+      const quantityRemainder = drug.quantity_remainder ?? ((drug.quantity || 0) % unitsPerBox);
+      const quantityText = `${quantityBoxes} علبة${quantityRemainder ? " و " + quantityRemainder + " " + (drug.unit || "") : ""}`;
       
       return drugName.includes(search) ||
              strength.includes(search) ||
              expiryDate.includes(search) ||
              zeroedDate.includes(search) ||
-             quantity.includes(search);
+             quantityText.includes(search);
     });
   }
 
@@ -98,7 +101,11 @@ const filteredDrugs = computed(() => {
       } else if (sortKey.value === "strength") {
         comparison = (a.strength || "").localeCompare(b.strength || "", "ar");
       } else if (sortKey.value === "quantity") {
-        comparison = (a.quantity || 0) - (b.quantity || 0);
+        const aUnitsPerBox = a.units_per_box || 1;
+        const bUnitsPerBox = b.units_per_box || 1;
+        const aBoxes = a.quantity_boxes ?? Math.floor((a.quantity || 0) / aUnitsPerBox);
+        const bBoxes = b.quantity_boxes ?? Math.floor((b.quantity || 0) / bUnitsPerBox);
+        comparison = aBoxes - bBoxes;
       } else if (sortKey.value === "expiryDate") {
         const dateA = a.expiryDate ? new Date(a.expiryDate.replace(/\//g, "-")) : new Date();
         const dateB = b.expiryDate ? new Date(b.expiryDate.replace(/\//g, "-")) : new Date();
@@ -140,7 +147,29 @@ const fetchExpiredDrugs = async () => {
 };
 
 // ----------------------------------------------------
-// 5. منطق الطباعة
+// 5. تنسيق الكمية (علب + وحدات)
+// ----------------------------------------------------
+const formatQuantityText = (drug) => {
+  const unitsPerBox = drug.units_per_box || 1;
+  const totalQty = drug.quantity || 0;
+  const boxes = drug.quantity_boxes ?? Math.floor(totalQty / unitsPerBox);
+  const remainder = drug.quantity_remainder ?? (totalQty % unitsPerBox);
+
+  if (!boxes && !remainder) return "0";
+
+  const parts = [];
+  if (boxes) {
+    parts.push(`${boxes} علبة`);
+  }
+  if (remainder) {
+    parts.push(`${remainder} ${drug.unit || ""}`.trim());
+  }
+
+  return parts.join(" و ");
+};
+
+// ----------------------------------------------------
+// 6. منطق الطباعة
 // ----------------------------------------------------
 const printTable = () => {
   const resultsCount = filteredDrugs.value.length;
@@ -175,7 +204,7 @@ h1 { text-align: center; color: #dc2626; margin-bottom: 10px; }
  <tr>
  <th>اسم الدواء</th>
  <th>التركيز</th>
- <th>الكمية المنتهية</th>
+ <th>الكمية المنتهية (علب)</th>
  <th>تاريخ انتهاء الصلاحية</th>
  <th>تاريخ المعالجة</th>
  </tr>
@@ -188,7 +217,7 @@ h1 { text-align: center; color: #dc2626; margin-bottom: 10px; }
 <tr>
  <td>${drug.drugName || ''}</td>
  <td>${drug.strength || '-'}</td>
- <td>${drug.quantity || 0}</td>
+ <td>${formatQuantityText(drug)}</td>
  <td>${drug.expiryDate || '-'}</td>
  <td>${drug.zeroedDate || '-'}</td>
 </tr>
@@ -491,7 +520,7 @@ onMounted(async () => {
                                         <tr>
                                             <th class="px-4 py-3">اسم الدواء</th>
                                             <th class="px-4 py-3">التركيز</th>
-                                            <th class="px-4 py-3">الكمية المنتهية</th>
+                                            <th class="px-4 py-3">الكمية المنتهية (علب)</th>
                                             <th class="px-4 py-3">تاريخ انتهاء الصلاحية</th>
                                             <th class="px-4 py-3">تاريخ المعالجة</th>
                                         </tr>
@@ -521,7 +550,7 @@ onMounted(async () => {
                                                     {{ drug.strength || '-' }}
                                                 </td>
                                                 <td class="px-4 py-3 text-red-700 font-bold">
-                                                    {{ drug.quantity }}
+                                                    {{ formatQuantityText(drug) }}
                                                 </td>
                                                 <td class="px-4 py-3 text-red-700">
                                                     {{ drug.expiryDate || '-' }}

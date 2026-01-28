@@ -6,7 +6,6 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\InternalSupplyRequest;
 use App\Models\InternalSupplyRequestItem;
-use App\Models\Pharmacy;
 use App\Models\AuditLog;
 use App\Models\Department;
 use Illuminate\Support\Facades\DB;
@@ -35,25 +34,31 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
         DB::beginTransaction();
         try {
             $user = $request->user();
-            $pharmacyId = null;
 
-            // تحديد الصيدلية المرتبطة بالمستشفى
-            if ($user->pharmacy_id) {
-                $pharmacyId = $user->pharmacy_id;
-            } elseif ($user->hospital_id) {
-                $pharmacy = Pharmacy::where('hospital_id', $user->hospital_id)->first();
-                $pharmacyId = $pharmacy ? $pharmacy->id : null;
+            // تحديد القسم المرتبط بالمستخدم (department) — طلبات القسم تعتمد على department_id دون pharmacy_id
+            $departmentId = null;
+            $departmentName = 'غير محدد';
+            if ($user->type === 'department_admin' || $user->type === 'department_head') {
+                $department = Department::where('head_user_id', $user->id)
+                    ->where('hospital_id', $user->hospital_id)
+                    ->first();
+                if ($department) {
+                    $departmentId = $department->id;
+                    $departmentName = $department->name;
+                } elseif ($user->department_id) {
+                    $department = Department::where('hospital_id', $user->hospital_id)->find($user->department_id);
+                    if ($department) {
+                        $departmentId = $department->id;
+                        $departmentName = $department->name;
+                    }
+                } elseif ($user->department) {
+                    $departmentId = $user->department->id;
+                    $departmentName = $user->department->name;
+                }
             }
 
-            // حل مؤقت للتجربة (يمكنك إزالته في الإنتاج)
-            if (!$pharmacyId) {
-                // محاولة جلب أول صيدلية في المستشفى
-                $pharmacy = Pharmacy::where('hospital_id', $user->hospital_id)->first();
-                $pharmacyId = $pharmacy ? $pharmacy->id : 1; // استخدام 1 كقيمة افتراضية للتجربة
-            }
-
-            if (!$pharmacyId) {
-                throw new \Exception("لا توجد صيدلية محددة لإنشاء الطلب منها.");
+            if (!$departmentId) {
+                throw new \Exception("لا يوجد قسم محدد لإنشاء الطلب منه. يرجى التأكد من ربط حسابك بقسم.");
             }
 
             // التحقق من أن المستشفى نشط
@@ -62,9 +67,10 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                 throw new \Exception("لا يمكن إنشاء طلب توريد في مستشفى معطل.");
             }
 
-            // إنشاء الطلب (notes لا تُخزن في الجدول، تُحفظ فقط في الـ audit_log)
+            // إنشاء الطلب — استخدام department_id فقط، pharmacy_id = null (طلبات القسم)
             $supplyRequest = InternalSupplyRequest::create([
-                'pharmacy_id' => $pharmacyId,
+                'pharmacy_id' => null,
+                'department_id' => $departmentId,
                 'requested_by' => $user->id,
                 'status' => 'pending',
             ]);
@@ -125,64 +131,14 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                 \Log::error('Failed to notify warehouse manager', ['error' => $e->getMessage()]);
             }
 
-            // تحديد اسم القسم و department_id وقت إنشاء الطلب (لتجنب تغييره عند تغيير قسم المستخدم لاحقاً)
-            $departmentName = 'غير محدد';
-            $departmentId = null;
-            if ($user->type === 'department_admin' || $user->type === 'department_head') {
-                // أولاً: البحث عن القسم الذي يكون head_user_id = user->id
-                $department = Department::where('head_user_id', $user->id)
-                    ->where('hospital_id', $user->hospital_id)
-                    ->first();
-                if ($department) {
-                    $departmentName = $department->name;
-                    $departmentId = $department->id;
-                    \Log::info('Department found via head_user_id', [
-                        'user_id' => $user->id,
-                        'department_id' => $departmentId,
-                        'department_name' => $departmentName,
-                    ]);
-                } 
-                // ثانياً: محاولة جلب القسم من department_id
-                elseif ($user->department_id) {
-                    $department = Department::where('hospital_id', $user->hospital_id)
-                        ->find($user->department_id);
-                    if ($department) {
-                        $departmentName = $department->name;
-                        $departmentId = $department->id;
-                        \Log::info('Department found via user->department_id', [
-                            'user_id' => $user->id,
-                            'department_id' => $departmentId,
-                            'department_name' => $departmentName,
-                        ]);
-                    }
-                }
-                // ثالثاً: محاولة جلب القسم من العلاقة
-                elseif ($user->department) {
-                    $departmentName = $user->department->name;
-                    $departmentId = $user->department->id;
-                    \Log::info('Department found via user->department relationship', [
-                        'user_id' => $user->id,
-                        'department_id' => $departmentId,
-                        'department_name' => $departmentName,
-                    ]);
-                } else {
-                    \Log::warning('No department found for user', [
-                        'user_id' => $user->id,
-                        'user_type' => $user->type,
-                        'user->department_id' => $user->department_id ?? null,
-                    ]);
-                }
-            }
-
             // تسجيل العملية في audit_log (بعد commit الناجح)
             try {
                 $newValuesData = [
                     'request_id' => $supplyRequest->id,
-                    'pharmacy_id' => $pharmacyId,
+                    'department_id' => $departmentId,
+                    'department_name' => $departmentName,
                     'item_count' => count($request->items),
-                    'notes' => $request->notes ?? null, // ملاحظة department عند إنشاء الطلب
-                    'department_name' => $departmentName, // اسم القسم وقت إنشاء الطلب (يُستخدم لتجنب تغييره لاحقاً)
-                    'department_id' => $departmentId, // حفظ department_id من القسم الذي يديره المستخدم
+                    'notes' => $request->notes ?? null,
                 ];
                 
                 \Log::info('Creating audit log for supply request', [

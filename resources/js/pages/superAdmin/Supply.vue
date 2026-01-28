@@ -86,10 +86,10 @@ const fetchAllData = async () => {
             lastUpdated: supplier.createdAt || new Date().toISOString()
         }));
         
-        // معالجة بيانات المدراء (جميع supplier_admin النشطين)
+        // معالجة بيانات المدراء (جميع supplier_admin، نشطين ومعطلين لتمكين تعيين المعطلين)
         const usersData = usersResponse.data.data || [];
         availableManagers.value = usersData
-            .filter(user => user.type === 'supplier_admin' && (user.status === 'active' || user.status === true))
+            .filter(user => user.type === 'supplier_admin')
             .map(user => ({
                 ...user,
                 id: user.id,
@@ -124,7 +124,7 @@ onMounted(async () => {
 // 5. دوال الحساب
 // ----------------------------------------------------
 
-// الحصول على قائمة المدراء المتاحين (غير المعينين في مورد)
+// الحصول على قائمة المدراء المتاحين (غير المعينين في مورد آخر، بما في ذلك المعطلون)
 const availableManagersForSuppliers = computed(() => {
     // الحصول على قائمة IDs المدراء المعينين في الموردين الحالية
     // استثناء المورد الحالي عند التعديل
@@ -140,15 +140,15 @@ const availableManagersForSuppliers = computed(() => {
         assignedManagerIds.delete(selectedSupplier.value.managerId);
     }
     
-    // إرجاع جميع المدراء النشطين غير المعينين في مورد آخر
-    // أو المدير الحالي للمورد (للسماح بالاحتفاظ به)
+    // إرجاع المدراء غير المعينين في مورد آخر أو المدير الحالي
+    // يشمل المعطلين (غير المعينين) حتى يمكن تعيينهم لمورد
     return availableManagers.value.filter(manager => {
-        // السماح بالمدير الحالي للمورد
+        // السماح بالمدير الحالي للمورد (نشط أو معطل)
         if (selectedSupplier.value?.managerId === manager.id) {
             return true;
         }
-        // السماح فقط بالمدراء النشطين وغير المعينين في مورد آخر
-        return manager.isActive && !assignedManagerIds.has(manager.id);
+        // السماح بجميع غير المعينين في مورد آخر (نشطين أو معطلين)
+        return !assignedManagerIds.has(manager.id);
     });
 });
 

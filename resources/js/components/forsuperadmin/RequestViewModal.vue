@@ -98,7 +98,7 @@
                     </div>
 
                     <!-- Rejection Reason -->
-                    <div v-if="isRejectedStatus" class="bg-red-50 border border-red-100 rounded-2xl p-6">
+                    <div v-if="isRejectedStatus" class="bg-red-50 border border-red-100 rounded-2xl p-6 mt-4">
                         <h3 class="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:danger-circle-bold-duotone" class="w-6 h-6" />
                             سبب الرفض
@@ -183,10 +183,18 @@
                         </div>
                     </div>
 
-                    <div v-if="requestDetails.senderNotes || requestDetails.creationNotes || (requestDetails.notes && !Array.isArray(requestDetails.notes) && requestDetails.notes.trim())" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                  
+
+                    <!-- Notes -->
+                    <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.adminConfirmationNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="space-y-4">
+                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2 pt-5">
+                            <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
+                            الملاحظات
+                        </h3>
+                          <div v-if="requestDetails.senderNotes || requestDetails.creationNotes || (requestDetails.notes && !Array.isArray(requestDetails.notes) && requestDetails.notes.trim())" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                             <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                                 <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                                رسالة المرسل
+                                ملاحظة المورد
                             </h4>
                             <!-- Always show the initial message (Sender Message): ملاحظة الإنشاء من المورد أو الطرف المرسل -->
                              <div v-if="requestDetails.senderNotes">
@@ -200,13 +208,6 @@
                                 <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
                             </div>
                         </div> 
-
-                    <!-- Notes -->
-                    <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.adminConfirmationNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="space-y-4">
-                        <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
-                            <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
-                            الملاحظات
-                        </h3>
 
                         <!-- ملاحظة تأكيد الإرسال من الإدارة (super_admin_confirm) -->
                         <div v-if="requestDetails.adminConfirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
@@ -294,7 +295,7 @@
             <div class="bg-gray-50 px-8 py-5 flex justify-between gap-3 border-t border-gray-100 sticky bottom-0">
                 <button 
                     @click="printDetails" 
-                    class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2"
+                    class="px-6 py-2.5 rounded-xl bg-[#4DA1A9] text-white font-medium hover:bg-[#3a8c94] transition-colors duration-200 flex items-center gap-2"
                 >
                     <Icon icon="mdi-light:printer" class="w-5 h-5" />
                     طباعة
@@ -515,11 +516,11 @@ const getReceivedQuantity = (item) => {
     return Number(val) || 0;
 };
 
-// دالة لتنسيق الكمية بالعبوة (كما في نموذج معالجة الشحنة)
+// دالة لتنسيق الكمية بالعلبة (كما في نموذج معالجة الشحنة)
 const getFormattedQuantity = (quantity, unit = 'وحدة', unitsPerBox = 1) => {
     const qty = Number(quantity || 0);
     const upb = Number(unitsPerBox || 1);
-    const boxUnit = 'عبوة';
+    const boxUnit = 'علبة';
 
     if (upb > 1) {
         const boxes = Math.floor(qty / upb);

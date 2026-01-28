@@ -67,26 +67,22 @@ const loadingManagers = ref(false);
 const fetchManagers = async () => {
     loadingManagers.value = true;
     try {
-        // جلب كل مدراء الموردين
+        // جلب كل مدراء الموردين (نشطين ومعطلين) لتمكين تعيين المعطلين
         const response = await api.get('/super-admin/users?type=supplier_admin');
         if (response.data && response.data.data) {
             const currentSupplierId = props.supplier?.id;
             managersList.value = response.data.data
                 .filter(u => {
-                    // التحقق من الحالة
-                    if (u.status !== 'active' && u.status !== 'pending_activation') return false;
-
                     // إذا كان المستخدم معيناً لمورد
                     if (u.supplier) {
                         // إظهاره فقط إذا كان معيناً لهذا المورد الحالي
                         if (currentSupplierId) {
                             return u.supplier.id == currentSupplierId;
                         }
-                        // إذا لم يكن لدينا معرف مورد حالي (إنشاء جديد مثلاً)، نستبعد المعينين فعلاً
+                        // إذا لم يكن لدينا معرف مورد حالي، نستبعد المعينين فعلاً
                         return false;
                     }
-
-                    // إذا لم يكن معيناً لأي مورد (متاح)
+                    // إذا لم يكن معيناً لأي مورد (متاح، بما في ذلك المعطلون)
                     return true;
                 })
                 .map(u => ({

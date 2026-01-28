@@ -92,10 +92,14 @@ class InternalSupplyRequestController extends BaseApiController
             return response()->json(['message' => 'المستخدم غير مرتبط بمستشفى'], 403);
         }
 
-        // عرض الطلبات التي تم إرسالها من الصيدليات التابعة لنفس المستشفى
-        $requests = InternalSupplyRequest::with(['pharmacy', 'requester.department'])
-            ->whereHas('pharmacy', function($query) use ($user) {
-                $query->where('hospital_id', $user->hospital_id);
+        // عرض الطلبات من الصيدليات أو الأقسام التابعة لنفس المستشفى (pharmacy_id أو department_id)
+        $requests = InternalSupplyRequest::with(['pharmacy', 'department', 'requester.department'])
+            ->where(function ($q) use ($user) {
+                $q->whereHas('pharmacy', fn ($p) => $p->where('hospital_id', $user->hospital_id))
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->whereNotNull('department_id')
+                            ->whereHas('department', fn ($d) => $d->where('hospital_id', $user->hospital_id));
+                    });
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -108,7 +112,7 @@ class InternalSupplyRequestController extends BaseApiController
             $requestingDepartmentName = 'غير محدد';
             
             // إعادة تحميل العلاقات للتأكد من أنها محملة
-            $req->loadMissing(['requester.department', 'pharmacy']);
+            $req->loadMissing(['requester.department', 'pharmacy', 'department']);
             
             // أولاً: محاولة جلب اسم القسم/الصيدلية من audit_log (القسم/الصيدلية وقت إنشاء الطلب)
             $creationLog = AuditLog::where('table_name', 'internal_supply_request')
@@ -156,9 +160,12 @@ class InternalSupplyRequestController extends BaseApiController
                 }
             }
             
-            // fallback: إذا لم يتم تحديد الاسم بعد وكان هناك pharmacy، نستخدمه
+            // fallback: pharmacy أو department من الطلب نفسه
             if ($requestingDepartmentName === 'غير محدد' && $req->pharmacy) {
                 $requestingDepartmentName = $req->pharmacy->name;
+            }
+            if ($requestingDepartmentName === 'غير محدد' && $req->department) {
+                $requestingDepartmentName = $req->department->name;
             }
             
             return [
@@ -209,10 +216,14 @@ class InternalSupplyRequestController extends BaseApiController
         }
 
         try {
-            // التأكد من أن الطلب ينتمي لنفس المستشفى
-            $req = InternalSupplyRequest::with(['pharmacy', 'requester.department', 'items.drug'])
-                ->whereHas('pharmacy', function($query) use ($user) {
-                    $query->where('hospital_id', $user->hospital_id);
+            // التأكد من أن الطلب ينتمي لنفس المستشفى (من صيدلية أو قسم)
+            $req = InternalSupplyRequest::with(['pharmacy', 'department', 'requester.department', 'items.drug'])
+                ->where(function ($q) use ($user) {
+                    $q->whereHas('pharmacy', fn ($p) => $p->where('hospital_id', $user->hospital_id))
+                        ->orWhere(function ($q2) use ($user) {
+                            $q2->whereNotNull('department_id')
+                                ->whereHas('department', fn ($d) => $d->where('hospital_id', $user->hospital_id));
+                        });
                 })
                 ->findOrFail($id);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -255,7 +266,7 @@ class InternalSupplyRequestController extends BaseApiController
         $notes = $this->getNotesFromAuditLog($req->id);
 
         // إعادة تحميل العلاقات للتأكد من أنها محملة
-        $req->loadMissing(['requester.department', 'pharmacy']);
+        $req->loadMissing(['requester.department', 'pharmacy', 'department']);
 
         // تحديد اسم الجهة الطالبة حسب نوع المستخدم
         $requestingDepartmentName = 'غير محدد';
@@ -306,9 +317,12 @@ class InternalSupplyRequestController extends BaseApiController
             }
         }
         
-        // fallback: إذا لم يتم تحديد الاسم بعد وكان هناك pharmacy، نستخدمه
+        // fallback: pharmacy أو department من الطلب نفسه
         if ($requestingDepartmentName === 'غير محدد' && $req->pharmacy) {
             $requestingDepartmentName = $req->pharmacy->name;
+        }
+        if ($requestingDepartmentName === 'غير محدد' && $req->department) {
+            $requestingDepartmentName = $req->department->name;
         }
 
         return response()->json([
@@ -449,9 +463,13 @@ class InternalSupplyRequestController extends BaseApiController
             'rejectionReason' => 'required|string|max:1000',
         ]);
 
-        // التأكد من أن الطلب ينتمي لنفس المستشفى
-        $req = InternalSupplyRequest::whereHas('pharmacy', function($query) use ($user) {
-                $query->where('hospital_id', $user->hospital_id);
+        // التأكد من أن الطلب ينتمي لنفس المستشفى (من صيدلية أو قسم)
+        $req = InternalSupplyRequest::where(function ($q) use ($user) {
+                $q->whereHas('pharmacy', fn ($p) => $p->where('hospital_id', $user->hospital_id))
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->whereNotNull('department_id')
+                            ->whereHas('department', fn ($d) => $d->where('hospital_id', $user->hospital_id));
+                    });
             })
             ->findOrFail($id);
 
@@ -532,10 +550,14 @@ class InternalSupplyRequestController extends BaseApiController
         }
 
         \Log::info('Loading request with items', ['id' => $id]);
-        // التأكد من أن الطلب ينتمي لنفس المستشفى
-        $req = InternalSupplyRequest::with('items.drug')
-            ->whereHas('pharmacy', function($query) use ($user) {
-                $query->where('hospital_id', $user->hospital_id);
+        // التأكد من أن الطلب ينتمي لنفس المستشفى (من صيدلية أو قسم)
+        $req = InternalSupplyRequest::with(['items.drug', 'department'])
+            ->where(function ($q) use ($user) {
+                $q->whereHas('pharmacy', fn ($p) => $p->where('hospital_id', $user->hospital_id))
+                    ->orWhere(function ($q2) use ($user) {
+                        $q2->whereNotNull('department_id')
+                            ->whereHas('department', fn ($d) => $d->where('hospital_id', $user->hospital_id));
+                    });
             })
             ->findOrFail($id);
 
@@ -544,8 +566,6 @@ class InternalSupplyRequestController extends BaseApiController
             return response()->json(['message' => 'لا يمكن تعديل طلب في حالة "قيد الاستلام" أو الحالات المغلقة'], 409);
         }
 
-        $pharmacyId = $req->pharmacy_id;
-        
         // جلب warehouse_id الصحيح من المستخدم أو من المستشفى
         $warehouseId = null;
         if ($user->warehouse_id) {

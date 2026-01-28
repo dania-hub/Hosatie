@@ -10,7 +10,7 @@
                     <!-- زر إظهار/إخفاء فلتر التاريخ -->
                     <button
                         @click="showDateFilter = !showDateFilter"
-                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        class="h-11 w-17 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
                         :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                     >
                         <Icon
@@ -82,35 +82,8 @@
                             tabindex="0"
                             class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] border-[#ffffff8d] rounded-[35px] w-52 text-right"
                         >
-                            <li
-                                class="menu-title text-gray-700 font-bold text-sm"
-                            >
-                                حسب رقم الشحنة:
-                            </li>
-                            <li>
-                                <a
-                                    @click="sortShipments('shipmentNumber', 'asc')"
-                                    :class="{
-                                        'font-bold text-[#4DA1A9]':
-                                            sortKey === 'shipmentNumber' &&
-                                            sortOrder === 'asc',
-                                    }"
-                                >
-                                    الأصغر أولاً
-                                </a>
-                            </li>
-                            <li>
-                                <a
-                                    @click="sortShipments('shipmentNumber', 'desc')"
-                                    :class="{
-                                        'font-bold text-[#4DA1A9]':
-                                            sortKey === 'shipmentNumber' &&
-                                            sortOrder === 'desc',
-                                    }"
-                                >
-                                    الأكبر أولاً
-                                </a>
-                            </li>
+                           
+                           
 
                             <li
                                 class="menu-title text-gray-700 font-bold text-sm mt-2"
@@ -126,7 +99,7 @@
                                             sortOrder === 'asc',
                                     }"
                                 >
-                                    الأقدم أولاً
+                                    الأقدم 
                                 </a>
                             </li>
                             <li>
@@ -138,25 +111,11 @@
                                             sortOrder === 'desc',
                                     }"
                                 >
-                                    الأحدث أولاً
+                                    الأحدث 
                                 </a>
                             </li>
-                            <li
-                                class="menu-title text-gray-700 font-bold text-sm mt-2"
-                            >
-                                حسب حالة الطلب:
-                            </li>
-                            <li>
-                                <a
-                                    @click="sortShipments('requestStatus', 'asc')"
-                                    :class="{
-                                        'font-bold text-[#4DA1A9]':
-                                            sortKey === 'requestStatus',
-                                    }"
-                                >
-                                    حسب الأبجدية
-                                </a>
-                            </li>
+                           
+
                         </ul>
                     </div>
                     
@@ -506,40 +465,46 @@ const fetchShipments = async () => {
         // Ensure it is an array
         const finalShipments = Array.isArray(shipmentsArray) ? shipmentsArray : [];
         
-        const normalizeRequestStatus = (status, received) => {
+        const normalizeRequestStatus = (status) => {
             if (!status) return 'جديد';
             
-            // ترجمة delivered/deliverd إلى تم الإستلام
-            if (status === 'delivered' || status === 'deliverd') {
-                return 'تم الإستلام';
+            // تحويل الحالات الإنجليزية إلى العربية
+            const statusMap = {
+                'pending': 'جديد',
+                'new': 'جديد',
+                'approved': 'قيد الاستلام',
+                'fulfilled': 'تم الإستلام',
+                'delivered': 'تم الإستلام',
+                'deliverd': 'تم الإستلام',
+                'rejected': 'مرفوضة',
+                'cancelled': 'ملغى'
+            };
+            
+            // إذا كانت الحالة موجودة في الخريطة، استخدمها
+            const lowerStatus = status.toLowerCase();
+            if (statusMap[lowerStatus]) {
+                return statusMap[lowerStatus];
             }
             
-            const isReceivedStatus = status === 'تم الإستلام' || status === 'تم الاستلام';
-            const isFulfilledStatus = status === 'fulfilled' || status === 'تم التنفيذ';
-
-            if (!received && (isReceivedStatus || isFulfilledStatus)) {
-                return 'قيد الاستلام';
-            }
-
-            if (received && isFulfilledStatus) {
-                return 'تم الإستلام';
-            }
-
+            // إذا كانت الحالة بالعربية، أعدها كما هي
             return status;
         };
 
         shipmentsData.value = finalShipments.map(shipment => {
             const rawStatus = shipment.requestStatus || shipment.status || shipment.statusOriginal || 'جديد';
-            // إذا كانت الحالة delivered/deliverd، نعتبرها مستلمة
-            const isDelivered = rawStatus === 'delivered' || rawStatus === 'deliverd';
+            const displayStatus = normalizeRequestStatus(rawStatus);
+            
+            // تحديد إذا كان الطلب مستلم بناءً على الحالة النهائية
+            const isDelivered = rawStatus === 'delivered' || rawStatus === 'deliverd' || rawStatus === 'fulfilled';
             const received = Boolean(
                 isDelivered ||
+                displayStatus === 'تم الإستلام' ||
+                displayStatus === 'تم الاستلام' ||
                 shipment.received ||
                 shipment.isDelivered ||
                 shipment.receivedAt ||
                 shipment.received_at
             );
-            const displayStatus = normalizeRequestStatus(rawStatus, received);
 
             return {
                 id: shipment.id,
@@ -1082,69 +1047,233 @@ const openReviewModal = async (shipment) => {
 const printTable = () => {
     const resultsCount = filteredShipments.value.length;
 
-    const printWindow = window.open("", "_blank", "height=600,width=800");
+    if (resultsCount === 0) {
+        showErrorAlert(" لا توجد بيانات للطباعة.");
+        return;
+    }
+
+    const printWindow = window.open("", "_blank", "height=800,width=1000");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
         showErrorAlert(" فشل عملية الطباعة. يرجى السماح بفتح النوافذ المنبثقة لهذا الموقع.");
         return;
     }
 
+    const currentDate = new Date().toLocaleDateString('ar-LY', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        numberingSystem: 'latn'
+    });
+
+    // حساب عدد الطلبات حسب الحالة
+    const pendingCount = filteredShipments.value.filter(s => s.requestStatus === 'جديد' || s.requestStatus === 'pending').length;
+    const inProgressCount = filteredShipments.value.filter(s => s.requestStatus === 'قيد الاستلام' || s.requestStatus === 'قيد الإستلام').length;
+    const completedCount = filteredShipments.value.filter(s => s.requestStatus === 'تم الإستلام' || s.requestStatus === 'تم الاستلام').length;
+    const rejectedCount = filteredShipments.value.filter(s => s.requestStatus === 'مرفوضة' || s.requestStatus === 'مرفوض').length;
+
     let tableHtml = `
-<style>
-body { font-family: 'Arial', Tahoma, sans-serif; direction: rtl; padding: 20px; }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
-th { background-color: #f2f2f2; font-weight: bold; }
-h1 { text-align: center; color: #2E5077; margin-bottom: 10px; }
-.results-info { text-align: right; margin-bottom: 15px; font-size: 16px; font-weight: bold; color: #4DA1A9; }
-.center-icon { text-align: center; }
-.print-date { text-align: left; color: #666; font-size: 14px; margin-bottom: 10px; }
-</style>
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>قائمة طلبات التوريد - ${currentDate}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            @page { margin: 15mm; size: A4; }
+            .no-print { display: none; }
+        }
+        
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { padding: 0; margin: 0; color: #1e293b; background: white; line-height: 1.5; }
+        
+        .print-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .page-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding-bottom: 20px; 
+            border-bottom: 2px solid #2E5077;
+        }
+        
+        .gov-title { text-align: right; }
+        .gov-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #2E5077; }
+        .gov-title p { margin: 5px 0; font-size: 14px; color: #64748b; }
+        
+        .report-title { text-align: center; margin: 20px 0; }
+        .report-title h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: #1e293b; 
+            background: #f1f5f9;
+            display: inline-block;
+            padding: 10px 40px;
+            border-radius: 50px;
+        }
+        
+        .summary-box {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 14px; color: #2E5077; font-weight: 700; }
 
-<h1>قائمة طلبات التوريد (تقرير طباعة)</h1>
-<p class="print-date">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
-<p class="results-info">عدد النتائج: ${resultsCount}</p>
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { 
+            background-color: #2E5077; 
+            color: white; 
+            font-weight: 700; 
+            padding: 12px 10px; 
+            text-align: right; 
+            font-size: 12px;
+        }
+        td { 
+            padding: 10px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 11px; 
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            display: inline-block;
+        }
+        .status-new { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .status-progress { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        .status-completed { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .status-rejected { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .signature { text-align: center; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="print-container">
+        <div class="page-header">
+            <div class="gov-title">
+                <h2>وزارة الصحـــــة</h2>
+                <p>إدارة الإمداد والتموين الطبي</p>
+            </div>
+            <div style="text-align: left;">
+                <p style="margin: 0; font-weight: 700; color: #2E5077;">تاريخ التقرير: ${currentDate}</p>
+                <p style="margin: 5px 0; color: #64748b; font-size: 12px;">رمز التقرير: REQ/SU/${new Date().getTime().toString().slice(-6)}</p>
+            </div>
+        </div>
 
-<table>
-<thead>
-    <tr>
-    <th>الجهة الطالبة</th>
-    <th>رقم الشحنة</th>
-    <th>تاريخ الطلب</th>
-    <th>حالة الطلب</th>
-    <th class="center-icon">الإستلام</th> </tr>
-</thead>
-<tbody>
-`;
+        <div class="report-title">
+            <h1>قائمة طلبات التوريد </h1>
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-item">
+                <span class="stat-label">إجمالي الطلبات</span>
+                <span class="stat-value">${resultsCount} طلب</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">طلبات جديدة</span>
+                <span class="stat-value">${pendingCount} طلب</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">قيد الاستلام</span>
+                <span class="stat-value">${inProgressCount} طلب</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">تم الاستلام</span>
+                <span class="stat-value">${completedCount} طلب</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">مرفوضة</span>
+                <span class="stat-value">${rejectedCount} طلب</span>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th width="25%">الجهة الطالبة</th>
+                    <th width="20%">رقم الشحنة</th>
+                    <th width="20%">تاريخ الطلب</th>
+                    <th width="20%">حالة الطلب</th>
+                    <th width="15%">الاستلام</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
 
     filteredShipments.value.forEach((shipment) => {
-        const receivedIcon = shipment.received ? '' : '';
+        const statusClass = 
+            (shipment.requestStatus === 'جديد' || shipment.requestStatus === 'pending') ? 'status-new' :
+            (shipment.requestStatus === 'قيد الاستلام' || shipment.requestStatus === 'قيد الإستلام') ? 'status-progress' :
+            (shipment.requestStatus === 'تم الإستلام' || shipment.requestStatus === 'تم الاستلام') ? 'status-completed' :
+            (shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض') ? 'status-rejected' : 'status-new';
+        
+        const receivedText = shipment.received ? '✓ ' : '✗';
+        const receivedStyle = shipment.received ? 'color: #166534; font-weight: 700;' : 'color: #991b1b;';
+
         tableHtml += `
-<tr>
-    <td>${shipment.requestingDepartment || 'غير محدد'}</td>
-    <td>${shipment.shipmentNumber || 'غير محدد'}</td>
-    <td>${formatDate(shipment.requestDate)}</td>
-    <td>${shipment.requestStatus || 'غير محدد'}</td>
-    <td class="center-icon">${receivedIcon}</td>
-</tr>
-`;
+            <tr>
+                <td style="font-weight: 700;">${shipment.requestingDepartment || 'غير محدد'}</td>
+                <td style="font-family: monospace; font-weight: 700; color: #2E5077;">${shipment.shipmentNumber || 'غير محدد'}</td>
+                <td>${formatDate(shipment.requestDate)}</td>
+                <td>
+                    <span class="status-badge ${statusClass}">
+                        ${shipment.requestStatus || 'غير محدد'}
+                    </span>
+                </td>
+                <td style="${receivedStyle} text-align: center;">${receivedText}</td>
+            </tr>
+        `;
     });
 
     tableHtml += `
-</tbody>
-</table>
-`;
+            </tbody>
+        </table>
 
-    printWindow.document.write("<html><head><title>طباعة قائمة طلبات التوريد</title>");
-    printWindow.document.write("</head><body>");
+        <div class="footer">
+            <p>صدر هذا التقرير تلقائياً من النظام المركزي لإدارة الإمداد الطبي</p>
+            <p>الصفحة 1 من 1</p>
+        </div>
+
+        <div class="signature">
+            <p style="font-weight: 700; margin-bottom: 50px;">اعتماد الإدارة</p>
+            <p>.......................................</p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
     printWindow.document.write(tableHtml);
-    printWindow.document.write("</body></html>");
     printWindow.document.close();
 
     printWindow.onload = () => {
         printWindow.focus();
         printWindow.print();
-        showSuccessAlert(" تم تجهيز التقرير بنجاح للطباعة.");
+        showSuccessAlert("✅ تم تجهيز التقرير بنجاح للطباعة.");
     }; 
 };
 

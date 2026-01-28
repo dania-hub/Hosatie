@@ -581,7 +581,7 @@ class WarehouseInventoryController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // 1. تجميع معرفات الأدوية التي تفتقد للتركيز (strength)
+        // 1. تجميع معرفات الأدوية للحصول على البيانات الإضافية (strength, unit, units_per_box)
         $drugIdsToFetch = [];
         foreach ($expiredDrugsLogs as $log) {
             $newValues = json_decode($log->new_values, true);
@@ -593,12 +593,20 @@ class WarehouseInventoryController extends BaseApiController
             }
         }
 
-        // 2. جلب التركيزات الناقصة من قاعدة البيانات دفعة واحدة
+        // 2. جلب بيانات الأدوية من قاعدة البيانات دفعة واحدة
         $drugStrengths = [];
+        $drugDetails = [];
         if (!empty($drugIdsToFetch)) {
-            $drugStrengths = Drug::whereIn('id', array_unique($drugIdsToFetch))
-                 ->pluck('strength', 'id')
-                 ->toArray();
+            foreach (
+                Drug::whereIn('id', array_unique($drugIdsToFetch))
+                    ->get(['id', 'strength', 'unit', 'units_per_box']) as $d
+            ) {
+                $drugStrengths[$d->id] = $d->strength;
+                $drugDetails[$d->id] = [
+                    'unit' => $d->unit ?? 'وحدة',
+                    'units_per_box' => (int) ($d->units_per_box ?? 1),
+                ];
+            }
         }
 
         $expiredDrugs = collect();
@@ -623,17 +631,30 @@ class WarehouseInventoryController extends BaseApiController
                     });
                     
                     if (!$exists) {
+                        $drugId = $newValues['drugId'] ?? null;
                         $strength = $newValues['strength'] ?? null;
                         
                         // محاولة استكمال التركيز الناقص
-                        if (empty($strength) && !empty($newValues['drugId']) && isset($drugStrengths[$newValues['drugId']])) {
-                            $strength = $drugStrengths[$newValues['drugId']];
+                        if (empty($strength) && $drugId && isset($drugStrengths[$drugId])) {
+                            $strength = $drugStrengths[$drugId];
                         }
+
+                        $quantity = (int)($newValues['quantity'] ?? 0);
+                        $detail = $drugId && isset($drugDetails[$drugId])
+                            ? $drugDetails[$drugId]
+                            : ['unit' => 'وحدة', 'units_per_box' => 1];
+                        $unitsPerBox = (int)($detail['units_per_box'] ?? 1) ?: 1;
+                        $quantityBoxes = intdiv($quantity, $unitsPerBox);
+                        $quantityRemainder = $quantity % $unitsPerBox;
 
                         $expiredDrugs->push([
                             'drugName' => $newValues['drugName'] ?? null,
                             'strength' => $strength,
-                            'quantity' => $newValues['quantity'] ?? 0,
+                            'quantity' => $quantity,
+                            'quantity_boxes' => $quantityBoxes,
+                            'quantity_remainder' => $quantityRemainder,
+                            'unit' => $detail['unit'],
+                            'units_per_box' => $unitsPerBox,
                             'expiryDate' => $newValues['expiryDate'] ?? null,
                             'zeroedDate' => $log->created_at ? date('Y/m/d H:i', strtotime($log->created_at)) : null,
                         ]);
@@ -679,7 +700,7 @@ class WarehouseInventoryController extends BaseApiController
                 'drugs.name as drug_name',
                 'drugs.strength',
                 'inventories.current_quantity',
-                'drugs.expiry_date'
+                'inventories.expiry_date'
             )
             ->get();
         

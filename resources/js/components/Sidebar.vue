@@ -1,7 +1,7 @@
 <template>
     <aside
         :class="[
-            'bg-[#2E5077] text-white rounded-l-3xl h-full flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
+            ' bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] text-white rounded-l-3xl h-full flex flex-col justify-start flex-shrink-0 transition-all duration-300 shadow-xl',
             'overflow-y-auto overflow-x-hidden custom-scrollbar-hide',
             isCollapsed ? 'w-20' : 'w-55',
         ]"

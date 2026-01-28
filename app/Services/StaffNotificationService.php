@@ -130,8 +130,13 @@ class StaffNotificationService
         if (!$request->relationLoaded('pharmacy')) {
             $request->load('pharmacy');
         }
+        if (!$request->relationLoaded('department')) {
+            $request->load('department');
+        }
 
-        $hospitalId = $request->pharmacy->hospital_id ?? null;
+        $hospitalId = $request->pharmacy?->hospital_id
+            ?? $request->department?->hospital_id
+            ?? null;
 
         if (!$hospitalId && $request->requested_by) {
             $requester = User::find($request->requested_by);

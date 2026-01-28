@@ -41,24 +41,26 @@ class DrugPharmacistController extends BaseApiController
             ->where('hospital_id', $hospitalId)
             ->orderBy('created_at', 'desc')
             ->get();
-             // 1. تجميع معرفات الأدوية التي تفتقد للتركيز (strength)
+        // 1. تجميع معرفات الأدوية للحصول على strength, unit, units_per_box
         $drugIdsToFetch = [];
         foreach ($expiredDrugsLogs as $log) {
             $newValues = json_decode($log->new_values, true);
-            if ($newValues && isset($newValues['drugName'])) {
-                // إذا كان التركيز غير موجود أو فارغ ولكن لدينا drugId
-                if (empty($newValues['strength']) && !empty($newValues['drugId'])) {
-                    $drugIdsToFetch[] = $newValues['drugId'];
-                }
+            if ($newValues && isset($newValues['drugName']) && !empty($newValues['drugId'])) {
+                $drugIdsToFetch[] = $newValues['drugId'];
             }
         }
 
-        // 2. جلب التركيزات الناقصة من قاعدة البيانات دفعة واحدة
-        $drugStrengths = [];
+        // 2. جلب بيانات الأدوية من قاعدة البيانات دفعة واحدة
+        $drugDetails = [];
         if (!empty($drugIdsToFetch)) {
-            $drugStrengths = Drug::whereIn('id', array_unique($drugIdsToFetch))
-                 ->pluck('strength', 'id')
-                 ->toArray();
+            foreach (Drug::whereIn('id', array_unique($drugIdsToFetch))
+                ->get(['id', 'strength', 'unit', 'units_per_box']) as $d) {
+                $drugDetails[$d->id] = [
+                    'strength' => $d->strength,
+                    'unit' => $d->unit ?? 'وحدة',
+                    'units_per_box' => (int) ($d->units_per_box ?? 1),
+                ];
+            }
         }
 
         $expiredDrugs = collect();
@@ -67,23 +69,34 @@ class DrugPharmacistController extends BaseApiController
             $newValues = json_decode($log->new_values, true);
             
             if ($newValues && isset($newValues['drugName'])) {
-                // تجنب التكرار (نفس الدواء وتاريخ الانتهاء)
                 $exists = $expiredDrugs->contains(function ($existing) use ($newValues) {
                     return $existing['drugName'] === $newValues['drugName'] && 
                            $existing['expiryDate'] === ($newValues['expiryDate'] ?? null);
                 });
-                
+
                 if (!$exists) {
-                     $strength = $newValues['strength'] ?? null;
-                        
-                        // محاولة استكمال التركيز الناقص
-                        if (empty($strength) && !empty($newValues['drugId']) && isset($drugStrengths[$newValues['drugId']])) {
-                            $strength = $drugStrengths[$newValues['drugId']];
-                        }
+                    $drugId = $newValues['drugId'] ?? null;
+                    $strength = $newValues['strength'] ?? null;
+                    if (empty($strength) && $drugId && isset($drugDetails[$drugId])) {
+                        $strength = $drugDetails[$drugId]['strength'];
+                    }
+                    $detail = $drugId && isset($drugDetails[$drugId])
+                        ? $drugDetails[$drugId]
+                        : ['unit' => 'وحدة', 'units_per_box' => 1];
+
+                    $quantity = (int)($newValues['quantity'] ?? 0);
+                    $unitsPerBox = (int)($detail['units_per_box'] ?? 1) ?: 1;
+                    $quantityBoxes = intdiv($quantity, $unitsPerBox);
+                    $quantityRemainder = $quantity % $unitsPerBox;
+
                     $expiredDrugs->push([
                         'drugName' => $newValues['drugName'] ?? null,
-                      'strength' => $strength,
-                        'quantity' => $newValues['quantity'] ?? 0,
+                        'strength' => $strength,
+                        'quantity' => $quantity,
+                        'quantity_boxes' => $quantityBoxes,
+                        'quantity_remainder' => $quantityRemainder,
+                        'unit' => $detail['unit'],
+                        'units_per_box' => $detail['units_per_box'],
                         'expiryDate' => $newValues['expiryDate'] ?? null,
                         'zeroedDate' => $log->created_at ? date('Y/m/d H:i', strtotime($log->created_at)) : null,
                     ]);

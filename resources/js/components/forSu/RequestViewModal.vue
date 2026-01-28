@@ -205,6 +205,24 @@
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         الملاحظات
                     </h3>
+                      <!-- رسائل المورد فقط -->
+                    <div v-if="supplierMessages.length > 0" class="p-4 bg-green-50 border border-green-100 rounded-xl">
+                        <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
+                            رسالة المورد
+                        </h4>
+                        <div class="space-y-3">
+                            <div v-for="(msg, index) in supplierMessages" :key="index" class="bg-white/60 p-3 rounded-lg border border-green-100/50">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs font-bold text-green-700">
+                                        {{ msg.user_name || 'المورد' }}
+                                    </span>
+                                    <span class="text-[10px] text-gray-400" dir="ltr">{{ formatDate(msg.created_at) }}</span>
+                                </div>
+                                <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ msg.message }}</p>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- ملاحظة عند إنشاء الطلب -->
                     <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
@@ -242,24 +260,7 @@
                         <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.confirmation.notes }}</p>
                     </div>
 
-                    <!-- رسائل المورد فقط -->
-                    <div v-if="supplierMessages.length > 0" class="p-4 bg-green-50 border border-green-100 rounded-xl">
-                        <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
-                            <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
-                            رسالة المورد
-                        </h4>
-                        <div class="space-y-3">
-                            <div v-for="(msg, index) in supplierMessages" :key="index" class="bg-white/60 p-3 rounded-lg border border-green-100/50">
-                                <div class="flex justify-between items-start mb-1">
-                                    <span class="text-xs font-bold text-green-700">
-                                        {{ msg.user_name || 'المورد' }}
-                                    </span>
-                                    <span class="text-[10px] text-gray-400" dir="ltr">{{ formatDate(msg.created_at) }}</span>
-                                </div>
-                                <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ msg.message }}</p>
-                            </div>
-                        </div>
-                    </div>
+                  
 
                     <!-- رسائل الإدارة فقط -->
                     <div v-if="adminMessages.length > 0" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">

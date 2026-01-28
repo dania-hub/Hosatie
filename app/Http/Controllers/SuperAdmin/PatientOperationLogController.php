@@ -414,6 +414,7 @@ class PatientOperationLogController extends BaseApiController
             'category_id' => 'الفئة العلاجية',
             'city' => 'المدينة',
             'manager_id' => 'المدير المسؤول',
+            'hospital_id' => 'المستشفى',
             'supplier_id' => 'المورد المسؤول',
             'indications' => 'دواعي الاستعمال',
             'warnings' => 'التحذيرات',

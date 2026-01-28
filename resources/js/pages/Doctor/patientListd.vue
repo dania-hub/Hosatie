@@ -16,8 +16,8 @@
                                 :class="[
                                     'inline-flex items-center justify-center px-4 py-2.5 border-2 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] font-medium cursor-pointer z-[1]',
                                     showFollowedOnly 
-                                        ? 'border-[#4DA1A9] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] shadow-md' 
-                                        : 'w-44 border-[#4DA1A9] bg-white text-[#4DA1A9] hover:bg-[#4DA1A9]/10 hover:border-[#4DA1A9]'
+                                        ? 'w-40 border-[#4DA1A9] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] shadow-md' 
+                                        : 'w-73 border-[#4DA1A9] bg-white text-[#4DA1A9] hover:bg-[#4DA1A9]/10 hover:border-[#4DA1A9]'
                                 ]"
                                 :title="showFollowedOnly ? 'إظهار جميع المرضى' : 'إظهار المرضى الذين أتابعهم فقط'"
                             >
@@ -30,7 +30,7 @@
                             <!-- زر إظهار/إخفاء فلتر التاريخ -->
                             <button
                                 @click="showDateFilter = !showDateFilter"
-                                class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                                class="h-11 w-18 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
                                 :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                             >
                                 <Icon

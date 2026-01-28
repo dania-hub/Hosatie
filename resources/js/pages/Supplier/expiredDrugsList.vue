@@ -78,13 +78,13 @@ const filteredDrugs = computed(() => {
       const strength = (drug.strength || '').toString().toLowerCase();
       const expiryDate = (drug.expiryDate || '').toString();
       const zeroedDate = (drug.zeroedDate || '').toString();
-      const quantity = (drug.quantity || 0).toString();
+      const quantityBoxes = (drug.quantity_boxes ?? Math.floor((drug.quantity || 0) / (drug.units_per_box || 1) || 0)).toString();
       
       return drugName.includes(search) ||
              strength.includes(search) ||
              expiryDate.includes(search) ||
              zeroedDate.includes(search) ||
-             quantity.includes(search);
+             quantityBoxes.includes(search);
     });
   }
 
@@ -98,7 +98,9 @@ const filteredDrugs = computed(() => {
       } else if (sortKey.value === "strength") {
         comparison = (a.strength || "").localeCompare(b.strength || "", "ar");
       } else if (sortKey.value === "quantity") {
-        comparison = (a.quantity || 0) - (b.quantity || 0);
+        const aBoxes = a.quantity_boxes ?? Math.floor((a.quantity || 0) / (a.units_per_box || 1) || 0);
+        const bBoxes = b.quantity_boxes ?? Math.floor((b.quantity || 0) / (b.units_per_box || 1) || 0);
+        comparison = aBoxes - bBoxes;
       } else if (sortKey.value === "expiryDate") {
         const dateA = a.expiryDate ? new Date(a.expiryDate.replace(/\//g, "-")) : new Date();
         const dateB = b.expiryDate ? new Date(b.expiryDate.replace(/\//g, "-")) : new Date();
@@ -167,7 +169,7 @@ h1 { text-align: center; color: #dc2626; margin-bottom: 10px; }
 <h1>الأدوية التي انتهت صلاحيتها </h1>
 `;
 
-  if (resultsCount > 0) {
+          if (resultsCount > 0) {
     tableHtml += `
 <p class="results-info">عدد النتائج : ${resultsCount}</p>
 
@@ -176,7 +178,7 @@ h1 { text-align: center; color: #dc2626; margin-bottom: 10px; }
  <tr>
  <th>اسم الدواء</th>
  <th>التركيز</th>
- <th>الكمية المنتهية</th>
+ <th>الكمية المنتهية (علب)</th>
  <th>تاريخ انتهاء الصلاحية</th>
  <th>تاريخ المعالجة</th>
  </tr>
@@ -189,7 +191,7 @@ h1 { text-align: center; color: #dc2626; margin-bottom: 10px; }
 <tr>
  <td>${drug.drugName || ''}</td>
  <td>${drug.strength || '-'}</td>
- <td>${drug.quantity || 0}</td>
+ <td>${drug.quantity_boxes ?? Math.floor((drug.quantity || 0) / (drug.units_per_box || 1) || 0)}</td>
  <td>${drug.expiryDate || '-'}</td>
  <td>${drug.zeroedDate || '-'}</td>
 </tr>
@@ -277,7 +279,7 @@ onMounted(async () => {
                         class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-3 sm:gap-0"
                     >
                         <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                            <search v-model="searchTerm" placeholder="ابحث في الأدوية المُصفرة (اسم الدواء، الكمية، التاريخ...)" />
+                            <search v-model="searchTerm" placeholder="ابحث في الأدوية المنتهية (اسم الدواء، الكمية، التاريخ...)" />
                            
                             <div class="dropdown dropdown-start">
                                 <div
@@ -493,7 +495,7 @@ onMounted(async () => {
                                         <tr>
                                             <th class="px-4 py-3">اسم الدواء</th>
                                             <th class="px-4 py-3">التركيز</th>
-                                            <th class="px-4 py-3">الكمية المنتهية</th>
+                                            <th class="px-4 py-3">الكمية المنتهية (علب)</th>
                                             <th class="px-4 py-3">تاريخ انتهاء الصلاحية</th>
                                             <th class="px-4 py-3">تاريخ المعالجة</th>
                                         </tr>
@@ -523,7 +525,13 @@ onMounted(async () => {
                                                     {{ drug.strength || '-' }}
                                                 </td>
                                                 <td class="px-4 py-3 text-red-700 font-bold">
-                                                    {{ drug.quantity }}
+                                                    {{
+                                                        drug.quantity_boxes ??
+                                                        Math.floor(
+                                                            (drug.quantity || 0) /
+                                                                (drug.units_per_box || 1 || 1)
+                                                        )
+                                                    }}
                                                 </td>
                                                 <td class="px-4 py-3 text-red-700">
                                                     {{ drug.expiryDate || '-' }}

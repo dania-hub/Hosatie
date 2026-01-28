@@ -854,7 +854,17 @@ watch(() => props.isOpen, (isOpen) => {
                     const unit = drugInfo.unit || getDrugUnit({ type: drugType });
                     const unitsPerBox = Number(drugInfo.units_per_box || drugInfo.unitsPerBox || 1);
                     
-                    // استخدام neededQuantity مباشرة ككمية التوريد المطلوبة
+                    // حساب الكمية المطلوبة: إذا كانت الكمية المطلوبة أقل من العلبة الكاملة، نطلب علبة كاملة
+                    // إذا كانت أكثر، نطلب عدد العلب الكاملة (بالتقريب للأعلى)
+                    let requestedQuantity = neededQuantity;
+                    if (unitsPerBox > 1 && neededQuantity > 0) {
+                        // حساب عدد العلب المطلوبة (بالتقريب للأعلى)
+                        const boxesNeeded = Math.ceil(neededQuantity / unitsPerBox);
+                        // الكمية المطلوبة = عدد العلب × وحدات العلبة
+                        requestedQuantity = boxesNeeded * unitsPerBox;
+                    }
+                    
+                    // استخدام الكمية المحسوبة (علبة كاملة على الأقل)
                     drugsNeedingSupply.push({
                         drugId: drugInfo.id,
                         id: drugInfo.id,
@@ -862,7 +872,7 @@ watch(() => props.isOpen, (isOpen) => {
                         name: drug.drugName || drug.name,
                         currentQuantity: drug.quantity || 0,
                         neededQuantity: neededQuantity,
-                        quantity: neededQuantity, // الكمية المطلوبة للتوريد
+                        quantity: requestedQuantity, // الكمية المطلوبة للتوريد (علبة كاملة على الأقل)
                         unit: unit,
                         type: drugType,
                         strength: drugInfo.strength || drug.strength || null,

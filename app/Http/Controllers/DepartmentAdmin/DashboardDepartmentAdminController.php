@@ -84,16 +84,64 @@ class DashboardDepartmentAdminController extends BaseApiController
         
         $dailyExaminations = $patientIds->count();
 
-        // 3. عدد الحالات قيد المتابعة (خاصة بنفس المستشفى فقط)
-        $activeCases = Prescription::where('hospital_id', $hospitalId)
-            ->where('status', 'active')
-            ->distinct('patient_id')
-            ->count();
+        // 3. عدد الحالات التي تتابعها (مجموع المرضى الذين قام مدير القسم بتعيين أو حذف أدوية لهم)
+        // نحسب عدد المرضى الفريدين الذين قام هذا المستخدم بعمليات على أدويتهم (إضافة/تعديل/حذف)
+        // من خلال AuditLog للمستخدم المعين فقط (user_id = userId) - جميع السجلات وليس فقط اليوم
+        $allAuditLogs = AuditLog::where('user_id', $userId) // العمليات الخاصة بهذا المستخدم فقط
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+            ->get();
+
+        $allPatientIds = $allAuditLogs->map(function($log) use ($userId, $hospitalId) {
+            $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+            
+            // 1. محاولة من patient_info
+            $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+            if ($patientInfo && isset($patientInfo['id'])) {
+                $patient = User::where('id', $patientInfo['id'])
+                    ->where('hospital_id', $hospitalId)
+                    ->first();
+                if ($patient) {
+                    return $patientInfo['id'];
+                }
+            }
+            
+            // 2. محاولة من prescription_id
+            $prescriptionId = $newValues['prescription_id'] ?? $oldValues['prescription_id'] ?? null;
+            if ($prescriptionId) {
+                $prescription = Prescription::where('hospital_id', $hospitalId)
+                    ->find($prescriptionId);
+                if ($prescription) {
+                    return $prescription->patient_id;
+                }
+            }
+            
+            // 3. محاولة من record_id
+            if ($log->record_id) {
+                $prescriptionDrug = PrescriptionDrug::with(['prescription' => function($query) use ($hospitalId) {
+                    $query->where('hospital_id', $hospitalId);
+                }])->find($log->record_id);
+                if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                    return $prescriptionDrug->prescription->patient_id;
+                }
+            }
+            
+            return null;
+        })->filter()->unique();
+        
+        // التأكد من أن جميع معرفات المرضى موجودة فعلاً في قاعدة البيانات
+        $validPatientIds = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->whereIn('id', $allPatientIds->toArray())
+            ->pluck('id')
+            ->unique();
+        
+        $activeCases = $validPatientIds->count();
 
         $data = [
             'totalRegistered' => $totalPatients,     // إجمالي المرضى
             'todayRegistered' => $dailyExaminations, // الكشوفات اليومية
-            'weekRegistered'  => $activeCases        // الحالات قيد المتابعة
+            'weekRegistered'  => $activeCases        // الحالات التي تتابعها
         ];
 
         return $this->sendSuccess($data, 'تم جلب إحصائيات لوحة التحكم بنجاح.');

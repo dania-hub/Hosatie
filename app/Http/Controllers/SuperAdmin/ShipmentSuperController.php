@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\BaseApiController;
-use App\Models\ExternalSupplyRequest;
+use App\Models\InternalSupplyRequest;
 use App\Models\Inventory;
 use App\Models\Warehouse;
+use App\Models\AuditLog;
+use App\Models\Department;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
-use App\Services\StaffNotificationService; // Added
+use App\Services\StaffNotificationService;
 
 class ShipmentSuperController extends BaseApiController
 {
@@ -17,49 +19,180 @@ class ShipmentSuperController extends BaseApiController
     ) {}
 
     /**
-     * عرض قائمة الشحنات (طلبات التوريد الخارجية)
-     * فقط الطلبات التي أنشأها الموردون وليس المستشفيات
+     * جلب الملاحظات وسبب الرفض من audit_log
+     */
+    private function getNotesFromAuditLog($requestId): array
+    {
+        $notes = [
+            'creationNotes' => null,
+            'storekeeperNotes' => null,
+            'storekeeperNotesSource' => null,
+            'supplierNotes' => null,
+            'confirmationNotes' => null,
+            'confirmationNotesSource' => null,
+            'adminConfirmationNotes' => null,
+            'rejectionReason' => null,
+            'rejectedAt' => null,
+        ];
+
+        $auditLogs = AuditLog::where('table_name', 'internal_supply_request')
+            ->where('record_id', $requestId)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        foreach ($auditLogs as $log) {
+            $newValues = json_decode($log->new_values, true);
+            if (!$newValues) continue;
+
+            // ملاحظة إنشاء الطلب من المورد (supplier_create_internal_supply_request)
+            if ($log->action === 'supplier_create_internal_supply_request'
+                && isset($newValues['notes']) && (is_string($newValues['notes']) ? trim($newValues['notes']) !== '' : $newValues['notes'])) {
+                $notes['creationNotes'] = is_string($newValues['notes']) ? trim($newValues['notes']) : $newValues['notes'];
+            }
+
+            if (in_array($log->action, ['إنشاء طلب توريد', 'pharmacist_create_supply_request', 'department_create_supply_request'])
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['storekeeperNotes'] = $newValues['notes'];
+                if ($log->action === 'pharmacist_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_create_supply_request') {
+                    $notes['storekeeperNotesSource'] = 'department';
+                }
+            }
+
+            if ($log->action === 'storekeeper_confirm_internal_request'
+                && isset($newValues['notes']) && !empty($newValues['notes'])) {
+                $notes['supplierNotes'] = $newValues['notes'];
+            }
+
+            if (in_array($log->action, ['pharmacist_confirm_internal_receipt', 'department_confirm_internal_receipt', 'supplier_confirm_internal_receipt'])
+                && isset($newValues['notes']) && (is_string($newValues['notes']) ? trim($newValues['notes']) !== '' : !empty($newValues['notes']))) {
+                $notes['confirmationNotes'] = is_string($newValues['notes']) ? trim($newValues['notes']) : $newValues['notes'];
+                if ($log->action === 'pharmacist_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'pharmacist';
+                } elseif ($log->action === 'department_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'department';
+                } elseif ($log->action === 'supplier_confirm_internal_receipt') {
+                    $notes['confirmationNotesSource'] = 'supplier';
+                }
+            }
+
+            // ملاحظة تأكيد الإرسال من مدير النظام (super_admin_confirm_internal_supply_request)
+            if ($log->action === 'super_admin_confirm_internal_supply_request'
+                && isset($newValues['notes']) && $newValues['notes'] !== null) {
+                $n = $newValues['notes'];
+                if (is_string($n) && trim($n) !== '') {
+                    $notes['adminConfirmationNotes'] = trim($n);
+                }
+            }
+
+            $rejectActions = ['رفض طلب توريد داخلي', 'storekeeper_reject_internal_request', 'reject', 'super_admin_reject_internal_supply_request'];
+            if (in_array($log->action, $rejectActions)) {
+                $notes['rejectionReason'] = $newValues['rejectionReason'] ?? $newValues['rejection_reason'] ?? $notes['rejectionReason'];
+                $notes['rejectedAt'] = $newValues['rejectedAt'] ?? $log->created_at?->format('Y-m-d H:i:s');
+            }
+        }
+
+        return $notes;
+    }
+
+    private function getRequestingDepartmentName(InternalSupplyRequest $req): string
+    {
+        $req->loadMissing(['supplier', 'requester.department', 'pharmacy', 'department']);
+
+        // عندما يوجد supplier_id، الجهة الطالبة هي اسم المورد
+        if ($req->supplier_id && $req->supplier) {
+            return $req->supplier->name;
+        }
+
+        $requestingDepartmentName = 'غير محدد';
+
+        $creationLog = AuditLog::where('table_name', 'internal_supply_request')
+            ->where('record_id', $req->id)
+            ->whereIn('action', ['department_create_supply_request', 'pharmacist_create_supply_request', 'إنشاء طلب توريد'])
+            ->orderBy('created_at', 'asc')
+            ->first();
+
+        if ($creationLog && $creationLog->new_values) {
+            $newValues = json_decode($creationLog->new_values, true);
+            if (isset($newValues['department_name']) && !empty($newValues['department_name'])) {
+                $requestingDepartmentName = $newValues['department_name'];
+            } elseif (isset($newValues['pharmacy_name']) && !empty($newValues['pharmacy_name'])) {
+                $requestingDepartmentName = $newValues['pharmacy_name'];
+            }
+        }
+
+        if ($requestingDepartmentName === 'غير محدد' && $req->requester) {
+            if (in_array($req->requester->type, ['department_head', 'department_admin'])) {
+                $department = Department::where('head_user_id', $req->requester->id)->first();
+                if ($department) {
+                    $requestingDepartmentName = $department->name;
+                } elseif ($req->requester->department) {
+                    $requestingDepartmentName = $req->requester->department->name;
+                } elseif ($req->requester->department_id) {
+                    $d = Department::find($req->requester->department_id);
+                    if ($d) $requestingDepartmentName = $d->name;
+                }
+            } elseif ($req->requester->type === 'pharmacist' && $req->pharmacy) {
+                $requestingDepartmentName = $req->pharmacy->name;
+            }
+        }
+
+        if ($requestingDepartmentName === 'غير محدد' && $req->pharmacy) {
+            $requestingDepartmentName = $req->pharmacy->name;
+        }
+        if ($requestingDepartmentName === 'غير محدد' && $req->department) {
+            $requestingDepartmentName = $req->department->name;
+        }
+
+        return $requestingDepartmentName;
+    }
+
+    private function mapStatusToArabic(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'جديد',
+            'approved' => 'قيد الاستلام',
+            'fulfilled' => 'تم الإستلام',
+            'rejected' => 'مرفوضة',
+            'cancelled' => 'ملغاة',
+            default => $status,
+        };
+    }
+
+    /**
+     * عرض قائمة طلبات التوريد الداخلية (internal_supply_requests)
      */
     public function index(Request $request)
     {
         try {
-            // جلب البيانات مع العلاقات
-            // فقط الطلبات التي أنشأها الموردون (supplier_admin) وليس المستشفيات (warehouse_manager)
-            $query = ExternalSupplyRequest::with(['supplier', 'items.drug', 'requester'])
-                ->whereHas('requester', function($q) {
-                    // فقط الطلبات من الموردين
-                    $q->where('type', 'supplier_admin');
-                });
+            $query = InternalSupplyRequest::with(['supplier', 'pharmacy', 'requester.department', 'department', 'items.drug'])
+                ->whereNotNull('supplier_id');
 
-            // يمكنك إضافة فلاتر هنا إذا لزم الأمر
             if ($request->has('status')) {
                 $query->where('status', $request->status);
             }
 
-            $shipments = $query->latest()->get()->map(function ($shipment) {
+            $shipments = $query->latest()->get()->map(function ($req) {
+                $notes = $this->getNotesFromAuditLog($req->id);
+                $deptName = $this->getRequestingDepartmentName($req);
                 return [
-                    'id' => $shipment->id,
-                    'shipmentNumber' => 'EXT-' . $shipment->id, // أو أي حقل آخر لرقم الشحنة
-                    'requestingDepartment' => $shipment->supplier ? $shipment->supplier->name : 'غير محدد', // أو المستشفى إذا كان هو الطالب
-                    'department' => $shipment->supplier ? $shipment->supplier->name : 'غير محدد',
-                    'requestDate' => $shipment->created_at->format('Y-m-d'),
-                    'createdAt' => $shipment->created_at,
-                    'status' => match($shipment->status) {
-                        'pending' => 'جديد',
-                        'approved' => 'قيد الاستلام', 
-                        'fulfilled' => 'تم الإستلام',
-                        'rejected' => 'مرفوض',
-                        default => $shipment->status,
-                    },
-                    'rejectionReason' => $shipment->rejection_reason,
-                    'rejectedAt' => $shipment->status === 'rejected' && $shipment->handeled_at ? $shipment->handeled_at->format('Y-m-d H:i:s') : null,
-                    'confirmedAt' => $shipment->updated_at, // افتراضاً
-                    'items' => $shipment->items->map(function ($item) {
+                    'id' => $req->id,
+                    'shipmentNumber' => 'INT-' . $req->id,
+                    'requestingDepartment' => $deptName,
+                    'department' => $deptName,
+                    'requestDate' => $req->created_at->format('Y-m-d'),
+                    'createdAt' => $req->created_at,
+                    'status' => $this->mapStatusToArabic($req->status),
+                    'requestStatus' => $this->mapStatusToArabic($req->status),
+                    'rejectionReason' => $notes['rejectionReason'],
+                    'rejectedAt' => $notes['rejectedAt'],
+                    'items' => $req->items->map(function ($item) {
                         return [
                             'id' => $item->id,
                             'name' => $item->drug ? $item->drug->name : 'غير معروف',
                             'quantity' => $item->requested_qty,
-                            'requested_qty' => $item->requested_qty, // Ensure frontend receives this
+                            'requested_qty' => $item->requested_qty,
                             'receivedQuantity' => $item->fulfilled_qty ?? 0,
                             'units_per_box' => $item->drug->units_per_box ?? 1,
                         ];
@@ -67,380 +200,352 @@ class ShipmentSuperController extends BaseApiController
                 ];
             });
 
-            return $this->sendSuccess($shipments, 'تم جلب قائمة الشحنات بنجاح');
-
+            return $this->sendSuccess($shipments, 'تم جلب قائمة طلبات التوريد الداخلية بنجاح');
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Shipments Index Error');
         }
     }
 
     /**
-     * عرض تفاصيل الشحنة
-     * فقط الطلبات التي أنشأها الموردون
+     * عرض تفاصيل طلب التوريد الداخلي
      */
     public function show($id)
     {
         try {
-            $shipment = ExternalSupplyRequest::with(['supplier', 'items.drug', 'requester'])
-                ->whereHas('requester', function($q) {
-                    // فقط الطلبات من الموردين
-                    $q->where('type', 'supplier_admin');
-                })
+            $req = InternalSupplyRequest::with(['supplier', 'pharmacy.hospital', 'requester.department', 'department', 'items.drug'])
+                ->whereNotNull('supplier_id')
                 ->findOrFail($id);
 
-            // Extract the initial supplier message for the frontend "Supplier Message" box
-            $messages = $shipment->messages ?? [];
-            $initialNote = '';
-            if (is_array($messages)) {
-                $supplierNote = collect($messages)->firstWhere('by', 'supplier_admin');
-                $initialNote = $supplierNote['message'] ?? '';
-                
-                // Fallback: if no typed message found but array exists, try first item
-                if (!$initialNote && !empty($messages[0]['message'])) {
-                     $initialNote = $messages[0]['message'];
+            $notes = $this->getNotesFromAuditLog($req->id);
+            $deptName = $this->getRequestingDepartmentName($req);
+
+            $hospitalId = $req->pharmacy?->hospital_id ?? $req->department?->hospital_id;
+            $warehouse = $hospitalId ? Warehouse::where('hospital_id', $hospitalId)->first() : null;
+            $warehouseId = $warehouse?->id;
+
+            $items = $req->items->map(function ($item) use ($warehouseId, $req) {
+                $stock = 0;
+                if ($item->drug_id && $warehouseId) {
+                    $stock = (int) Inventory::where('drug_id', $item->drug_id)->where('warehouse_id', $warehouseId)->sum('current_quantity');
+                } elseif ($item->drug_id) {
+                    $stock = (int) Inventory::where('drug_id', $item->drug_id)->sum('current_quantity');
                 }
-            } else if (is_string($messages)) {
-                $initialNote = $messages;
-            }
+                $suggested = $req->status === 'pending' ? min((int) $item->requested_qty, $stock) : (int) ($item->approved_qty ?? 0);
+                return [
+                    'id' => $item->id,
+                    'drug_id' => $item->drug_id,
+                    'drugId' => $item->drug_id,
+                    'name' => $item->drug ? $item->drug->name : 'غير معروف',
+                    'quantity' => $item->requested_qty,
+                    'requested_qty' => $item->requested_qty,
+                    'requestedQty' => $item->requested_qty,
+                    'originalQuantity' => $item->requested_qty,
+                    'approved_qty' => $item->approved_qty,
+                    'approvedQty' => $item->approved_qty,
+                    'fulfilled_qty' => $item->fulfilled_qty,
+                    'fulfilledQty' => $item->fulfilled_qty,
+                    'sentQuantity' => $item->fulfilled_qty ?? $item->approved_qty,
+                    'stock' => $stock,
+                    'availableQuantity' => $stock,
+                    'suggestedQuantity' => $suggested,
+                    'unit' => $item->drug->unit ?? 'وحدة',
+                    'dosage' => $item->drug->strength ?? '',
+                    'strength' => $item->drug->strength ?? '',
+                    'type' => $item->drug->form ?? '',
+                    'form' => $item->drug->form ?? '',
+                    'units_per_box' => $item->drug->units_per_box ?? 1,
+                ];
+            });
 
             return $this->sendSuccess([
-                'id' => $shipment->id,
-                'shipmentNumber' => 'EXT-' . $shipment->id,
-                'department' => $shipment->supplier ? $shipment->supplier->name : 'غير محدد',
-                'date' => $shipment->created_at->format('Y-m-d'),
-                'status' => match($shipment->status) {
-                    'pending' => 'جديد',
-                    'approved' => 'قيد الاستلام',
-                    'fulfilled' => 'تم الإستلام',
-                    'rejected' => 'مرفوض',
-                    default => $shipment->status,
-                },
-                'rejectionReason' => $shipment->rejection_reason,
-                'rejectedAt' => $shipment->rejected_at ? $shipment->rejected_at->format('Y-m-d H:i:s') : null,
-                'notes' => $messages, // Return full thread (array or string fallback)
-                'notes_initial' => $initialNote, // Keep mainly for backup/debugging
-                'conversation' => $messages, // Return full thread
-                'items' => $shipment->items->map(function ($item) {
-                    // حساب المخزون المتوفر للدواء (إجمالي في جميع المستودعات كمثال، أو 0 إذا لم ينطبق)
-                    // بما أن السوبر أدمن قد لا يكون لديه مخزون خاص، سنعرض إجمالي المخزون المتوفر
-                    $stock = 0; 
-                    if ($item->drug_id) {
-                         $stock = Inventory::where('drug_id', $item->drug_id)->sum('current_quantity');
-                    }
-
-                    return [
-                        'id' => $item->id,
-                        'drug_id' => $item->drug_id,
-                        'drugId' => $item->drug_id,
-                        'name' => $item->drug ? $item->drug->name : 'غير معروف',
-                        'quantity' => $item->requested_qty, // الكمية المطلوبة
-                        'requested_qty' => $item->requested_qty,
-                        'requestedQty' => $item->requested_qty,
-                        'originalQuantity' => $item->requested_qty,
-                        'approved_qty' => $item->approved_qty,
-                        'approvedQty' => $item->approved_qty,
-                        'fulfilled_qty' => $item->fulfilled_qty,
-                        'fulfilledQty' => $item->fulfilled_qty,
-                        'sentQuantity' => $item->fulfilled_qty ?? $item->approved_qty,
-                        'stock' => $stock,
-                        'availableQuantity' => $stock,
-                        'unit' => $item->drug->unit ?? 'وحدة',
-                        'dosage' => $item->drug->strength ?? '',
-                        'units_per_box' => $item->drug->units_per_box ?? 1,
-                    ];
-                }),
-            ], 'تم جلب تفاصيل الشحنة بنجاح');
-
+                'id' => $req->id,
+                'shipmentNumber' => 'INT-' . $req->id,
+                'department' => $deptName,
+                'date' => $req->created_at->format('Y-m-d'),
+                'status' => $this->mapStatusToArabic($req->status),
+                'rejectionReason' => $notes['rejectionReason'],
+                'rejectedAt' => $notes['rejectedAt'],
+                'notes' => $notes['creationNotes'] ?? $notes['storekeeperNotes'] ?? $notes['supplierNotes'],
+                'creationNotes' => $notes['creationNotes'],
+                'storekeeperNotes' => $notes['storekeeperNotes'],
+                'storekeeperNotesSource' => $notes['storekeeperNotesSource'],
+                'supplierNotes' => $notes['supplierNotes'],
+                'confirmationNotes' => $notes['confirmationNotes'],
+                'confirmationNotesSource' => $notes['confirmationNotesSource'],
+                'adminConfirmationNotes' => $notes['adminConfirmationNotes'],
+                'items' => $items,
+                'confirmationDetails' => null,
+            ], 'تم جلب تفاصيل الطلب بنجاح');
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Shipment Show Error');
         }
     }
 
     /**
-     * قبول طلب التوريد
+     * قبول طلب التوريد الداخلي
      * PUT /api/super-admin/shipments/{id}/approve
-     * فقط الطلبات التي أنشأها الموردون
      */
     public function approve(Request $request, $id)
     {
         try {
-            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital', 'requester'])
-                ->whereHas('requester', function($q) {
-                    // فقط الطلبات من الموردين
-                    $q->where('type', 'supplier_admin');
-                })
+            $req = InternalSupplyRequest::with(['items', 'pharmacy', 'requester'])
+                ->whereNotNull('supplier_id')
                 ->findOrFail($id);
 
-            if ($shipment->status !== 'pending') {
-                 return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
+            if ($req->status !== 'pending') {
+                return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
             }
 
-            $shipment->status = 'approved';
-            $shipment->handeled_by = $request->user()->id;
-            $shipment->handeled_at = now();
-            $shipment->save();
+            $req->status = 'approved';
+            $req->handeled_by = $request->user()->id;
+            $req->handeled_at = now();
+            $req->save();
 
-            if ($request->filled('notes')) {
-                $shipment->addNote($request->input('notes'), $request->user());
-            }
+            $hospitalId = $req->pharmacy?->hospital_id ?? $req->department?->hospital_id;
 
             try {
-                \App\Models\AuditLog::create([
+                AuditLog::create([
                     'user_id' => $request->user()->id,
-                    'hospital_id' => $shipment->hospital_id,
-                    'action' => 'super_admin_approve_external_supply_request',
-                    'table_name' => 'external_supply_requests',
-                    'record_id' => $shipment->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'super_admin_approve_internal_supply_request',
+                    'table_name' => 'internal_supply_request',
+                    'record_id' => $req->id,
                     'new_values' => json_encode(['status' => 'approved']),
                     'ip_address' => $request->ip(),
                 ]);
             } catch (\Exception $e) {
-                 \Log::warning('Audit Log Error: ' . $e->getMessage());
+                \Log::warning('Audit Log Error: ' . $e->getMessage());
             }
 
             try {
-                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'قيد الشحن الدولي', $request->input('notes'));
+                $user = $req->requester ?? \App\Models\User::find($req->requested_by);
+                if ($user) {
+                    $this->notifications->notifyRequesterShipmentApproved($user, $req);
+                }
             } catch (\Exception $e) {
                 \Log::error('Notification error', ['error' => $e->getMessage()]);
             }
 
-            return $this->sendSuccess($shipment, 'تم قبول الطلب بنجاح');
+            return $this->sendSuccess($req, 'تم قبول الطلب بنجاح');
         } catch (\Exception $e) {
-             return $this->handleException($e, 'Super Admin Approve Error');
+            return $this->handleException($e, 'Super Admin Approve Error');
         }
     }
 
     /**
-     * رفض طلب التوريد
+     * رفض طلب التوريد الداخلي
      * PUT /api/super-admin/shipments/{id}/reject
-     * فقط الطلبات التي أنشأها الموردون
      */
     public function reject(Request $request, $id)
     {
         try {
-            $shipment = ExternalSupplyRequest::with(['items', 'supplier', 'hospital', 'requester'])
-                ->whereHas('requester', function($q) {
-                    // فقط الطلبات من الموردين
-                    $q->where('type', 'supplier_admin');
-                })
+            $req = InternalSupplyRequest::with(['items', 'pharmacy', 'requester'])
+                ->whereNotNull('supplier_id')
                 ->findOrFail($id);
 
-            if ($shipment->status !== 'pending') {
-                 return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
+            if ($req->status !== 'pending') {
+                return $this->sendError('الطلب ليس في حالة انتظار، لا يمكن تعديل حالته', null, 400);
             }
 
-            $shipment->status = 'rejected';
-            $shipment->handeled_by = $request->user()->id;
-            $shipment->handeled_at = now();
-            $shipment->rejection_reason = $request->input('rejection_reason', $request->input('rejectionReason', $request->input('notes'))); // Use notes as reason if not provided explicitly
-            $shipment->save();
+            $rejectionReason = $request->input('rejection_reason') ?: $request->input('rejectionReason') ?: $request->input('notes', '');
 
-            if ($request->filled('notes')) {
-                $shipment->addNote($request->input('notes'), $request->user());
-            }
+            $req->status = 'rejected';
+            $req->handeled_by = $request->user()->id;
+            $req->handeled_at = now();
+            $req->save();
+
+            $hospitalId = $req->pharmacy?->hospital_id ?? $req->department?->hospital_id;
 
             try {
-                \App\Models\AuditLog::create([
+                AuditLog::create([
                     'user_id' => $request->user()->id,
-                    'hospital_id' => $shipment->hospital_id,
-                    'action' => 'super_admin_reject_external_supply_request',
-                    'table_name' => 'external_supply_requests',
-                    'record_id' => $shipment->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'super_admin_reject_internal_supply_request',
+                    'table_name' => 'internal_supply_request',
+                    'record_id' => $req->id,
                     'new_values' => json_encode([
                         'status' => 'rejected',
-                        'rejection_reason' => $shipment->rejection_reason,
-                        'handeled_at' => $shipment->handeled_at
+                        'rejectionReason' => $rejectionReason,
+                        'rejectedAt' => now()->format('Y-m-d H:i:s'),
+                        'handeled_at' => $req->handeled_at,
                     ]),
                     'ip_address' => $request->ip(),
                 ]);
             } catch (\Exception $e) {
-                 \Log::warning('Audit Log Error: ' . $e->getMessage());
+                \Log::warning('Audit Log Error: ' . $e->getMessage());
             }
 
             try {
-                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'مرفوض', $request->input('notes'));
+                $user = $req->requester ?? \App\Models\User::find($req->requested_by);
+                if ($user) {
+                    $this->notifications->notifyRequesterShipmentRejected($user, $req, $rejectionReason);
+                }
             } catch (\Exception $e) {
                 \Log::error('Notification error', ['error' => $e->getMessage()]);
             }
 
-            return $this->sendSuccess($shipment, 'تم رفض الطلب بنجاح');
+            return $this->sendSuccess($req, 'تم رفض الطلب بنجاح');
         } catch (\Exception $e) {
-             return $this->handleException($e, 'Super Admin Reject Error');
+            return $this->handleException($e, 'Super Admin Reject Error');
         }
     }
 
     /**
-     * تأكيد استلام الشحنة وتحديث المخزون
-     * فقط الطلبات التي أنشأها الموردون
+     * تأكيد إرسال طلب التوريد الداخلي (تحديث approved_qty وخصم المخزون)
+     * PUT /api/super-admin/shipments/{id}/confirm
      */
     public function confirm(Request $request, $id)
     {
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.id' => 'required|exists:internal_supply_request_items,id',
+            'items.*.sentQuantity' => 'nullable|numeric|min:0',
+            'items.*.approved_qty' => 'nullable|numeric|min:0',
+            'items.*.batch_number' => 'nullable|string|max:100',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
         DB::beginTransaction();
         try {
-            $shipment = ExternalSupplyRequest::with(['items', 'hospital.warehouse', 'requester'])
-                ->whereHas('requester', function($q) {
-                    // فقط الطلبات من الموردين
-                    $q->where('type', 'supplier_admin');
-                })
+            $req = InternalSupplyRequest::with(['items.drug', 'pharmacy.hospital', 'department'])
+                ->whereNotNull('supplier_id')
                 ->findOrFail($id);
-            
-            // مسار "تأكيد الإرسال": تحديث approved_qty فقط (بدون fulfilled_qty)
-            $sentItems = $request->input('items', []);
-            if (!empty($sentItems) && empty($request->input('receivedItems'))) {
-                $sentItemsMap = [];
-                foreach ($sentItems as $sentItem) {
-                    $itemId = $sentItem['id'] ?? null;
-                    $qty = $sentItem['approved_qty'] ?? $sentItem['sentQuantity'] ?? $sentItem['sent_quantity'] ?? null;
-                    if ($itemId !== null && $qty !== null) {
-                        $sentItemsMap[(int)$itemId] = (float)$qty;
-                    }
-                }
 
-                foreach ($shipment->items as $item) {
-                    if (!array_key_exists((int)$item->id, $sentItemsMap)) {
-                        continue;
+            if (in_array($req->status, ['rejected', 'cancelled', 'fulfilled', 'approved'])) {
+                DB::rollBack();
+                return $this->sendError('لا يمكن تعديل طلب في حالة "قيد الاستلام" أو الحالات المغلقة', null, 409);
+            }
+
+            $hospitalId = $req->pharmacy?->hospital_id ?? $req->department?->hospital_id;
+            $warehouse = $hospitalId ? Warehouse::where('hospital_id', $hospitalId)->first() : null;
+            if (!$warehouse) {
+                $warehouse = Warehouse::first();
+            }
+            if (!$warehouse) {
+                DB::rollBack();
+                return $this->sendError('لا يمكن تحديد المستودع لخصم الكميات', null, 400);
+            }
+            $warehouseId = $warehouse->id;
+
+            foreach ($validated['items'] as $itemData) {
+                $item = $req->items->firstWhere('id', $itemData['id']);
+                if (!$item) continue;
+
+                $qtyNeeded = (float)($itemData['sentQuantity'] ?? $itemData['approved_qty'] ?? 0);
+                $batchNumber = $itemData['batch_number'] ?? null;
+
+                if ($qtyNeeded > 0) {
+                    $drugId = $item->drug_id;
+                    $inventoryQuery = Inventory::where('warehouse_id', $warehouseId)
+                        ->where('drug_id', $drugId)
+                        ->where('current_quantity', '>', 0);
+
+                    if ($batchNumber) {
+                        $inventoryQuery->where('batch_number', $batchNumber);
+                        $inventories = $inventoryQuery->get();
+                    } else {
+                        $inventories = $inventoryQuery->orderBy('expiry_date', 'asc')->orderBy('created_at', 'asc')->get();
                     }
-                    $item->approved_qty = $sentItemsMap[(int)$item->id];
+
+                    if ($inventories->isEmpty()) {
+                        DB::rollBack();
+                        $drugName = $item->drug ? $item->drug->name : "ID: {$drugId}";
+                        return $this->sendError("لا يوجد مخزون للمستودع لهذا الدواء: {$drugName}", null, 404);
+                    }
+
+                    $totalAvailable = $inventories->sum('current_quantity');
+                    if ($totalAvailable < $qtyNeeded) {
+                        DB::rollBack();
+                        $drugName = $item->drug ? $item->drug->name : "ID: {$drugId}";
+                        return $this->sendError("الكمية غير متوفرة في المخزن للدواء: {$drugName} (المتاح: {$totalAvailable}, المطلوب: {$qtyNeeded})", null, 409);
+                    }
+
+                    $batchesUsed = [];
+                    $remainingToDeduct = $qtyNeeded;
+
+                    foreach ($inventories as $inv) {
+                        if ($remainingToDeduct <= 0) break;
+                        $deducted = min($inv->current_quantity, $remainingToDeduct);
+                        $inv->current_quantity -= $deducted;
+                        $inv->save();
+                        try {
+                            $this->notifications->checkAndNotifyLowStock($inv);
+                        } catch (\Exception $e) {}
+                        $remainingToDeduct -= $deducted;
+                        $batchesUsed[] = [
+                            'batch_number' => $inv->batch_number,
+                            'expiry_date' => $inv->expiry_date,
+                            'quantity' => $deducted,
+                        ];
+                    }
+
+                    if (count($batchesUsed) > 0) {
+                        $firstBatch = array_shift($batchesUsed);
+                        $item->approved_qty = $firstBatch['quantity'];
+                        $item->fulfilled_qty = 0;
+                        $item->batch_number = $firstBatch['batch_number'];
+                        $item->expiry_date = $firstBatch['expiry_date'];
+                        $item->save();
+
+                        foreach ($batchesUsed as $batch) {
+                            $newItem = $item->replicate();
+                            $newItem->request_id = $req->id;
+                            $newItem->requested_qty = 0;
+                            $newItem->approved_qty = $batch['quantity'];
+                            $newItem->fulfilled_qty = 0;
+                            $newItem->batch_number = $batch['batch_number'];
+                            $newItem->expiry_date = $batch['expiry_date'];
+                            $newItem->save();
+                        }
+                    } else {
+                        $item->approved_qty = 0;
+                        $item->save();
+                    }
+                } else {
+                    $item->approved_qty = 0;
+                    $item->fulfilled_qty = 0;
                     $item->save();
                 }
-
-                if ($shipment->status === 'pending') {
-                    $shipment->status = 'approved';
-                    $shipment->handeled_by = $request->user()->id;
-                    $shipment->handeled_at = now();
-                    $shipment->save();
-                }
-
-                if ($request->filled('notes')) {
-                    $shipment->addNote($request->input('notes'), $request->user());
-                }
-
-                // إشعار المورد بإرسال الشحنة
-                try {
-                    $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, 'تم الإرسال', $request->input('notes'));
-                } catch (\Exception $e) {
-                    \Log::error('Failed to notify supplier about shipment sent', ['error' => $e->getMessage()]);
-                }
-
-                DB::commit();
-                return $this->sendSuccess($shipment, 'تم تأكيد إرسال الشحنة بنجاح');
             }
 
-            // تحقق من أن الشحنة لم يتم استلامها مسبقاً
-            if ($shipment->status === 'fulfilled' || $shipment->status === 'تم الإستلام') {
-                return $this->sendError('تم استلام هذه الشحنة مسبقاً', null, 400);
-            }
+            $req->status = 'approved';
+            $req->handeled_by = $request->user()->id;
+            $req->handeled_at = now();
+            $req->save();
 
-            // استقبال الكميات المستلمة من الواجهة
-            $receivedItems = $request->input('receivedItems', []);
-            $receivedItemsMap = [];
-            foreach ($receivedItems as $receivedItem) {
-                 $itemId = $receivedItem['id'] ?? null;
-                 $qty = $receivedItem['receivedQuantity'] ?? null;
-                 if ($itemId !== null) {
-                     $receivedItemsMap[(int)$itemId] = (float)$qty;
-                 }
-            }
-
-            // تحقق من وجود نقص
-            $hasShortage = false;
-            foreach ($shipment->items as $item) {
-                // الكمية المتوقعة (الموافق عليها أو المطلوبة)
-                $expectedQty = $item->approved_qty ?? $item->requested_qty ?? 0;
-                // الكمية المستلمة فعلياً
-                $receivedQty = isset($receivedItemsMap[(int)$item->id]) ? $receivedItemsMap[(int)$item->id] : $expectedQty;
-                
-                if ($receivedQty < $expectedQty) {
-                    $hasShortage = true;
-                    // break; // لا نوقف الحلقة لنحسب الجميع
-                }
-            }
-
-            if ($hasShortage && empty(trim($request->input('notes', '')))) {
-                DB::rollBack();
-                return $this->sendError('يجب إدخال ملاحظات لتوضيح سبب النقص في الكمية المستلمة.', null, 400);
-            }
-
-            // العثور على المستودع الخاص بالمستشفى
-            $warehouse = $shipment->hospital->warehouse;
-            if (!$warehouse) {
-                 // محاولة العثور على المستودع يدوياً إذا لم تكن العلاقة محملة أو موجودة
-                 $warehouse = Warehouse::where('hospital_id', $shipment->hospital_id)->first();
-                 
-                 if (!$warehouse) {
-                     // إنشاء مستودع افتراضي إذا لم يوجد
-                     $warehouse = Warehouse::create([
-                         'hospital_id' => $shipment->hospital_id,
-                         'name' => 'المستودع الرئيسي',
-                         'status' => 'active'
-                     ]);
-                 }
-            }
-
-            // تحديث المخزون
-            foreach ($shipment->items as $item) {
-                $expectedQty = $item->approved_qty ?? $item->requested_qty ?? 0;
-                $receivedQty = isset($receivedItemsMap[(int)$item->id]) ? $receivedItemsMap[(int)$item->id] : $expectedQty;
-                
-                if ($receivedQty <= 0) continue;
-
-                // تحديث أو إنشاء المخزون في المستودع
-                $inventory = Inventory::firstOrNew([
-                    'warehouse_id' => $warehouse->id,
-                    'drug_id' => $item->drug_id,
+            $hospitalId = $req->pharmacy?->hospital_id ?? $req->department?->hospital_id;
+            try {
+                AuditLog::create([
+                    'user_id' => $request->user()->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'super_admin_confirm_internal_supply_request',
+                    'table_name' => 'internal_supply_request',
+                    'record_id' => $req->id,
+                    'new_values' => json_encode([
+                        'status' => 'approved',
+                        'items_count' => count($validated['items']),
+                        'notes' => $validated['notes'] ?? null,
+                    ]),
+                    'ip_address' => $request->ip(),
                 ]);
-                
-                // التأكد من أن pharmacy_id فارغ لأنه مستودع
-                $inventory->pharmacy_id = null; 
-
-                $inventory->current_quantity = ($inventory->current_quantity ?? 0) + $receivedQty;
-                $inventory->save();
-
-                // تحديث الكمية المستلمة في البند
-                $item->fulfilled_qty = $receivedQty;
-                $item->save();
+            } catch (\Exception $e) {
+                \Log::warning('Audit Log Error: ' . $e->getMessage());
             }
 
-            // تحديث حالة الطلب
-            $shipment->status = 'fulfilled';
-            $shipment->save();
-
-            if ($request->filled('notes')) {
-                $shipment->addNote($request->input('notes'), $request->user());
+            try {
+                $user = $req->requester ?? \App\Models\User::find($req->requested_by);
+                if ($user) {
+                    $this->notifications->notifyRequesterShipmentApproved($user, $req);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Notification error', ['error' => $e->getMessage()]);
             }
-
-            // تسجيل في AuditLog
-             \App\Models\AuditLog::create([
-                'user_id'     => $request->user()->id,
-                'hospital_id' => $shipment->hospital_id,
-                'action'      => 'super_admin_confirm_external_supply_request',
-                'table_name'  => 'external_supply_request',
-                'record_id'   => $shipment->id,
-                'new_values'  => json_encode([
-                    'status' => 'fulfilled',
-                    'notes' => $request->input('notes'),
-                    'request_id' => $shipment->id,
-                    'supplier_id' => $shipment->supplier_id
-                ]),
-                'old_values' => json_encode(['status' => $shipment->getOriginal('status')]),
-                'ip_address'  => $request->ip(),
-            ]);
 
             DB::commit();
-
-            // إشعار المورد
-            try {
-                $statusArabic = 'تم الإستلام';
-                $this->notifications->notifySupplierAboutSuperAdminResponse($shipment, $statusArabic, $request->input('notes'));
-            } catch (\Exception $e) {
-                \Log::error('Failed to notify supplier', ['error' => $e->getMessage()]);
-            }
-            
-            // Return with translated status for consistency
-            $shipment->status = 'تم الإستلام';
-
-            return $this->sendSuccess($shipment, 'تم تأكيد استلام الشحنة وتحديث المخزون بنجاح');
-
+            return $this->sendSuccess($req, 'تم تأكيد إرسال الطلب وخصم الكميات من مخزون المستودع بنجاح');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->handleException($e, 'Super Admin Shipment Confirm Error');

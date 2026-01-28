@@ -543,14 +543,14 @@ const fetchShipments = async () => {
 
             return {
                 id: shipment.id,
-                shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+                shipmentNumber: shipment.shipmentNumber || `INT-${shipment.id}`,
                 requestDate: shipment.requestDate || shipment.createdAt,
                 requestStatus: displayStatus,
                 requestingDepartment: shipment.requestingDepartment || shipment.department || 'قسم غير محدد',
                 received,
                 details: {
                     id: shipment.id,
-                    shipmentNumber: shipment.shipmentNumber || `EXT-${shipment.id}`,
+                    shipmentNumber: shipment.shipmentNumber || `INT-${shipment.id}`,
                     department: shipment.requestingDepartment || shipment.department,
                     date: shipment.requestDate || shipment.createdAt,
                     status: displayStatus,
@@ -773,7 +773,7 @@ const openRequestViewModal = async (shipment) => {
         // تحويل البيانات لتتوافق مع ما يتوقعه مكون المعاينة
         selectedRequestDetails.value = {
             id: response.id,
-            shipmentNumber: response.shipmentNumber || `EXT-${response.id}`,
+            shipmentNumber: response.shipmentNumber || `INT-${response.id}`,
             department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
             date: response.date || response.requestDate || response.createdAt,
             status: response.status || shipment.requestStatus,
@@ -793,6 +793,8 @@ const openRequestViewModal = async (shipment) => {
                 type: item.type || item.form || ''
             })),
             notes: response.notes || '',
+            creationNotes: response.creationNotes || null,
+            adminConfirmationNotes: response.adminConfirmationNotes || null,
             storekeeperNotes: response.storekeeperNotes || null,
             storekeeperNotesSource: response.storekeeperNotesSource || null,
             supplierNotes: response.supplierNotes || null,
@@ -859,7 +861,7 @@ const openConfirmationModal = async (shipment) => {
         console.log('📥 Response from API:', response);
         selectedShipmentForConfirmation.value = {
             id: response.id || shipment.id,
-            shipmentNumber: response.shipmentNumber || shipment.shipmentNumber || `EXT-${response.id || shipment.id}`,
+            shipmentNumber: response.shipmentNumber || shipment.shipmentNumber || `INT-${response.id || shipment.id}`,
             department: response.department || shipment.requestingDepartment || 'قسم غير محدد',
             date: response.date || response.requestDate || response.createdAt || shipment.requestDate,
             status: response.status || shipment.requestStatus,
@@ -1046,6 +1048,8 @@ const openReviewModal = async (shipment) => {
                 type: item.type || item.form || ''
             })),
             notes: response.notes || '',
+            creationNotes: response.creationNotes || null,
+            adminConfirmationNotes: response.adminConfirmationNotes || null,
             storekeeperNotes: response.storekeeperNotes || null,
             storekeeperNotesSource: response.storekeeperNotesSource || null,
             supplierNotes: response.supplierNotes || null,

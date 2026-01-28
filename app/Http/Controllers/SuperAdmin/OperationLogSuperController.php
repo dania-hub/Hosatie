@@ -462,6 +462,11 @@ class OperationLogSuperController extends BaseApiController
             'super_admin_confirm_external_supply_request' => 'إرسال شحنة (إدارة)',
             'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
             'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
+
+            // عمليات superAdmin/requests (طلبات التوريد الداخلية من المورد)
+            'super_admin_approve_internal_supply_request' => 'موافقة إدارة على طلب توريد داخلي',
+            'super_admin_reject_internal_supply_request' => 'رفض إدارة لطلب توريد داخلي',
+            'super_admin_confirm_internal_supply_request' => 'تأكيد إرسال طلب توريد داخلي (إدارة)',
             
             // عمليات عامة
             'create' => 'إنشاء',

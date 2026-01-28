@@ -82,12 +82,56 @@ class DashboardDoctorController extends BaseApiController
         
         $dailyExaminations = $patientIds->count();
 
-        // 3. عدد الحالات قيد المتابعة (خاصة بهذا الطبيب فقط)
-        $activeCases = Prescription::where('doctor_id', $doctorId) // خاصة بهذا الطبيب فقط
-            ->where('hospital_id', $hospitalId)
-            ->where('status', 'active')
-            ->distinct('patient_id')
-            ->count();
+        // 3. عدد الحالات التي تتابعها (مجموع المرضى الذين قام الطبيب بتعيين أو حذف أدوية لهم)
+        // نحسب عدد المرضى الفريدين الذين قام هذا الطبيب بعمليات على أدويتهم (إضافة/تعديل/حذف)
+        // من خلال AuditLog للطبيب المعين فقط (user_id = doctor_id) - جميع السجلات وليس فقط اليوم
+        $allAuditLogs = AuditLog::where('user_id', $doctorId) // العمليات الخاصة بهذا الطبيب فقط
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+            ->get();
+
+        $allPatientIds = $allAuditLogs->map(function($log) use ($doctorId, $hospitalId) {
+            // محاولة جلب patient_id من new_values أو old_values
+            $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+            
+            // 1. محاولة من patient_info (مع التحقق من أن Prescription مرتبطة بهذا الطبيب)
+            $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+            if ($patientInfo && isset($patientInfo['id'])) {
+                // التحقق من أن المريض في نفس المستشفى (للأمان)
+                $patient = \App\Models\User::where('id', $patientInfo['id'])
+                    ->where('hospital_id', $hospitalId)
+                    ->first();
+                if ($patient) {
+                    return $patientInfo['id'];
+                }
+            }
+            
+            // 2. محاولة من prescription_id (مع التأكد من أن Prescription خاصة بهذا الطبيب)
+            $prescriptionId = $newValues['prescription_id'] ?? $oldValues['prescription_id'] ?? null;
+            if ($prescriptionId) {
+                $prescription = Prescription::where('doctor_id', $doctorId) // خاصة بهذا الطبيب فقط
+                    ->where('hospital_id', $hospitalId)
+                    ->find($prescriptionId);
+                if ($prescription) {
+                    return $prescription->patient_id;
+                }
+            }
+            
+            // 3. محاولة من record_id (prescription_drug id) مع التأكد من أن Prescription خاصة بهذا الطبيب
+            if ($log->record_id) {
+                $prescriptionDrug = PrescriptionDrug::with(['prescription' => function($query) use ($doctorId, $hospitalId) {
+                    $query->where('doctor_id', $doctorId) // خاصة بهذا الطبيب فقط
+                          ->where('hospital_id', $hospitalId);
+                }])->find($log->record_id);
+                if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                    return $prescriptionDrug->prescription->patient_id;
+                }
+            }
+            
+            return null;
+        })->filter()->unique();
+        
+        $activeCases = $allPatientIds->count();
 
         $data = [
             'totalRegistered' => $totalPatients,     // Changed from 'today' to 'total'

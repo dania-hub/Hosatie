@@ -42,7 +42,7 @@
         </label>
         <input 
           id="jobRole" 
-          :value="editedData.jobRole"
+          :value="translateRole(editedData.jobRole)"
           type="text" 
           disabled
           class="w-full px-4 py-2 border border-gray-200 bg-gray-100 rounded-lg text-lg text-right cursor-not-allowed"
@@ -166,6 +166,24 @@ const isFormChanged = computed(() => {
   return editedData.value.fullName !== props.initialData.fullName ||
          editedData.value.phone !== props.initialData.phone;
 });
+
+// دالة تعريب الدور الوظيفي
+const translateRole = (role) => {
+    const roleTranslations = {
+        'hospital_admin': 'مدير نظام المستشفى',
+        'supplier_admin': ' مورد',
+        'super_admin': 'المدير الأعلى',
+        'warehouse_manager': 'مسؤول المخزن',
+        'pharmacist': 'صيدلي',
+        'doctor': 'طبيب',
+        'department_head': 'مدير القسم',
+        'patient': 'مريض',
+        'data_entry': 'مدخل بيانات',
+        'department_admin': 'مدير القسم'
+    };
+    
+    return roleTranslations[role] || role || 'غير محدد';
+};
 
 const saveChanges = () => {
   // التحقق من صحة البيانات قبل الإرسال

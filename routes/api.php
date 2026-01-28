@@ -358,6 +358,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // =====================================================================
     Route::prefix('doctor')->group(function () {
         Route::get('patients', [PatientDoctorController::class, 'index']);
+        Route::get('patients/followed', [PatientDoctorController::class, 'followedPatients']);
         Route::get('patients/{id}', [PatientDoctorController::class, 'show']);
         Route::get('drugs', [DrugDoctorController::class, 'index']);
         Route::get('drugs/{id}', [DrugDoctorController::class, 'show']);
@@ -525,6 +526,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('operations', [DashboardDepartmentAdminController::class, 'operations']);
         // Patient Management (For View 2)
         Route::get('patients', [PatientDepartmentAdminController::class, 'index']);
+        Route::get('patients/followed', [PatientDepartmentAdminController::class, 'followedPatients']);
         Route::get('patients/{id}', [PatientDepartmentAdminController::class, 'show']);
         Route::post('patients/{id}/medications', [PatientDepartmentAdminController::class, 'store']);
         Route::put('patients/{id}/medications', [PatientDepartmentAdminController::class, 'updateMedications']);

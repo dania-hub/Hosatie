@@ -491,7 +491,7 @@ const fetchShipments = async () => {
 
             return {
                 id: shipment.id,
-                shipmentNumber: shipment.shipmentNumber || `SHP-${shipment.id}`,
+                shipmentNumber: shipment.shipmentNumber || `INT-${shipment.id}`,
                 requestDate: requestDate,
                 requestStatus: normalizedStatus,
                 received: shipment.received || (shipment.status === 'تم الإستلام' || shipment.status === 'fulfilled'),
@@ -780,6 +780,7 @@ const openRequestViewModal = async (shipment) => {
                 notes: fetchedData.notes || '',
                 storekeeperNotes: fetchedData.storekeeperNotes || null,
                 supplierNotes: fetchedData.supplierNotes || null,
+                adminConfirmationNotes: fetchedData.adminConfirmationNotes || null,
                 confirmationNotes: fetchedData.confirmationNotes || null,
                 rejectionReason: fetchedData.rejectionReason || null,
                 rejectedAt: fetchedData.rejectedAt || null,
@@ -795,13 +796,14 @@ const openRequestViewModal = async (shipment) => {
     // تحديث البيانات مع التأكد من وجود الكميات المطلوبة والمرسلة والمستلمة
     selectedRequestDetails.value = {
         ...shipment.details,
-        storekeeperNotes: shipment.details.storekeeperNotes || fetchedData?.storekeeperNotes || null,
-        storekeeperNotesSource: shipment.details.storekeeperNotesSource || fetchedData?.storekeeperNotesSource || null,
-        supplierNotes: shipment.details.supplierNotes || fetchedData?.supplierNotes || null,
-        confirmationNotes: fetchedData?.confirmationNotes || shipment.details.confirmationNotes || null,
-        confirmationNotesSource: shipment.details.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
-        rejectionReason: fetchedData?.rejectionReason || shipment.details.rejectionReason || null,
-        rejectedAt: fetchedData?.rejectedAt || shipment.details.rejectedAt || null,
+        storekeeperNotes: shipment.details?.storekeeperNotes || fetchedData?.storekeeperNotes || null,
+        storekeeperNotesSource: shipment.details?.storekeeperNotesSource || fetchedData?.storekeeperNotesSource || null,
+        supplierNotes: shipment.details?.supplierNotes || fetchedData?.supplierNotes || null,
+        adminConfirmationNotes: shipment.details?.adminConfirmationNotes || fetchedData?.adminConfirmationNotes || null,
+        confirmationNotes: fetchedData?.confirmationNotes || shipment.details?.confirmationNotes || null,
+        confirmationNotesSource: shipment.details?.confirmationNotesSource || fetchedData?.confirmationNotesSource || null,
+        rejectionReason: fetchedData?.rejectionReason || shipment.details?.rejectionReason || null,
+        rejectedAt: fetchedData?.rejectedAt || shipment.details?.rejectedAt || null,
         items: (shipment.details.items || []).map(item => ({
             ...item,
             // الكمية المطلوبة

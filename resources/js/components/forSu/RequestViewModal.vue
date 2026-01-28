@@ -215,6 +215,15 @@
                         <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.storekeeperNotes }}</p>
                     </div>
 
+                    <!-- ملاحظة تأكيد الإرسال من المدير العام -->
+                    <div v-if="requestDetails.adminConfirmationNotes" class="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                        <h4 class="font-bold text-amber-700 mb-2 flex items-center gap-2">
+                            <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                            ملاحظة تأكيد الإرسال (من المدير العام)
+                        </h4>
+                        <p class="text-amber-800 text-sm leading-relaxed">{{ requestDetails.adminConfirmationNotes }}</p>
+                    </div>
+
                     <!-- ملاحظة عند الإرسال من storekeeper -->
                     <div v-if="requestDetails.supplierNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
                         <h4 class="font-bold text-green-700 mb-2 flex items-center gap-2">
@@ -349,8 +358,10 @@ const props = defineProps({
             notes: '',
             storekeeperNotes: null,
             supplierNotes: null,
+            adminConfirmationNotes: null,
             confirmation: null,
             confirmationDetails: null,
+            confirmationNotes: null,
             rejectionReason: null,
             priority: null
         })
@@ -372,6 +383,7 @@ watch(() => props.requestData, (newVal) => {
             storekeeperNotes: newVal.storekeeperNotes || null,
             storekeeperNotesSource: newVal.storekeeperNotesSource || null,
             supplierNotes: newVal.supplierNotes || null,
+            adminConfirmationNotes: newVal.adminConfirmationNotes || null,
             confirmationNotes: newVal.confirmationNotes || (newVal.confirmation?.confirmationNotes) || null,
             confirmationNotesSource: newVal.confirmationNotesSource || null
         };
@@ -702,9 +714,11 @@ const hasSupplierMessages = computed(() => {
 const hasActualNotes = computed(() => {
     return requestDetails.value.storekeeperNotes || 
            requestDetails.value.supplierNotes || 
+           requestDetails.value.adminConfirmationNotes ||
            supplierMessages.value.length > 0 ||
            adminMessages.value.length > 0 ||
-           (requestDetails.value.confirmation && requestDetails.value.confirmation.notes);
+           (requestDetails.value.confirmation && requestDetails.value.confirmation.notes) ||
+           (requestDetails.value.confirmationNotes && !requestDetails.value.confirmation);
 });
 
 // التحقق من وجود أي كمية مرسلة في أي item
@@ -970,11 +984,12 @@ const printRequest = () => {
                 </tbody>
             </table>
 
-            ${details.storekeeperNotes || details.supplierNotes ? `
+            ${details.storekeeperNotes || details.supplierNotes || details.adminConfirmationNotes ? `
             <div class="notes-section">
                 <h3 style="color: #2E5077; margin-top: 0;">الملاحظات</h3>
                 ${details.storekeeperNotes ? `<p><strong>ملاحظة الطلب:</strong> ${details.storekeeperNotes}</p>` : ''}
                 ${details.supplierNotes ? `<p><strong>من مدير المخزن:</strong> ${details.supplierNotes}</p>` : ''}
+                ${details.adminConfirmationNotes ? `<p><strong>ملاحظة تأكيد الإرسال (من المدير العام):</strong> ${details.adminConfirmationNotes}</p>` : ''}
             </div>
             ` : ''}
 

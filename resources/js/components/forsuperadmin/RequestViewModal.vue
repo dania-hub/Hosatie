@@ -183,14 +183,17 @@
                         </div>
                     </div>
 
-                    <div v-if="requestDetails.senderNotes || (requestDetails.notes && !Array.isArray(requestDetails.notes) && requestDetails.notes.trim())" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div v-if="requestDetails.senderNotes || requestDetails.creationNotes || (requestDetails.notes && !Array.isArray(requestDetails.notes) && requestDetails.notes.trim())" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                             <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                                 <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                                 رسالة المرسل
                             </h4>
-                            <!-- Always show the initial message (Sender Message) -->
+                            <!-- Always show the initial message (Sender Message): ملاحظة الإنشاء من المورد أو الطرف المرسل -->
                              <div v-if="requestDetails.senderNotes">
                                 <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.senderNotes }}</p>
+                            </div>
+                            <div v-else-if="requestDetails.creationNotes">
+                                <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.creationNotes }}</p>
                             </div>
                             <!-- Fallback for legacy format -->
                             <div v-else-if="requestDetails.notes && !Array.isArray(requestDetails.notes)">
@@ -199,11 +202,20 @@
                         </div> 
 
                     <!-- Notes -->
-                    <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="space-y-4">
+                    <div v-if="requestDetails.storekeeperNotes || requestDetails.supplierNotes || requestDetails.adminConfirmationNotes || (requestDetails.confirmation && requestDetails.confirmation.confirmationNotes) || (requestDetails.confirmationNotes && !requestDetails.confirmation)" class="space-y-4">
                         <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                             <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                             الملاحظات
                         </h3>
+
+                        <!-- ملاحظة تأكيد الإرسال من الإدارة (super_admin_confirm) -->
+                        <div v-if="requestDetails.adminConfirmationNotes" class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                            <h4 class="font-bold text-purple-700 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                ملاحظة تأكيد الإرسال (من الإدارة)
+                            </h4>
+                            <p class="text-purple-800 text-sm leading-relaxed">{{ requestDetails.adminConfirmationNotes }}</p>
+                        </div>
 
                         <!-- ملاحظة Storekeeper (الملاحظة الأصلية عند الإنشاء) -->
                         <div v-if="requestDetails.storekeeperNotes" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
@@ -223,7 +235,14 @@
                             <p class="text-green-800 text-sm leading-relaxed">{{ requestDetails.supplierNotes }}</p>
                         </div>
 
-                    
+                        <!-- ملاحظة تأكيد الاستلام (من الصيدلي/القسم/المورد) عندما لا تكون ضمن تفاصيل التأكيد -->
+                        <div v-if="(requestDetails.confirmationNotes && !requestDetails.confirmation) || (requestDetails.confirmationNotes && requestDetails.confirmation && !requestDetails.confirmation.confirmationNotes)" class="p-4 bg-teal-50 border border-teal-100 rounded-xl">
+                            <h4 class="font-bold text-teal-700 mb-2 flex items-center gap-2">
+                                <Icon icon="solar:chat-round-check-bold" class="w-5 h-5" />
+                                {{ requestDetails.confirmationNotesSource === 'supplier' ? 'ملاحظة تأكيد الاستلام (من المورد)' : requestDetails.confirmationNotesSource === 'pharmacist' ? 'ملاحظة تأكيد الاستلام (من الصيدلي)' : requestDetails.confirmationNotesSource === 'department' ? 'ملاحظة تأكيد الاستلام (من القسم)' : 'ملاحظة تأكيد الاستلام' }}
+                            </h4>
+                            <p class="text-teal-800 text-sm leading-relaxed">{{ requestDetails.confirmationNotes }}</p>
+                        </div>
 
                         <!-- للتوافق مع الكود القديم -->
                         <div v-if="!requestDetails.storekeeperNotes && !requestDetails.supplierNotes && requestDetails.confirmation?.notes && !requestDetails.confirmation?.confirmationNotes" class="p-4 bg-green-50 border border-green-100 rounded-xl">
@@ -311,6 +330,8 @@ const props = defineProps({
             status: '', 
             items: [], 
             notes: '',
+            creationNotes: null,
+            adminConfirmationNotes: null,
             storekeeperNotes: null,
             storekeeperNotesSource: null,
             supplierNotes: null,
@@ -364,6 +385,8 @@ const loadRequestDetails = async () => {
                 : null,
             rejectedAt: props.requestData.rejectedAt || null,
             notes: props.requestData.notes || '',
+            creationNotes: props.requestData.creationNotes || null,
+            adminConfirmationNotes: props.requestData.adminConfirmationNotes || null,
             storekeeperNotes: props.requestData.storekeeperNotes || null,
             storekeeperNotesSource: props.requestData.storekeeperNotesSource || null,
             supplierNotes: props.requestData.supplierNotes || null,
@@ -409,10 +432,12 @@ const loadRequestDetails = async () => {
                 department: responseData.department || responseData.requestingDepartment,
                 date: responseData.date || responseData.requestDate,
                 
-                // Specific fields for logic
-                notes: notes,
-                senderNotes: senderMsg,
+                // Specific fields for logic: ترجيح ملاحظة الإنشاء (من المورد) لـ رسالة المرسل
+                notes: responseData.notes ?? notes,
+                senderNotes: senderMsg || responseData.creationNotes || (typeof responseData.notes === 'string' ? responseData.notes : ''),
                 supplierNotes: supplierMsg || responseData.supplierNotes,
+                creationNotes: responseData.creationNotes ?? null,
+                adminConfirmationNotes: responseData.adminConfirmationNotes ?? null,
 
                 rejectionReason: responseData.rejection_reason || responseData.rejectionReason,
                 rejectedAt: responseData.rejected_at || responseData.rejectedAt,

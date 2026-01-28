@@ -63,6 +63,12 @@ const toArabicNumerals = (str) => {
     const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
     return String(str).replace(/[0-9]/g, (w) => arabicNumbers[parseInt(w)]);
 };
+// تفاصيل العملية: إبقاء أرقام الطلبات (INT-xxx / EXT-xxx) بالأرقام الإنجليزية
+const formatOperationBody = (str) => {
+    if (str == null || str === '') return '';
+    if (/(INT|EXT)-\d+/.test(str)) return str;
+    return toArabicNumerals(str);
+};
 
 // قائمة بأنواع العمليات المتاحة للتصفية
 const operationTypes = computed(() => {
@@ -366,7 +372,7 @@ const printTable = () => {
                     <td style="font-weight: 600;">${op.full_name || '-'}</td>
                     <td>
                         <div style="font-weight: 700; color: #4DA1A9;">${toArabicNumerals(op.operation_label || '-')}</div>
-                        <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${toArabicNumerals(op.operation_body || '')}</div>
+                        <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${formatOperationBody(op.operation_body || '')}</div>
                     </td>
                     <td style="white-space: nowrap;">${op.date || '-'}</td>
                 </tr>
@@ -590,7 +596,7 @@ const openEditModal = (op) => console.log('تعديل العملية:', op);
                                             <td class="operation-type-col">
                                                 <div class="flex flex-col">
                                                     <span class="text-[#4DA1A9] font-bold text-base mb-1">{{ toArabicNumerals(op.operation_label) }}</span>
-                                                    <span class="text-gray-600 text-sm">{{ toArabicNumerals(op.operation_body) }}</span>
+                                                    <span class="text-gray-600 text-sm">{{ formatOperationBody(op.operation_body) }}</span>
                                                 </div>
                                             </td>
                                             <td class="operation-date-col">{{ op.date }}</td>

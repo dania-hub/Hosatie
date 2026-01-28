@@ -176,11 +176,15 @@ class DashboardSupplierController extends BaseApiController
 
             // قائمة العمليات المسموح بها (فقط عمليات المورد)
             $allowedActions = [
-                'supplier_create_external_supply_request',  // إنشاء طلب توريد من المورد
-                'supplier_confirm_external_supply_request', // تأكيد وإرسال شحنة
-                'supplier_reject_external_supply_request',  // رفض طلب شحنة
-                'supplier_confirm_external_delivery',       // تأكيد استلام الشحنة
-                'supplier_confirm_receipt',                 // تأكيد استلام الشحنة (الاسم الفعلي المستخدم)
+                // طلبات التوريد الخارجية (external)
+                'supplier_create_external_supply_request',
+                'supplier_confirm_external_supply_request',
+                'supplier_reject_external_supply_request',
+                'supplier_confirm_external_delivery',
+                'supplier_confirm_receipt',
+                // طلبات التوريد الداخلية (internal) - Supplier/supply-requests
+                'supplier_create_internal_supply_request',  // إنشاء طلب توريد داخلي
+                'supplier_confirm_internal_receipt',        // تأكيد استلام طلب توريد داخلي
             ];
 
             // جلب جميع العمليات التي قام بها المستخدم الحالي أو المتعلقة بطلبات المورد
@@ -192,25 +196,29 @@ class DashboardSupplierController extends BaseApiController
                 ->limit(100)
                 ->get()
                 ->map(function ($log) {
-                    $desc = $this->translateOperationType($log->action);
-                    
-                    // إنشاء وصف أكثر وضوحاً بناءً على نوع العملية
-                    if ($log->table_name === 'external_supply_request' && $log->record_id) {
-                        $desc .= ' - رقم الطلب: EXT-' . $log->record_id;
+                    $opType = $this->translateOperationType($log->action);
+
+                    // إلحاق رقم الشحنة/الطلب بجانب نوع العملية، مثلاً: إنشاء طلب توريد داخلي (INT-200)
+                    if ($log->record_id) {
+                        if ($log->table_name === 'internal_supply_request') {
+                            $opType .= ' (INT-' . $log->record_id . ')';
+                        } elseif ($log->table_name === 'external_supply_request') {
+                            $opType .= ' (EXT-' . $log->record_id . ')';
+                        }
                     }
+
+                    $desc = $opType;
 
                     // محاولة استخراج معلومات إضافية من new_values
                     if (!empty($log->new_values)) {
                         $decoded = json_decode($log->new_values, true);
                         if (is_array($decoded)) {
                             if (isset($decoded['hospital_id'])) {
-                                // جلب اسم المستشفى
                                 $hospital = \App\Models\Hospital::find($decoded['hospital_id']);
                                 if ($hospital) {
                                     $desc .= ' - ' . $hospital->name;
                                 }
                             } elseif (isset($decoded['hospital_name'])) {
-                                // استخدام اسم المستشفى من new_values مباشرة
                                 $desc .= ' - ' . $decoded['hospital_name'];
                             } elseif (isset($decoded['rejectionReason'])) {
                                 $desc .= ' - السبب: ' . $decoded['rejectionReason'];
@@ -220,7 +228,7 @@ class DashboardSupplierController extends BaseApiController
 
                     return [
                         'id' => $log->id,
-                        'operationType' => $this->translateOperationType($log->action),
+                        'operationType' => $opType,
                         'description' => $desc,
                         'userName' => $log->user->full_name ?? 'النظام',
                         'operationDate' => $log->created_at->format('Y/m/d'),
@@ -245,13 +253,16 @@ class DashboardSupplierController extends BaseApiController
             'delete' => 'حذف',
             'confirm' => 'تأكيد',
             'reject' => 'رفض',
-            // عمليات المورد
-            'supplier_create_external_supply_request' => 'إنشاء طلب توريد  ',
+            // عمليات المورد (external)
+            'supplier_create_external_supply_request' => 'إنشاء طلب توريد',
             'supplier_confirm_external_supply_request' => 'تأكيد وإرسال شحنة',
             'supplier_reject_external_supply_request' => 'رفض طلب شحنة',
             'supplier_approve_external_supply_request' => 'موافقة على طلب توريد',
             'supplier_confirm_external_delivery' => 'تأكيد استلام الشحنة',
             'supplier_confirm_receipt' => 'تأكيد استلام شحنة',
+            // عمليات المورد (internal) - Supplier/supply-requests
+            'supplier_create_internal_supply_request' => 'إنشاء طلب توريد داخلي',
+            'supplier_confirm_internal_receipt' => 'تأكيد استلام طلب توريد داخلي',
             // عمليات StoreKeeper
             'create_external_supply_request' => 'إنشاء طلب توريد من المخزن',
             'storekeeper_confirm_external_delivery' => 'تأكيد استلام الشحنة',

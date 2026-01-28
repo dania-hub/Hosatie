@@ -199,13 +199,12 @@
 
 
 
-  <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+  <div v-if="requestDetails.notes && requestDetails.notes.trim()" class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h4 class="font-bold text-blue-700 mb-2 flex items-center gap-2">
                             <Icon icon="solar:chat-round-line-bold" class="w-5 h-5" />
                             رسالة المورد
                         </h4>
-                        <p v-if="requestDetails.notes" class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
-                        <p v-else class="text-blue-400 text-sm leading-relaxed italic">لا توجد رسالة مرفقة</p>
+                        <p class="text-blue-800 text-sm leading-relaxed">{{ requestDetails.notes }}</p>
                     </div> 
 
 

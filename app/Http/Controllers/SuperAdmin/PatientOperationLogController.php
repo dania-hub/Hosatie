@@ -24,7 +24,8 @@ class PatientOperationLogController extends BaseApiController
             'hospitals',
             'suppliers',
             'drugs',
-            'inventories' // Maybe?
+            'inventories',
+            'internal_supply_request',  // superAdmin/requests (طلبات التوريد الداخلية من المورد)
         ];
 
         // 2. Base Query - Fetch logs for these tables, performed by THIS user
@@ -91,17 +92,6 @@ class PatientOperationLogController extends BaseApiController
                 return str_contains($item['searchable_text'], $search);
             })->values();
         }
-
-        // Apply Arabic Numerals to final result
-        $data = $data->map(function($item) {
-            $item['file_number'] = $item['file_number'];
-            $item['operation_label'] = $this->toArabicNumerals($item['operation_label']);
-            $item['operation_body'] = $this->toArabicNumerals($item['operation_body']);
-            $item['operation_type'] = $this->toArabicNumerals($item['operation_type']);
-            $item['date'] = $item['date'];
-            $item['time'] = $item['time'];
-            return $item;
-        });
 
         return response()->json($data);
     }
@@ -179,6 +169,19 @@ class PatientOperationLogController extends BaseApiController
                     $relatedObject = $dispensing;
                 }
                 break;
+
+            case 'internal_supply_request':
+                $req = \App\Models\InternalSupplyRequest::with('supplier')->find($log->record_id);
+                if ($req) {
+                    $entity = (object)[
+                        'id' => $req->id,
+                        'file_number' => 'INT-' . $req->id,
+                        'full_name' => $req->supplier ? $req->supplier->name : ('طلب توريد داخلي #' . $req->id),
+                        'name' => $req->supplier ? $req->supplier->name : ('طلب #' . $req->id),
+                    ];
+                    $relatedObject = $req;
+                }
+                break;
         }
         
         // Return structured as 'patient' because index method expects it, 
@@ -200,6 +203,10 @@ class PatientOperationLogController extends BaseApiController
             'update' => 'تعديل',
             'delete' => 'حذف',
             'drug_expired_zeroed' => 'تصفير كمية دواء منتهية',
+            // superAdmin/requests (طلبات التوريد الداخلية)
+            'super_admin_approve_internal_supply_request' => 'موافقة إدارة على طلب توريد داخلي',
+            'super_admin_reject_internal_supply_request' => 'رفض إدارة لطلب توريد داخلي',
+            'super_admin_confirm_internal_supply_request' => 'تأكيد إرسال طلب توريد داخلي',
         ];
         
         if (isset($map[$log->action])) {
@@ -288,6 +295,15 @@ class PatientOperationLogController extends BaseApiController
              }
 
              $body = $drugName ? "دواء: {$drugName}" : 'تعديل في الأدوية';
+        }
+
+        // superAdmin/requests: طلبات التوريد الداخلية (internal_supply_request)
+        if ($log->table_name === 'internal_supply_request') {
+            if (isset($map[$log->action])) {
+                $label = $map[$log->action];
+            }
+            $reqId = $log->record_id ?? (json_decode($log->new_values, true)['request_id'] ?? null);
+            $body = $reqId ? 'رقم الطلب: INT-' . $reqId : '';
         }
         
         return ['label' => $label, 'body' => $body];

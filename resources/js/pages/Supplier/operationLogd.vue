@@ -64,29 +64,19 @@ const fetchOperations = async () => {
         
         // تحويل البيانات لتطابق ما يتوقعه الجدول
         operations.value = operationsData.map(op => {
-            // استخراج رقم الشحنة من الوصف إذا كان موجوداً
-            let shipmentNumber = '';
-            if (op.description) {
-                const shipmentMatch = op.description.match(/EXT-(\d+)/);
-                if (shipmentMatch) {
-                    shipmentNumber = shipmentMatch[0]; // EXT-XX
-                }
-            }
-            
-            // إضافة رقم الشحنة إلى نوع العملية إذا كان موجوداً
-            let operationTypeWithShipment = op.operationType || '';
-            if (shipmentNumber) {
-                operationTypeWithShipment += ' (' + shipmentNumber + ')';
-            }
-            
+            // استخراج رقم الشحنة (INT-xx أو EXT-xx) من نوع العملية أو الوصف للبحث
+            const text = (op.operationType || '') + ' ' + (op.description || '');
+            const shipmentMatch = text.match(/(INT|EXT)-(\d+)/);
+            const shipmentNumber = shipmentMatch ? shipmentMatch[0] : '';
+
             return {
                 fileNumber: op.id || op.fileNumber || '',
-                operationType: operationTypeWithShipment,
+                operationType: op.operationType || '',
                 operationDate: op.operationDate || '',
                 description: op.description || '',
                 userName: op.userName || '',
                 operationTime: op.operationTime || '',
-                shipmentNumber: shipmentNumber // حفظه للبحث أيضاً
+                shipmentNumber: shipmentNumber
             };
         });
         

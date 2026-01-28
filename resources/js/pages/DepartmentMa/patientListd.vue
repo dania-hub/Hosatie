@@ -61,6 +61,7 @@ const patients = ref([]);
 const isLoading = ref(true);
 const hasError = ref(false);
 const errorMessage = ref("");
+const showFollowedOnly = ref(false); // فلتر المرضى الذين يتابعهم مدير القسم
 
 // ----------------------------------------------------
 // 3. دوال API
@@ -124,6 +125,77 @@ const fetchPatients = async (search = '') => {
     }
   } finally {
     isLoading.value = false;
+  }
+};
+
+// دالة جلب المرضى الذين يتابعهم مدير القسم
+const fetchFollowedPatients = async (search = '') => {
+  isLoading.value = true;
+  hasError.value = false;
+  errorMessage.value = "";
+  
+  showSuccessAlert("جاري تحميل المرضى الذين تتابعهم...");
+  
+  try {
+    const params = {};
+    if (search) {
+      params.search = search;
+    }
+    const response = await api.get('/patients/followed', { params });
+    const patientsData = response.data.data || response.data;
+    patients.value = patientsData.map(patient => ({
+      ...patient,
+      lastUpdated: patient.lastUpdated ? new Date(patient.lastUpdated).toISOString() : new Date().toISOString(),
+      nameDisplay: patient.name || patient.nameDisplay || 'غير متوفر',
+      nationalIdDisplay: patient.nationalId || patient.nationalIdDisplay || 'غير متوفر',
+      birthDisplay: patient.birth || patient.birthDisplay || 'غير متوفر'
+    }));
+    
+    showSuccessAlert(`تم تحميل ${patients.value.length} مريض تتابعهم بنجاح`);
+  } catch (err) {
+    hasError.value = true;
+    const errorData = err.response?.data;
+    
+    if (err.response?.status === 401) {
+      errorMessage.value = "انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.";
+      showErrorAlert("انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى.");
+    } else if (err.response?.status === 403) {
+      errorMessage.value = "ليس لديك صلاحية لعرض قائمة المرضى.";
+      showWarningAlert("ليس لديك صلاحية لعرض قائمة المرضى.");
+    } else if (err.response?.status === 404) {
+      errorMessage.value = "لم يتم العثور على بيانات المرضى.";
+      showWarningAlert("لم يتم العثور على بيانات المرضى.");
+    } else if (err.response?.status === 422) {
+      errorMessage.value = "بيانات البحث غير صالحة.";
+      showErrorAlert("بيانات البحث غير صالحة.");
+    } else if (err.response?.status === 500) {
+      errorMessage.value = "حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.";
+      showErrorAlert("حدث خطأ في الخادم. الرجاء المحاولة مرة أخرى لاحقاً.");
+    } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+      errorMessage.value = "فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.";
+      showErrorAlert("فشل الاتصال بالخادم. الرجاء التحقق من اتصال الإنترنت.");
+    } else if (errorData?.message) {
+      errorMessage.value = errorData.message;
+      showErrorAlert(` ${errorData.message}`);
+    } else {
+      errorMessage.value = 'حدث خطأ غير متوقع في جلب بيانات المرضى.';
+      showErrorAlert("حدث خطأ غير متوقع في جلب بيانات المرضى.");
+    }
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// دالة تبديل فلتر المرضى الذين يتابعهم مدير القسم
+const toggleFollowedFilter = async () => {
+  showFollowedOnly.value = !showFollowedOnly.value;
+  
+  if (showFollowedOnly.value) {
+    // جلب المرضى الذين يتابعهم مدير القسم
+    await fetchFollowedPatients(searchTerm.value);
+  } else {
+    // إعادة تحميل جميع المرضى
+    await fetchPatients(searchTerm.value);
   }
 };
 
@@ -865,13 +937,17 @@ const printTable = () => {
 // ----------------------------------------------------
 // دعم البحث مع API (debounced)
 let searchTimeout = null;
-watch(searchTerm, (newValue) => {
+watch(searchTerm, async (newValue) => {
   if (searchTimeout) {
     clearTimeout(searchTimeout);
   }
   // انتظار 500ms بعد توقف المستخدم عن الكتابة قبل استدعاء API
   searchTimeout = setTimeout(() => {
-    fetchPatients(newValue);
+    if (showFollowedOnly.value) {
+      fetchFollowedPatients(newValue);
+    } else {
+      fetchPatients(newValue);
+    }
   }, 500);
 });
 
@@ -881,7 +957,11 @@ onMounted(() => {
 
 // إعادة تحميل البيانات عند الحاجة
 const reloadData = () => {
-  fetchPatients(searchTerm.value);
+  if (showFollowedOnly.value) {
+    fetchFollowedPatients(searchTerm.value);
+  } else {
+    fetchPatients(searchTerm.value);
+  }
 };
 </script>
 
@@ -894,6 +974,20 @@ const reloadData = () => {
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-2 gap-3 sm:gap-0">
                         <div class="flex flex-col sm:flex-row justify-between items-center  gap-3 sm:gap-0">
                             <div class="flex items-center gap-3 w-full sm:max-w-xl">
+                                <!-- زر المرضى الذين أتابعهم -->
+                                <button
+                                    @click="toggleFollowedFilter"
+                                    :class="[
+                                        'inline-flex items-center justify-center px-4 py-2.5 border-2 rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] font-medium cursor-pointer z-[1] whitespace-nowrap',
+                                        showFollowedOnly 
+                                            ? 'w-40 border-[#4DA1A9] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] shadow-md' 
+                                            : 'w-73 border-[#4DA1A9] bg-white text-[#4DA1A9] hover:bg-[#4DA1A9]/10 hover:border-[#4DA1A9]'
+                                    ]"
+                                    :title="showFollowedOnly ? 'إظهار جميع المرضى' : 'إظهار المرضى الذين أتابعهم فقط'"
+                                >
+                                    <span>{{ showFollowedOnly ? 'جميع المرضى' : 'المرضى الذين أتابعهم' }}</span>
+                                </button>
+                                
                                 <search v-model="searchTerm" />
                             
                             <!-- زر إظهار/إخفاء فلتر التاريخ -->

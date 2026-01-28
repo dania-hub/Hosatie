@@ -6,6 +6,8 @@ use App\Http\Controllers\BaseApiController;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Prescription;
+use App\Models\PrescriptionDrug;
+use App\Models\AuditLog;
 use App\Models\Dispensing;
 use Carbon\Carbon;
 
@@ -213,6 +215,117 @@ class PatientDoctorController extends BaseApiController
         ];
 
         return $this->sendSuccess($data, 'تم جلب بيانات المريض بنجاح.');
+    }
+
+    /**
+     * جلب قائمة المرضى الذين يتابعهم الطبيب (المرضى الذين قام بتعيين أو حذف أدوية لهم)
+     */
+    public function followedPatients(Request $request)
+    {
+        $doctorId = $request->user()->id;
+        $hospitalId = $request->user()->hospital_id;
+
+        // التأكد من أن المستخدم لديه hospital_id
+        if (!$hospitalId) {
+            return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+        }
+
+        // جلب جميع سجلات AuditLog للطبيب (عمليات على prescription_drug)
+        $allAuditLogs = AuditLog::where('user_id', $doctorId)
+            ->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
+            ->get();
+
+        // استخراج معرفات المرضى الفريدة
+        $patientIds = $allAuditLogs->map(function($log) use ($doctorId, $hospitalId) {
+            $newValues = $log->new_values ? json_decode($log->new_values, true) : null;
+            $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
+            
+            // 1. محاولة من patient_info
+            $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
+            if ($patientInfo && isset($patientInfo['id'])) {
+                $patient = User::where('id', $patientInfo['id'])
+                    ->where('hospital_id', $hospitalId)
+                    ->first();
+                if ($patient) {
+                    return $patientInfo['id'];
+                }
+            }
+            
+            // 2. محاولة من prescription_id
+            $prescriptionId = $newValues['prescription_id'] ?? $oldValues['prescription_id'] ?? null;
+            if ($prescriptionId) {
+                $prescription = Prescription::where('doctor_id', $doctorId)
+                    ->where('hospital_id', $hospitalId)
+                    ->find($prescriptionId);
+                if ($prescription) {
+                    return $prescription->patient_id;
+                }
+            }
+            
+            // 3. محاولة من record_id
+            if ($log->record_id) {
+                $prescriptionDrug = PrescriptionDrug::with(['prescription' => function($query) use ($doctorId, $hospitalId) {
+                    $query->where('doctor_id', $doctorId)
+                          ->where('hospital_id', $hospitalId);
+                }])->find($log->record_id);
+                if ($prescriptionDrug && $prescriptionDrug->prescription) {
+                    return $prescriptionDrug->prescription->patient_id;
+                }
+            }
+            
+            return null;
+        })->filter()->unique();
+
+        // جلب بيانات المرضى
+        $patients = User::where('type', 'patient')
+            ->where('hospital_id', $hospitalId)
+            ->whereIn('id', $patientIds->toArray())
+            ->orderBy('updated_at', 'desc')
+            ->get()
+            ->map(function ($patient) use ($hospitalId) {
+                $birthFormatted = $patient->birth_date
+                    ? Carbon::parse($patient->birth_date)->format('Y/m/d')
+                    : null;
+                
+                $activePrescriptions = Prescription::with(['drugs'])
+                    ->where('patient_id', $patient->id)
+                    ->where('status', 'active')
+                    ->get();
+
+                $allMedications = collect();
+                foreach ($activePrescriptions as $prescription) {
+                    foreach ($prescription->drugs as $drug) {
+                        $allMedications->push([
+                            'id'       => $drug->id,
+                            'pivot_id' => $drug->pivot->id,
+                            'drugName' => $drug->name,
+                            'strength' => $drug->strength ?? null,
+                            'dosage'   => $drug->pivot->monthly_quantity,
+                            'note'     => $drug->pivot->note,
+                            'maxMonthlyDose' => $drug->max_monthly_dose ?? null,
+                            'isPhasingOut' => $drug->status === \App\Models\Drug::STATUS_PHASING_OUT,
+                            'phasingOutWarning' => $drug->status === \App\Models\Drug::STATUS_PHASING_OUT 
+                                ? "هذا الدواء قيد الإيقاف التدريجي. يرجى التخطيط لنقل المريض إلى بديل مناسب." 
+                                : null,
+                        ]);
+                    }
+                }
+
+                $hasPrescriptionInCurrentHospital = $activePrescriptions->contains('hospital_id', $hospitalId);
+
+                return [
+                    'fileNumber' => $patient->id,
+                    'name'       => $patient->full_name,
+                    'nationalId' => $patient->national_id,
+                    'birth'      => $birthFormatted ?? 'غير محدد',
+                    'phone'      => $patient->phone,
+                    'lastUpdated'=> $patient->updated_at->toIso8601String(),
+                    'medications' => $allMedications->toArray(),
+                    'hasPrescription' => $hasPrescriptionInCurrentHospital
+                ];
+            });
+
+        return $this->sendSuccess($patients, 'تم جلب قائمة المرضى الذين تتابعهم بنجاح.');
     }
 
     /**

@@ -325,6 +325,44 @@ class StaffNotificationService
         }
     }
 
+    // Notify Super Admin about New Internal Request (from Supplier)
+    public function notifySuperAdminNewInternalRequest(InternalSupplyRequest $request, ?string $notes = null)
+    {
+        $superAdmins = User::where('type', 'super_admin')->get();
+
+        if (!$request->relationLoaded('supplier')) $request->load('supplier');
+        if (!$request->relationLoaded('items.drug')) $request->load('items.drug');
+
+        $supplierName = $request->supplier->name ?? 'مورد غير محدد';
+
+        $message = "قام المورد [{$supplierName}] بإرسال طلب توريد داخلي جديد (رقم #{$request->id}) إلى الإدارة.";
+
+        if ($request->items && $request->items->count() > 0) {
+            $message .= "\n\nالمواد المطلوبة:";
+            foreach ($request->items->take(5) as $item) {
+                $drugName = $item->drug->name ?? 'دواء غير معروف';
+                $qty = $item->requested_qty ?? 0;
+                $message .= "\n- {$drugName} (الكمية: {$qty})";
+            }
+            if ($request->items->count() > 5) {
+                $message .= "\n...و " . ($request->items->count() - 5) . " مواد أخرى.";
+            }
+        }
+
+        if (!empty($notes)) {
+            $message .= "\n\nملاحظات الطلب:\n{$notes}";
+        }
+
+        foreach ($superAdmins as $admin) {
+            $this->createNotification(
+                $admin,
+                'طلب توريد داخلي جديد من مورد',
+                $message,
+                'عادي'
+            );
+        }
+    }
+
     // Notify about Patient Transfer (To the source hospital admin)
     public function notifyAdminTransferRequest(PatientTransferRequest $request)
     {

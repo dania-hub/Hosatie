@@ -53,9 +53,9 @@ class DashboardSupplierController extends BaseApiController
                 ->where('status', 'approved')
                 ->count();
             
-            // الشحنات المكتملة (fulfilled): الشحنات التي تم إرسالها من المورد
+            // الشحنات المكتملة (fulfilled/delivered): الشحنات التي تم إرسالها من المورد واستلمها المستشفى أو لا تزال قيد الاستلام
             $fulfilledShipments = (clone $shipmentsBaseQuery)
-                ->where('status', 'fulfilled')
+                ->whereIn('status', ['fulfilled', 'delivered'])
                 ->count();
             
             // الشحنات المرفوضة (rejected): الشحنات التي تم رفضها من المورد

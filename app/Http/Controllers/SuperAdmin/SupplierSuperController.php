@@ -13,6 +13,52 @@ use Illuminate\Support\Facades\Validator;
 class SupplierSuperController extends BaseApiController
 {
     /**
+     * جلب الكود التالي المقترح للمورد
+     * GET /api/super-admin/suppliers/next-code
+     */
+    public function getNextSupplierCode(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $lastId = Supplier::max('id') ?? 0;
+            $nextId = $lastId + 1;
+            $code = "MED-SUP-" . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+
+            return $this->sendSuccess(['code' => $code], 'تم توليد الكود المقترح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Next Supplier Code Error');
+        }
+    }
+
+    /**
+     * التحقق من وجود اسم المورد أو المستشفى
+     * GET /api/super-admin/suppliers/check-name/{name}
+     */
+    public function checkName(Request $request, $name)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $existsInSuppliers = Supplier::where('name', $name)->exists();
+            $existsInHospitals = Hospital::where('name', $name)->exists();
+            $exists = $existsInSuppliers || $existsInHospitals;
+
+            return $this->sendSuccess([
+                'exists' => $exists,
+                'name' => $name
+            ], $exists ? 'الاسم موجود بالفعل في النظام' : 'الاسم متاح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin Supplier Check Name Error');
+        }
+    }
+    /**
      * عرض قائمة الموردين
      * GET /api/super-admin/suppliers
      */
@@ -103,6 +149,13 @@ class SupplierSuperController extends BaseApiController
                 return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
             }
 
+            // التحقق من تكرار الاسم في المستشفيات والموردين
+            $nameExistsInSuppliers = Supplier::where('name', $request->name)->exists();
+            $nameExistsInHospitals = Hospital::where('name', $request->name)->exists();
+            if ($nameExistsInSuppliers || $nameExistsInHospitals) {
+                return $this->sendError('بيانات غير صحيحة', ['name' => ['هذا الاسم مستخدم بالفعل لمستشفى أو شركة توريد']], 422);
+            }
+
             // التحقق من وجود رقم الهاتف في hospitals, suppliers و users
             if ($request->has('phone') && $request->phone) {
                 $existsInHospitals = Hospital::where('phone', $request->phone)->exists();
@@ -121,9 +174,17 @@ class SupplierSuperController extends BaseApiController
                 }
             }
 
+            // توليد كود تلقائي إذا لم يتم إرساله
+            $code = $request->code;
+            if (!$code) {
+                $lastId = Supplier::max('id') ?? 0;
+                $nextId = $lastId + 1;
+                $code = "MED-SUP-" . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+            }
+
             $supplier = Supplier::create([
                 'name' => $request->name,
-                'code' => $request->code,
+                'code' => $code,
                 'phone' => $request->phone,
                 'address' => $request->address,
                 'city' => $request->city,
@@ -290,6 +351,95 @@ class SupplierSuperController extends BaseApiController
      * تعطيل مورد
      * PATCH /api/super-admin/suppliers/{id}/deactivate
      */
+    /**
+     * التحقق المسبق قبل إيقاف تفعيل مورد
+     * GET /api/super-admin/suppliers/{id}/deactivation-data
+     */
+    public function deactivationData(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $supplier = Supplier::findOrFail($id);
+
+            // 1. التحقق من وجود مورد بديل (أهم شرط)
+            $otherActiveSuppliersCount = Supplier::where('id', '!=', $id)
+                ->where('status', 'active')
+                ->count();
+            
+            if ($otherActiveSuppliersCount === 0) {
+                return $this->sendError('لا يمكن إيقاف هذا المورد لأنه المورد النشط الوحيد في النظام. يجب إضافة وتفعيل مورد بديل أولاً.', null, 422);
+            }
+
+            // 2. التحقق من العمليات النشطة (Blockers)
+            
+            // طلبات التوريد الخارجية النشطة للمورد
+            $activeExternalRequests = \App\Models\ExternalSupplyRequest::where('supplier_id', $id)
+                ->whereIn('status', ['pending', 'approved', 'partially_approved', 'fulfilled'])
+                ->get();
+            
+            // طلبات التوريد الداخلية النشطة للمورد
+            $activeInternalRequests = \App\Models\InternalSupplyRequest::where('supplier_id', $id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->get();
+
+            $blockers = [];
+            foreach ($activeExternalRequests as $req) {
+                $blockers[] = "طلب توريد خارجي رقم EXT-{$req->id}";
+            }
+            foreach ($activeInternalRequests as $req) {
+                $blockers[] = "طلب توريد داخلي رقم INT-{$req->id}";
+            }
+
+            // 3. التحقق من الكيانات المرتبطة (Counts)
+            
+            // المستشفيات التابعة
+            $hospitalsCount = Hospital::where('supplier_id', $id)->count();
+            
+            // رصيد المخزن الحالي (عدد الأدوية ذات الرصيد > 0)
+            $inventoryItemsCount = \App\Models\Inventory::where('supplier_id', $id)
+                ->where('current_quantity', '>', 0)
+                ->count();
+            
+            // 4. قائمة الموردين البدلاء
+            $otherSuppliers = Supplier::where('id', '!=', $id)
+                ->where('status', 'active')
+                ->get(['id', 'name', 'city']);
+
+            // 5. مدير المورد الحالي
+            $supplierAdmin = User::where('supplier_id', $id)->where('type', 'supplier_admin')->first();
+
+            return $this->sendSuccess([
+                'supplier' => [
+                    'id' => $supplier->id,
+                    'name' => $supplier->name,
+                    'city' => $supplier->city,
+                ],
+                'blockers' => $blockers,
+                'hasBlockers' => count($blockers) > 0,
+                'counts' => [
+                    'hospitals' => $hospitalsCount,
+                    'inventoryItems' => $inventoryItemsCount,
+                ],
+                'alternativeSuppliers' => $otherSuppliers,
+                'manager' => $supplierAdmin ? [
+                    'id' => $supplierAdmin->id,
+                    'name' => $supplierAdmin->full_name,
+                ] : null
+            ], 'تم جلب بيانات فحص الإيقاف بنجاح');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin Supplier Deactivation Data Error');
+        }
+    }
+
+    /**
+     * FR-88: تعطيل مورد (مع المعالج التفاعلي)
+     * PATCH /api/super-admin/suppliers/{id}/deactivate
+     */
     public function deactivate(Request $request, $id)
     {
         try {
@@ -305,16 +455,112 @@ class SupplierSuperController extends BaseApiController
                 return $this->sendError('المورد معطل بالفعل', null, 400);
             }
 
-            $supplier->update(['status' => 'inactive']);
+            // التحقق من وجود مورد بديل أولاً
+            $otherActiveSuppliersCount = Supplier::where('id', '!=', $id)
+                ->where('status', 'active')
+                ->count();
+            
+            if ($otherActiveSuppliersCount === 0) {
+                return $this->sendError('لا يمكن إيقاف هذا المورد لأنه المورد النشط الوحيد في النظام.', null, 422);
+            }
 
-            return $this->sendSuccess([
-                'id' => $supplier->id,
-                'name' => $supplier->name,
-                'status' => 'inactive',
-            ], 'تم تعطيل المورد بنجاح');
+            // التحقق من العمليات النشطة
+            $hasExternal = \App\Models\ExternalSupplyRequest::where('supplier_id', $id)
+                ->whereIn('status', ['pending', 'approved', 'partially_approved', 'fulfilled'])
+                ->exists();
+            $hasInternal = \App\Models\InternalSupplyRequest::where('supplier_id', $id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->exists();
+
+            if ($hasExternal || $hasInternal) {
+                return $this->sendError('لا يمكن إيقاف المورد. يوجد طلبات توريد نشطة. يجب إكمالها أو إلغاؤها أولاً.', null, 422);
+            }
+
+            // التحقق من صحة البيانات المرسلة من المعالج
+            $validator = Validator::make($request->all(), [
+                'target_supplier_id' => 'required|exists:suppliers,id',
+                'transfer_inventory' => 'required|boolean',
+                'manager_action' => 'required|in:deactivate',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+            }
+
+            DB::beginTransaction();
+
+            try {
+                $targetSupplierId = $request->target_supplier_id;
+                $targetSupplier = Supplier::find($targetSupplierId);
+
+                // 1. إعادة ربط المستشفيات التابعة
+                Hospital::where('supplier_id', $id)->update(['supplier_id' => $targetSupplierId]);
+
+                // 2. نقل المخزون (إذا طلب ذلك)
+                if ($request->transfer_inventory) {
+                    $sourceInventories = \App\Models\Inventory::where('supplier_id', $id)
+                        ->where('current_quantity', '>', 0)
+                        ->get();
+
+                    foreach ($sourceInventories as $sourceInv) {
+                        $qty = $sourceInv->current_quantity;
+                        
+                        // البحث عن نفس الصنف في المورد الهدف مع قفل السجل لضمان دقة العمليات الحسابية
+                        $targetInv = \App\Models\Inventory::where('supplier_id', $targetSupplierId)
+                            ->where('drug_id', $sourceInv->drug_id)
+                            ->where('batch_number', $sourceInv->batch_number)
+                            ->where('expiry_date', $sourceInv->expiry_date)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if ($targetInv) {
+                            $targetInv->increment('current_quantity', $qty);
+                        } else {
+                            \App\Models\Inventory::create([
+                                'supplier_id' => $targetSupplierId,
+                                'drug_id' => $sourceInv->drug_id,
+                                'batch_number' => $sourceInv->batch_number,
+                                'expiry_date' => $sourceInv->expiry_date,
+                                'current_quantity' => $qty,
+                                'status' => 'active',
+                            ]);
+                        }
+                        
+                        // تصفير المخزون في المورد المنقول منه بشكل صريح
+                        $sourceInv->current_quantity = 0;
+                        $sourceInv->save();
+                    }
+                }
+
+                // 3. التعامل مع المدير
+                $manager = User::where('supplier_id', $id)->where('type', 'supplier_admin')->first();
+                if ($manager) {
+                    // إيقاف تفعيل الحساب وفكه من المورد
+                    $manager->update([
+                        'status' => 'inactive',
+                        'supplier_id' => null
+                    ]);
+                    $manager->tokens()->delete();
+                }
+
+                // 4. الإيقاف النهائي للمورد
+                $supplier->update(['status' => 'inactive']);
+
+                DB::commit();
+
+                return $this->sendSuccess([
+                    'id' => $supplier->id,
+                    'name' => $supplier->name,
+                    'status' => 'inactive',
+                ], 'تم إيقاف المورد وإعادة توزيع التبعيات بنجاح');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
 
         } catch (\Exception $e) {
-            return $this->handleException($e, 'Super Admin Supplier Deactivate Error');
+            return $this->handleException($e, 'Super Admin Supplier Deactivation Error');
         }
     }
 

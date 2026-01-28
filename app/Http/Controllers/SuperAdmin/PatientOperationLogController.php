@@ -60,6 +60,15 @@ class PatientOperationLogController extends BaseApiController
             if ($entity) {
                 $fileNumber = $entity->file_number ?? $entity->id;
                 $fullName = $entity->full_name ?? ($entity->name ?? $entity->name_ar ?? 'غير معروف');
+                
+                // إضافة اسم المؤسسة للمديرين لتمييزهم
+                if ($log->table_name === 'users') {
+                    if ($entity->type === 'hospital_admin' && $entity->hospital) {
+                        $fullName .= " (" . $entity->hospital->name . ")";
+                    } elseif ($entity->type === 'supplier_admin' && $entity->supplier) {
+                        $fullName .= " (" . $entity->supplier->name . ")";
+                    }
+                }
             }
 
             return [
@@ -239,21 +248,41 @@ class PatientOperationLogController extends BaseApiController
         }
         if ($log->table_name === 'suppliers') {
             $label = 'إدارة الموردين';
-            if ($log->action == 'create') {
-                $body = 'إضافة مورد جديد';
-            } else {
-                $changes = $this->getChangesDescription($log);
-                $body = $changes ?: 'تحديث بيانات مورد';
+            $supplierName = '';
+            if ($context['patient']) {
+                $supplierName = $context['patient']->name ?? '';
             }
+
+            $actionVerb = match($log->action) {
+                'create', 'created' => 'إضافة مورد جديد',
+                'update', 'updated' => 'تعديل بيانات المورد',
+                'delete', 'deleted' => 'حذف مورد',
+                'deactivate' => 'تعطيل المورد',
+                'activate' => 'تفعيل المورد',
+                default => $translatedAction ?? $log->action
+            };
+
+            $changes = $this->getChangesDescription($log);
+            $body = "$actionVerb: " . ($supplierName ?: "مورد #{$log->record_id}") . ($changes ? " ($changes)" : "");
         }
         if ($log->table_name === 'drugs') {
             $label = 'إدارة الأدوية';
-            if ($log->action == 'create') {
-                $body = 'إضافة دواء جديد';
-            } else {
-                $changes = $this->getChangesDescription($log);
-                $body = $changes ?: 'تحديث بيانات دواء';
+            $drugName = '';
+            if ($context['patient']) {
+                $drugName = $context['patient']->name ?? '';
             }
+
+            $actionVerb = match($log->action) {
+                'create', 'created' => 'إضافة دواء جديد',
+                'update', 'updated' => 'تعديل بيانات دواء',
+                'delete', 'deleted' => 'حذف دواء',
+                'discontinue' => 'إيقاف صرف دواء',
+                'reactivate' => 'إعادة تفعيل دواء',
+                default => $translatedAction ?? $log->action
+            };
+
+            $changes = $this->getChangesDescription($log);
+            $body = "$actionVerb: " . ($drugName ?: "دواء #{$log->record_id}") . ($changes ? " ($changes)" : "");
         }
 
         if ($log->table_name === 'users') {
@@ -265,16 +294,25 @@ class PatientOperationLogController extends BaseApiController
                      $body = 'إضافة مستخدم جديد';
                 } else {
                      $changes = $this->getChangesDescription($log);
-                     
-                     // Improve status change visibility
-                     if ($changes === 'تعطيل الحساب') {
-                         $body = 'تعطيل الحساب';
-                     } elseif ($changes === 'تفعيل الحساب') {
-                         $body = 'تفعيل الحساب';
-                     } else {
-                         $body = $changes ?: 'تحديث بيانات مستخدم';
-                     }
-                }
+                                          // Improve status change visibility
+                      if ($changes === 'تعطيل الحساب' || $changes === 'تعطيل') {
+                          $body = 'تعطيل الحساب';
+                      } elseif ($changes === 'تفعيل الحساب' || $changes === 'تفعيل') {
+                          $body = 'تفعيل الحساب';
+                      } else {
+                          $body = $changes ?: 'تحديث بيانات مستخدم';
+                      }
+
+                      // إضافة اسم المؤسسة
+                      $inst = "";
+                      $type = $context['patient']->type ?? null;
+                      if ($type === 'hospital_admin' && ($h = $context['patient']->hospital)) {
+                          $inst = " - مؤسسة: ({$h->name})";
+                      } elseif ($type === 'supplier_admin' && ($s = $context['patient']->supplier)) {
+                          $inst = " - مورد: ({$s->name})";
+                      }
+                      $body .= $inst;
+                 }
             }
         }
         
@@ -337,12 +375,17 @@ class PatientOperationLogController extends BaseApiController
                 $newStatus = $newValues[$key];
                 
                 $isHospital = $log->table_name === 'hospitals';
+                $isSupplier = $log->table_name === 'suppliers';
 
                 if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) {
-                    return $isHospital ? 'تفعيل المؤسسة' : 'تفعيل الحساب';
+                    if ($isHospital) return 'تفعيل المؤسسة';
+                    if ($isSupplier) return 'تفعيل المورد';
+                    return 'تفعيل الحساب';
                 }
                 if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) {
-                    return $isHospital ? 'تعطيل المؤسسة' : 'تعطيل الحساب';
+                    if ($isHospital) return 'تعطيل المؤسسة';
+                    if ($isSupplier) return 'تعطيل المورد';
+                    return 'تعطيل الحساب';
                 }
             }
         }
@@ -388,10 +431,16 @@ class PatientOperationLogController extends BaseApiController
 
             $fieldName = $fieldMap[$key] ?? $key;
             
-            // Customize status for hospitals in multi-field updates
-            if (($key === 'status' || $key === 'is_active') && $log->table_name === 'hospitals') {
-                if ($val == 1 || $val === 'active' || $val === true) $fieldName = 'تفعيل المؤسسة';
-                elseif ($val == 0 || $val === 'inactive' || $val === false) $fieldName = 'تعطيل المؤسسة';
+            // Customize status for institutions/suppliers in multi-field updates
+            if ($key === 'status' || $key === 'is_active') {
+                $isHospital = $log->table_name === 'hospitals';
+                $isSupplier = $log->table_name === 'suppliers';
+                
+                if ($val == 1 || $val === 'active' || $val === true) {
+                    $fieldName = $isHospital ? 'تفعيل المؤسسة' : ($isSupplier ? 'تفعيل المورد' : 'تفعيل الحساب');
+                } elseif ($val == 0 || $val === 'inactive' || $val === false) {
+                    $fieldName = $isHospital ? 'تعطيل المؤسسة' : ($isSupplier ? 'تعطيل المورد' : 'تعطيل الحساب');
+                }
                 $changedFields[] = $fieldName;
                 continue;
             }

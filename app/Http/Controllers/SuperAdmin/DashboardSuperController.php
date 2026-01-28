@@ -127,7 +127,7 @@ class DashboardSuperController extends BaseApiController
                     'pending' => ExternalSupplyRequest::where('status', 'pending')->count(),
                     'approved' => ExternalSupplyRequest::where('status', 'approved')->count(),
                     'rejected' => ExternalSupplyRequest::where('status', 'rejected')->count(),
-                    'fulfilled' => ExternalSupplyRequest::where('status', 'fulfilled')->count(),
+                    'fulfilled' => ExternalSupplyRequest::whereIn('status', ['fulfilled', 'delivered'])->count(),
                 ],
                 'transfer' => [
                     'total' => PatientTransferRequest::count(),

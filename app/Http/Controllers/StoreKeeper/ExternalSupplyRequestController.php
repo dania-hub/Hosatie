@@ -65,57 +65,45 @@ class ExternalSupplyRequestController extends BaseApiController
             $displayStatus = $req->status;
             $isDelivered = false;
             
-            if ($req->status === 'fulfilled' && $req->requested_by === $user->id) {
+            if (($req->status === 'fulfilled' || $req->status === 'delivered') && $req->requested_by === $user->id) {
                 // طلب المستخدم أرسله Supplier
-                // نحتاج التمييز بين "أرسلها Supplier" و "استلمها StoreKeeper"
-                // الحل: نتحقق من أن updated_at للـ items تم تحديثه بعد أن أرسله Supplier
-                // عندما يقبل Supplier، يتم تحديث items.updated_at و req.updated_at
-                // عندما يؤكد StoreKeeper الاستلام، يتم تحديث items.updated_at مرة أخرى
-                // لذا نتحقق من أن items.updated_at بعد req.updated_at (يعني تم تحديثها عند تأكيد الاستلام)
                 
-                // أولاً: نتحقق من أن fulfilled_qty موجود (أرسله Supplier)
-                $hasFulfilledQty = $req->items->every(function($item) {
-                    return $item->fulfilled_qty !== null;
-                });
-                
-                if (!$hasFulfilledQty || $req->items->count() === 0) {
-                    // لا يوجد fulfilled_qty، يعني لم يرسله Supplier بعد
-                    $displayStatus = 'approved'; 
+                if ($req->status === 'delivered') {
+                    $displayStatus = 'delivered';
+                    $isDelivered = true;
                 } else {
-                    // يوجد fulfilled_qty، يعني أرسله Supplier
-                    // الآن نتحقق من أن items تم تحديثها بعد أن أرسله Supplier
-                    // نستخدم updated_at للطلب كمرجع - إذا تم تحديث items بعد req.updated_at، يعني تم الاستلام
-                    // لكن المشكلة أن req.updated_at يتم تحديثه أيضاً عندما يقبل Supplier
-                    // لذا نستخدم طريقة أخرى: نتحقق من أن items.updated_at بعد req.created_at + 1 دقيقة
-                    // أو نستخدم req.updated_at - 1 دقيقة كمرجع
-                    
-                    // الحل الأفضل: نتحقق من أن items.updated_at بعد req.updated_at
-                    // إذا كان الفرق أكثر من ثانية واحدة، يعني تم تحديثها عند تأكيد الاستلام
-                    $requestUpdatedAt = $req->updated_at;
-                    $itemsUpdatedAfterDelivery = $req->items->every(function($item) use ($requestUpdatedAt) {
-                        // إذا كان updated_at للـ item بعد updated_at للطلب بأكثر من ثانية، يعني تم تحديثه عند تأكيد الاستلام
-                        if (!$item->updated_at) {
-                            return false;
-                        }
-                        // نتحقق من أن الفرق أكثر من ثانية واحدة (لأن Supplier و StoreKeeper قد يحدثان في نفس الوقت تقريباً)
-                        $diffInSeconds = $item->updated_at->diffInSeconds($requestUpdatedAt);
-                        return $item->updated_at->gt($requestUpdatedAt) && $diffInSeconds > 1;
+                    // أولاً: نتحقق من أن fulfilled_qty موجود (أرسله Supplier)
+                    $hasFulfilledQty = $req->items->every(function($item) {
+                        return $item->fulfilled_qty !== null;
                     });
                     
-                    // إذا لم يعمل المنطق السابق، نتحقق ببساطة من أن items.updated_at بعد req.updated_at
-                    if (!$itemsUpdatedAfterDelivery) {
-                        $itemsUpdatedAfterDelivery = $req->items->every(function($item) use ($requestUpdatedAt) {
-                            return $item->updated_at && $item->updated_at->gt($requestUpdatedAt);
-                        });
-                    }
-                    
-                    if ($itemsUpdatedAfterDelivery) {
-                        // تم تأكيد الاستلام - يمكن عرض "تم الاستلام"
-                        $displayStatus = 'delivered'; // "تم الاستلام"
-                        $isDelivered = true;
+                    if (!$hasFulfilledQty || $req->items->count() === 0) {
+                        // لا يوجد fulfilled_qty، يعني لم يرسله Supplier بعد
+                        $displayStatus = 'approved'; 
                     } else {
-                        // قيد الاستلام - لم يتم تأكيد الاستلام بعد
-                        $displayStatus = 'fulfilled'; // "قيد الاستلام"
+                        // يوجد fulfilled_qty، يعني أرسله Supplier
+                        // الآن نتحقق من أن items تم تحديثها بعد أن أرسله Supplier
+                        $requestUpdatedAt = $req->updated_at;
+                        $itemsUpdatedAfterDelivery = $req->items->every(function($item) use ($requestUpdatedAt) {
+                            if (!$item->updated_at) {
+                                return false;
+                            }
+                            $diffInSeconds = $item->updated_at->diffInSeconds($requestUpdatedAt);
+                            return $item->updated_at->gt($requestUpdatedAt) && $diffInSeconds > 1;
+                        });
+                        
+                        if (!$itemsUpdatedAfterDelivery) {
+                            $itemsUpdatedAfterDelivery = $req->items->every(function($item) use ($requestUpdatedAt) {
+                                return $item->updated_at && $item->updated_at->gt($requestUpdatedAt);
+                            });
+                        }
+                        
+                        if ($itemsUpdatedAfterDelivery) {
+                            $displayStatus = 'delivered';
+                            $isDelivered = true;
+                        } else {
+                            $displayStatus = 'fulfilled';
+                        }
                     }
                 }
             } elseif ($req->status === 'rejected') {
@@ -674,9 +662,9 @@ class ExternalSupplyRequestController extends BaseApiController
                 $item->save();
             }
 
-            // تحديث الحالة - يمكن إضافة حالة جديدة أو نتركها 'fulfilled'
-            // حالياً، نتركها 'fulfilled' لأنها تعني أن Supplier أرسلها و StoreKeeper استلمها
-            // يمكن إضافة عمود جديد في الجدول لتتبع حالة الاستلام إذا لزم الأمر
+            // تحديث الحالة إلى 'delivered'
+            $externalRequest->status = 'delivered';
+            $externalRequest->save();
 
             // إرسال إشعار في حالة وجود نقص
             $shortageItems = [];
@@ -724,7 +712,7 @@ class ExternalSupplyRequestController extends BaseApiController
                         })->toArray()
                     ]),
                     'new_values' => json_encode([
-                        'status' => 'fulfilled',
+                        'status' => 'delivered',
                         'confirmed_delivery' => true,
                         'items' => $validated['items'],
                         'confirmationNotes' => $validated['notes'] ?? null,

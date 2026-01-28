@@ -155,6 +155,7 @@ class OperationLogSuperController extends BaseApiController
                 try {
                     $hospital = \App\Models\Hospital::find($log->record_id);
                     $hospitalName = $hospital->name ?? '';
+                    if (!$hospitalName) $hospitalName = $this->getPatientName($log);
                 } catch (\Exception $e) {}
             }
 
@@ -164,13 +165,10 @@ class OperationLogSuperController extends BaseApiController
                 'delete', 'deleted' => 'حذف المستشفى',
                 'deactivate' => 'تعطيل المستشفى',
                 'activate' => 'تفعيل المستشفى',
-                default => $translatedAction
+                default => $translatedAction ?? $log->action
             };
 
-            $changes = "";
-            if (str_contains($log->action, 'update')) {
-                $changes = $this->getChangesDescription($log);
-            }
+            $changes = $this->getChangesDescription($log);
 
             return [
                 'label' => 'إدارة المستشفيات',
@@ -196,13 +194,15 @@ class OperationLogSuperController extends BaseApiController
                 'create', 'created' => 'إضافة دواء',
                 'update', 'updated' => 'تعديل بيانات دواء',
                 'delete', 'deleted' => 'حذف دواء',
-                 default => $translatedAction
+                'discontinue' => 'إيقاف صرف دواء',
+                'reactivate' => 'إعادة تفعيل دواء',
+                default => $translatedAction
             };
 
             $drugName = $newValues['name'] ?? ($oldValues['name'] ?? '');
             if (!$drugName) {
                 try {
-                    $drug = Drug::find($log->record_id);
+                    $drug = \App\Models\Drug::find($log->record_id);
                     $drugName = $drug->name ?? '';
                 } catch (\Exception $e) {}
             }
@@ -218,7 +218,35 @@ class OperationLogSuperController extends BaseApiController
             ];
         }
 
-        // 4.6 User Management (General & Staff)
+        // 4.7 Supplier Management
+        if ($log->table_name === 'suppliers') {
+            $supplierName = $newValues['name'] ?? ($oldValues['name'] ?? '');
+            if (!$supplierName) {
+                try {
+                    $supplier = \App\Models\Supplier::find($log->record_id);
+                    $supplierName = $supplier->name ?? '';
+                    if (!$supplierName) $supplierName = $this->getPatientName($log);
+                } catch (\Exception $e) {}
+            }
+
+            $actionVerb = match($log->action) {
+                'create', 'created' => 'إضافة مورد جديد',
+                'update', 'updated' => 'تعديل بيانات المورد',
+                'delete', 'deleted' => 'حذف مورد',
+                'deactivate' => 'تعطيل المورد',
+                'activate' => 'تفعيل المورد',
+                default => $translatedAction
+            };
+
+            $changes = $this->getChangesDescription($log);
+
+            return [
+                'label' => 'إدارة الموردين',
+                'body' => "$actionVerb: " . ($supplierName ?: "مورد #{$log->record_id}") . ($changes ? " ($changes)" : "")
+            ];
+        }
+
+        // 4.8 User Management (General & Staff)
         if ($log->table_name === 'users') {
             $user = null;
             try {
@@ -260,10 +288,39 @@ class OperationLogSuperController extends BaseApiController
             $label = 'إدارة المستخدمين';
             if (($newValues['type'] ?? '') === 'patient' || ($oldValues['type'] ?? '') === 'patient') {
                 $label = 'إدارة المرضى';
+                if ($log->action === 'create_patient') $actionVerb = 'إضافة مريض';
+                if ($log->action === 'update_patient') $actionVerb = 'تعديل مريض';
+                if ($log->action === 'delete_patient') $actionVerb = 'حذف مريض';
             }
 
-            $body = "$actionVerb: " . ($userName ?: "مستخدم #{$log->record_id}") . $typeLabel;
-            if ($changes) $body .= " ($changes)";
+            // إضافة اسم المؤسسة في حال كان المستخدم مديراً
+            $institutionInfo = "";
+            if ($type === 'hospital_admin') {
+                $hId = $newValues['hospital_id'] ?? ($oldValues['hospital_id'] ?? ($user->hospital_id ?? null));
+                if ($hId) {
+                    $h = \App\Models\Hospital::find($hId);
+                    if ($h) $institutionInfo = " - مؤسسة: ({$h->name})";
+                }
+            } elseif ($type === 'supplier_admin') {
+                $sId = $newValues['supplier_id'] ?? ($oldValues['supplier_id'] ?? ($user->supplier_id ?? null));
+                if ($sId) {
+                    $s = \App\Models\Supplier::find($sId);
+                    if ($s) $institutionInfo = " - مورد: ({$s->name})";
+                }
+            }
+
+            $body = "$actionVerb: " . ($userName ?: "مستخدم #{$log->record_id}") . $typeLabel . $institutionInfo;
+            
+            // تحسين وصف العمليات الخاصة بتغيير الحالة للمديرين
+            if (str_contains($log->action, 'update')) {
+                $changes = $this->getChangesDescription($log);
+                if ($changes === 'تفعيل الحساب' || $changes === 'تعطيل الحساب') {
+                    $opText = ($changes === 'تفعيل الحساب') ? 'تم تفعيل حساب' : 'تم تعطيل حساب';
+                    $body = "$opText " . ($type === 'hospital_admin' ? 'مدير مستشفى' : ($type === 'supplier_admin' ? 'مدير مورد' : 'مستخدم')) . ": ($userName)" . $institutionInfo;
+                } elseif ($changes) {
+                    $body .= " ($changes)";
+                }
+            }
 
             return [
                 'label' => $label,
@@ -325,12 +382,32 @@ class OperationLogSuperController extends BaseApiController
         // الحالة 1: العملية مرتبطة مباشرة بمستخدم (table_name = 'users')
         if ($log->table_name === 'users') {
             $u = User::find($log->record_id);
-            if ($u) return $u->full_name ?? $u->name ?? '-';
+            $userName = '-';
+            if ($u) {
+                $userName = $u->full_name ?? $u->name ?? '-';
+                // إذا كان مديراً، نضيف اسم المؤسسة للتوضيح
+                if ($u->type === 'hospital_admin' && $u->hospital) {
+                    $userName .= " (" . $u->hospital->name . ")";
+                } elseif ($u->type === 'supplier_admin' && $u->supplier) {
+                    $userName .= " (" . $u->supplier->name . ")";
+                }
+                return $userName;
+            }
             
             // محاولة من JSON إذا كان محذوفاً
             $values = json_decode($log->new_values ?? $log->old_values, true);
             if (is_array($values)) {
-                return $values['full_name'] ?? ($values['name'] ?? '-');
+                $name = $values['full_name'] ?? ($values['name'] ?? '-');
+                $type = $values['type'] ?? null;
+                
+                if ($type === 'hospital_admin' && isset($values['hospital_id'])) {
+                    $h = \App\Models\Hospital::find($values['hospital_id']);
+                    if ($h) $name .= " (" . $h->name . ")";
+                } elseif ($type === 'supplier_admin' && isset($values['supplier_id'])) {
+                    $s = \App\Models\Supplier::find($values['supplier_id']);
+                    if ($s) $name .= " (" . $s->name . ")";
+                }
+                return $name;
             }
             
             return '-';
@@ -422,7 +499,49 @@ class OperationLogSuperController extends BaseApiController
             return '-';
         }
 
-        // الحالة 5: محاولة أخيرة - البحث في JSON عن patient_id أو patient_name لأي جدول آخر
+        // الحالة 5: الموردين
+        if ($log->table_name === 'suppliers') {
+            $supplier = \App\Models\Supplier::find($log->record_id);
+            if ($supplier) {
+                return $supplier->name;
+            }
+            // محاولة من JSON
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            if (is_array($values)) {
+                return $values['name'] ?? '-';
+            }
+            return '-';
+        }
+
+        // الحالة 6: المستشفيات
+        if ($log->table_name === 'hospitals') {
+            $hospital = \App\Models\Hospital::find($log->record_id);
+            if ($hospital) {
+                return $hospital->name;
+            }
+            // محاولة من JSON
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            if (is_array($values)) {
+                return $values['name'] ?? '-';
+            }
+            return '-';
+        }
+
+        // الحالة 7: الأدوية
+        if ($log->table_name === 'drugs') {
+            $drug = \App\Models\Drug::find($log->record_id);
+            if ($drug) {
+                return $drug->name;
+            }
+            // محاولة من JSON
+            $values = json_decode($log->new_values ?? $log->old_values, true);
+            if (is_array($values)) {
+                return $values['name'] ?? '-';
+            }
+            return '-';
+        }
+
+        // الحالة 8: محاولة أخيرة - البحث في JSON عن patient_id أو patient_name لأي جدول آخر
         $values = json_decode($log->new_values ?? $log->old_values, true);
         if (is_array($values)) {
             // إذا كان هناك patient_name مباشرة
@@ -513,6 +632,10 @@ class OperationLogSuperController extends BaseApiController
             'confirmed' => 'تم التأكيد',
             'reject' => 'رفض',
             'rejection' => 'رفض',
+            'activate' => 'تفعيل',
+            'deactivate' => 'تعطيل',
+            'deactivated' => 'تم التعطيل',
+            'activated' => 'تم التفعيل',
         ];
 
         // إذا كانت الترجمة موجودة، استخدمها
@@ -763,12 +886,17 @@ class OperationLogSuperController extends BaseApiController
                 $newStatus = $newValues[$key];
                 
                 $isHospital = $log->table_name === 'hospitals';
+                $isSupplier = $log->table_name === 'suppliers';
 
                 if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) {
-                    return $isHospital ? 'تفعيل المؤسسة' : 'تفعيل الحساب';
+                    if ($isHospital) return 'تفعيل المؤسسة';
+                    if ($isSupplier) return 'تفعيل المورد';
+                    return 'تفعيل الحساب';
                 }
                 if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) {
-                    return $isHospital ? 'تعطيل المؤسسة' : 'تعطيل الحساب';
+                    if ($isHospital) return 'تعطيل المؤسسة';
+                    if ($isSupplier) return 'تعطيل المورد';
+                    return 'تعطيل الحساب';
                 }
             }
         }
@@ -832,11 +960,16 @@ class OperationLogSuperController extends BaseApiController
             // Special handling for status in multi-field updates
             if ($key === 'status' || $key === 'is_active') {
                 $isHospital = $log->table_name === 'hospitals';
+                $isSupplier = $log->table_name === 'suppliers';
                 if ($val == 1 || $val === 'active' || $val === true) {
-                    $changedFields[] = $isHospital ? 'تفعيل المؤسسة' : 'تفعيل';
+                    if ($isHospital) $changedFields[] = 'تفعيل المؤسسة';
+                    elseif ($isSupplier) $changedFields[] = 'تفعيل المورد';
+                    else $changedFields[] = 'تفعيل';
                     continue;
                 } elseif ($val == 0 || $val === 'inactive' || $val === false) {
-                    $changedFields[] = $isHospital ? 'تعطيل المؤسسة' : 'تعطيل';
+                    if ($isHospital) $changedFields[] = 'تعطيل المؤسسة';
+                    elseif ($isSupplier) $changedFields[] = 'تعطيل المورد';
+                    else $changedFields[] = 'تعطيل';
                     continue;
                 }
             }

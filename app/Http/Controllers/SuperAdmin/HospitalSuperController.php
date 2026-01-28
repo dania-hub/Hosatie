@@ -38,6 +38,31 @@ class HospitalSuperController extends BaseApiController
     }
 
     /**
+     * التحقق من وجود اسم المستشفى أو المورد
+     * GET /api/super-admin/hospitals/check-name/{name}
+     */
+    public function checkName(Request $request, $name)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $existsInHospitals = Hospital::where('name', $name)->exists();
+            $existsInSuppliers = \App\Models\Supplier::where('name', $name)->exists();
+            $exists = $existsInHospitals || $existsInSuppliers;
+
+            return $this->sendSuccess([
+                'exists' => $exists,
+                'name' => $name
+            ], $exists ? 'الاسم موجود بالفعل في النظام' : 'الاسم متاح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin Hospital Check Name Error');
+        }
+    }
+
+    /**
      * FR-86: عرض قائمة المؤسسات الصحية
      * GET /api/super-admin/hospitals
      */
@@ -142,6 +167,13 @@ class HospitalSuperController extends BaseApiController
 
             if ($validator->fails()) {
                 return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+            }
+
+            // التحقق من تكرار الاسم في المستشفيات والموردين
+            $nameExistsInSuppliers = \App\Models\Supplier::where('name', $request->name)->exists();
+            $nameExistsInHospitals = Hospital::where('name', $request->name)->exists();
+            if ($nameExistsInSuppliers || $nameExistsInHospitals) {
+                return $this->sendError('بيانات غير صحيحة', ['name' => ['هذا الاسم مستخدم بالفعل لمستشفى أو شركة توريد']], 422);
             }
 
             // التحقق من وجود رقم الهاتف في hospitals و users

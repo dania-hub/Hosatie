@@ -14,6 +14,7 @@ import supplyAddModel from "@/components/forsuperadmin/supplyAddModel.vue";
 import supplyEditModel from "@/components/forsuperadmin/supplyEditModel.vue";
 import supplyViewModel from "@/components/forsuperadmin/supplyViewModel.vue";
 import Toast from "@/components/Shared/Toast.vue";
+import SupplyDeactivationWizard from "@/components/forsuperadmin/SupplyDeactivationWizard.vue";
 
 // ----------------------------------------------------
 // 1. إعدادات API
@@ -159,10 +160,24 @@ const isStatusConfirmationModalOpen = ref(false);
 const supplierToToggle = ref(null);
 const statusAction = ref("");
 
+const isDeactivationWizardOpen = ref(false);
+
 const openStatusConfirmationModal = (supplier) => {
     supplierToToggle.value = supplier;
-    statusAction.value = supplier.isActive ? "تعطيل" : "تفعيل";
+    
+    // If we are deactivating, open the wizard instead of the simple modal
+    if (supplier.isActive) {
+        isDeactivationWizardOpen.value = true;
+        return;
+    }
+    
+    statusAction.value = "تفعيل";
     isStatusConfirmationModalOpen.value = true;
+};
+
+const handleDeactivationSuccess = (message) => {
+    showSuccessAlert(message || "✅ تم إيقاف المورد بنجاح");
+    fetchAllData();
 };
 
 const closeStatusConfirmationModal = () => {
@@ -397,7 +412,7 @@ const printTable = () => {
         return;
     }
 
-    const printWindow = window.open("", "_blank", "height=600,width=800");
+    const printWindow = window.open("", "_blank", "height=800,width=1000");
 
     if (!printWindow || printWindow.closed || typeof printWindow.closed === "undefined") {
         showSuccessAlert(
@@ -406,67 +421,147 @@ const printTable = () => {
         return;
     }
 
-    let tableHtml = `
-        <style>
-            body {
-                font-family: 'Arial', sans-serif;
-                direction: rtl;
-                padding: 20px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 10px;
-                text-align: right;
-            }
-            th {
-                background-color: #f2f2f2;
-                font-weight: bold;
-            }
-            h1 {
-                text-align: center;
-                color: #2E5077;
-                margin-bottom: 10px;
-            }
-            .results-info {
-                text-align: right;
-                margin-bottom: 15px;
-                font-size: 16px;
-                font-weight: bold;
-                color: #4DA1A9;
-            }
-            .status-active {
-                color: green;
-                font-weight: bold;
-            }
-            .status-inactive {
-                color: red;
-                font-weight: bold;
-            }
-        </style>
+    const currentDate = new Date().toLocaleDateString('ar-LY', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        numberingSystem: 'latn'
+    });
 
-        <h1>قائمة شركات التوريد (تقرير طباعة)</h1>
+    let tableHtml = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>قائمة الموردين (المخازن) - ${currentDate}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            @page { margin: 15mm; size: A4; }
+            .no-print { display: none; }
+        }
         
-        <p class="results-info">
-            عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}
-        </p>
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { padding: 0; margin: 0; color: #1e293b; background: white; line-height: 1.5; }
         
+        .print-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .page-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding-bottom: 20px; 
+            border-bottom: 2px solid #2E5077;
+        }
+        
+        .gov-title { text-align: right; }
+        .gov-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #2E5077; }
+        .gov-title p { margin: 5px 0; font-size: 14px; color: #64748b; }
+        
+        .report-title { text-align: center; margin: 20px 0; }
+        .report-title h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: #1e293b; 
+            background: #f1f5f9;
+            display: inline-block;
+            padding: 10px 40px;
+            border-radius: 50px;
+        }
+        
+        .summary-box {
+            display: grid;
+            grid-template-cols: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+        .stat-value { font-size: 14px; color: #2E5077; font-weight: 700; }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        th { 
+            background-color: #2E5077; 
+            color: white; 
+            font-weight: 700; 
+            padding: 12px 10px; 
+            text-align: right; 
+            font-size: 12px;
+        }
+        td { 
+            padding: 10px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 11px; 
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .status-active { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        .status-inactive { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .signature { text-align: center; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="print-container">
+        <div class="page-header">
+            <div class="gov-title">
+                <h2>وزارة الصحـــــة   </h2>
+                <p>إدارة الشؤون الطبية والخدمات</p>
+            </div>
+            <div style="text-align: left;">
+                <p style="margin: 0; font-weight: 700; color: #2E5077;">تاريخ التقرير: ${currentDate}</p>
+                <p style="margin: 5px 0; color: #64748b; font-size: 12px;">رمز التقرير: SUPP/GEN/${new Date().getTime().toString().slice(-6)}</p>
+            </div>
+        </div>
+
+        <div class="report-title">
+            <h1>قائمة شركات التوريد (المخازن)</h1>
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-item">
+                <span class="stat-label">إجمالي الموردين</span>
+                <span class="stat-value">${resultsCount} مورد</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">حالة التقرير</span>
+                <span class="stat-value">قائمة شاملة ومعتمدة</span>
+            </div>
+        </div>
+
         <table>
             <thead>
                 <tr>
-                    <th>رقم المورد</th>
-                    <th>اسم المورد</th>
-                    <th>كود المورد</th>
-                    <th>المدينة</th>
-                    <th>المسؤول</th>
-                    <th>العنوان</th>
-                    <th>رقم الهاتف</th>
-                    <th>الحالة</th>
-                    <th>تاريخ التحديث</th>
+                    <th width="10%">الكود</th>
+                    <th width="20%">اسم المورد</th>
+                    <th width="15%">المسؤول</th>
+                    <th width="12%">المدينة</th>
+                    <th width="18%">العنوان</th>
+                    <th width="12%">رقم الهاتف</th>
+                    <th width="13%">الحالة</th>
                 </tr>
             </thead>
             <tbody>
@@ -475,17 +570,17 @@ const printTable = () => {
     filteredSuppliers.value.forEach((supplier) => {
         tableHtml += `
             <tr>
-                <td>${supplier.id || ''}</td>
-                <td>${supplier.name || ''}</td>
-                <td>${supplier.code || '-'}</td>
+                <td style="font-family: monospace; font-weight: 700; color: #2E5077;">${supplier.code || '-'}</td>
+                <td style="font-weight: 700;">${supplier.name || '-'}</td>
+                <td>${supplier.managerName || 'غير معين'}</td>
                 <td>${supplier.city || '-'}</td>
-                <td>${supplier.managerName || '-'}</td>
                 <td>${supplier.address || '-'}</td>
                 <td>${supplier.phone || '-'}</td>
-                <td class="${supplier.isActive ? "status-active" : "status-inactive"}">
-                    ${supplier.isActive ? "مفعل" : "معطل"}
+                <td>
+                    <span class="status-badge ${supplier.isActive ? 'status-active' : 'status-inactive'}">
+                        ${supplier.isActive ? 'نشط' : 'معطل'}
+                    </span>
                 </td>
-                <td>${new Date(supplier.lastUpdated).toLocaleDateString('ar-SA')}</td>
             </tr>
         `;
     });
@@ -493,12 +588,22 @@ const printTable = () => {
     tableHtml += `
             </tbody>
         </table>
+
+        <div class="footer">
+            <p>صدر هذا التقرير تلقائياً من النظام المركزي لإدارة المستودعات </p>
+            <p>الصفحة 1 من 1</p>
+        </div>
+
+        <div class="signature">
+            <p style="font-weight: 700; margin-bottom: 50px;">اعتماد الإدارة  </p>
+            <p>.......................................</p>
+        </div>
+    </div>
+</body>
+</html>
     `;
 
-    printWindow.document.write("<html><head><title>طباعة قائمة شركات التوريد</title>");
-    printWindow.document.write("</head><body>");
     printWindow.document.write(tableHtml);
-    printWindow.document.write("</body></html>");
     printWindow.document.close();
 
     printWindow.onload = () => {
@@ -516,7 +621,7 @@ const printTable = () => {
             <div>
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <search v-model="searchTerm" />
+                        <search v-model="searchTerm" placeholder="يمكنك البحث بجميع المعلومات المتاحة هنا..." />
 
                         <!-- فلتر الحالة -->
                         <div class="dropdown dropdown-start">
@@ -844,12 +949,12 @@ const printTable = () => {
                                                     <!-- زر التعديل -->
                                                     <button
                                                         @click="openEditModal(supplier)"
-                                                        class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 hover:scale-105 active:scale-95"
+                                                        class="p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 transition-all duration-200 hover:scale-110 active:scale-95"
                                                         title="تعديل البيانات"
                                                     >
                                                         <Icon
-                                                            icon="solar:pen-new-square-linear"
-                                                            class="w-5 h-5"
+                                                            icon="line-md:pencil"
+                                                            class="w-4 h-4 text-yellow-500"
                                                         />
                                                     </button>
 
@@ -857,22 +962,22 @@ const printTable = () => {
                                                     <button
                                                         @click="openStatusConfirmationModal(supplier)"
                                                         :class="[
-                                                            'w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 border hover:scale-105 active:scale-95',
+                                                            'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                             supplier.isActive
-                                                                ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
-                                                                : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100',
+                                                                ? 'bg-red-50 hover:bg-red-100 border-red-200'
+                                                                : 'bg-blue-50 hover:bg-blue-100 border-blue-200',
                                                         ]"
                                                         :title="getStatusTooltip(supplier.isActive)"
                                                     >
                                                         <Icon
                                                             v-if="supplier.isActive"
-                                                            icon="solar:forbidden-circle-linear"
-                                                            class="w-5 h-5"
+                                                            icon="line-md:close-circle"
+                                                            class="w-4 h-4 text-red-600"
                                                         />
                                                         <Icon
                                                             v-else
-                                                            icon="solar:power-bold"
-                                                            class="w-5 h-5"
+                                                            icon="line-md:rotate-270"
+                                                            class="w-4 h-4 text-blue-600"
                                                         />
                                                     </button>
                                                 </div>
@@ -895,6 +1000,14 @@ const printTable = () => {
     </DefaultLayout>
 
     <!-- Modals -->
+    <!-- معالج إيقاف المورد -->
+    <SupplyDeactivationWizard
+        :is-open="isDeactivationWizardOpen"
+        :supplier="supplierToToggle || {}"
+        @close="isDeactivationWizardOpen = false"
+        @success="handleDeactivationSuccess"
+    />
+
     <supplyAddModel
         :is-open="isAddModalOpen"
         :available-managers="availableManagersForSuppliers"

@@ -60,10 +60,13 @@ const errors = ref({
   phone: false,
 });
 
-// حالة التحقق من رقم الهاتف
+// حالة التحقق من رقم الهاتف والاسم
 const phoneExists = ref(false);
+const nameExists = ref(false);
 const checkingPhone = ref(false);
+const checkingName = ref(false);
 const phoneMessage = ref("");
+const nameMessage = ref("");
 
 // حالة نافذة التأكيد
 const isConfirmationModalOpen = ref(false);
@@ -89,7 +92,9 @@ const resetForm = () => {
         phone: false,
     };
     phoneExists.value = false;
+    nameExists.value = false;
     phoneMessage.value = "";
+    nameMessage.value = "";
 };
 
 // التحقق من صحة النموذج
@@ -98,7 +103,7 @@ const validateForm = () => {
     const data = form.value;
 
     errors.value.name = !data.name || data.name.trim().length < 2;
-    if (errors.value.name) isValid = false;
+    if (errors.value.name || nameExists.value) isValid = false;
 
     errors.value.code = !data.code || data.code.trim().length < 1;
     if (errors.value.code) isValid = false;
@@ -127,7 +132,7 @@ const validateForm = () => {
 const isFormValid = computed(() => {
     const data = form.value;
     
-    if (!data.name || data.name.trim().length < 2) return false;
+    if (!data.name || data.name.trim().length < 2 || nameExists.value) return false;
     if (!data.code || data.code.trim().length < 1) return false;
     if (!data.type) return false;
     if (!data.city || (data.city !== 'طرابلس' && data.city !== 'بنغازي')) return false;
@@ -204,6 +209,28 @@ const closeModal = () => {
     emit('close');
 };
 
+// التحقق من وجود اسم المستشفى أو المورد
+const checkNameExists = async (name) => {
+    if (!name || name.trim().length < 2) {
+        nameExists.value = false;
+        nameMessage.value = "";
+        return;
+    }
+
+    checkingName.value = true;
+    try {
+        const response = await api.get(`/super-admin/hospitals/check-name/${encodeURIComponent(name.trim())}`);
+        if (response.data && response.data.data) {
+            nameExists.value = response.data.data.exists;
+            nameMessage.value = response.data.data.exists ? "هذا الاسم مستخدم بالفعل لمستشفى أو شركة توريد" : "";
+        }
+    } catch (error) {
+        console.error("Error checking name:", error);
+    } finally {
+        checkingName.value = false;
+    }
+};
+
 // التحقق من وجود رقم الهاتف
 const checkPhoneExists = async (phone) => {
     if (!phone || phone.trim() === "") {
@@ -236,8 +263,17 @@ const checkPhoneExists = async (phone) => {
     }
 };
 
-// مراقبة تغييرات رقم الهاتف
+// مراقبة تغييرات الاسم ورقم الهاتف
 let phoneCheckTimeout = null;
+let nameCheckTimeout = null;
+
+watch(() => form.value.name, (newName) => {
+    if (nameCheckTimeout) clearTimeout(nameCheckTimeout);
+    nameCheckTimeout = setTimeout(() => {
+        checkNameExists(newName);
+    }, 500);
+});
+
 watch(() => form.value.phone, (newPhone) => {
     if (phoneCheckTimeout) {
         clearTimeout(phoneCheckTimeout);
@@ -316,13 +352,20 @@ watch(() => props.isOpen, (newVal) => {
                                 v-model="form.name"
                                 placeholder="أدخل اسم المستشفى"
                                 type="text"
-                                :class="{ 'border-red-500 focus:ring-red-500/20': errors.name, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.name }"
+                                :class="{ 'border-red-500 focus:ring-red-500/20': errors.name || nameExists, 'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !errors.name && !nameExists }"
                                 class="bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20"
                             />
+                            <span v-if="checkingName" class="absolute left-3 top-2.5 text-gray-400 text-sm">
+                                <Icon icon="solar:refresh-circle-bold-duotone" class="w-5 h-5 animate-spin" />
+                            </span>
                         </div>
                         <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
                             الرجاء إدخال اسم المستشفى (على الأقل حرفين)
+                        </p>
+                        <p v-if="nameExists && !errors.name" class="text-xs text-red-500 flex items-center gap-1">
+                            <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
+                            {{ nameMessage }}
                         </p>
                     </div>
 

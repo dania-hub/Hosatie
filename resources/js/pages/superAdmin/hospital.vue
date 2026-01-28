@@ -552,8 +552,8 @@ const printTable = () => {
             font-size: 10px;
             font-weight: 700;
         }
-        .status-active { background: #dcfce7; color: #166534; }
-        .status-inactive { background: #fee2e2; color: #991b1b; }
+        .status-active { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        .status-inactive { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
         
         .footer {
             margin-top: 40px;
@@ -599,13 +599,12 @@ const printTable = () => {
             <thead>
                 <tr>
                     <th width="12%">الكود</th>
-                    <th width="18%">اسم المؤسسة</th>
+                    <th width="25%">اسم المؤسسة</th>
                     <th width="15%">المدير</th>
                     <th width="12%">المدينة</th>
                     <th width="12%">المورد</th>
-                    <th width="12%">رقم الهاتف</th>
+                    <th width="14%">رقم الهاتف</th>
                     <th width="10%">الحالة</th>
-                    <th width="10%">النوع</th>
                 </tr>
             </thead>
             <tbody>
@@ -625,7 +624,6 @@ const printTable = () => {
                         ${hospital.isActive ? 'نشط' : 'معطل'}
                     </span>
                 </td>
-                <td>${hospital.type === 'hospital' ? 'مستشفى' : (hospital.type === 'health_center' ? 'مركز صحي' : 'عيادة')}</td>
             </tr>
         `;
     });
@@ -668,7 +666,7 @@ const printTable = () => {
             <div >
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3 sm:gap-0">
                     <div class="flex items-center gap-3 w-full sm:max-w-xl">
-                        <search v-model="searchTerm" placeholder="ابحث بجميع المعلومات ......" />
+                        <search v-model="searchTerm" placeholder="يمكنك البحث بجميع المعلومات المتاحة هنا..." />
 
                         <!-- فلتر الحالة -->
                         <div class="dropdown dropdown-start">
@@ -1008,19 +1006,19 @@ const printTable = () => {
                                                             'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
                                                             hospital.isActive
                                                                 ? 'bg-red-50 hover:bg-red-100 border-red-200'
-                                                                : 'bg-green-50 hover:bg-green-100 border-green-200',
+                                                                : 'bg-blue-50 hover:bg-blue-100 border-blue-200',
                                                         ]"
                                                         :title="getStatusTooltip(hospital.isActive)"
                                                     >
                                                         <Icon
                                                             v-if="hospital.isActive"
-                                                            icon="pepicons-pop:power-off"
-                                                            class="w-5 h-5 text-red-600"
+                                                            icon="line-md:close-circle"
+                                                            class="w-4 h-4 text-red-600"
                                                         />
                                                         <Icon
                                                             v-else
-                                                            icon="quill:off"
-                                                            class="w-5 h-5 text-green-600"
+                                                            icon="line-md:rotate-270"
+                                                            class="w-4 h-4 text-blue-600"
                                                         />
                                                     </button>
                                                 </div>

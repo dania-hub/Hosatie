@@ -42,7 +42,9 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
                 ->map(function ($r) {
                     // التحقق من أن الطلب تم استلامه (fulfilled + تم تأكيد الاستلام من storekeeper)
                     $isDelivered = false;
-                    if ($r->status === 'fulfilled') {
+                    if ($r->status === 'delivered') {
+                        $isDelivered = true;
+                    } elseif ($r->status === 'fulfilled') {
                         $requestUpdatedAt = $r->updated_at;
                         // التحقق من أن items تم تحديثها بعد تحديث الطلب (يعني تم تأكيد الاستلام)
                         $itemsUpdatedAfterDelivery = $r->items->some(function($item) use ($requestUpdatedAt) {
@@ -227,7 +229,10 @@ class ExternalShipmentAdminHospitalController extends BaseApiController
         $isDelivered = false;
         
         // التحقق من أن الطلب تم استلامه (fulfilled + تم تأكيد الاستلام من storekeeper)
-        if ($r->status === 'fulfilled') {
+        // التحقق من أن الطلب تم استلامه
+        if ($r->status === 'delivered') {
+            $isDelivered = true;
+        } elseif ($r->status === 'fulfilled') {
             $requestUpdatedAt = $r->updated_at;
             // التحقق من أن items تم تحديثها بعد تحديث الطلب (يعني تم تأكيد الاستلام)
             $itemsUpdatedAfterDelivery = $r->items->some(function($item) use ($requestUpdatedAt) {

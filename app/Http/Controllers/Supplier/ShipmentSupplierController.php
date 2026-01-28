@@ -82,7 +82,9 @@ class ShipmentSupplierController extends BaseApiController
                 ->map(function ($shipment) {
                     // التحقق من تأكيد الاستلام من قبل مسؤول المخزن
                     $isDelivered = false;
-                    if ($shipment->status === 'fulfilled') {
+                    if ($shipment->status === 'delivered') {
+                        $isDelivered = true;
+                    } elseif ($shipment->status === 'fulfilled') {
                         $requestUpdatedAt = $shipment->updated_at;
                         // التحقق من أن items تم تحديثها بعد تحديث الطلب (يعني تم تأكيد الاستلام)
                         $itemsUpdatedAfterDelivery = $shipment->items->some(function($item) use ($requestUpdatedAt) {
@@ -108,7 +110,7 @@ class ShipmentSupplierController extends BaseApiController
                         'requestedBy' => $shipment->requester->full_name ?? 'غير محدد',
                         'approvedBy' => $shipment->approver?->full_name ?? 'مدير المستشفى',
                         'status' => $isDelivered ? 'تم الاستلام' : $this->translateStatus($shipment->status),
-                        'statusOriginal' => $isDelivered ? 'delivered' : $shipment->status,
+                        'statusOriginal' => $isDelivered ? 'fulfilled' : $shipment->status,
                         'isDelivered' => $isDelivered,
                         'itemsCount' => $shipment->items->count() ?? 0,
                         'createdAt' => $shipment->created_at->format('Y/m/d'),
@@ -259,8 +261,10 @@ class ShipmentSupplierController extends BaseApiController
                 }
             }
             
-            // التحقق من أن الطلب تم استلامه (fulfilled + تم تأكيد الاستلام من storekeeper)
-            if ($shipment->status === 'fulfilled') {
+            // التحقق من أن الطلب تم استلامه
+            if ($shipment->status === 'delivered') {
+                $isDelivered = true;
+            } elseif ($shipment->status === 'fulfilled') {
                 $requestUpdatedAt = $shipment->updated_at;
                 // التحقق من أن items تم تحديثها بعد تحديث الطلب (يعني تم تأكيد الاستلام)
                 $itemsUpdatedAfterDelivery = $shipment->items->some(function($item) use ($requestUpdatedAt) {
@@ -466,7 +470,7 @@ class ShipmentSupplierController extends BaseApiController
                 ->findOrFail($id);
 
             // التحقق من أن الطلب ليس في حالة مغلقة
-            if (in_array($shipment->status, ['fulfilled', 'rejected', 'cancelled', 'delivered'])) {
+            if (in_array($shipment->status, ['pending', 'rejected', 'cancelled', 'fulfilled'])) {
                 return $this->sendError('لا يمكن تعديل طلب تم إغلاقه مسبقاً', null, 409);
             }
 
@@ -584,9 +588,9 @@ class ShipmentSupplierController extends BaseApiController
                 }
             }
 
-            // تحديث الحالة إلى 'fulfilled' (تم التنفيذ/الارسال) لكي تظهر لمسؤول المخزن للاستلام
+            // تحديث الحالة إلى 'pending' (قيد الاستلام/تم الشحن) لكي تظهر لمسؤول المخزن للاستلام
             $oldStatus = $shipment->status;
-            $shipment->status = 'fulfilled';
+            $shipment->status = 'pending';
             $shipment->save();
 
             // حفظ الملاحظات وتسجيل العملية في audit_log (دائماً، مع أو بدون ملاحظات)
@@ -594,7 +598,7 @@ class ShipmentSupplierController extends BaseApiController
             try {
                 // إعداد البيانات للـ audit log
                 $newValues = [
-                    'status' => 'fulfilled',
+                    'status' => 'pending',
                 ];
                 
                 // إضافة معلومات الكميات المرسلة
@@ -732,9 +736,10 @@ class ShipmentSupplierController extends BaseApiController
     private function translateStatus($status)
     {
         $statuses = [
-            'pending' => 'قيد الانتظار',
+            'new' => 'قيد الانتظار',
             'approved' => 'جديد',
-            'fulfilled' => 'قيد الاستلام',
+            'pending' => 'قيد الاستلام',
+            'fulfilled' => 'تم الاستلام',
             'delivered' => 'تم الاستلام',
             'rejected' => 'مرفوض',
             'cancelled' => 'مرفوض',

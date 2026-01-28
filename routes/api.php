@@ -584,14 +584,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('hospitals/{id}/activate', [HospitalSuperController::class, 'activate']);
         Route::get('hospitals/next-code', [HospitalSuperController::class, 'getNextHospitalCode']);
         Route::get('hospitals/check-phone/{phone}', [HospitalSuperController::class, 'checkPhone']);
+        Route::get('hospitals/check-name/{name}', [HospitalSuperController::class, 'checkName']);
 
         // Suppliers
         Route::get('suppliers', [SupplierSuperController::class, 'index']);
         Route::post('suppliers', [SupplierSuperController::class, 'store']);
         Route::put('suppliers/{id}', [SupplierSuperController::class, 'update']);
         Route::patch('suppliers/{id}/deactivate', [SupplierSuperController::class, 'deactivate']);
+        Route::get('suppliers/{id}/deactivation-data', [SupplierSuperController::class, 'deactivationData']);
         Route::patch('suppliers/{id}/activate', [SupplierSuperController::class, 'activate']);
+        Route::get('suppliers/next-code', [SupplierSuperController::class, 'getNextSupplierCode']);
         Route::get('suppliers/check-phone/{phone}', [SupplierSuperController::class, 'checkPhone']);
+        Route::get('suppliers/check-name/{name}', [SupplierSuperController::class, 'checkName']);
 
         // Drugs (FR-90 to FR-92)
         Route::get('drugs', [DrugSuperController::class, 'index']);

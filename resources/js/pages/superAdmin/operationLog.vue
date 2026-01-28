@@ -59,15 +59,11 @@ onMounted(() => {
 });
 
 const toArabicNumerals = (str) => {
-    if (str === null || str === undefined) return '';
-    const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-    return String(str).replace(/[0-9]/g, (w) => arabicNumbers[parseInt(w)]);
+    return str || '';
 };
-// تفاصيل العملية: إبقاء أرقام الطلبات (INT-xxx / EXT-xxx) بالأرقام الإنجليزية
+// تفاصيل العملية: ابقاء الأرقام كما هي (Western Numerals 0-9) بناءً على طلب المستخدم
 const formatOperationBody = (str) => {
-    if (str == null || str === '') return '';
-    if (/(INT|EXT)-\d+/.test(str)) return str;
-    return toArabicNumerals(str);
+    return str || '';
 };
 
 // قائمة بأنواع العمليات المتاحة للتصفية

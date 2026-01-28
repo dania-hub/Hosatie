@@ -329,7 +329,6 @@ const openSupplyRequestModal = () => {
 // ----------------------------------------------------
 const isDeleteConfirmationModalOpen = ref(false);
 const drugToDelete = ref(null);
-const selectedPolicy = ref('immediate'); // 'immediate' or 'dispense_until_zero'
 
 // ----------------------------------------------------
 // 9. وظائف CRUD
@@ -397,13 +396,13 @@ const updateDrug = async (updatedDrug) => {
   }
 };
 
-// تأكيد الحذف
+// تأكيد الحذف - فتح نافذة التأكيد مع اختيار السياسة
 const confirmDeleteDrug = (drugId) => {
   drugToDelete.value = drugId;
   isDeleteConfirmationModalOpen.value = true;
 };
 
-// إيقاف دواء (discontinue)
+// إيقاف دواء (discontinue) - دائماً بسياسة الصرف حتى نفاذ الكمية
 const discontinueDrug = async () => {
   if (!drugToDelete.value) return;
   
@@ -412,7 +411,7 @@ const discontinueDrug = async () => {
   
   try {
     const response = await api.patch(`/super-admin/drugs/${drugId}/discontinue`, {
-      policy: selectedPolicy.value
+      policy: 'dispense_until_zero' // دائماً استخدام سياسة الصرف حتى نفاذ الكمية
     });
     const rawUpdated = response.data.data || response.data;
     const updated = transformDrugData(rawUpdated);
@@ -1120,25 +1119,40 @@ onMounted(async () => {
                         <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Icon icon="solar:trash-bin-trash-bold-duotone" class="w-10 h-10 text-red-500" />
                         </div>
-                        <h3 class="text-xl font-bold text-[#2E5077]">تأكيد إيقاف الدواء</h3>
-                        <p class="text-gray-500 leading-relaxed">
-                            اختر سياسة الإيقاف المطلوبة:
-                        </p>
-                        
-                        <div class="mt-4 space-y-3 text-right" dir="rtl">
-                            
-
-                            <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200" :class="selectedPolicy === 'dispense_until_zero' ? 'border-orange-500 bg-orange-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'">
-                                <input type="radio" value="dispense_until_zero" v-model="selectedPolicy" class="w-5 h-5 text-orange-600 focus:ring-orange-500">
-                                <div class="flex-1">
-                                    <div class="font-bold text-gray-800">صرف حتى نفاذ الكمية</div>
-                                    <div class="text-xs text-gray-500">يظل الدواء متاحاً للصرف حتى بلوغ المخزون صفر</div>
+                        <h3 class="text-xl font-bold text-[#2E5077]">تأكيد إيقاف الدواء تدريجياً</h3>
+                        <div class="bg-gradient-to-r from-orange-50 to-amber-50 border-r-4 border-orange-500 p-4 rounded-xl text-right" dir="rtl">
+                            <div class="flex items-start gap-3">
+                                <Icon icon="solar:info-circle-bold" class="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
+                                <div class="flex-1 space-y-2">
+                                    <p class="font-bold text-gray-800 text-sm">سياسة الإيقاف التدريجي:</p>
+                                    <ul class="text-xs text-gray-700 space-y-1.5 mr-4">
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-orange-500 font-bold">•</span>
+                                            <span>سيظل الدواء <strong>متاحاً للصرف</strong> حتى نفاذ المخزون بالكامل</span>
+                                        </li>
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-orange-500 font-bold">•</span>
+                                            <span>سيتم <strong>إلغاء جميع الطلبات الخارجية</strong> المعلقة تلقائياً</span>
+                                        </li>
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-orange-500 font-bold">•</span>
+                                            <span>سيتم <strong>إشعار الموظفين</strong> (مديري المستشفيات، الصيادلة، مديري المخازن)</span>
+                                        </li>
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-orange-500 font-bold">•</span>
+                                            <span>سيتم <strong>إشعار المرضى</strong> الذين لديهم وصفات نشطة لهذا الدواء</span>
+                                        </li>
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-orange-500 font-bold">•</span>
+                                            <span>عند وصول المخزون إلى <strong>صفر</strong>، سيتم أرشفة الدواء تلقائياً</span>
+                                        </li>
+                                    </ul>
                                 </div>
-                            </label>
+                            </div>
                         </div>
-
-                        <p class="text-xs text-gray-400 mt-2 italic">
-                            سيتم إشعار جميع الجهات المعنية بالقرار فور تأكيده
+                        
+                        <p class="text-sm text-gray-600 mt-4">
+                            هل أنت متأكد من رغبتك في إيقاف هذا الدواء تدريجياً؟
                         </p>
                     </div>
                     <div class="flex justify-center bg-gray-50 px-6 py-4 gap-3 border-t border-gray-100">

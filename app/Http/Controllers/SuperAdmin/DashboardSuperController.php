@@ -358,22 +358,33 @@ class DashboardSuperController extends BaseApiController
                 return $this->sendError('غير مصرح لك بالوصول', null, 403);
             }
 
+            $startDate = Carbon::create(2026, 1, 1, 0, 0, 0);
+            $now = Carbon::now();
+            
+            // If the current date is before Jan 2026 (for testing/safety), we show Jan 2026 only
+            if ($now->lt($startDate)) {
+                $now = $startDate->copy();
+            }
+
             $months = [];
-            for ($i = 11; $i >= 0; $i--) {
-                $date = Carbon::now()->subMonths($i);
-                $monthKey = $date->format('Y-m');
-                $monthName = $date->locale('ar')->translatedFormat('F Y');
+            $current = $startDate->copy();
+            
+            // Generate months from January 2026 up to today
+            while ($current->format('Y-m') <= $now->format('Y-m')) {
+                $monthKey = $current->format('Y-m');
+                // Ensure the month name is capitalized and formatted correctly in Arabic
+                $monthName = $current->locale('ar')->translatedFormat('F Y');
 
-                $internalRequests = InternalSupplyRequest::whereYear('created_at', $date->year)
-                    ->whereMonth('created_at', $date->month)
+                $internalRequests = InternalSupplyRequest::whereYear('created_at', $current->year)
+                    ->whereMonth('created_at', $current->month)
                     ->count();
 
-                $externalRequests = ExternalSupplyRequest::whereYear('created_at', $date->year)
-                    ->whereMonth('created_at', $date->month)
+                $externalRequests = ExternalSupplyRequest::whereYear('created_at', $current->year)
+                    ->whereMonth('created_at', $current->month)
                     ->count();
 
-                $transferRequests = PatientTransferRequest::whereYear('created_at', $date->year)
-                    ->whereMonth('created_at', $date->month)
+                $transferRequests = PatientTransferRequest::whereYear('created_at', $current->year)
+                    ->whereMonth('created_at', $current->month)
                     ->count();
 
                 $months[] = [
@@ -384,9 +395,12 @@ class DashboardSuperController extends BaseApiController
                     'transferRequests' => $transferRequests,
                     'total' => $internalRequests + $externalRequests + $transferRequests,
                 ];
+                
+                $current->addMonth();
             }
 
-            return $this->sendSuccess($months, 'تم جلب التقرير الشهري بنجاح');
+            // Return months in descending order (latest first)
+            return $this->sendSuccess(array_reverse($months), 'تم جلب التقرير الشهري بنجاح');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Monthly Report Error');

@@ -459,7 +459,7 @@ class UserSuperController extends BaseApiController
                     ->first();
                 
                 if ($activeSupplierManager) {
-                    return $this->sendError('فشل التفعيل لموجود مدير مستودع توريد حالياً', null, 422);
+                    return $this->sendError('فشل التفعيل لوجود مدير مستودع توريد حالياً', null, 422);
                 }
             }
 

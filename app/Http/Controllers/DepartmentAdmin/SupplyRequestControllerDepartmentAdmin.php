@@ -56,6 +56,12 @@ class SupplyRequestControllerDepartmentAdmin extends BaseApiController
                 throw new \Exception("لا توجد صيدلية محددة لإنشاء الطلب منها.");
             }
 
+            // التحقق من أن المستشفى نشط
+            $hospital = \App\Models\Hospital::find($user->hospital_id);
+            if (!$hospital || $hospital->status !== 'active') {
+                throw new \Exception("لا يمكن إنشاء طلب توريد في مستشفى معطل.");
+            }
+
             // إنشاء الطلب (notes لا تُخزن في الجدول، تُحفظ فقط في الـ audit_log)
             $supplyRequest = InternalSupplyRequest::create([
                 'pharmacy_id' => $pharmacyId,

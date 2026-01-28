@@ -31,6 +31,16 @@ class PatientDataEntryController extends BaseApiController
             ], 400);
         }
 
+        // التحقق من أن المستشفى نشط
+        $hospital = \App\Models\Hospital::find($hospitalId);
+        if (!$hospital || $hospital->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'لا يمكن تسجيل مرضى في مستشفى معطل',
+                'error'   => 'حالة المستشفى غير نشطة'
+            ], 403);
+        }
+
         $user = User::create([
             'full_name'   => $request->full_name,
             'national_id' => $request->national_id,

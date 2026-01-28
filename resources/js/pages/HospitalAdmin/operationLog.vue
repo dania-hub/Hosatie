@@ -234,7 +234,7 @@ const printTable = () => {
             }
         </style>
 
-        <h1>سجل العمليات (تقرير طباعة)</h1>
+        <h1>سجل العمليات </h1>
         
         <p class="results-info">
             عدد النتائج التي ظهرت (عدد الصفوف): ${resultsCount}

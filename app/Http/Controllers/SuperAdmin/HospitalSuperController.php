@@ -10,9 +10,33 @@ use App\Models\Pharmacy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Services\StaffNotificationService;
+use App\Services\PatientNotificationService;
 
 class HospitalSuperController extends BaseApiController
 {
+    /**
+     * جلب الكود التالي المقترح للمستشفى
+     * GET /api/super-admin/hospitals/next-code
+     */
+    public function getNextHospitalCode(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $lastId = Hospital::max('id') ?? 0;
+            $nextId = $lastId + 1;
+            $code = "HOSP-TR-" . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+
+            return $this->sendSuccess(['code' => $code], 'تم توليد الكود المقترح');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Next Hospital Code Error');
+        }
+    }
+
     /**
      * FR-86: عرض قائمة المؤسسات الصحية
      * GET /api/super-admin/hospitals
@@ -105,7 +129,7 @@ class HospitalSuperController extends BaseApiController
 
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
-                'code' => 'required|string|max:50|unique:hospitals,code',
+                'code' => 'sometimes|string|max:50|unique:hospitals,code',
                 'type' => 'required|in:hospital,health_center,clinic',
                 'city' => 'required|in:طرابلس,بنغازي',
                 'address' => 'nullable|string|max:500',
@@ -131,10 +155,18 @@ class HospitalSuperController extends BaseApiController
 
             DB::beginTransaction();
 
+            // توليد كود تلقائي إذا لم يتم إرساله
+            $code = $request->code;
+            if (!$code) {
+                $lastId = Hospital::max('id') ?? 0;
+                $nextId = $lastId + 1;
+                $code = "HOSP-TR-" . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+            }
+
             // إنشاء المؤسسة
             $hospital = Hospital::create([
                 'name' => $request->name,
-                'code' => $request->code,
+                'code' => $code,
                 'type' => $request->type,
                 'city' => $request->city,
                 'address' => $request->address,
@@ -300,11 +332,117 @@ class HospitalSuperController extends BaseApiController
     }
 
     /**
-     * FR-88: تعطيل مؤسسة صحية
+     * التحقق المسبق قبل إيقاف تفعيل مستشفى
+     * GET /api/super-admin/hospitals/{id}/deactivation-data
+     */
+    public function deactivationData(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== 'super_admin') {
+                return $this->sendError('غير مصرح لك بالوصول', null, 403);
+            }
+
+            $hospital = Hospital::findOrFail($id);
+
+            // 1. التحقق من العمليات النشطة (Blockers)
+            
+            // طلبات التوريد الخارجية النشطة
+            $activeExternalRequests = \App\Models\ExternalSupplyRequest::where('hospital_id', $id)
+                ->whereIn('status', ['pending', 'approved', 'fulfilled', 'partially_approved'])
+                ->get();
+            
+            // طلبات التوريد الداخلية النشطة (من الصيدليات التابعة للمستشفى)
+            $activeInternalRequests = \App\Models\InternalSupplyRequest::whereHas('pharmacy', function($query) use ($id) {
+                    $query->where('hospital_id', $id);
+                })
+                ->whereIn('status', ['pending', 'approved'])
+                ->get();
+
+            $blockers = [];
+            foreach ($activeExternalRequests as $req) {
+                $blockers[] = "طلب توريد خارجي رقم EXT-{$req->id}";
+            }
+            foreach ($activeInternalRequests as $req) {
+                $blockers[] = "طلب توريد داخلي رقم INT-{$req->id}";
+            }
+
+            // 2. التحقق من الكيانات المرتبطة (Counts)
+            
+            // المرضى المسجلون
+            $patientsCount = User::where('hospital_id', $id)->where('type', 'patient')->count();
+            
+            // الموظفون النشطون
+            $employeesCount = User::where('hospital_id', $id)
+                ->where('type', '!=', 'patient')
+                ->where('status', 'active')
+                ->count();
+            
+            // الشكاوى المفتوحة (المرتبطة بمرضى هذا المستشفى)
+            $openComplaintsCount = \App\Models\Complaint::whereHas('patient', function($query) use ($id) {
+                    $query->where('hospital_id', $id);
+                })
+                ->where('status', 'pending')
+                ->count();
+            
+            // طلبات النقل المعلقة
+            $pendingTransfersCount = \App\Models\PatientTransferRequest::where(function($query) use ($id) {
+                    $query->where('from_hospital_id', $id)->orWhere('to_hospital_id', $id);
+                })
+                ->where('status', 'pending')
+                ->count();
+
+            // 3. قائمة المستشفيات البديلة (في نفس المدينة ونشطة)
+            $otherHospitals = Hospital::where('city', $hospital->city)
+                ->where('id', '!=', $id)
+                ->where('status', 'active')
+                ->get(['id', 'name']);
+
+            // 4. مدير المستشفى ومسؤول المخزن
+            $hospitalAdmin = User::where('hospital_id', $id)->where('type', 'hospital_admin')->first();
+            $warehouseManager = User::where('hospital_id', $id)->where('type', 'warehouse_manager')->first();
+
+            return $this->sendSuccess([
+                'hospital' => [
+                    'id' => $hospital->id,
+                    'name' => $hospital->name,
+                    'city' => $hospital->city,
+                ],
+                'blockers' => $blockers,
+                'hasBlockers' => count($blockers) > 0,
+                'counts' => [
+                    'patients' => $patientsCount,
+                    'employees' => $employeesCount,
+                    'complaints' => $openComplaintsCount,
+                    'transfers' => $pendingTransfersCount,
+                ],
+                'alternativeHospitals' => $otherHospitals,
+                'managers' => [
+                    'hospitalAdmin' => $hospitalAdmin ? [
+                        'id' => $hospitalAdmin->id,
+                        'name' => $hospitalAdmin->full_name,
+                    ] : null,
+                    'warehouseManager' => $warehouseManager ? [
+                        'id' => $warehouseManager->id,
+                        'name' => $warehouseManager->full_name,
+                    ] : null,
+                ]
+            ], 'تم جلب بيانات فحص الإيقاف بنجاح');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'Super Admin Hospital Deactivation Data Error');
+        }
+    }
+
+    /**
+     * FR-88: تعطيل مؤسسة صحية (مع المعالج التفاعلي)
      * PATCH /api/super-admin/hospitals/{id}/deactivate
      */
     public function deactivate(Request $request, $id)
     {
+        $staffNotify = app(StaffNotificationService::class);
+        $patientNotify = app(PatientNotificationService::class);
+        
         try {
             $user = $request->user();
             
@@ -318,13 +456,198 @@ class HospitalSuperController extends BaseApiController
                 return $this->sendError('المؤسسة معطلة بالفعل', null, 400);
             }
 
-            $hospital->update(['status' => 'inactive']);
+            // التحقق من وجود طلبات توريد نشطة قبل التنفيذ
+            $hasExternal = \App\Models\ExternalSupplyRequest::where('hospital_id', $id)
+                ->whereIn('status', ['pending', 'approved', 'fulfilled', 'partially_approved'])
+                ->exists();
+            $hasInternal = \App\Models\InternalSupplyRequest::whereHas('pharmacy', function($query) use ($id) {
+                    $query->where('hospital_id', $id);
+                })
+                ->whereIn('status', ['pending', 'approved'])
+                ->exists();
 
-            return $this->sendSuccess([
-                'id' => $hospital->id,
-                'name' => $hospital->name,
-                'status' => 'inactive',
-            ], 'تم تعطيل المؤسسة الصحية بنجاح');
+            if ($hasExternal || $hasInternal) {
+                return $this->sendError('لا يمكن إيقاف المستشفى. يوجد طلبات توريد نشطة. يجب إكمالها أو إلغاؤها أولاً.', null, 422);
+            }
+
+            // إذا لم يتم تمرير بيانات المعالج (طلب إيقاف مباشر قديم)، نطلب البيانات
+            if (!$request->has('target_hospital_id')) {
+                return $this->sendError('يرجى إكمال خطوات معالج الإيقاف أولاً.', null, 422);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'target_hospital_id' => 'required|exists:hospitals,id',
+                'target_employee_entity_id' => 'nullable|exists:hospitals,id', 
+                'deactivate_employees' => 'boolean',
+                'manager_action' => 'required|in:deactivate,change_role',
+                'manager_new_role' => 'required_if:manager_action,change_role|in:hospital_admin,warehouse_manager,doctor,department_head,pharmacist,data_entry',
+                'store_keeper_action' => 'required|in:deactivate,change_role',
+                'store_keeper_new_role' => 'required_if:store_keeper_action,change_role|in:hospital_admin,warehouse_manager,doctor,department_head,pharmacist,data_entry',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->sendError('بيانات غير صحيحة', $validator->errors(), 422);
+            }
+
+            DB::beginTransaction();
+
+            try {
+                // 1. التعامل مع الشكاوى المفتوحة
+                \App\Models\Complaint::whereHas('patient', function($query) use ($id) {
+                        $query->where('hospital_id', $id);
+                    })
+                    ->where('status', 'pending')
+                    ->update([
+                        'status' => 'closed',
+                        'reply_message' => 'تم إغلاق الشكوى بسبب إيقاف نشاط المستشفى. يرجى التواصل مع إدارة النظام للمزيد من التفاصيل.',
+                        'replied_at' => now(),
+                        'replied_by' => $user->id,
+                    ]);
+
+                // 2. التعامل مع طلبات النقل المعلقة
+                \App\Models\PatientTransferRequest::where(function($query) use ($id) {
+                        $query->where('from_hospital_id', $id)->orWhere('to_hospital_id', $id);
+                    })
+                    ->where('status', 'pending')
+                    ->update([
+                        'status' => 'rejected',
+                        'rejection_reason' => 'تم إلغاء الطلب بسبب إيقاف نشاط المستشفى المصدر.',
+                        'handeled_by' => $user->id,
+                        'handeled_at' => now(),
+                    ]);
+
+                // تحديد الصيدلية الهدف للمرضى والموظفين
+                $targetHospitalPharmacyId = \App\Models\Pharmacy::where('hospital_id', $request->target_hospital_id)
+                    ->where('status', 'active')
+                    ->value('id');
+                
+                $targetEmployeePharmacyId = $request->target_employee_entity_id 
+                    ? \App\Models\Pharmacy::where('hospital_id', $request->target_employee_entity_id)->where('status', 'active')->value('id')
+                    : $targetHospitalPharmacyId;
+
+                // 3. إعادة توزيع المرضى
+                $targetHospital = Hospital::find($request->target_hospital_id);
+                $patients = User::where('hospital_id', $id)
+                    ->where('type', 'patient')
+                    ->get();
+
+                foreach ($patients as $patient) {
+                    $patient->update([
+                        'hospital_id' => $request->target_hospital_id,
+                        'pharmacy_id' => $targetHospitalPharmacyId, // التبعية للصيدلية الجديدة
+                    ]);
+                    $patientNotify->createNotification(
+                        $patient,
+                        'عادي',
+                        'تغيير التبعية الطبية',
+                        "بسبب إيقاف نشاط مستشفى [{$hospital->name}]، تم نقل ملفك الطبي إلى مستشفى [{$targetHospital->name}] وصيدلية [".(\App\Models\Pharmacy::find($targetHospitalPharmacyId)->name ?? 'الصيدلية المركزية')."]."
+                    );
+                }
+
+                // 4. إعادة توزيع الموظفين العاديين
+                $employeeTypes = ['pharmacist', 'doctor', 'data_entry', 'department_head'];
+                $employees = User::where('hospital_id', $id)
+                    ->whereIn('type', $employeeTypes)
+                    ->get();
+
+                foreach ($employees as $employee) {
+                    if ($request->deactivate_employees) {
+                        // إذا كان رئيس قسم، نصفر مسؤوليته في جدول الأقسام
+                        if ($employee->type === 'department_head') {
+                            \App\Models\Department::where('head_user_id', $employee->id)->update(['head_user_id' => null]);
+                        }
+
+                        $employee->update([
+                            'status' => 'inactive',
+                            'pharmacy_id' => null,
+                            'warehouse_id' => null,
+                        ]);
+                        $staffNotify->createNotification(
+                            $employee,
+                            'تنبيه: إيقاف حساب',
+                            "تم إيقاف تفعيل حسابك مؤقتاً بسبب إيقاف نشاط مستشفى [{$hospital->name}]. يرجى مراجعة إدارة النظام.",
+                            'عادي'
+                        );
+                    } else if ($request->target_employee_entity_id) {
+                        $isHOD = $employee->type === 'department_head';
+                        $newType = $isHOD ? 'doctor' : $employee->type;
+                        
+                        // إذا كان رئيس قسم، نصفر مسؤوليته القديمة قبل النقل
+                        if ($isHOD) {
+                            \App\Models\Department::where('head_user_id', $employee->id)->update(['head_user_id' => null]);
+                        }
+
+                        $employee->update([
+                            'hospital_id' => $request->target_employee_entity_id,
+                            'type' => $newType, 
+                            'pharmacy_id' => ($newType === 'pharmacist') ? $targetEmployeePharmacyId : null, 
+                            'warehouse_id' => null, 
+                        ]);
+                        $staffNotify->createNotification(
+                            $employee,
+                            'تنبيه: نقل إداري',
+                            "تم نقل تبعيتك الإدارية إلى مستشفى [{$targetHospital->name}]. " . ($isHOD ? "تم تعديل دورك الوظيفي من رئيس قسم إلى طبيب." : "مع الحفاظ على دورك الوظيفي الحالي."),
+                            'عادي'
+                        );
+                    }
+                }
+
+                // 5. التعامل مع المدير ومسؤول المخزن
+                $managers = User::where('hospital_id', $id)
+                    ->whereIn('type', ['hospital_admin', 'warehouse_manager'])
+                    ->get();
+
+                foreach ($managers as $manager) {
+                    $isHospitalAdmin = $manager->type === 'hospital_admin';
+                    $action = $isHospitalAdmin ? $request->manager_action : $request->store_keeper_action;
+                    $newRole = $isHospitalAdmin ? $request->manager_new_role : $request->store_keeper_new_role;
+                    
+                    if ($action === 'deactivate') {
+                        $manager->update([
+                            'status' => 'inactive',
+                            'pharmacy_id' => null,
+                            'warehouse_id' => null,
+                        ]);
+                        $manager->tokens()->delete();
+                        $staffNotify->createNotification(
+                            $manager,
+                            'إيقاف الصلاحيات الإدارية',
+                            "تم إيقاف حسابك الإداري بسبب إيقاف نشاط مستشفى [{$hospital->name}].",
+                            'عادي'
+                        );
+                    } else {
+                        $role = $newRole ?: 'data_entry';
+                        // تغيير الدور حسب المختار من القائمة ونقله
+                        $manager->update([
+                            'type' => $role,
+                            'hospital_id' => $request->target_employee_entity_id ?: $request->target_hospital_id,
+                            'pharmacy_id' => ($role === 'pharmacist') ? $targetEmployeePharmacyId : null, 
+                            'warehouse_id' => null, 
+                        ]);
+                        $staffNotify->createNotification(
+                            $manager,
+                            'تحديث الدور الوظيفي',
+                            "تم نقل تبعيتك إلى مستشفى [{$targetHospital->name}] وتعديل دورك الوظيفي. يرجى مراجعة الصلاحيات الجديدة.",
+                            'عادي'
+                        );
+                    }
+                }
+
+                // 6. الإيقاف النهائي للمستشفى
+                $hospital->update(['status' => 'inactive']);
+
+                DB::commit();
+
+                return $this->sendSuccess([
+                    'id' => $hospital->id,
+                    'name' => $hospital->name,
+                    'status' => 'inactive',
+                ], 'تم تنفيذ عملية إيقاف المستشفى وإعادة التوزيع بنجاح');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'Super Admin Hospital Deactivate Error');

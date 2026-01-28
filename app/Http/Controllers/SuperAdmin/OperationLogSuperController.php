@@ -54,14 +54,14 @@ class OperationLogSuperController extends BaseApiController
                 'id'            => $log->id,
                 'file_number'   => $fileNumber,
                 'employee_name' => $user->full_name ?? ($user->name ?? 'غير معروف'),
-                'employee_role' => $this->toArabicNumerals($this->translateUserType($user->type ?? '')),
-                'patient_name'  => $this->toArabicNumerals($patientName),
-                'action_label'  => $this->toArabicNumerals($formattedText['label']),
-                'description'   => $this->toArabicNumerals($formattedText['body']),
-                'operation_type'=> $this->toArabicNumerals($formattedText['label'] . ' ' . $formattedText['body']), 
+                'employee_role' => $this->translateUserType($user->type ?? ''),
+                'patient_name'  => $patientName,
+                'action_label'  => $formattedText['label'],
+                'description'   => $formattedText['body'],
+                'operation_type'=> $formattedText['label'] . ' ' . $formattedText['body'], 
                 'date'          => $log->created_at?->format('Y/m/d'),
                 'time'          => $log->created_at?->format('H:i'),
-                'hospital_name' => $this->toArabicNumerals($log->hospital ? $log->hospital->name : 'N/A'),
+                'hospital_name' => $log->hospital ? $log->hospital->name : 'N/A',
                 'hospital_id'   => $log->hospital_id,
             ];
 
@@ -148,7 +148,36 @@ class OperationLogSuperController extends BaseApiController
              ];
         }
 
-        // 4. Supply Requests
+        // 4. Supply Requests & Hospitals
+        if ($log->table_name === 'hospitals') {
+            $hospitalName = $newValues['name'] ?? ($oldValues['name'] ?? '');
+            if (!$hospitalName) {
+                try {
+                    $hospital = \App\Models\Hospital::find($log->record_id);
+                    $hospitalName = $hospital->name ?? '';
+                } catch (\Exception $e) {}
+            }
+
+            $actionVerb = match($log->action) {
+                'create', 'created' => 'إضافة مستشفى جديد',
+                'update', 'updated' => 'تعديل بيانات المستشفى',
+                'delete', 'deleted' => 'حذف المستشفى',
+                'deactivate' => 'تعطيل المستشفى',
+                'activate' => 'تفعيل المستشفى',
+                default => $translatedAction
+            };
+
+            $changes = "";
+            if (str_contains($log->action, 'update')) {
+                $changes = $this->getChangesDescription($log);
+            }
+
+            return [
+                'label' => 'إدارة المستشفيات',
+                'body' => "$actionVerb: " . ($hospitalName ?: "مستشفى #{$log->record_id}") . ($changes ? " ($changes)" : "")
+            ];
+        }
+
         if (in_array($log->table_name, ['internal_supply_request', 'external_supply_request'])) {
             $reqId = $log->record_id;
             if (isset($newValues['request_id'])) $reqId = $newValues['request_id'];
@@ -732,8 +761,15 @@ class OperationLogSuperController extends BaseApiController
             if (isset($newValues['status']) || isset($newValues['is_active'])) {
                 $key = isset($newValues['status']) ? 'status' : 'is_active';
                 $newStatus = $newValues[$key];
-                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) return 'تفعيل الحساب';
-                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) return 'تعطيل الحساب';
+                
+                $isHospital = $log->table_name === 'hospitals';
+
+                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) {
+                    return $isHospital ? 'تفعيل المؤسسة' : 'تفعيل الحساب';
+                }
+                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) {
+                    return $isHospital ? 'تعطيل المؤسسة' : 'تعطيل الحساب';
+                }
             }
         }
 
@@ -759,15 +795,17 @@ class OperationLogSuperController extends BaseApiController
             'generic_name' => 'الاسم العلمي',
             'strength' => 'القوة/التركيز',
             'form' => 'الشكل الصيدلاني',
-            'category_id' => 'الفئة العلاجية',
             'category' => 'الفئة العلاجية',
             'therapeutic_category' => 'الفئة العلاجية',
             'expiry_date' => 'تاريخ الانتهاء',
             'status' => 'الحالة',
-            'type' => 'النوع',
+            'type' => 'النوع/التصنيف',
             'is_controlled' => 'خاضع للرقابة؟',
             'is_cold_chain' => 'سلسلة تبريد؟',
             'code' => 'الكود',
+            'city' => 'المدينة',
+            'manager_id' => 'المدير المسؤول',
+            'supplier_id' => 'المورد المسؤول',
             'department_id' => 'القسم',
             'hospital_id' => 'المستشفى',
             'indications' => 'دواعي الاستعمال',
@@ -793,17 +831,46 @@ class OperationLogSuperController extends BaseApiController
 
             // Special handling for status in multi-field updates
             if ($key === 'status' || $key === 'is_active') {
+                $isHospital = $log->table_name === 'hospitals';
                 if ($val == 1 || $val === 'active' || $val === true) {
-                    $changedFields[] = 'تفعيل';
+                    $changedFields[] = $isHospital ? 'تفعيل المؤسسة' : 'تفعيل';
                     continue;
                 } elseif ($val == 0 || $val === 'inactive' || $val === false) {
-                    $changedFields[] = 'تعطيل';
+                    $changedFields[] = $isHospital ? 'تعطيل المؤسسة' : 'تعطيل';
                     continue;
                 }
             }
 
             $fieldName = $fieldMap[$key] ?? $key;
-            $changedFields[] = $fieldName;
+            
+            // Resolve IDs to names
+            $displayVal = $val;
+            if (is_scalar($val) && $key !== 'password') {
+                if ($key === 'supplier_id' && $val) {
+                    $supplier = \App\Models\Supplier::find($val);
+                    $displayVal = $supplier ? $supplier->name : $val;
+                } elseif ($key === 'manager_id' && $val) {
+                    $manager = User::find($val);
+                    $displayVal = $manager ? ($manager->full_name ?? $manager->name) : $val;
+                } elseif ($key === 'hospital_id' && $val) {
+                    $hosp = \App\Models\Hospital::find($val);
+                    $displayVal = $hosp ? $hosp->name : $val;
+                } elseif ($key === 'pharmacy_id' && $val) {
+                    $pharmacy = \App\Models\Pharmacy::find($val);
+                    $displayVal = $pharmacy ? $pharmacy->name : $val;
+                } elseif ($key === 'warehouse_id' && $val) {
+                    $warehouse = \App\Models\Warehouse::find($val);
+                    $displayVal = $warehouse ? $warehouse->name : $val;
+                } elseif ($val === true) {
+                    $displayVal = 'نعم';
+                } elseif ($val === false) {
+                    $displayVal = 'لا';
+                }
+
+                $changedFields[] = "$fieldName: ($displayVal)";
+            } else {
+                $changedFields[] = $fieldName;
+            }
         }
 
         if (empty($changedFields)) {
@@ -819,9 +886,6 @@ class OperationLogSuperController extends BaseApiController
      */
     private function toArabicNumerals($string)
     {
-        if ($string === null || $string === '') return $string;
-        $westernNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-        $arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-        return str_replace($westernNumbers, $arabicNumbers, (string)$string);
+        return (string)$string;
     }
 }

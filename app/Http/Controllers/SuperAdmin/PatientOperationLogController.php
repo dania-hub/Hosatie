@@ -216,11 +216,25 @@ class PatientOperationLogController extends BaseApiController
         // Context-aware Formats
         if ($log->table_name === 'hospitals') {
             $label = 'إدارة المستشفيات';
+            $hospitalName = '';
+            if ($context['patient']) {
+                $hospitalName = $context['patient']->name ?? '';
+            }
+
+            $actionVerb = match($log->action) {
+                'create', 'created' => 'إضافة مستشفى جديد',
+                'update', 'updated' => 'تعديل بيانات المستشفى',
+                'delete', 'deleted' => 'حذف المستشفى',
+                'deactivate' => 'تعطيل المستشفى',
+                'activate' => 'تفعيل المستشفى',
+                default => $translatedAction ?? $log->action
+            };
+
             if ($log->action == 'create') {
-                $body = 'إضافة مستشفى جديد';
+                $body = $actionVerb . ($hospitalName ? ": $hospitalName" : "");
             } else {
                 $changes = $this->getChangesDescription($log);
-                $body = $changes ?: 'تحديث بيانات مستشفى';
+                $body = "$actionVerb: " . ($hospitalName ?: "مستشفى #{$log->record_id}") . ($changes ? " ($changes)" : "");
             } 
         }
         if ($log->table_name === 'suppliers') {
@@ -321,8 +335,15 @@ class PatientOperationLogController extends BaseApiController
             if (isset($newValues['status']) || isset($newValues['is_active'])) {
                 $key = isset($newValues['status']) ? 'status' : 'is_active';
                 $newStatus = $newValues[$key];
-                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) return 'تفعيل الحساب';
-                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) return 'تعطيل الحساب';
+                
+                $isHospital = $log->table_name === 'hospitals';
+
+                if ($newStatus == 1 || $newStatus === 'active' || $newStatus === true) {
+                    return $isHospital ? 'تفعيل المؤسسة' : 'تفعيل الحساب';
+                }
+                if ($newStatus == 0 || $newStatus === 'inactive' || $newStatus === false) {
+                    return $isHospital ? 'تعطيل المؤسسة' : 'تعطيل الحساب';
+                }
             }
         }
 
@@ -348,11 +369,13 @@ class PatientOperationLogController extends BaseApiController
             'form' => 'الشكل الصيدلاني',
             'category' => 'الفئة العلاجية',
             'category_id' => 'الفئة العلاجية',
+            'city' => 'المدينة',
+            'manager_id' => 'المدير المسؤول',
+            'supplier_id' => 'المورد المسؤول',
             'indications' => 'دواعي الاستعمال',
             'warnings' => 'التحذيرات',
             'contraindications' => 'موانع الاستعمال',
         ];
-
         $changedFields = [];
         foreach ($newValues as $key => $val) {
             if (in_array($key, ['updated_at', 'created_at', 'id', 'remember_token'])) continue;
@@ -364,7 +387,43 @@ class PatientOperationLogController extends BaseApiController
             }
 
             $fieldName = $fieldMap[$key] ?? $key;
-            $changedFields[] = $fieldName;
+            
+            // Customize status for hospitals in multi-field updates
+            if (($key === 'status' || $key === 'is_active') && $log->table_name === 'hospitals') {
+                if ($val == 1 || $val === 'active' || $val === true) $fieldName = 'تفعيل المؤسسة';
+                elseif ($val == 0 || $val === 'inactive' || $val === false) $fieldName = 'تعطيل المؤسسة';
+                $changedFields[] = $fieldName;
+                continue;
+            }
+
+            // Show current value
+            $displayVal = $val;
+            if (is_scalar($val) && $key !== 'password') {
+                if ($key === 'supplier_id' && $val) {
+                    $supplier = \App\Models\Supplier::find($val);
+                    $displayVal = $supplier ? $supplier->name : $val;
+                } elseif ($key === 'manager_id' && $val) {
+                    $manager = User::find($val);
+                    $displayVal = $manager ? ($manager->full_name ?? $manager->name) : $val;
+                } elseif ($key === 'hospital_id' && $val) {
+                    $hosp = \App\Models\Hospital::find($val);
+                    $displayVal = $hosp ? $hosp->name : $val;
+                } elseif ($key === 'pharmacy_id' && $val) {
+                    $pharmacy = \App\Models\Pharmacy::find($val);
+                    $displayVal = $pharmacy ? $pharmacy->name : $val;
+                } elseif ($key === 'warehouse_id' && $val) {
+                    $warehouse = \App\Models\Warehouse::find($val);
+                    $displayVal = $warehouse ? $warehouse->name : $val;
+                } elseif ($val === true) {
+                    $displayVal = 'نعم';
+                } elseif ($val === false) {
+                    $displayVal = 'لا';
+                }
+
+                $changedFields[] = "$fieldName: ($displayVal)";
+            } else {
+                $changedFields[] = $fieldName;
+            }
         }
 
         if (empty($changedFields)) return '';
@@ -373,14 +432,8 @@ class PatientOperationLogController extends BaseApiController
         return 'تم تحديث: ' . implode('، ', array_slice($changedFields, 0, 3));
     }
 
-    /**
-     * تحويل الأرقام الإنجليزية إلى أرقام عربية (هندية)
-     */
     private function toArabicNumerals($string)
     {
-        if ($string === null || $string === '') return $string;
-        $westernNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-        $arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-        return str_replace($westernNumbers, $arabicNumbers, (string)$string);
+        return (string)$string;
     }
 }

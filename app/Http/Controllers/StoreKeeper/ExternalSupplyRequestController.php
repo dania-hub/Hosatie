@@ -390,6 +390,15 @@ class ExternalSupplyRequestController extends BaseApiController
             ], 400);
         }
 
+        // التحقق من أن المستشفى نشط
+        $hospital = \App\Models\Hospital::find($user->hospital_id);
+        if (!$hospital || $hospital->status !== 'active') {
+            return response()->json([
+                'message' => 'لا يمكن إنشاء طلب توريد مستشفى معطل',
+                'error'   => 'حالة المستشفى غير نشطة'
+            ], 403);
+        }
+
         $validated = $request->validate([
             'items'                   => 'required|array|min:1',
             'items.*.drug_id'         => 'required|exists:drugs,id',

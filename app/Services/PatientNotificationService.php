@@ -302,7 +302,7 @@ class PatientNotificationService
         return $notification;
     }
 
-    private function createNotification(User $patient, string $type, string $title, string $message): Notification
+    public function createNotification(User $patient, string $type, string $title, string $message): Notification
     {
         $backtrace = collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10))
             ->map(fn($t) => ($t['class'] ?? '') . '@' . ($t['function'] ?? ''))

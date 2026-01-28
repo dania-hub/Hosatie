@@ -323,7 +323,7 @@ const printTable = () => {
         <div class="page-header">
             <div class="gov-title">
                 <h2>وزارة الصحة</h2>
-                <p>سجل العمليات العام</p>
+                <p>سجل العمليات </p>
             </div>
             <div style="text-align: left">
                 <p style="margin: 0; font-size: 11px; color: #64748b;">تاريخ التقرير</p>

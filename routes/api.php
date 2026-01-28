@@ -580,7 +580,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('hospitals', [HospitalSuperController::class, 'store']);
         Route::put('hospitals/{id}', [HospitalSuperController::class, 'update']);
         Route::patch('hospitals/{id}/deactivate', [HospitalSuperController::class, 'deactivate']);
+        Route::get('hospitals/{id}/deactivation-data', [HospitalSuperController::class, 'deactivationData']);
         Route::patch('hospitals/{id}/activate', [HospitalSuperController::class, 'activate']);
+        Route::get('hospitals/next-code', [HospitalSuperController::class, 'getNextHospitalCode']);
         Route::get('hospitals/check-phone/{phone}', [HospitalSuperController::class, 'checkPhone']);
 
         // Suppliers

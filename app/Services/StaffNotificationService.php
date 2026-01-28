@@ -707,7 +707,7 @@ class StaffNotificationService
     /**
      * Internal helper to create notification
      */
-    private function createNotification(User $user, string $title, string $message, string $type = 'عادي')
+    public function createNotification(User $user, string $title, string $message, string $type = 'عادي')
     {
         try {
             $notification = Notification::create([

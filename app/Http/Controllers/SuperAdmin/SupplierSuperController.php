@@ -270,14 +270,11 @@ class SupplierSuperController extends BaseApiController
                     // إذا تم إرسال null، إزالة المدير الحالي وتعطيله
                     if ($adminId === null || $adminId === '') {
                         // إزالة supplier_id من المدير الحالي إن وجد وتعطيله
-                        if ($supplier->admin) {
                             $supplier->admin->update([
-                                'supplier_id' => null,
-                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة supplier_id
+                                'status' => 'inactive' // تعطيل المدير الحالي مع الاحتفاظ بـ supplier_id
                             ]);
                             // حذف جميع tokens للمستخدم
                             $supplier->admin->tokens()->delete();
-                        }
                     } else {
                         // التحقق من أن المستخدم المحدد هو supplier_admin
                         $newAdmin = User::where('type', 'supplier_admin')
@@ -290,15 +287,11 @@ class SupplierSuperController extends BaseApiController
                         }
 
                         // إزالة supplier_id من المدير الحالي إن وجد وتعطيله
-                        if ($supplier->admin && $supplier->admin->id != $adminId) {
-                            $oldAdmin = $supplier->admin;
                             $oldAdmin->update([
-                                'supplier_id' => null,
-                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة supplier_id
+                                'status' => 'inactive' // تعطيل الحساب مع الاحتفاظ بـ supplier_id
                             ]);
                             // حذف جميع tokens للمستخدم
                             $oldAdmin->tokens()->delete();
-                        }
 
                         // إزالة supplier_id من أي مستخدم آخر مرتبط بنفس المورد وتعطيلهم
                         $otherAdmins = User::where('supplier_id', $supplier->id)
@@ -308,8 +301,7 @@ class SupplierSuperController extends BaseApiController
                         
                         foreach ($otherAdmins as $otherAdmin) {
                             $otherAdmin->update([
-                                'supplier_id' => null,
-                                'status' => 'inactive' // تعطيل الحساب تلقائياً عند إزالة supplier_id
+                                'status' => 'inactive' // تعطيل الحساب مع الاحتفاظ بـ supplier_id
                             ]);
                             // حذف جميع tokens للمستخدم
                             $otherAdmin->tokens()->delete();
@@ -535,10 +527,9 @@ class SupplierSuperController extends BaseApiController
                 // 3. التعامل مع المدير
                 $manager = User::where('supplier_id', $id)->where('type', 'supplier_admin')->first();
                 if ($manager) {
-                    // إيقاف تفعيل الحساب وفكه من المورد
+                    // إيقاف تفعيل الحساب مع الاحتفاظ بـ supplier_id
                     $manager->update([
                         'status' => 'inactive',
-                        'supplier_id' => null
                     ]);
                     $manager->tokens()->delete();
                 }

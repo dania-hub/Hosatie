@@ -882,7 +882,7 @@ const printTable = () => {
         </div>
 
         <div class="report-title">
-            <h1>قائمة مديرون</h1>
+            <h1>قائمة المديرون</h1>
         </div>
 
         <div class="summary-box">

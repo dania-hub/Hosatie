@@ -5,6 +5,7 @@ namespace App\Http\Controllers\AdminHospital;
 use App\Http\Controllers\BaseApiController;
 use App\Models\Department;
 use App\Models\User;
+use App\Models\InternalSupplyRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -106,6 +107,21 @@ class DepartmentHospitalAdminController extends BaseApiController
                     'required',
                     'string',
                     'max:255',
+                    function ($attribute, $value, $fail) {
+                        $trimmedValue = trim($value);
+                        // التحقق من أن الاسم لا يحتوي على أرقام
+                        if (preg_match('/[0-9]/', $trimmedValue)) {
+                            $fail('لا يمكن إدخال أرقام في اسم القسم.');
+                        }
+                        // التحقق من أن الاسم يبدأ بـ "قسم"
+                        if (!str_starts_with($trimmedValue, 'قسم')) {
+                            $fail('يجب أن يبدأ اسم القسم بكلمة "قسم".');
+                        }
+                        // التحقق من وجود نص بعد "قسم" (أكثر من مجرد كلمة "قسم" فقط)
+                        if ($trimmedValue === 'قسم') {
+                            $fail('يجب كتابة اسم القسم بعد كلمة "قسم" (مثال: قسم الأطفال).');
+                        }
+                    },
                     \Illuminate\Validation\Rule::unique('departments')->where(function ($query) use ($hospitalId) {
                         return $query->where('hospital_id', $hospitalId);
                     })
@@ -210,6 +226,21 @@ class DepartmentHospitalAdminController extends BaseApiController
                     'required',
                     'string',
                     'max:255',
+                    function ($attribute, $value, $fail) {
+                        $trimmedValue = trim($value);
+                        // التحقق من أن الاسم لا يحتوي على أرقام
+                        if (preg_match('/[0-9]/', $trimmedValue)) {
+                            $fail('لا يمكن إدخال أرقام في اسم القسم.');
+                        }
+                        // التحقق من أن الاسم يبدأ بـ "قسم"
+                        if (!str_starts_with($trimmedValue, 'قسم')) {
+                            $fail('يجب أن يبدأ اسم القسم بكلمة "قسم".');
+                        }
+                        // التحقق من وجود نص بعد "قسم" (أكثر من مجرد كلمة "قسم" فقط)
+                        if ($trimmedValue === 'قسم') {
+                            $fail('يجب كتابة اسم القسم بعد كلمة "قسم" (مثال: قسم الأطفال).');
+                        }
+                    },
                     \Illuminate\Validation\Rule::unique('departments')->where(function ($query) use ($hospitalId) {
                         return $query->where('hospital_id', $hospitalId);
                     })->ignore($id)
@@ -440,6 +471,106 @@ class DepartmentHospitalAdminController extends BaseApiController
         } catch (\Exception $e) {
             Log::error('Toggle Department Status Error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->sendError('فشل في تغيير حالة القسم.', [], 500);
+        }
+    }
+
+    // 6) حذف قسم مع التحقق من حالة الطلبات المرتبطة
+    public function destroy(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->sendError('المستخدم غير مسجل دخول.', [], 401);
+            }
+
+            $hospitalId = $user->hospital_id;
+            if (!$hospitalId) {
+                return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
+            }
+
+            $department = Department::where('hospital_id', $hospitalId)->find($id);
+            if (!$department) {
+                return $this->sendError('القسم غير موجود أو لا ينتمي إلى مستشفاك.', [], 404);
+            }
+
+            // التحقق من وجود طلبات بحالة "قيد الانتظار" أو "قيد الاستلام"
+            $blockedRequestsCount = InternalSupplyRequest::where('department_id', $department->id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->count();
+
+            if ($blockedRequestsCount > 0) {
+                return $this->sendError(
+                    'لا يمكن حذف هذا القسم لوجود طلبات توريد داخلية قيد الانتظار أو قيد الاستلام مرتبطة به. يرجى إكمال أو إلغاء هذه الطلبات أولاً.',
+                    [
+                        'blocked_requests_count' => $blockedRequestsCount,
+                    ],
+                    409
+                );
+            }
+
+            // إحصائيات عامة عن الطلبات المرتبطة بالقسم (للسجل فقط)
+            $totalRequests = InternalSupplyRequest::where('department_id', $department->id)->count();
+            $fulfilledRequests = InternalSupplyRequest::where('department_id', $department->id)
+                ->where('status', 'fulfilled')
+                ->count();
+
+            $departmentId = $department->id;
+            $departmentName = $department->name;
+
+            // إذا كان هناك مدير قسم معيَّن، نعيد نوعه إلى doctor بعد حذف القسم
+            $headUserId = $department->head_user_id;
+            if ($headUserId) {
+                $headUser = User::where('hospital_id', $hospitalId)->find($headUserId);
+                if ($headUser && $headUser->type === 'department_head') {
+                    $headUser->type = 'doctor';
+                    $headUser->save();
+
+                    Log::info('Changed user type from department_head to doctor after department delete', [
+                        'user_id' => $headUser->id,
+                        'department_id' => $departmentId,
+                    ]);
+                }
+            }
+
+            // تسجيل عملية الحذف في سجل التدقيق
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'hospital_id' => $hospitalId,
+                    'action' => 'حذف قسم',
+                    'table_name' => 'departments',
+                    'record_id' => $departmentId,
+                    'old_values' => json_encode([
+                        'name' => $departmentName,
+                        'status' => $department->status,
+                        'head_user_id' => $department->head_user_id,
+                        'total_requests' => $totalRequests,
+                        'fulfilled_requests' => $fulfilledRequests,
+                    ]),
+                    'new_values' => json_encode([
+                        'deleted' => true,
+                    ]),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create audit log for department delete', ['error' => $e->getMessage()]);
+            }
+
+            // الحذف الفعلي للقسم
+            $department->delete();
+
+            return $this->sendSuccess(
+                [
+                    'id' => $departmentId,
+                    'name' => $departmentName,
+                    'total_requests' => $totalRequests,
+                    'fulfilled_requests' => $fulfilledRequests,
+                ],
+                "تم حذف القسم {$departmentName} بنجاح، مع الاحتفاظ بجميع سجلات الطلبات السابقة."
+            );
+        } catch (\Exception $e) {
+            Log::error('Delete Department Error: ' . $e->getMessage(), ['exception' => $e]);
+            return $this->sendError('فشل في حذف القسم.', [], 500);
         }
     }
 }

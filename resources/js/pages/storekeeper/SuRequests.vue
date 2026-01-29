@@ -10,7 +10,7 @@
                     <!-- زر إظهار/إخفاء فلتر التاريخ -->
                     <button
                         @click="showDateFilter = !showDateFilter"
-                        class="h-11 w-11 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
+                        class="h-11 w-19 flex items-center justify-center border-2 border-[#ffffff8d] rounded-[30px] bg-[#4DA1A9] text-white hover:bg-[#5e8c90f9] hover:border-[#a8a8a8] transition-all duration-200"
                         :title="showDateFilter ? 'إخفاء فلتر التاريخ' : 'إظهار فلتر التاريخ'"
                     >
                         <Icon
@@ -82,35 +82,9 @@
                             tabindex="0"
                             class="dropdown-content z-[50] menu p-2 shadow-lg bg-white border-2 hover:border hover:border-[#a8a8a8] border-[#ffffff8d] rounded-[35px] w-52 text-right"
                         >
-                            <li
-                                class="menu-title text-gray-700 font-bold text-sm"
-                            >
-                                حسب رقم الشحنة:
-                            </li>
-                            <li>
-                                <a
-                                    @click="sortShipments('shipmentNumber', 'asc')"
-                                    :class="{
-                                        'font-bold text-[#4DA1A9]':
-                                            sortKey === 'shipmentNumber' &&
-                                            sortOrder === 'asc',
-                                    }"
-                                >
-                                    الأصغر أولاً
-                                </a>
-                            </li>
-                            <li>
-                                <a
-                                    @click="sortShipments('shipmentNumber', 'desc')"
-                                    :class="{
-                                        'font-bold text-[#4DA1A9]':
-                                            sortKey === 'shipmentNumber' &&
-                                            sortOrder === 'desc',
-                                    }"
-                                >
-                                    الأكبر أولاً
-                                </a>
-                            </li>
+                          
+                           
+                           
 
                             <li
                                 class="menu-title text-gray-700 font-bold text-sm mt-2"
@@ -126,7 +100,7 @@
                                             sortOrder === 'asc',
                                     }"
                                 >
-                                    الأقدم أولاً
+                                    الأقدم 
                                 </a>
                             </li>
                             <li>
@@ -138,25 +112,10 @@
                                             sortOrder === 'desc',
                                     }"
                                 >
-                                    الأحدث أولاً
+                                    الأحدث 
                                 </a>
                             </li>
-                            <li
-                                class="menu-title text-gray-700 font-bold text-sm mt-2"
-                            >
-                                حسب حالة الطلب:
-                            </li>
-                            <li>
-                                <a
-                                    @click="sortShipments('requestStatus', 'asc')"
-                                    :class="{
-                                        'font-bold text-[#4DA1A9]':
-                                            sortKey === 'requestStatus',
-                                    }"
-                                >
-                                    حسب الأبجدية
-                                </a>
-                            </li>
+                            
                         </ul>
                     </div>
                     <p

@@ -458,7 +458,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/departments/{id}', [DepartmentHospitalAdminController::class, 'show']);// عرض قسم واحد
         Route::post('/departments', [DepartmentHospitalAdminController::class, 'store']);// تنشئي قسم جديد
         Route::put('/departments/{id}', [DepartmentHospitalAdminController::class, 'update']);// تعديل قسم 
-        Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);// تفعيل و الغاء تفعيل قسم
+        Route::delete('/departments/{id}', [DepartmentHospitalAdminController::class, 'destroy']);// حذف قسم مع التحقق من الطلبات المرتبطة
+        Route::patch('/departments/{id}/toggle-status', [DepartmentHospitalAdminController::class, 'toggleStatus']);// تفعيل و الغاء تفعيل قسم (احتياطي للتوافق مع الإصدارات السابقة)
 
         Route::get('/employees', [DepartmentHospitalAdminController::class, 'employees']);// الدكاترة او مدراء الاقسام اللي بتعينيهم
 

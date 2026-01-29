@@ -266,54 +266,55 @@ const availableManagers = computed(() => {
 });
 
 // ----------------------------------------------------
-// 6. متغيرات نافذة تأكيد التفعيل/التعطيل
+// 6. متغيرات نافذة تأكيد الحذف
 // ----------------------------------------------------
-const isStatusConfirmationModalOpen = ref(false);
-const departmentToToggle = ref(null);
-const statusAction = ref("");
+const isDeleteConfirmationModalOpen = ref(false);
+const departmentToDelete = ref(null);
 
-const openStatusConfirmationModal = (department) => {
-    departmentToToggle.value = department;
-    statusAction.value = department.isActive ? "تعطيل" : "تفعيل";
-    isStatusConfirmationModalOpen.value = true;
+const openDeleteConfirmationModal = (department) => {
+    departmentToDelete.value = department;
+    isDeleteConfirmationModalOpen.value = true;
 };
 
-const closeStatusConfirmationModal = () => {
-    isStatusConfirmationModalOpen.value = false;
-    departmentToToggle.value = null;
-    statusAction.value = "";
+const closeDeleteConfirmationModal = () => {
+    isDeleteConfirmationModalOpen.value = false;
+    departmentToDelete.value = null;
 };
 
-const confirmStatusToggle = async () => {
-    if (!departmentToToggle.value) return;
+const confirmDeleteDepartment = async () => {
+    if (!departmentToDelete.value) return;
 
-    const newStatus = !departmentToToggle.value.isActive;
-    const departmentId = departmentToToggle.value.id;
+    const departmentId = departmentToDelete.value.id;
 
     try {
-        const response = await api.patch(
-            `/admin-hospital/departments/${departmentId}/toggle-status`,
-            { isActive: newStatus }
+        const response = await api.delete(
+            `/admin-hospital/departments/${departmentId}`
         );
 
-        // تحديث البيانات محلياً
-        const index = departments.value.findIndex(
-            (d) => d.id === departmentId
+        // إزالة القسم محلياً من القائمة
+        departments.value = departments.value.filter(
+            (d) => d.id !== departmentId
         );
-        if (index !== -1) {
-            const responseData = response.data.data || response.data;
-            departments.value[index].isActive = responseData.isActive !== undefined ? responseData.isActive : newStatus;
-            departments.value[index].lastUpdated = responseData.lastUpdated || new Date().toISOString();
+
+        const successMessage =
+            response.data?.message ||
+            ` تم حذف القسم ${departmentToDelete.value.name} بنجاح.`;
+        showSuccessAlert(successMessage);
+        closeDeleteConfirmationModal();
+    } catch (error) {
+        console.error("Error deleting department:", error);
+        const errorMessage =
+            error.response?.data?.message ||
+            " فشل في حذف القسم. يرجى المحاولة مرة أخرى.";
+
+        // إذا كان السبب وجود طلبات قيد الانتظار أو قيد الاستلام نعرضه كتحذير واضح
+        if (error.response?.status === 409) {
+            showWarningAlert(errorMessage);
+        } else {
+            showErrorAlert(errorMessage);
         }
 
-        const successMessage = response.data?.message || ` تم ${statusAction.value} القسم ${departmentToToggle.value.name} بنجاح!`;
-        showSuccessAlert(successMessage);
-        closeStatusConfirmationModal();
-    } catch (error) {
-        console.error(`Error ${statusAction.value} department:`, error);
-        const errorMessage = error.response?.data?.message || ` فشل ${statusAction.value} القسم.`;
-        showSuccessAlert(errorMessage);
-        closeStatusConfirmationModal();
+        closeDeleteConfirmationModal();
     }
 };
 
@@ -524,10 +525,6 @@ const updateDepartment = async (updatedDepartment) => {
         const errorMessage = error.response?.data?.message || error.response?.data?.error || " فشل تعديل بيانات القسم.";
         showSuccessAlert(errorMessage);
     }
-};
-
-const getStatusTooltip = (isActive) => {
-    return isActive ? "تعطيل القسم" : "تفعيل القسم";
 };
 
 // ----------------------------------------------------
@@ -925,26 +922,15 @@ const printTable = () => {
                                                         />
                                                     </button>
 
-                                                    <!-- زر تفعيل/تعطيل القسم -->
+                                                    <!-- زر حذف القسم -->
                                                     <button
-                                                        @click="openStatusConfirmationModal(department)"
-                                                        :class="[
-                                                            'p-2 rounded-lg border transition-all duration-200 hover:scale-110 active:scale-95',
-                                                            department.isActive
-                                                                ? 'bg-red-50 hover:bg-red-100 border-red-200'
-                                                                : 'bg-green-50 hover:bg-green-100 border-green-200',
-                                                        ]"
-                                                        :title="getStatusTooltip(department.isActive)"
+                                                        @click="openDeleteConfirmationModal(department)"
+                                                        class="p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95"
+                                                        title="حذف القسم"
                                                     >
                                                         <Icon
-                                                            v-if="department.isActive"
-                                                            icon="pepicons-pop:power-off"
+                                                            icon="mdi:trash-can-outline"
                                                             class="w-4 h-4 text-red-600"
-                                                        />
-                                                        <Icon
-                                                            v-else
-                                                            icon="quill:off"
-                                                            class="w-4 h-4 text-green-600"
                                                         />
                                                     </button>
                                                 </div>
@@ -988,13 +974,13 @@ const printTable = () => {
         @close="closeViewModal"
     />
 
-    <!-- نافذة تأكيد التفعيل/التعطيل -->
+    <!-- نافذة تأكيد الحذف -->
     <div
-        v-if="isStatusConfirmationModalOpen"
+        v-if="isDeleteConfirmationModalOpen"
         class="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4"
     >
         <div
-            @click="closeStatusConfirmationModal"
+            @click="closeDeleteConfirmationModal"
             class="absolute inset-0 bg-black/30 backdrop-blur-sm"
         ></div>
 
@@ -1007,26 +993,27 @@ const printTable = () => {
                     class="w-16 h-16 text-yellow-500 mb-4"
                 />
                 <p class="text-xl font-bold text-[#2E5077] mb-3">
-                    {{
-                        statusAction === "تفعيل"
-                            ? "تفعيل القسم"
-                            : "تعطيل القسم"
-                    }}
+                    حذف القسم
                 </p>
                 <p class="text-base text-gray-700 mb-6">
-                    هل أنت متأكد من رغبتك في {{ statusAction }} القسم
-                    <strong>{{ departmentToToggle?.name }}</strong
+                    هل أنت متأكد من رغبتك في حذف القسم
+                    <strong>{{ departmentToDelete?.name }}</strong
                     >؟
+                    <br />
+                    <span class="text-sm text-gray-600">
+                        لن يتم حذف أي سجلات أو طلبات سابقة، ولكن لا يمكنك الحذف إذا كان هناك طلبات
+                        توريد داخلية قيد الانتظار أو قيد الاستلام لهذا القسم.
+                    </span>
                 </p>
                 <div class="flex gap-4 justify-center w-full">
                     <button
-                        @click="confirmStatusToggle"
+                        @click="confirmDeleteDepartment"
                         class="inline-flex items-center px-[25px] py-[9px] border-2 border-[#ffffff8d] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-white z-[1] bg-[#4DA1A9] hover:border hover:border-[#a8a8a8] hover:bg-[#3a8c94]"
                     >
                         تأكيد
                     </button>
                     <button
-                        @click="closeStatusConfirmationModal"
+                        @click="closeDeleteConfirmationModal"
                         class="inline-flex items-center px-[25px] border-2 border-[#b7b9bb] rounded-[30px] transition-all duration-200 ease-in relative overflow-hidden text-[15px] cursor-pointer text-[#374151] z-[1] bg-[#e5e7eb] hover:border hover:border-[#a8a8a8] hover:bg-[#b7b9bb]"
                     >
                         إلغاء

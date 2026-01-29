@@ -212,24 +212,24 @@
                     <h3 class="text-lg font-bold text-[#2E5077] flex items-center gap-2">
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         ملاحظات الإرسال 
-                        <span v-if="hasZeroQuantityItem" class="text-sm font-normal text-red-600">(إلزامي)</span>
+                        <span v-if="hasSendShortage" class="text-sm font-normal text-red-600">(إلزامي عند إرسال كميات أقل من المطلوبة)</span>
                         <span v-else class="text-sm font-normal text-gray-400">(اختياري)</span>
                     </h3>
                     <textarea
                         v-model="additionalNotes"
-                        :placeholder="hasZeroQuantityItem ? 'يجب إضافة ملاحظات عند وجود عنصر بكمية مرسلة = 0...' : 'أضف أي ملاحظات حول الشحنة...'"
+                        :placeholder="hasSendShortage ? 'يجب إضافة ملاحظات عند إرسال كميات أقل من المطلوبة لأي دواء...' : 'أضف أي ملاحظات حول الشحنة...'"
                         rows="2"
                         class="w-full p-4 bg-white border rounded-xl text-gray-700 focus:ring-2 transition-all resize-none"
                         :class="{
-                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': hasZeroQuantityItem && notesError,
-                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': hasZeroQuantityItem && !notesError,
-                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !hasZeroQuantityItem
+                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': hasSendShortage && notesError,
+                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': hasSendShortage && !notesError,
+                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !hasSendShortage
                         }"
                         @input="notesError = false"
                     ></textarea>
-                    <div v-if="hasZeroQuantityItem && notesError" class="text-red-600 text-sm flex items-center gap-1 font-medium">
+                    <div v-if="hasSendShortage && notesError" class="text-red-600 text-sm flex items-center gap-1 font-medium">
                         <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
-                        يجب إضافة ملاحظات الإرسال عند وجود عنصر بكمية مرسلة = 0
+                        يجب إضافة ملاحظات الإرسال عند إرسال كميات أقل من المطلوبة لأي دواء
                     </div>
                 </div>
             </div>
@@ -644,10 +644,23 @@ const hasZeroQuantityItem = computed(() => {
         return false;
     }
     
-    // التحقق من وجود عنصر واحد على الأقل بكمية مرسلة = 0
     return receivedItems.value.some(item => {
         const sentQty = item.sentQuantity || 0;
         return sentQty === 0;
+    });
+});
+
+// التحقق من وجود نقص في الكمية المرسلة (الكمية المرسلة أقل من الكمية المطلوبة لأي دواء)
+const hasSendShortage = computed(() => {
+    if (!receivedItems.value || receivedItems.value.length === 0) {
+        return false;
+    }
+    
+    return receivedItems.value.some(item => {
+        const sentQty = item.sentQuantity || 0;
+        const requestedQty = item.originalQuantity || 0;
+        // نقص إذا كانت الكمية المرسلة أقل من المطلوبة
+        return sentQty < requestedQty;
     });
 });
 
@@ -701,8 +714,8 @@ const sendShipment = async () => {
         return;
     }
     
-    // التحقق من ملاحظات الإرسال إذا كان هناك عنصر بكمية مرسلة = 0
-    if (hasZeroQuantityItem.value && !additionalNotes.value.trim()) {
+    // التحقق من ملاحظات الإرسال إذا كانت الكمية المرسلة أقل من المطلوبة في أي دواء
+    if (hasSendShortage.value && !additionalNotes.value.trim()) {
         notesError.value = true;
         return;
     }
@@ -898,6 +911,37 @@ const closeModal = () => {
         emit("close");
     }
 };
+
+// إعادة تعيين الحالة عند فتح النموذج لطلب جديد
+watch(
+    () => props.isOpen,
+    (isOpen) => {
+        if (isOpen) {
+            // reset loading / confirmation state
+            isConfirming.value = false;
+            // reset rejection state
+            showRejectionNote.value = false;
+            rejectionNote.value = "";
+            rejectionError.value = false;
+            // reset notes state
+            additionalNotes.value = "";
+            notesError.value = false;
+        }
+    }
+);
+
+// إعادة تعيين الحالة عند فتح النموذج
+watch(() => props.isOpen, (isOpen) => {
+    if (isOpen) {
+        // إعادة تعيين جميع الحالات عند فتح النموذج
+        isConfirming.value = false;
+        showRejectionNote.value = false;
+        rejectionNote.value = "";
+        rejectionError.value = false;
+        additionalNotes.value = "";
+        notesError.value = false;
+    }
+});
 </script>
 
 <style scoped>

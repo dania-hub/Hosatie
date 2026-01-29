@@ -416,7 +416,37 @@ class AuditLogHospitalAdminController extends BaseApiController
                         'password' => 'كلمة المرور',
                     ];
 
+                    // معالجة خاصة لتغيير نوع المستخدم (مثلاً من طبيب إلى مدير قسم والعكس)
+                    if (isset($newValues['type']) && isset($oldValues['type']) && $newValues['type'] !== $oldValues['type']) {
+                        $typeMap = [
+                            'doctor' => 'طبيب',
+                            'department_head' => 'مدير قسم',
+                            'pharmacist' => 'صيدلي',
+                            'warehouse_manager' => 'مسؤول المخزن',
+                            'data_entry' => 'مدخل بيانات',
+                            'hospital_admin' => 'مدير نظام المستشفى',
+                            'supplier_admin' => 'مدير المورد',
+                        ];
+
+                        $oldType = $typeMap[$oldValues['type']] ?? $oldValues['type'];
+                        $newType = $typeMap[$newValues['type']] ?? $newValues['type'];
+
+                        // صياغة أوضح في حالة التعيين / الإلغاء كمدير قسم
+                        if ($oldValues['type'] === 'doctor' && $newValues['type'] === 'department_head') {
+                            $changes[] = 'تعيين كمدير قسم بدلاً من طبيب';
+                        } elseif ($oldValues['type'] === 'department_head' && $newValues['type'] === 'doctor') {
+                            $changes[] = 'إلغاء تعيينه كمدير قسم وإعادته كطبيب';
+                        } else {
+                            $changes[] = "تغيير نوع الحساب من {$oldType} إلى {$newType}";
+                        }
+                    }
+
                     foreach ($newValues as $field => $newValue) {
+                        // تجاهل type هنا لأننا عالجناه أعلاه
+                        if ($field === 'type') {
+                            continue;
+                        }
+
                         // التحقق من الحقول التي تغيرت وموجودة في القائمة المسموح بها
                         if (array_key_exists($field, $oldValues) && $oldValues[$field] != $newValue && isset($fieldNames[$field])) {
                             // تنسيق خاص لبعض الحقول
@@ -446,8 +476,22 @@ class AuditLogHospitalAdminController extends BaseApiController
                     $oldValues = json_decode($log->old_values ?? '{}', true);
                     $newValues = json_decode($log->new_values ?? '{}', true);
 
+                    // نحاول دائماً تحديد اسم القسم من القيم الجديدة أو القديمة أو قاعدة البيانات
+                    $deptName = $newValues['name'] ?? ($oldValues['name'] ?? null);
+                    if (!$deptName) {
+                        $deptModel = Department::find($log->record_id);
+                        if ($deptModel) {
+                            $deptName = $deptModel->name;
+                        }
+                    }
+
                     if (is_array($oldValues) && is_array($newValues) && count($newValues) > 0) {
                         $changes = [];
+
+                        // إضافة اسم القسم في بداية التفاصيل دائماً إذا توفر
+                        if ($deptName) {
+                            $changes[] = 'القسم: ' . $deptName;
+                        }
                         
                         // 1. تغيير الاسم
                         if (isset($newValues['name']) && isset($oldValues['name']) && $newValues['name'] != $oldValues['name']) {
@@ -472,7 +516,7 @@ class AuditLogHospitalAdminController extends BaseApiController
                         }
 
                         if (count($changes) > 0) {
-                            return implode(' و ', $changes);
+                            return implode(' - ', $changes);
                         }
                     }
 
@@ -480,7 +524,7 @@ class AuditLogHospitalAdminController extends BaseApiController
                     $department = Department::with(['head'])->find($log->record_id);
                     if ($department) {
                         $details = [];
-                        $details[] = $department->name;
+                        $details[] = 'القسم: ' . $department->name;
                         
                         // إضافة اسم المدير إن وجد
                         if ($department->head) {
@@ -489,7 +533,7 @@ class AuditLogHospitalAdminController extends BaseApiController
                         
                         return implode(' - ', $details);
                     }
-                    return null;
+                    return $deptName ? 'القسم: ' . $deptName : null;
 
                 case 'external_supply_request':
                 case 'external_supply_requests':

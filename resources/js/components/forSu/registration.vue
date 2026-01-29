@@ -425,9 +425,12 @@ const handleInput = () => {
     // تصفية الأدوية
     filterDrugs();
     
-    // عرض النتائج دائماً (سواء كان هناك فئة مختارة أو نص بحث أو لا شيء)
-    // عند عدم اختيار فئة، ستظهر جميع الأدوية
-    showResults.value = true;
+    // عرض النتائج فقط عند الكتابة
+    if (searchTermDrug.value && searchTermDrug.value.trim().length > 0) {
+        showResults.value = true;
+    } else {
+        showResults.value = false;
+    }
 };
 
 // ✅ دالة تصفية الأدوية
@@ -781,13 +784,13 @@ watch(() => selectedCategory.value, (newCategory) => {
     }
     
     if (newCategory) {
-        // عند اختيار فئة، قم بتصفية الأدوية وعرضها تلقائياً
+        // عند اختيار فئة، قم بتصفية الأدوية ولكن لا نعرضها تلقائياً
         filterDrugs();
-        showResults.value = true;
+        showResults.value = false;
     } else {
-        // عند اختيار "كل الفئات" (قيمة فارغة)، عرض جميع الأدوية
+        // عند اختيار "كل الفئات" (قيمة فارغة)، لا نعرض القائمة تلقائياً
         filterDrugs(); // هذا سيعرض جميع الأدوية إذا لم يكن هناك نص بحث
-        showResults.value = true; // عرض القائمة دائماً عند اختيار "كل الفئات"
+        showResults.value = false; // لا نعرض القائمة تلقائياً
     }
 });
 
@@ -796,9 +799,9 @@ watch(() => props.isOpen, (isOpen) => {
         clearForm();
         batchNumber.value = generateDefaultBatch();
         
-        // عند فتح النموذج، عرض جميع الأدوية مباشرة (لأن الفئة الافتراضية هي "كل الفئات")
+        // عند فتح النموذج، لا نعرض قائمة الأدوية مباشرة
         filteredDrugs.value = props.allDrugsData || [];
-        showResults.value = true;
+        showResults.value = false;
     }
 });
 </script>

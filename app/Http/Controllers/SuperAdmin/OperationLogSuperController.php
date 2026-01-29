@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Prescription;
 use App\Models\PrescriptionDrug;
 use App\Models\Drug;
+use App\Models\InternalSupplyRequest;
 use Illuminate\Http\Request;
 
 class OperationLogSuperController extends BaseApiController
@@ -805,11 +806,11 @@ class OperationLogSuperController extends BaseApiController
         }
 
         $requestNumber = null;
+        $requestId = null;
 
         try {
             // محاولة استخراج request_id من JSON أولاً
             $values = json_decode($log->new_values ?? $log->old_values, true);
-            $requestId = null;
             
             if (is_array($values) && isset($values['request_id'])) {
                 $requestId = $values['request_id'];
@@ -832,6 +833,15 @@ class OperationLogSuperController extends BaseApiController
             ]);
         }
 
+        // إضافة اسم القسم لعمليات القسم على الشحنات الداخلية (إنشاء طلب / تأكيد استلام)
+        $departmentActions = ['department_confirm_internal_receipt', 'department_create_supply_request'];
+        if ($log->table_name === 'internal_supply_request' && $requestId && in_array($log->action, $departmentActions)) {
+            $deptName = $this->getDepartmentNameForLog($log, $requestId);
+            if ($deptName) {
+                $operationType = str_replace('(قسم)', ' - ' . $deptName, $operationType);
+            }
+        }
+
         // بناء النص مع رقم الشحنة
         if ($requestNumber) {
             return $operationType . ' - رقم الشحنة: ' . $requestNumber;
@@ -839,6 +849,36 @@ class OperationLogSuperController extends BaseApiController
 
         // إذا لم يوجد رقم الشحنة، أعد النص الأصلي
         return $operationType;
+    }
+
+    /**
+     * جلب اسم القسم لطلب توريد داخلي: من سجل التدقيق أولاً (يبقى بعد حذف القسم)، وإلا من قاعدة البيانات.
+     *
+     * @param \App\Models\AuditLog $log
+     * @param int $requestId
+     * @return string|null
+     */
+    private function getDepartmentNameForLog($log, $requestId)
+    {
+        $payload = $log->new_values ?? $log->old_values;
+        if ($payload) {
+            $data = is_string($payload) ? json_decode($payload, true) : $payload;
+            if (is_array($data) && !empty($data['department_name'])) {
+                return $data['department_name'];
+            }
+        }
+        try {
+            $req = InternalSupplyRequest::with('department')->find($requestId);
+            if ($req && $req->department) {
+                return $req->department->name;
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Failed to get department name for internal request', [
+                'request_id' => $requestId,
+                'error' => $e->getMessage()
+            ]);
+        }
+        return null;
     }
 
     /**

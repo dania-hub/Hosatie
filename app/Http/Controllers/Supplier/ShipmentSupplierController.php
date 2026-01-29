@@ -588,9 +588,9 @@ class ShipmentSupplierController extends BaseApiController
                 }
             }
 
-            // تحديث الحالة إلى 'pending' (قيد الاستلام/تم الشحن) لكي تظهر لمسؤول المخزن للاستلام
+            // تحديث الحالة إلى 'fulfilled' (تم الشحن) لكي تظهر لمسؤول المخزن كشحنة جاهزة للاستلام
             $oldStatus = $shipment->status;
-            $shipment->status = 'pending';
+            $shipment->status = 'fulfilled';
             $shipment->save();
 
             // حفظ الملاحظات وتسجيل العملية في audit_log (دائماً، مع أو بدون ملاحظات)
@@ -598,7 +598,7 @@ class ShipmentSupplierController extends BaseApiController
             try {
                 // إعداد البيانات للـ audit log
                 $newValues = [
-                    'status' => 'pending',
+                    'status' => 'fulfilled',
                 ];
                 
                 // إضافة معلومات الكميات المرسلة
@@ -738,8 +738,11 @@ class ShipmentSupplierController extends BaseApiController
         $statuses = [
             'new' => 'قيد الانتظار',
             'approved' => 'جديد',
-            'pending' => 'قيد الاستلام',
-            'fulfilled' => 'تم الاستلام',
+            // pending: بانتظار موافقة/إجراء، وليست قيد الاستلام
+            'pending' => 'قيد الانتظار',
+            // fulfilled: تم شحن الطلب من المورد وبانتظار استلام مسؤول المخزن
+            'fulfilled' => 'قيد الاستلام',
+            // delivered: تم الاستلام فعلياً من مسؤول المخزن
             'delivered' => 'تم الاستلام',
             'rejected' => 'مرفوض',
             'cancelled' => 'مرفوض',

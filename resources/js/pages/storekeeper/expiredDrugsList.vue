@@ -512,7 +512,7 @@ onMounted(async () => {
                             <div class="overflow-x-auto h-full">
                                 <table
                                     dir="rtl"
-                                    class="table w-full text-right min-w-[1400px] border-collapse"
+                                    class="table w-full text-right min-w-[1000px] border-collapse"
                                 >
                                     <thead
                                         class="bg-red-100 text-red-900 sticky top-0 z-10 border-b border-red-300"

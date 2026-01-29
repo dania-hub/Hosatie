@@ -17,7 +17,6 @@ const form = ref({
     id: "",
     name: "",
     managerId: "",
-    isActive: true,
 });
 
 // البيانات الأصلية للمقارنة
@@ -26,18 +25,54 @@ const originalForm = ref({});
 // أخطاء التحقق
 const errors = ref({
     name: false,
+    nameMessage: "",
 });
 
 // حالة نافذة التأكيد
 const isConfirmationModalOpen = ref(false);
 
+// منع إدخال الأرقام في اسم القسم
+const handleNameInput = (event) => {
+    const value = event.target.value;
+    // إزالة أي أرقام من النص
+    const cleanedValue = value.replace(/[0-9]/g, '');
+    form.value.name = cleanedValue;
+};
+
 // التحقق من صحة النموذج
 const validateForm = () => {
     let isValid = true;
     const data = form.value;
+    const trimmedName = data.name.trim();
 
-    errors.value.name = !data.name || data.name.trim().length < 2;
-    if (errors.value.name) isValid = false;
+    // التحقق من وجود الاسم
+    if (!trimmedName || trimmedName.length < 2) {
+        errors.value.name = true;
+        errors.value.nameMessage = "الرجاء إدخال اسم القسم (على الأقل حرفين)";
+        isValid = false;
+    }
+    // التحقق من أن الاسم يبدأ بـ "قسم"
+    else if (!trimmedName.startsWith('قسم')) {
+        errors.value.name = true;
+        errors.value.nameMessage = "يجب أن يبدأ اسم القسم بكلمة 'قسم'";
+        isValid = false;
+    }
+    // التحقق من وجود نص بعد "قسم" (أكثر من مجرد كلمة "قسم" فقط)
+    else if (trimmedName === 'قسم' || trimmedName.trim() === 'قسم') {
+        errors.value.name = true;
+        errors.value.nameMessage = "يجب كتابة اسم القسم بعد كلمة 'قسم' (مثال: قسم الأطفال)";
+        isValid = false;
+    }
+    // التحقق من عدم وجود أرقام
+    else if (/[0-9]/.test(trimmedName)) {
+        errors.value.name = true;
+        errors.value.nameMessage = "لا يمكن إدخال أرقام في اسم القسم";
+        isValid = false;
+    }
+    else {
+        errors.value.name = false;
+        errors.value.nameMessage = "";
+    }
 
     return isValid;
 };
@@ -45,8 +80,12 @@ const validateForm = () => {
 // التحقق من صحة النموذج (computed)
 const isFormValid = computed(() => {
     const data = form.value;
+    const trimmedName = data.name.trim();
     
-    if (!data.name || data.name.trim().length < 2) return false;
+    if (!trimmedName || trimmedName.length < 2) return false;
+    if (!trimmedName.startsWith('قسم')) return false;
+    if (trimmedName === 'قسم' || trimmedName.trim() === 'قسم') return false;
+    if (/[0-9]/.test(trimmedName)) return false;
     
     return true;
 });
@@ -60,7 +99,6 @@ const hasChanges = computed(() => {
 
     if (current.name !== original.name) return true;
     if (current.managerId !== original.managerId) return true;
-    if (current.isActive !== original.isActive) return true;
 
     return false;
 });
@@ -88,7 +126,6 @@ const confirmUpdate = () => {
         id: form.value.id,
         name: form.value.name,
         managerId: form.value.managerId ? (Number(form.value.managerId) || form.value.managerId) : null,
-        isActive: form.value.isActive,
     };
     
     emit('save', updatedDepartment);
@@ -120,7 +157,6 @@ watch(() => props.isOpen, (newVal) => {
             id: props.department.id,
             name: props.department.name || "",
             managerId: managerId,
-            isActive: props.department.isActive !== undefined ? props.department.isActive : true,
         };
 
         originalForm.value = { ...initialData };
@@ -129,6 +165,7 @@ watch(() => props.isOpen, (newVal) => {
         // إعادة تعيين الأخطاء
         errors.value = {
             name: false,
+            nameMessage: "",
         };
     }
 });
@@ -189,7 +226,8 @@ const managersWithCurrent = computed(() => {
                         <Input
                             id="name"
                             v-model="form.name"
-                            placeholder="أدخل اسم القسم"
+                            @input="handleNameInput"
+                            placeholder="قسم ... (مثال: قسم الأطفال)"
                             :class="[
                                 'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
                                 errors.name ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
@@ -197,7 +235,10 @@ const managersWithCurrent = computed(() => {
                         />
                         <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال اسم القسم (على الأقل حرفين)
+                            {{ errors.nameMessage || "الرجاء إدخال اسم القسم بشكل صحيح" }}
+                        </p>
+                        <p v-else class="text-xs text-gray-500">
+                            يجب أن يبدأ اسم القسم بكلمة "قسم" ولا يحتوي على أرقام
                         </p>
                     </div>
 
@@ -228,30 +269,6 @@ const managersWithCurrent = computed(() => {
                                 {{ currentManager ? (currentManager.name || currentManager.full_name || currentManager.nameDisplay) : 'غير محدد' }}
                             </span>
                         </p>
-                    </div>
-
-                    <!-- حالة القسم -->
-                    <div class="space-y-2 md:col-span-2">
-                        <label class="text-sm font-semibold text-[#2E5077] flex items-center gap-2 mb-2">
-                            <Icon icon="solar:settings-bold-duotone" class="w-4 h-4 text-[#4DA1A9]" />
-                            حالة القسم
-                        </label>
-                        <div class="flex gap-4">
-                            <label class="cursor-pointer relative">
-                                <input type="radio" v-model="form.isActive" :value="true" class="peer sr-only" />
-                                <div class="px-6 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-500 peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:text-green-700 transition-all flex items-center gap-2">
-                                    <Icon icon="solar:check-circle-bold" class="w-5 h-5" />
-                                    <span class="font-bold">مفعل</span>
-                                </div>
-                            </label>
-                            <label class="cursor-pointer relative">
-                                <input type="radio" v-model="form.isActive" :value="false" class="peer sr-only" />
-                                <div class="px-6 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-500 peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:text-red-700 transition-all flex items-center gap-2">
-                                    <Icon icon="solar:close-circle-bold" class="w-5 h-5" />
-                                    <span class="font-bold">معطل</span>
-                                </div>
-                            </label>
-                        </div>
                     </div>
                 </div>
             </div>

@@ -7,7 +7,7 @@
         ]"
     >
         <div
-            class="p-4 flex justify-end cursor-pointer sticky top-0 bg-[#2E5077] z-10"
+            class="p-4 flex justify-end cursor-pointer sticky top-0 bg-gradient-to-r from-[#2E5077] to-[#4DA1A9] z-10"
             @click="toggleSidebar"
             :title="isCollapsed ? 'فتح الشريط الجانبي' : 'طي الشريط الجانبي'"
         >
@@ -72,7 +72,7 @@
                             :class="[
                                 'w-6 h-6 text-[#ffffff] flex-shrink-0 transition-margin duration-300',
                                 isCollapsed ? 'mx-auto' : '',
-                                'group-hover:text-[#1cab8c]',
+                                'group-hover:text-[#2E5077]',
                                 isCurrent(link.to) ? 'text-white' : '', 
                             ]"
                         />

@@ -402,9 +402,24 @@ class ShipmentDepartmentAdminController extends BaseApiController
             \Log::info("No shortage detected in shipment", ['shipment_id' => $shipment->id]);
         }
         
-        // تسجيل العملية في audit_log
+        // تسجيل العملية في audit_log (مع اسم القسم ليعرض حتى بعد حذف القسم)
         $user = $request->user();
         $notes = $request->input('notes', '');
+        $departmentNameForLog = null;
+        if ($currentDepartment) {
+            $departmentNameForLog = $currentDepartment->name;
+        } elseif ($shipment->department) {
+            $departmentNameForLog = $shipment->department->name;
+        } else {
+            $createLog = AuditLog::where('table_name', 'internal_supply_request')
+                ->where('record_id', $shipment->id)
+                ->where('action', 'department_create_supply_request')
+                ->first();
+            if ($createLog && $createLog->new_values) {
+                $nv = json_decode($createLog->new_values, true);
+                $departmentNameForLog = $nv['department_name'] ?? null;
+            }
+        }
         
         AuditLog::create([
             'user_id' => $user->id,
@@ -417,7 +432,8 @@ class ShipmentDepartmentAdminController extends BaseApiController
                 'request_id' => $shipment->id,
                 'status' => 'fulfilled',
                 'confirmed_at' => $shipment->updated_at->format('Y-m-d H:i'),
-                'notes' => $notes, // ملاحظة department عند تأكيد الاستلام
+                'notes' => $notes,
+                'department_name' => $departmentNameForLog,
             ]),
             'ip_address' => $request->ip(),
         ]);

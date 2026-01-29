@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Icon } from "@iconify/vue";
 import DefaultLayout from "@/components/DefaultLayout.vue"; 
 
-// ----------------------------------------------------
+// ------------------------------------------------
 // 1. تعريف الـ Endpoint ومتغيرات الحالة
 // ----------------------------------------------------
 const API_URL = '/api/department-admin/dashboard/stats';

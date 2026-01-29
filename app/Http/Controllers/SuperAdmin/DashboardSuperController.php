@@ -829,6 +829,11 @@ class DashboardSuperController extends BaseApiController
             'pharmacist_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (صيدلي)',
             'department_create_supply_request' => 'إنشاء طلب توريد داخلي (قسم)',
             'department_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (قسم)',
+            
+            // Supplier Internal Supply Request Actions
+            'supplier_create_internal_supply_request' => 'إنشاء طلب توريد داخلي (مورد)',
+            'supplier_confirm_internal_receipt' => 'تأكيد استلام شحنة داخلية (مورد)',
+            'super_admin_confirm_internal_supply_request' => 'تأكيد إرسال طلب توريد داخلي (إدارة)',
             'hospital_admin_reject_external_supply_request' => 'رفض طلب توريد خارجي (مدير مستشفى)',
             'hospital_admin_update_external_supply_request_notes' => 'تحديث ملاحظات طلب توريد خارجي',
             'hospital_admin_confirm_external_supply_request' => 'تأكيد طلب توريد خارجي (مدير مستشفى)',

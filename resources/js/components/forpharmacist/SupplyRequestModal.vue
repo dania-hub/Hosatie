@@ -388,9 +388,12 @@ const handleInput = () => {
     // تصفية الأدوية مباشرة
     filterDrugs();
     
-    // عرض النتائج دائماً (سواء كان هناك فئة مختارة أو نص بحث أو لا شيء)
-    // عند عدم اختيار فئة، ستظهر جميع الأدوية
-    showResults.value = true;
+    // عرض النتائج فقط عند الكتابة
+    if (searchTermDrug.value && searchTermDrug.value.trim().length > 0) {
+        showResults.value = true;
+    } else {
+        showResults.value = false;
+    }
 };
 
 // ✅ دالة تصفية الأدوية
@@ -759,13 +762,13 @@ watch(() => selectedCategory.value, (newCategory) => {
     }
     
     if (newCategory) {
-        // عند اختيار فئة، قم بتصفية الأدوية وعرضها تلقائياً
+        // عند اختيار فئة، قم بتصفية الأدوية ولكن لا نعرضها تلقائياً
         filterDrugs();
-        showResults.value = true;
+        showResults.value = false;
     } else {
-        // عند اختيار "كل الفئات" (قيمة فارغة)، عرض جميع الأدوية
+        // عند اختيار "كل الفئات" (قيمة فارغة)، لا نعرض القائمة تلقائياً
         filterDrugs(); // هذا سيعرض جميع الأدوية إذا لم يكن هناك نص بحث
-        showResults.value = true; // عرض القائمة دائماً عند اختيار "كل الفئات"
+        showResults.value = false; // لا نعرض القائمة تلقائياً
     }
 });
 
@@ -774,12 +777,12 @@ watch(() => searchTermDrug.value, (newValue) => {
     // تصفية الأدوية عند تغيير نص البحث
     filterDrugs();
     
-    // عرض النتائج دائماً عند الكتابة
+    // عرض النتائج فقط عند الكتابة
     if (newValue && newValue.length > 0) {
         showResults.value = true;
-    } else if (!selectedCategory.value) {
-        // إذا لم يكن هناك نص بحث ولا فئة مختارة، عرض جميع الأدوية
-        showResults.value = true;
+    } else {
+        // إذا لم يكن هناك نص بحث، لا نعرض القائمة
+        showResults.value = false;
     }
 }, { immediate: false });
 // مراقبة تغيير نص البحث لضمان تحديث النتائج
@@ -796,21 +799,21 @@ watch(() => searchTermDrug.value, (newValue, oldValue) => {
     // تصفية الأدوية عند تغيير نص البحث
     filterDrugs();
     
-    // عرض النتائج دائماً عند الكتابة
+    // عرض النتائج فقط عند الكتابة
     if (newValue && newValue.length > 0) {
         showResults.value = true;
-    } else if (!selectedCategory.value) {
-        // إذا لم يكن هناك نص بحث ولا فئة مختارة، عرض جميع الأدوية
-        showResults.value = true;
+    } else {
+        // إذا لم يكن هناك نص بحث، لا نعرض القائمة
+        showResults.value = false;
     }
 });
 watch(() => props.isOpen, (isOpen) => {
     if (isOpen) {
         clearForm();
         
-        // عند فتح النموذج، عرض جميع الأدوية مباشرة (لأن الفئة الافتراضية هي "كل الفئات")
+        // عند فتح النموذج، لا نعرض قائمة الأدوية مباشرة
         filteredDrugs.value = props.allDrugsData || [];
-        showResults.value = true;
+        showResults.value = false;
         
         // التحقق من الأدوية التي تحتاج توريد
         // الأدوية الناقصة هي التي لديها neededQuantity > 0

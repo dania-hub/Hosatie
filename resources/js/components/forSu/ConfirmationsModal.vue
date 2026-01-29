@@ -193,61 +193,61 @@
                                                 <!-- Quantity for this expiry date -->
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-xs font-bold text-slate-600 min-w-[80px]">الكمية:</span>
-                                                    <div class="flex-1 flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                                                    <div class="flex-1 flex items-center gap-2 bg-gray-100 rounded-[30px] px-2 py-1.5">
                                                         <template v-if="item.units_per_box > 1">
                                                             <button 
                                                                 @click="decrementExpiryBoxes(index, expiryIndex)"
-                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-red-500 transition-colors border-l border-slate-200"
+                                                                class="w-6 h-6 rounded-full flex items-center justify-center bg-[#9CA3AF] hover:bg-[#6B7280] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                                                 :disabled="expiryEntry.quantity <= 0 || props.isLoading || isConfirming"
                                                                 type="button"
                                                             >
-                                                                <Icon icon="solar:minus-bold" class="w-4 h-4" />
+                                                                <span class="text-white text-base font-bold leading-none">−</span>
                                                             </button>
+                                                            <span class="text-sm font-medium text-gray-600">{{ item.unit === 'مل' ? 'عبوة' : 'علبة' }}</span>
                                                             <input
                                                                 type="number"
                                                                 v-model.number="expiryEntry.boxes"
                                                                 @blur="validateExpiryBoxesInput(index, expiryIndex)"
-                                                                class="w-14 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm bg-transparent [appearance:textfield]"
+                                                                class="w-12 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg bg-transparent [appearance:textfield]"
                                                                 :max="getMaxBoxesForExpiry(index, expiryIndex)"
                                                                 min="0"
                                                                 :disabled="props.isLoading || isConfirming"
                                                             />
-                                                            <span class="text-[10px] font-bold text-slate-400 px-1 bg-white/50 h-8 flex items-center">عبوة</span>
                                                             <button 
                                                                 @click="incrementExpiryBoxes(index, expiryIndex)"
-                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-[#4DA1A9] transition-colors border-r border-slate-200"
+                                                                class="w-6 h-6 rounded-full flex items-center justify-center bg-[#9CA3AF] hover:bg-[#6B7280] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                                                 :disabled="getTotalReceivedForItem(item) >= item.sentQuantity || props.isLoading || isConfirming"
                                                                 type="button"
                                                             >
-                                                                <Icon icon="solar:add-bold" class="w-4 h-4" />
+                                                                <span class="text-white text-base font-bold leading-none">+</span>
                                                             </button>
                                                         </template>
                                                         <template v-else>
                                                             <button 
                                                                 @click="decrementExpiryQuantity(index, expiryIndex)"
-                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-red-500 transition-colors border-l border-slate-200"
+                                                                class="w-6 h-6 rounded-full flex items-center justify-center bg-[#9CA3AF] hover:bg-[#6B7280] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                                                 :disabled="expiryEntry.quantity <= 0 || props.isLoading || isConfirming"
                                                                 type="button"
                                                             >
-                                                                <Icon icon="solar:minus-bold" class="w-4 h-4" />
+                                                                <span class="text-white text-base font-bold leading-none">−</span>
                                                             </button>
+                                                            <span class="text-sm font-medium text-gray-600">{{ item.unit }}</span>
                                                             <input
                                                                 type="number"
                                                                 v-model.number="expiryEntry.quantity"
                                                                 @blur="validateExpiryQuantityInput(index, expiryIndex)"
-                                                                class="w-14 h-8 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-sm bg-transparent [appearance:textfield]"
+                                                                class="w-12 text-center border-none focus:ring-0 font-bold text-[#2E5077] text-lg bg-transparent [appearance:textfield]"
                                                                 :max="getMaxQuantityForExpiry(index, expiryIndex)"
                                                                 min="0"
                                                                 :disabled="props.isLoading || isConfirming"
                                                             />
-                                                            <span class="text-[10px] font-bold text-slate-400 px-1 bg-white/50 h-8 flex items-center">{{ item.unit }}</span>
                                                             <button 
                                                                 @click="incrementExpiryQuantity(index, expiryIndex)"
-                                                                class="w-10 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-500 hover:text-[#4DA1A9] transition-colors border-r border-slate-200"
+                                                                class="w-6 h-6 rounded-full flex items-center justify-center bg-[#9CA3AF] hover:bg-[#6B7280] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                                                 :disabled="getTotalReceivedForItem(item) >= item.sentQuantity || props.isLoading || isConfirming"
                                                                 type="button"
                                                             >
-                                                                <Icon icon="solar:add-bold" class="w-4 h-4" />
+                                                                <span class="text-white text-base font-bold leading-none">+</span>
                                                             </button>
                                                         </template>
                                                     </div>

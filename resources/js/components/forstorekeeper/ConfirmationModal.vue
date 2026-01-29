@@ -298,19 +298,19 @@
                         <Icon icon="solar:notebook-bold-duotone" class="w-6 h-6 text-[#4DA1A9]" />
                         <span v-if="isProcessing">ملاحظات الاستلام</span>
                         <span v-else>ملاحظات الإرسال</span>
-                        <span v-if="(isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem)" class="text-sm font-normal text-red-600">* (إجباري لوجود نقص)</span>
+                        <span v-if="(isProcessing && hasShortage) || (!isProcessing && hasSendShortage)" class="text-sm font-normal text-red-600">* (إجباري لوجود نقص)</span>
                         <span v-else class="text-sm font-normal text-gray-400">(اختياري)</span>
                     </h3>
                     <textarea
                         v-model="additionalNotes"
-                        :placeholder="(isProcessing && hasShortage) ? 'يجب إضافة ملاحظات عند وجود نقص في الكميات المستلمة...' : (!isProcessing && hasZeroQuantityItem) ? 'يجب إضافة ملاحظات عند وجود عنصر بكمية مرسلة = 0...' : 'أضف أي ملاحظات حول الشحنة...'"
+                        :placeholder="(isProcessing && hasShortage) ? 'يجب إضافة ملاحظات عند وجود نقص في الكميات المستلمة...' : (!isProcessing && hasSendShortage) ? 'يجب إضافة ملاحظات عند إرسال كميات أقل من المطلوبة لأي دواء...' : 'أضف أي ملاحظات حول الشحنة...'"
                         rows="2"
                         class="w-full p-4 bg-white border rounded-xl text-gray-700 focus:ring-2 transition-all resize-none"
                         :class="{
                             'bg-gray-100': isProcessing && !hasShortage,
-                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem)) && notesError,
-                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem)) && !notesError,
-                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !((isProcessing && hasShortage) || (!isProcessing && hasZeroQuantityItem))
+                            'border-red-500 focus:border-red-500 focus:ring-red-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasSendShortage)) && notesError,
+                            'border-orange-300 focus:border-orange-500 focus:ring-orange-500/20': ((isProcessing && hasShortage) || (!isProcessing && hasSendShortage)) && !notesError,
+                            'border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20': !((isProcessing && hasShortage) || (!isProcessing && hasSendShortage))
                         }"
                         @input="notesError = false"
                     ></textarea>
@@ -318,9 +318,9 @@
                         <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
                         يجب إضافة ملاحظات الاستلام عند وجود نقص في الكميات المستلمة
                     </div>
-                    <div v-if="(!isProcessing && hasZeroQuantityItem && notesError)" class="text-red-600 text-sm flex items-center gap-1 font-medium">
+                    <div v-if="(!isProcessing && hasSendShortage && notesError)" class="text-red-600 text-sm flex items-center gap-1 font-medium">
                         <Icon icon="solar:danger-circle-bold" class="w-4 h-4" />
-                        يجب إضافة ملاحظات الإرسال عند وجود عنصر بكمية مرسلة = 0
+                        يجب إضافة ملاحظات الإرسال عند إرسال كميات أقل من المطلوبة لأي دواء
                     </div>
                 </div>
             </div>
@@ -481,6 +481,20 @@ const hasZeroQuantityItem = computed(() => {
     return receivedItems.value.some(item => {
         const sentQty = item.sentQuantity || 0;
         return sentQty === 0;
+    });
+});
+
+// التحقق من وجود نقص في الكمية المرسلة (الكمية المرسلة < الكمية المطلوبة)
+const hasSendShortage = computed(() => {
+    if (!receivedItems.value || receivedItems.value.length === 0) {
+        return false;
+    }
+    
+    return receivedItems.value.some(item => {
+        const sentQty = item.sentQuantity || 0;
+        const requestedQty = item.originalQuantity || 0;
+        // نقص في الإرسال إذا كانت الكمية المرسلة أقل من المطلوبة
+        return sentQty < requestedQty;
     });
 });
 
@@ -838,10 +852,9 @@ const sendShipment = async () => {
         return;
     }
     
-    // التحقق من ملاحظات الإرسال إذا كان هناك عنصر بكمية مرسلة = 0
-    if (hasZeroQuantityItem.value && !additionalNotes.value.trim()) {
+    // التحقق من ملاحظات الإرسال إذا كانت الكمية المرسلة أقل من المطلوبة في أي دواء
+    if (hasSendShortage.value && !additionalNotes.value.trim()) {
         notesError.value = true;
-      
         return;
     }
     

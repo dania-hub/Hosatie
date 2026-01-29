@@ -20,10 +20,19 @@ const form = ref({
 // أخطاء التحقق
 const errors = ref({
     name: false,
+    nameMessage: "",
 });
 
 // حالة نافذة التأكيد
 const isConfirmationModalOpen = ref(false);
+
+// منع إدخال الأرقام في اسم القسم
+const handleNameInput = (event) => {
+    const value = event.target.value;
+    // إزالة أي أرقام من النص
+    const cleanedValue = value.replace(/[0-9]/g, '');
+    form.value.name = cleanedValue;
+};
 
 // إعادة تعيين النموذج
 const resetForm = () => {
@@ -33,6 +42,7 @@ const resetForm = () => {
     };
     errors.value = { 
         name: false,
+        nameMessage: "",
     };
 };
 
@@ -40,9 +50,36 @@ const resetForm = () => {
 const validateForm = () => {
     let isValid = true;
     const data = form.value;
+    const trimmedName = data.name.trim();
 
-    errors.value.name = !data.name || data.name.trim().length < 2;
-    if (errors.value.name) isValid = false;
+    // التحقق من وجود الاسم
+    if (!trimmedName || trimmedName.length < 2) {
+        errors.value.name = true;
+        errors.value.nameMessage = "الرجاء إدخال اسم القسم (على الأقل حرفين)";
+        isValid = false;
+    }
+    // التحقق من أن الاسم يبدأ بـ "قسم"
+    else if (!trimmedName.startsWith('قسم')) {
+        errors.value.name = true;
+        errors.value.nameMessage = "يجب أن يبدأ اسم القسم بكلمة 'قسم'";
+        isValid = false;
+    }
+    // التحقق من وجود نص بعد "قسم" (أكثر من مجرد كلمة "قسم" فقط)
+    else if (trimmedName === 'قسم' || trimmedName.trim() === 'قسم') {
+        errors.value.name = true;
+        errors.value.nameMessage = "يجب كتابة اسم القسم بعد كلمة 'قسم' (مثال: قسم الأطفال)";
+        isValid = false;
+    }
+    // التحقق من عدم وجود أرقام
+    else if (/[0-9]/.test(trimmedName)) {
+        errors.value.name = true;
+        errors.value.nameMessage = "لا يمكن إدخال أرقام في اسم القسم";
+        isValid = false;
+    }
+    else {
+        errors.value.name = false;
+        errors.value.nameMessage = "";
+    }
 
     return isValid;
 };
@@ -50,8 +87,12 @@ const validateForm = () => {
 // التحقق من صحة النموذج (computed)
 const isFormValid = computed(() => {
     const data = form.value;
+    const trimmedName = data.name.trim();
     
-    if (!data.name || data.name.trim().length < 2) return false;
+    if (!trimmedName || trimmedName.length < 2) return false;
+    if (!trimmedName.startsWith('قسم')) return false;
+    if (trimmedName === 'قسم' || trimmedName.trim() === 'قسم') return false;
+    if (/[0-9]/.test(trimmedName)) return false;
     
     return true;
 });
@@ -131,7 +172,8 @@ watch(() => props.isOpen, (newVal) => {
                         <Input
                             id="name"
                             v-model="form.name"
-                            placeholder="أدخل اسم القسم"
+                            @input="handleNameInput"
+                            placeholder="قسم ... (مثال: قسم الأطفال)"
                             :class="[
                                 'bg-white border-gray-200 focus:border-[#4DA1A9] focus:ring-[#4DA1A9]/20',
                                 errors.name ? '!border-red-500 !focus:border-red-500 !focus:ring-red-500/20' : ''
@@ -139,7 +181,10 @@ watch(() => props.isOpen, (newVal) => {
                         />
                         <p v-if="errors.name" class="text-xs text-red-500 flex items-center gap-1">
                             <Icon icon="solar:danger-circle-bold" class="w-3 h-3" />
-                            الرجاء إدخال اسم القسم (على الأقل حرفين)
+                            {{ errors.nameMessage || "الرجاء إدخال اسم القسم بشكل صحيح" }}
+                        </p>
+                        <p v-else class="text-xs text-gray-500">
+                            يجب أن يبدأ اسم القسم بكلمة "قسم" ولا يحتوي على أرقام
                         </p>
                     </div>
 

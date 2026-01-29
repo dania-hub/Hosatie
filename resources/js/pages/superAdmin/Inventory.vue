@@ -429,7 +429,7 @@ onMounted(() => {
                                     @click="quantitySort = 'desc'"
                                     :class="{'font-bold text-[#4DA1A9]': quantitySort === 'desc'}"
                                 >
-                                    الكمية الأعلى أولاً
+                                    الكمية الاكثر احتياج
                                 </a>
                             </li>
                             <li>
@@ -437,7 +437,7 @@ onMounted(() => {
                                     @click="quantitySort = 'asc'"
                                     :class="{'font-bold text-[#4DA1A9]': quantitySort === 'asc'}"
                                 >
-                                    الكمية الأقل أولاً
+                                    الكمية الأقل احتياج
                                 </a>
                             </li>
                         </ul>

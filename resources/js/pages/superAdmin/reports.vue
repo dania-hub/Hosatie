@@ -568,6 +568,18 @@ const printActivitiesReport = () => {
         finishPrinting();
         printWindow.close();
     };
+
+    // معالجة إغلاق النافذة قبل الطباعة
+    printWindow.onbeforeunload = () => {
+        finishPrinting();
+    };
+
+    // احتياطي: إعادة تعيين الحالة بعد فترة زمنية
+    setTimeout(() => {
+        if (isPrinting.value && printWindow.closed) {
+            finishPrinting();
+        }
+    }, 5000);
 };
 
 const printFullReport = async () => {
@@ -719,14 +731,27 @@ const printFullReport = async () => {
 
             window.print();
             
-            // إزالة رأس التقرير بعد الطباعة
-            setTimeout(() => {
+            // معالج الطباعة: إعادة تعيين الحالة بعد الطباعة أو الإلغاء
+            const handleAfterPrint = () => {
+                isPrinting.value = false;
+                printProgress.value = '';
                 const header = document.getElementById('print-header');
                 if (header) header.remove();
-            }, 1000);
+                window.removeEventListener('afterprint', handleAfterPrint);
+            };
+
+            window.addEventListener('afterprint', handleAfterPrint);
             
-            // إلغاء وضع الطباعة بعد الطباعة
-             isPrinting.value = false;
+            // احتياطي: إعادة تعيين الحالة بعد فترة زمنية
+            setTimeout(() => {
+                if (isPrinting.value) {
+                    isPrinting.value = false;
+                    printProgress.value = '';
+                    const header = document.getElementById('print-header');
+                    if (header) header.remove();
+                    window.removeEventListener('afterprint', handleAfterPrint);
+                }
+            }, 3000);
         }, 500);
 
     } catch (err) {
@@ -773,6 +798,11 @@ const fieldTranslations = {
     'description': 'الوصف',
     'notes': 'ملاحظات',
     'remarks': 'ملاحظات إضافية',
+    'confirmation_notes': 'ملاحظات التأكيد',
+    'confirmationNotes': 'ملاحظات التأكيد',
+    'Confirmation Notes': 'ملاحظات التأكيد',
+    'CONFIRMATION NOTES': 'ملاحظات التأكيد',
+    'confirmation notes': 'ملاحظات التأكيد',
     'reason': 'السبب',
     'priority': 'الأولوية',
     'active': 'نشط',
@@ -786,6 +816,17 @@ const fieldTranslations = {
     'createdAt': 'تاريخ الإضافة',
     'updatedAt': 'تاريخ التحديث',
     'deletedAt': 'تاريخ الحذف',
+    'deleted': 'محذوف',
+    'Deleted': 'محذوف',
+    'DELETED': 'محذوف',
+    'total_requests': 'إجمالي الطلبات',
+    'totalRequests': 'إجمالي الطلبات',
+    'Total Requests': 'إجمالي الطلبات',
+    'TOTAL REQUESTS': 'إجمالي الطلبات',
+    'fulfilled_requests': 'الطلبات المكتملة',
+    'fulfilledRequests': 'الطلبات المكتملة',
+    'Fulfilled Requests': 'الطلبات المكتملة',
+    'FULFILLED REQUESTS': 'الطلبات المكتملة',
     'dob': 'تاريخ الميلاد',
     'birth_date': 'تاريخ الميلاد',
     'expiry_date': 'تاريخ الصلاحية',
@@ -1001,6 +1042,10 @@ const valueTranslations = {
     'no': 'لا',
     'true': 'نعم',
     'false': 'لا',
+    'Yes': 'نعم',
+    'No': 'لا',
+    'YES': 'نعم',
+    'NO': 'لا',
     // Drug Forms
     'tablet': 'قرص',
     'capsule': 'كبسولة',

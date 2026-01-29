@@ -242,12 +242,16 @@ class DashboardDoctorController extends BaseApiController
         // جلب جميع عمليات المستخدم من AuditLog
         // 1. عمليات الأدوية (prescription_drug)
         // 2. عمليات إنشاء طلبات التوريد (internal_supply_request) عندما كان مدير قسم
+        // 3. عمليات تأكيد استلام طلبات التوريد (internal_supply_request) عندما كان مدير قسم
         $logs = AuditLog::where('user_id', $doctorId)
             ->where(function($query) {
                 $query->whereIn('table_name', ['prescription_drug', 'prescription_drugs'])
                       ->orWhere(function($q) {
                           $q->where('table_name', 'internal_supply_request')
-                            ->where('action', 'department_create_supply_request');
+                            ->whereIn('action', [
+                                'department_create_supply_request',
+                                'department_confirm_internal_receipt',
+                            ]);
                       });
             })
             ->orderBy('created_at', 'desc')
@@ -264,20 +268,44 @@ class DashboardDoctorController extends BaseApiController
                 $oldValues = $log->old_values ? json_decode($log->old_values, true) : null;
                 $patientInfo = $newValues['patient_info'] ?? $oldValues['patient_info'] ?? null;
                 
-                // معالجة عمليات إنشاء طلبات التوريد (عندما كان مدير قسم)
-                if ($log->table_name === 'internal_supply_request' && $log->action === 'department_create_supply_request') {
-                    $operationData['operationType'] = 'إنشاء طلب توريد';
+                // معالجة عمليات طلبات التوريد الداخلية (عندما كان مدير قسم)
+                if ($log->table_name === 'internal_supply_request') {
                     $operationData['fileNumber'] = 'REQ-' . ($log->record_id ?? 'N/A');
                     $operationData['name'] = $newValues['department_name'] ?? 'قسم غير محدد';
-                    
-                    // إضافة معلومات إضافية عن الطلب
-                    if ($newValues && isset($newValues['item_count'])) {
-                        $operationData['details'] = "إنشاء طلب توريد يحتوي على {$newValues['item_count']} عنصر";
-                    } else {
-                        $operationData['details'] = 'إنشاء طلب توريد';
+
+                    // 1) إنشاء طلب توريد
+                    if ($log->action === 'department_create_supply_request') {
+                        $operationData['operationType'] = 'إنشاء طلب توريد';
+                        
+                        // إضافة معلومات إضافية عن الطلب
+                        if ($newValues && isset($newValues['item_count'])) {
+                            $operationData['details'] = "إنشاء طلب توريد يحتوي على {$newValues['item_count']} عنصر";
+                        } else {
+                            $operationData['details'] = 'إنشاء طلب توريد';
+                        }
+                        
+                        return $operationData;
                     }
-                    
-                    return $operationData;
+
+                    // 2) تأكيد استلام طلب توريد داخلي
+                    if ($log->action === 'department_confirm_internal_receipt') {
+                        $operationData['operationType'] = 'تأكيد استلام طلب توريد داخلي';
+
+                        $confirmedAt = $newValues['confirmed_at'] ?? null;
+                        $notes = $newValues['notes'] ?? null;
+
+                        $details = 'تأكيد استلام طلب توريد داخلي';
+                        if ($confirmedAt) {
+                            $details .= " في {$confirmedAt}";
+                        }
+                        if ($notes) {
+                            $details .= " - ملاحظات: {$notes}";
+                        }
+
+                        $operationData['details'] = $details;
+
+                        return $operationData;
+                    }
                 }
                 
                 // معالجة عمليات الأدوية (prescription_drug)

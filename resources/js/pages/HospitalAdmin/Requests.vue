@@ -196,6 +196,8 @@
                                             :class="{
                                                 'text-red-600 font-semibold':
                                                     shipment.status === 'مرفوضة' ||
+                                                     shipment.status === 'تم الإلغاء' ||
+                                                       shipment.status === 'cancelled' ||
                                                     shipment.status === 'rejected',
                                                 'text-green-600 font-semibold':
                                                     shipment.status === 'تم الاستلام' ||
@@ -231,8 +233,8 @@
                                                     />
                                                 </button>
                                                 
-                                                <template v-if="shipment.status === 'مرفوضة' || shipment.status === 'rejected'">
-                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
+                                                <template v-if="shipment.status === 'مرفوضة' || shipment.status === 'rejected' || shipment.status === 'تم الإلغاء' || shipment.status === 'cancelled'">
+                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض / ملغى">
                                                         <Icon
                                                             icon="tabler:circle-x" 
                                                             class="w-4 h-4 text-red-600"
@@ -491,6 +493,7 @@ const translateStatus = (status) => {
     const statusMap = {
         // الحالات الإنجليزية
         'pending': 'جديد',
+        'cancelled':'تم الإلغاء',
         'approved': 'تمت الموافقة',
         'fulfilled': 'قيد الاستلام',
         'delivered': 'تم الاستلام',
@@ -505,7 +508,8 @@ const translateStatus = (status) => {
         // حالات متوافقة قديمة
         'قيد الانتظار': 'جديد',
         'تم الإرسال': 'قيد الاستلام',
-        'قيد التجهيز': 'قيد الاستلام'
+        'قيد التجهيز': 'قيد الاستلام',
+        'تم الإلغاء': 'تم الإلغاء'
     };
     
     return statusMap[status] || status;

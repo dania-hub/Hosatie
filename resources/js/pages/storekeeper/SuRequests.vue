@@ -203,7 +203,10 @@
                                                 'text-red-600 font-semibold':
                                                     shipment.requestStatus === 'مرفوضة' || 
                                                     shipment.requestStatus === 'مرفوض' ||
-                                                    shipment.status === 'rejected',
+                                                    shipment.requestStatus === 'تم الإلغاء' ||
+                                                    shipment.requestStatus === 'ملغاة' ||
+                                                    shipment.status === 'rejected' ||
+                                                    shipment.status === 'cancelled',
                                                 'text-green-600 font-semibold':
                                                     shipment.requestStatus === 'تم الإستلام' ||
                                                     shipment.requestStatus === 'تم الاستلام' ||
@@ -214,7 +217,6 @@
                                                 'text-yellow-600 font-semibold':
                                                     shipment.requestStatus === 'قيد الانتظار' ||
                                                     shipment.status === 'pending'||
-                                               
                                                     shipment.requestStatus === 'تمت الموافقة مبدئياً' ||
                                                     shipment.status === 'approved',
                                             }"
@@ -244,8 +246,8 @@
                                                 </button>
                                                 
                                                 <!-- زر الإجراء الثاني يختلف حسب الحالة -->
-                                                <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض' || shipment.status === 'rejected'">
-                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض">
+                                                <template v-if="shipment.requestStatus === 'مرفوضة' || shipment.requestStatus === 'مرفوض' || shipment.requestStatus === 'تم الإلغاء' || shipment.requestStatus === 'ملغاة' || shipment.status === 'rejected' || shipment.status === 'cancelled'">
+                                                    <button class="tooltip p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 transition-all duration-200 hover:scale-110 active:scale-95" data-tip="طلب مرفوض / ملغى">
                                                         <Icon
                                                             icon="tabler:circle-x" 
                                                             class="w-4 h-4 text-red-600"
@@ -679,6 +681,7 @@ const translateStatus = (status) => {
         'fulfilled': 'قيد الاستلام',
         'delivered': 'تم الاستلام',
         'rejected': 'مرفوضة',
+        'cancelled':'تم الإلغاء',
         // الحالات العربية (من الـ Backend)
         'قيد الانتظار': 'قيد الانتظار',
         'تمت الموافقة مبدئياً': 'تمت الموافقة مبدئياً',
@@ -687,6 +690,7 @@ const translateStatus = (status) => {
         'تم الإستلام': 'تم الاستلام',
         'مرفوضة': 'مرفوضة',
         'مرفوض': 'مرفوضة',
+        'تم الإلغاء':'تم الإلغاء',
         // حالات متوافقة قديمة
         'قيد التجهيز': 'قيد الاستلام',
         'تم الإرسال': 'قيد الاستلام'

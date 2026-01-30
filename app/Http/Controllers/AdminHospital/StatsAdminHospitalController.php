@@ -62,17 +62,27 @@ class StatsAdminHospitalController extends BaseApiController
             ->whereIn('status', ['inactive', 'pending_activation'])
             ->count();
 
-        // 4) عمليات التوريد الخارجية (ExternalSupplyRequest)
+        // 4) عمليات التوريد الخارجية — فقط الطلبات الصادرة من المخزن الرئيسي (أنشأها warehouse_manager)
         $externalTodayCount = ExternalSupplyRequest::where('hospital_id', $hospitalId)
+            ->whereHas('requester', function ($q) {
+                $q->where('type', 'warehouse_manager');
+            })
             ->whereDate('created_at', today())
             ->count();
 
-        $externalWeekCount = ExternalSupplyRequest::where('hospital_id', $hospitalId)
-            ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
+        // هذا الشهر (طلبات الشهر الحالي من المخزن الرئيسي)
+        $externalMonthCount = ExternalSupplyRequest::where('hospital_id', $hospitalId)
+            ->whereHas('requester', function ($q) {
+                $q->where('type', 'warehouse_manager');
+            })
+            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
             ->count();
 
-        $externalMonthCount = ExternalSupplyRequest::where('hospital_id', $hospitalId)
-            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
+        // كل الطلبات (إجمالي الطلبات الصادرة من المخزن الرئيسي لتلك المستشفى)
+        $externalTotalCount = ExternalSupplyRequest::where('hospital_id', $hospitalId)
+            ->whereHas('requester', function ($q) {
+                $q->where('type', 'warehouse_manager');
+            })
             ->count();
 
         // 5) الشكاوى (Complaint) الخاصة بالمستشفى
@@ -97,8 +107,8 @@ class StatsAdminHospitalController extends BaseApiController
                 'inactiveAccountsCount'  => $inactiveAccountsCount,
 
                 'externalTodayCount'     => $externalTodayCount,
-                'externalWeekCount'      => $externalWeekCount,
                 'externalMonthCount'     => $externalMonthCount,
+                'externalTotalCount'     => $externalTotalCount,
 
                 'complaintsCount'        => $complaintsCount,
                 'transferRequestsCount'  => $transferRequestsCount,

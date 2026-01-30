@@ -423,37 +423,22 @@ class DashboardPharmacistController extends BaseApiController
         
         $patientsWeekCount = $patientsWeekQuery->distinct('patient_id')->count('patient_id');
 
-        // 4. عدد طلبات التوريد (التي أنشأها الصيدلي) - استثناء الطلبات الملغاة
-        $supplyRequestsQuery = InternalSupplyRequest::where('requested_by', $user->id)
-            ->where('status', '!=', 'cancelled');
-        
-        if ($pharmacyId) {
-            $supplyRequestsQuery->where('pharmacy_id', $pharmacyId);
-        }
-        
-        $supplyRequestsCount = $supplyRequestsQuery->count();
+        // 4. إجمالي طلبات التوريد: نفس نطاق قائمة الشحنات (طلبات من صيدليات هذا المستشفى طلبها صيدلي)
+        $supplyRequestsCount = 0;
+        $receivedRequestsCount = 0;
+        if ($user->hospital_id) {
+            $supplyRequestsBaseQuery = InternalSupplyRequest::whereNotNull('pharmacy_id')
+                ->whereHas('pharmacy', fn ($q) => $q->where('hospital_id', $user->hospital_id))
+                ->whereHas('requester', fn ($q) => $q->where('type', 'pharmacist'));
 
-        // 5. عدد عمليات استلام طلبات التوريد (التي استلمها هذا الصيدلي فعلياً)
-        // نبحث في AuditLog عن السجلات التي تؤكد أن هذا الصيدلي استلم الشحنة
-        $receivedRequestIds = AuditLog::where('user_id', $user->id)
-            ->where('action', 'pharmacist_confirm_internal_receipt')
-            ->where('table_name', 'internal_supply_request')
-            ->pluck('record_id')
-            ->unique()
-            ->toArray();
-        
-        if (empty($receivedRequestIds)) {
-            $receivedRequestsCount = 0;
-        } else {
-            // التحقق من أن الشحنة تخص صيدلية الصيدلي وأنها مستلمة فعلياً
-            $receivedRequestsQuery = InternalSupplyRequest::whereIn('id', $receivedRequestIds)
-                ->where('status', 'fulfilled');
-            
-            if ($pharmacyId) {
-                $receivedRequestsQuery->where('pharmacy_id', $pharmacyId);
-            }
-            
-            $receivedRequestsCount = $receivedRequestsQuery->count();
+            $supplyRequestsCount = (clone $supplyRequestsBaseQuery)
+                ->where('status', '!=', 'cancelled')
+                ->count();
+
+            // 5. عمليات الاستلام المنجزة: من نفس النطاق، الطلبات بحالة تم الإستلام
+            $receivedRequestsCount = (clone $supplyRequestsBaseQuery)
+                ->where('status', 'fulfilled')
+                ->count();
         }
 
         $data = [

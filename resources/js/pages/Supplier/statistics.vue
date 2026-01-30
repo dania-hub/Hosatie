@@ -124,7 +124,7 @@ onMounted(() => {
                             <div class="p-3 bg-[#2E5077]/10 rounded-xl">
                                 <Icon icon="solar:delivery-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">طلبات التوريد الداخلية</p>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">طلبات توريد المستشفيات</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.shipments.total }}</p>
                     </div>

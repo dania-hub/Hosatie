@@ -28,9 +28,13 @@ class DashboardStoreKeeperController extends BaseApiController
 
         $hospitalId = $user->hospital_id;
 
-        // 1) عدد الطلبات الداخلية لهذه المستشفى
-        $totalInternal = InternalSupplyRequest::whereHas('pharmacy', function ($q) use ($hospitalId) {
-                $q->where('hospital_id', $hospitalId);
+        // 1) عدد الطلبات الداخلية لهذه المستشفى (من الصيدليات أو الأقسام التابعة للمستشفى)
+        $totalInternal = InternalSupplyRequest::where(function ($q) use ($hospitalId) {
+                $q->whereHas('pharmacy', fn ($p) => $p->where('hospital_id', $hospitalId))
+                    ->orWhere(function ($q2) use ($hospitalId) {
+                        $q2->whereNotNull('department_id')
+                            ->whereHas('department', fn ($d) => $d->where('hospital_id', $hospitalId));
+                    });
             })
             ->count();
 
@@ -45,24 +49,29 @@ class DashboardStoreKeeperController extends BaseApiController
             })
             ->count();
 
-        // 3) عدد الأصناف التي وصلت للحد الحرج في مخزن هذه المستشفى
-        // التحقق من أن المستودع (warehouse) مرتبط بنفس المستشفى
-        $criticalItems = Inventory::whereNotNull('warehouse_id')
+        // 3) عدد الأصناف (الأدوية) التي وصلت للحد الحرج في مخزن هذه المستشفى
+        // نحسب عدد الأدوية المميزة وليس عدد صفوف المخزون (لأن الصنف الواحد قد يكون له عدة دفعات)
+        $criticalItems = (int) Inventory::whereNotNull('warehouse_id')
             ->whereHas('warehouse', function ($q) use ($hospitalId) {
                 $q->where('hospital_id', $hospitalId);
             })
-            ->whereColumn('current_quantity', '<=', 'minimum_level')
+            ->selectRaw('drug_id, SUM(current_quantity) as total_qty, MIN(minimum_level) as min_level')
+            ->groupBy('drug_id')
+            ->havingRaw('SUM(current_quantity) <= MIN(minimum_level)')
+            ->get()
             ->count();
 
-        // 4) عدد طلبات قيد الاستلام (internal)
+        // 4) عدد طلبات قيد الاستلام (internal) — نفس نطاق قائمة الطلبات (صيدليات + أقسام)
         // الطلبات التي تمت الموافقة عليها من storekeeper وتم الإرسال لكن لم يتم استلامها بعد
-        // pending: قيد الانتظار (لم تتم الموافقة بعد)
-        // approved: قيد الاستلام (تمت الموافقة وتم الإرسال لكن لم يتم الاستلام بعد)
-        // fulfilled: تم الاستلام
-        $preparingRequests = InternalSupplyRequest::whereHas('pharmacy', function ($q) use ($hospitalId) {
-                $q->where('hospital_id', $hospitalId);
+        // pending: قيد الانتظار | approved: قيد الاستلام | fulfilled: تم الاستلام
+        $preparingRequests = InternalSupplyRequest::where(function ($q) use ($hospitalId) {
+                $q->whereHas('pharmacy', fn ($p) => $p->where('hospital_id', $hospitalId))
+                    ->orWhere(function ($q2) use ($hospitalId) {
+                        $q2->whereNotNull('department_id')
+                            ->whereHas('department', fn ($d) => $d->where('hospital_id', $hospitalId));
+                    });
             })
-            ->where('status', 'approved') // فقط الطلبات التي تمت الموافقة عليها ولم يتم استلامها بعد
+            ->where('status', 'approved')
             ->count();
 
         return $this->sendSuccess([

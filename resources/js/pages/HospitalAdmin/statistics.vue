@@ -50,8 +50,8 @@ const stats = ref({
     
     // عمليات التوريد الخارجية
     externalTodayCount: 0,
-    externalWeekCount: 0,
     externalMonthCount: 0,
+    externalTotalCount: 0,
     
     // الشكاوى وطلبات النقل
     complaintsCount: 0,
@@ -82,8 +82,8 @@ const fetchStats = async () => {
         stats.value.activeAccountsCount = data.activeAccountsCount || 0;
         stats.value.inactiveAccountsCount = data.inactiveAccountsCount || 0;
         stats.value.externalTodayCount = data.externalTodayCount || 0;
-        stats.value.externalWeekCount = data.externalWeekCount || 0;
         stats.value.externalMonthCount = data.externalMonthCount || 0;
+        stats.value.externalTotalCount = data.externalTotalCount || 0;
         stats.value.complaintsCount = data.complaintsCount || 0;
         stats.value.transferRequestsCount = data.transferRequestsCount || 0;
         
@@ -243,16 +243,6 @@ onMounted(() => {
                         <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.externalTodayCount }}</p>
                     </div>
 
-                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#4DA1A9] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
-                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
-                            <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
-                                <Icon icon="solar:calendar-mark-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
-                            </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">هذا الأسبوع</p>
-                        </div>
-                        <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.externalWeekCount }}</p>
-                    </div>
-
                     <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#79D7BE] flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
                         <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
                             <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
@@ -261,6 +251,16 @@ onMounted(() => {
                             <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">هذا الشهر</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.externalMonthCount }}</p>
+                    </div>
+
+                    <div class="card bg-white p-6 rounded-2xl shadow-lg border-2 border-[#2E5077]/80 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" dir="rtl">
+                        <div class="content flex items-center gap-3 mb-4" style="justify-content: flex-start;">
+                            <div class="p-3 bg-[#2E5077]/10 rounded-xl">
+                                <Icon icon="solar:clipboard-list-bold-duotone" class="icon w-8 h-8 text-[#2E5077]" />
+                            </div>
+                            <p class="text text-lg font-bold text-[#2E5077]" style="text-align: right;">كل الطلبات</p>
+                        </div>
+                        <p class="number text-5xl font-bold text-[#2E5077]" style="text-align: right; width: 100%;">{{ stats.externalTotalCount }}</p>
                     </div>
                 </div>
             </div>
@@ -287,7 +287,7 @@ onMounted(() => {
                             <div class="p-3 bg-[#4DA1A9]/10 rounded-xl">
                                 <Icon icon="solar:transfer-horizontal-bold-duotone" class="icon w-8 h-8 text-[#4DA1A9]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">طلبات النقل</p>
+                            <p class="text text-lg font-bold text-[#4DA1A9]" style="text-align: right;">طلبات النقل المرسلة قيد المراجعة</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#4DA1A9]" style="text-align: right; width: 100%;">{{ stats.transferRequestsCount }}</p>
                     </div>

@@ -64,11 +64,11 @@ const fetchStats = async () => {
         
         // تحديث متغير stats بالبيانات الواردة من الـ API
         stats.value.shipments = {
-            total: data.internalSupplyRequests || 0, // طلبات التوريد الداخلية
-            pending: data.pendingShipments || 0,
-            approved: data.approvedShipments || 0,
+            total: data.internalSupplyRequests || 0, // طلبات توريد المستشفيات
+            pending: data.internalSupplyRequestsPending ?? data.pendingShipments ?? 0, // قيد الانتظار: internal_supply_requests بحالة pending حسب supplier_id
+            approved: data.internalSupplyRequestsForManagement ?? data.approvedShipments ?? 0, // طلبات التوريد للإدارة (internal_supply_requests حسب supplier_id)
             fulfilled: data.fulfilledShipments || 0,
-            rejected: data.rejectedShipments || 0
+            rejected: data.internalSupplyRequestsRejected ?? data.rejectedShipments ?? 0 // المرفوضة: internal_supply_requests بحالة rejected حسب supplier_id
         };
         
         stats.value.drugs = {
@@ -146,7 +146,7 @@ onMounted(() => {
                             <div class="p-3 bg-[#79D7BE]/10 rounded-xl">
                                 <Icon icon="solar:check-circle-bold-duotone" class="icon w-8 h-8 text-[#79D7BE]" />
                             </div>
-                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">طلبات التوريد الخارجية</p>
+                            <p class="text text-lg font-bold text-[#79D7BE]" style="text-align: right;">طلبات التوريد للإدارة</p>
                         </div>
                         <p class="number text-5xl font-bold text-[#79D7BE]" style="text-align: right; width: 100%;">{{ stats.shipments.approved }}</p>
                     </div>

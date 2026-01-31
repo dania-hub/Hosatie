@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Supplier;
 
 use App\Http\Controllers\BaseApiController;
 use App\Models\ExternalSupplyRequest;
+use App\Models\InternalSupplyRequest;
 use App\Models\Inventory;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
@@ -74,15 +75,13 @@ class DashboardSupplierController extends BaseApiController
             
             $totalDrugs = count($totalDrugIds);
             
-            // أدوية منخفضة المخزون: الأدوية التي كمية المخزون الحالية أقل من الحد الأدنى
-            // نحسب الأدوية التي لديها current_quantity < minimum_level أو current_quantity = 0
+            // أدوية منخفضة المخزون: الأدوية التي الكمية المحتاجة لها > 0 فقط
+            // نستبعد الأدوية التي minimum_level = 0 (الكمية المحتاجة = صفر) أو current_quantity >= minimum_level
             $lowStockDrugIds = Inventory::where('supplier_id', $supplierId)
                 ->whereNull('warehouse_id')
                 ->whereNull('pharmacy_id')
-                ->where(function($query) {
-                    $query->whereColumn('current_quantity', '<', 'minimum_level')
-                          ->orWhere('current_quantity', '<=', 0);
-                })
+                ->where('minimum_level', '>', 0)
+                ->whereColumn('current_quantity', '<', 'minimum_level')
                 ->distinct()
                 ->pluck('drug_id')
                 ->toArray();
@@ -126,9 +125,25 @@ class DashboardSupplierController extends BaseApiController
                 })
                 ->count();
 
+            // طلبات التوريد للإدارة: كل الطلبات في internal_supply_requests المرتبطة بهذا المورد (supplier_id)
+            $internalSupplyRequestsForManagement = InternalSupplyRequest::where('supplier_id', $supplierId)->count();
+
+            // قيد الانتظار: طلبات internal_supply_requests حسب supplier_id والتي حالتها pending
+            $internalSupplyRequestsPending = InternalSupplyRequest::where('supplier_id', $supplierId)
+                ->where('status', 'pending')
+                ->count();
+
+            // المرفوضة: طلبات internal_supply_requests حسب supplier_id والتي حالتها rejected
+            $internalSupplyRequestsRejected = InternalSupplyRequest::where('supplier_id', $supplierId)
+                ->where('status', 'rejected')
+                ->count();
+
             $stats = [
                 'totalShipments' => $totalShipments, // إجمالي الطلبات الخارجية (ExternalSupplyRequest)
-                'internalSupplyRequests' => $internalSupplyRequests, // طلبات التوريد الداخلية (InternalSupplyRequest)
+                'internalSupplyRequests' => $internalSupplyRequests, // طلبات التوريد الداخلية (External بعد الفلترة)
+                'internalSupplyRequestsForManagement' => $internalSupplyRequestsForManagement, // طلبات التوريد للإدارة (InternalSupplyRequest حسب supplier_id)
+                'internalSupplyRequestsPending' => $internalSupplyRequestsPending, // قيد الانتظار (InternalSupplyRequest pending حسب supplier_id)
+                'internalSupplyRequestsRejected' => $internalSupplyRequestsRejected, // المرفوضة (InternalSupplyRequest rejected حسب supplier_id)
                 'pendingShipments' => $pendingShipments,
                 'approvedShipments' => $approvedShipments,
                 'fulfilledShipments' => $fulfilledShipments,

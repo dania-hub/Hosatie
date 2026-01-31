@@ -83,12 +83,9 @@ const fetchSupplyStats = async () => {
         
         // حساب الإجمالي والاستلام المنجز
         stats.value.totalSupplyRequests = shipments.length;
-        // حساب عمليات الاستلام المنجزة: الحالة 'تم الإستلام' أو 'fulfilled' أو received === true
+        // عمليات الاستلام المنجزة: عدد العمليات التي حالتها fulfilled فقط (received يُرجع من الـ API عند fulfilled)
         stats.value.completedReceipts = shipments.filter(s => 
-            s.status === 'تم الإستلام' || 
-            s.status === 'fulfilled' || 
-            s.received === true ||
-            (s.status && s.status.toLowerCase().includes('استلام'))
+            s.received === true || s.status === 'fulfilled'
         ).length;
     } catch (err) {
         console.error('خطأ في جلب إحصائيات طلبات التوريد:', err);

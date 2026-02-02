@@ -38,6 +38,10 @@ class PatientPharmacistController extends BaseApiController
             return $this->sendError('المستخدم غير مرتبط بمستشفى.', [], 400);
         }
 
+        //  تجديد الحصص الشهرية لجميع مرضى المستشفى بمجرد فتح القائمة
+    
+        $this->renewPatientQuotas($hospitalId);
+
         // جلب المرضى الذين لديهم نفس hospital_id فقط
         $patients = User::where('type', 'patient')
             ->where('hospital_id', $hospitalId)
@@ -144,33 +148,9 @@ class PatientPharmacistController extends BaseApiController
                 $dailyQty = (float)($pivot->daily_quantity ?? 0);
                 $expectedMonthlyQty = $dailyQty * 30;
 
-                // ✅ منطق التجديد الدوري (30 يوماً):
-                // نعتمد على تاريخ آخر تعديل (updated_at) لمعرفة ما إذا مر شهر (30 يوم) أم لا
-                if ($pivot->updated_at && $expectedMonthlyQty > 0) {
-                    $daysSinceLastUpdate = Carbon::now()->diffInDays($pivot->updated_at);
-                    
-                    if ($daysSinceLastUpdate >= 30) {
-                        try {
-                            // تعطيل التسجيل التلقائي لأن هذا تحديث آلي من النظام
-                            PrescriptionDrugObserver::$skipLogging = true;
-                            
-                            // بدلاً من الإضافة المتكررة التي قد تسبب تضاعفاً غير مقصود
-                            // نقوم بتصفير الرصيد وإعادته للقيمة الكاملة (التجديد الشهري)
-                            // أو إذا أردت استمرار الجمع، نجمع فقط ما ينقصه عن الحصة الأساسية
-                            $pivot->monthly_quantity = $expectedMonthlyQty;
-                            $pivot->save();
-                            
-                            $currentMonthlyQty = $expectedMonthlyQty;
-                            
-                            \Log::info("30-day cycle refill triggered for drug {$drug->id}.", [
-                                'patient_id' => $patient->id,
-                                'days_passed' => $daysSinceLastUpdate
-                            ]);
-                        } finally {
-                            PrescriptionDrugObserver::$skipLogging = false;
-                        }
-                    }
-                }
+                // ✅ تم نقل منطق التجديد الدوري (30 يوماً) إلى قائمة المرضى (index) 
+                // لضمان تحديث بيانات جميع المرضى دفعة واحدة عند فتح الصيدلي للقائمة.
+
 
                 $unit = $this->getDrugUnit($drug);
 
@@ -847,6 +827,59 @@ class PatientPharmacistController extends BaseApiController
     /**
      * تحديد وحدة القياس بناءً على نوع الدواء (منسوخ من منطق الطبيب ليتوافق مع الواجهة).
      */
+    /**
+     * تجديد الحصص الشهرية لجميع المرضى في مستشفى معين الذين مر على آخر تحديث لهم 30 يوماً.
+     */
+    private function renewPatientQuotas($hospitalId)
+    {
+        try {
+            // جلب جميع الوصفات النشطة في المستشفى مع الأدوية المرتبطة بها
+            $activePrescriptions = Prescription::where('hospital_id', $hospitalId)
+                ->where('status', 'active')
+                ->with('drugs')
+                ->get();
+
+            $now = Carbon::now();
+            $updatedCount = 0;
+
+            foreach ($activePrescriptions as $prescription) {
+                foreach ($prescription->drugs as $drug) {
+                    $pivot = $drug->pivot;
+                    $dailyQty = (float)($pivot->daily_quantity ?? 0);
+                    $expectedMonthlyQty = $dailyQty * 30;
+
+                    if ($pivot->updated_at && $expectedMonthlyQty > 0) {
+                        $daysSinceLastUpdate = $now->diffInDays($pivot->updated_at);
+
+                        if ($daysSinceLastUpdate >= 30) {
+                            try {
+                                PrescriptionDrugObserver::$skipLogging = true;
+                                
+                                // إضافة الحصة الجديدة
+                                $newTotal = (int)$pivot->monthly_quantity + $expectedMonthlyQty;
+                                
+                                // ✅ الحد الأقصى للتراكم هو 3 أشهر (3 * الحصة الشهرية)
+                                $maxQuota = $expectedMonthlyQty * 3;
+                                
+                                $pivot->monthly_quantity = min($newTotal, $maxQuota);
+                                $pivot->save();
+                                $updatedCount++;
+                            } finally {
+                                PrescriptionDrugObserver::$skipLogging = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($updatedCount > 0) {
+                \Log::info("Auto-refill triggered for {$updatedCount} items in hospital {$hospitalId}.");
+            }
+        } catch (\Exception $e) {
+            \Log::error("Failed to renew patient quotas: " . $e->getMessage());
+        }
+    }
+
     private function getDrugUnit($drug)
     {
         // أولاً: استخدام وحدة القياس المباشرة من جدول الدواء

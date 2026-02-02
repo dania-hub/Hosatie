@@ -65,11 +65,10 @@ class Inventory extends Model
 
         // تحويل تاريخ انتهاء الصلاحية إلى تاريخ فقط (Y-m-d) بدون وقت
         $expiryDate = Carbon::parse($this->expiry_date)->format('Y-m-d');
-        // استخدام التاريخ الحالي فقط (Y-m-d) بدون وقت لتجنب مشاكل المنطقة الزمنية
+       
         $today = Carbon::now()->format('Y-m-d');
         
-        // الدواء منتهي الصلاحية إذا كان تاريخ انتهاء الصلاحية قبل اليوم
-        // (إذا كان يساوي اليوم فهو لا يزال صالحاً حتى نهاية اليوم)
+   
         return $expiryDate < $today;
     }
 

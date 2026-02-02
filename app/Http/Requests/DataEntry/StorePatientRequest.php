@@ -10,17 +10,17 @@ class StorePatientRequest extends FormRequest
     {
         return true;
     }
-
+//التحقق من رقم الهاتف و الرقم الوطني و الاسم الرباعي و تاريخ الميلاد 
     public function rules()
     {
         return [
             'full_name'   => 'required|string|min:3|max:255',
             'national_id' => 'required|digits:12|unique:users,national_id',
             'birth_date'  => 'required|date|before:today',
-            // هاتف: 002189 أو 09 أو +2189 ثم رقم من 1 إلى 6 ثم 7 أرقام
+            // هاتف:   09 و +2189 ثم رقم من 1 إلى 4 ثم 7 أرقام
             'phone'       => [
                  'required',
-                'regex:/^(002189|09|\+2189)[1-6]\d{7}$/',
+                'regex:/^(002189|09|\+2189)[1-4]\d{7}$/',
                 'unique:users,phone',
             ],
             'email'       => 'nullable|email|unique:users,email',

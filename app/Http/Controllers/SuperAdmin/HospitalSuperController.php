@@ -467,7 +467,7 @@ class HospitalSuperController extends BaseApiController
     }
 
     /**
-     * FR-88: تعطيل مؤسسة صحية (مع المعالج التفاعلي)
+     * FR-88: تعطيل مؤسسة صحية 
      * PATCH /api/super-admin/hospitals/{id}/deactivate
      */
     public function deactivate(Request $request, $id)

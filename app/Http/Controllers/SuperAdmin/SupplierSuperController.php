@@ -339,10 +339,7 @@ class SupplierSuperController extends BaseApiController
         }
     }
 
-    /**
-     * تعطيل مورد
-     * PATCH /api/super-admin/suppliers/{id}/deactivate
-     */
+    
     /**
      * التحقق المسبق قبل إيقاف تفعيل مورد
      * GET /api/super-admin/suppliers/{id}/deactivation-data

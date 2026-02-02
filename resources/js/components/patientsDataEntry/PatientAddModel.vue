@@ -51,7 +51,7 @@ const maxDate = computed(() => {
     today.setDate(today.getDate() - 1); // Set to yesterday
     return today.toISOString().split('T')[0];
 });
-
+//التحقق الفوري من الرقم الوطني و رقم الهاتف و البريد الالكتروني
 const checkFieldUniqueness = async (field) => {
     const value = form.value[field];
     
@@ -85,7 +85,6 @@ const checkFieldUniqueness = async (field) => {
 };
 
 const checkUniqueness = async () => {
-    // ترك الدالة القديمة فارغة أو إزالتها إذا لزم الأمر، لكننا سنعتمد على checkFieldUniqueness
 };
 
 // حالة نافذة التأكيد
@@ -144,7 +143,7 @@ const validatePhoneInput = () => {
 
     checkFieldUniqueness('phone');
 };
-
+//التحقق من الاسم رباعي عن طريق المسافات
 const validateNameInput = () => {
     const nameValue = form.value.name.trim();
     const spaceCount = (nameValue.match(/\s+/g) || []).length;
